@@ -1,0 +1,21 @@
+{
+  "model": "sonnet",
+  "theme": "dark",
+  "verbose": true,
+  "permissionMode": "acceptEdits",
+  "allowedTools": [
+    "Bash",
+    "Edit",
+    "Read",
+    "Search",
+    "Create",
+    "Delete",
+    "Move",
+    "Copy"
+  ],
+  "addDir": [
+    "./backend",
+    "./frontend"
+  ],
+  "appendSystemPrompt": "Você está trabalhando em um projeto de sistema web para Alencar Frutas com backend NestJS e frontend React. Sempre responda em português brasileiro e siga as melhores práticas de desenvolvimento. Use tecnologias que facilitem o desenvolvimento, crie código reutilizável e escalável, e sempre explique o que foi implementado."
+}

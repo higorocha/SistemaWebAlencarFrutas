@@ -1,0 +1,104 @@
+/* Estilos personalizados para notificações WhatsApp */
+.whatsapp-notification {
+  border-radius: 16px !important;
+  border: 2px solid #25D366 !important;
+  background: linear-gradient(135deg, #f0f9f0 0%, #e8f5e8 100%) !important;
+  box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3) !important;
+  animation: whatsappSlideIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+.whatsapp-notification::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #25D366, #128C7E, #25D366);
+  background-size: 200% 100%;
+  animation: whatsappShimmer 2s ease-in-out infinite;
+}
+
+.whatsapp-notification .ant-notification-notice-content {
+  background: transparent !important;
+  padding: 16px !important;
+}
+
+.whatsapp-notification .ant-notification-notice-icon {
+  margin-top: 4px !important;
+  margin-right: 12px !important;
+}
+
+.whatsapp-notification .ant-notification-notice-message {
+  color: #1e7e34 !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  margin-bottom: 4px !important;
+}
+
+.whatsapp-notification .ant-notification-notice-description {
+  color: #495057 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+}
+
+.whatsapp-notification .ant-notification-notice-close {
+  color: #25D366 !important;
+  opacity: 0.8 !important;
+  font-size: 16px !important;
+  top: 12px !important;
+  right: 12px !important;
+  transition: all 0.3s ease !important;
+}
+
+.whatsapp-notification .ant-notification-notice-close:hover {
+  opacity: 1 !important;
+  color: #128C7E !important;
+  transform: scale(1.1) !important;
+}
+
+@keyframes whatsappSlideIn {
+  0% {
+    transform: translateX(100%) scale(0.8);
+    opacity: 0;
+  }
+  60% {
+    transform: translateX(-8px) scale(1.02);
+    opacity: 0.9;
+  }
+  80% {
+    transform: translateX(4px) scale(0.98);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes whatsappShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Hover effect para toda a notificação */
+.whatsapp-notification:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 12px 30px rgba(37, 211, 102, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+/* Remover animações antigas que não são mais necessárias */
+@keyframes whatsappBounce {
+  /* Removido - substituído por whatsappSlideIn */
+}
+
+@keyframes whatsappPulse {
+  /* Removido - substituído por whatsappShimmer */
+} 

@@ -1,0 +1,56 @@
+/* src/styles/globalNotifications.css */
+
+.custom-notification {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    padding: 16px;
+    animation: slideDown 0.3s ease-out;
+  }
+  
+  .ant-notification {
+    top: 50px !important;
+    left: 50% !important;
+    transform: translateX(-50%);
+  }
+  
+  .ant-notification-notice {
+    padding: 16px;
+    border-radius: 8px;
+    width: 400px !important;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .ant-notification-notice-message {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  
+  .ant-notification-notice-description {
+    font-size: 14px;
+  }
+  
+  .ant-notification-notice-with-icon .ant-notification-notice-message,
+  .ant-notification-notice-with-icon .ant-notification-notice-description {
+    margin-left: 48px;
+  }
+  
+  .ant-notification-notice-icon {
+    font-size: 24px;
+    left: 24px;
+    top: 20px;
+    position: absolute;
+  }
+  
+  @keyframes slideDown {
+    0% {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  

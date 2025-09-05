@@ -1,0 +1,516 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id           Int          @id @default(autoincrement())
+  nome         String
+  cpf          String       @unique
+  email        String       @unique
+  nivel        NivelUsuario @default(USUARIO)
+  senha        String
+  dataCadastro DateTime     @default(now())
+  ultimoAcesso DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relação com Notificacao
+  notificacoes Notificacao[]
+
+  @@map("usuarios")
+}
+
+model ConfigDadosEmpresa {
+  id            Int      @id @default(autoincrement())
+  razao_social  String
+  nome_fantasia String
+  cnpj          String   @unique
+  telefone      String
+  logradouro    String
+  cep           String
+  bairro        String
+  cidade        String
+  estado        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  proprietario  String?
+
+  @@map("config_dados_empresa")
+}
+
+// Conta corrente da empresa
+model ContaCorrente {
+  id                    Int      @id @default(autoincrement())
+  bancoCodigo           String   // Código do banco (ex: 001)
+  agencia               String   // Número da agência
+  agenciaDigito         String   // Dígito da agência
+  contaCorrente         String   // Número da conta corrente
+  contaCorrenteDigito   String   // Dígito da conta corrente
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relações
+  credenciaisAPI        CredenciaisAPI[]
+  conveniosCobranca     ConvenioCobranca[]
+
+  @@unique([bancoCodigo, agencia, contaCorrente])
+  @@map("conta_corrente")
+}
+
+// Credenciais para APIs bancárias
+model CredenciaisAPI {
+  id                Int      @id @default(autoincrement())
+  banco             String   // Código do banco
+  contaCorrenteId   Int      // Relação com conta corrente
+  modalidadeApi     String   // Modalidade da API
+  developerAppKey   String   // Developer Application Key
+  clienteId         String   // Cliente ID
+  clienteSecret     String   // Cliente Secret
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relação com ContaCorrente
+  contaCorrente ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+
+  @@unique([banco, contaCorrenteId, modalidadeApi])
+  @@map("credenciais_api")
+}
+
+// Convênio de cobrança - registro único no sistema
+model ConvenioCobranca {
+  id                        Int      @id @default(autoincrement())
+  contaCorrenteId          Int      // Relação com conta corrente
+  juros                    Float    // Percentual de juros ao mês
+  diasAberto               Int      // Quantidade de dias em aberto
+  multaAtiva               Boolean  // Se a multa está ativa
+  layoutBoletoFundoBranco  Boolean  // Se o layout do boleto tem fundo branco
+  valorMulta               Float?   // Valor da multa em percentual (opcional)
+  carenciaMulta            Int?     // Carência da multa em dias (opcional)
+  convenio                 String   // Número do convênio bancário
+  carteira                 String   // Carteira bancária
+  variacao                 String   // Variação da carteira
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  // Relação com ContaCorrente
+  contaCorrente ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+
+  @@map("convenio_cobranca")
+}
+
+// Configurações de Email
+model ConfigEmail {
+  id                    Int      @id @default(autoincrement())
+  servidorSMTP          String   // Servidor SMTP (ex: smtp.gmail.com)
+  porta                 Int      // Porta do servidor (ex: 587, 465)
+  emailEnvio            String   // Email que irá enviar as mensagens
+  nomeExibicao          String   // Nome que aparece no remetente
+  usuario               String   // Usuário para autenticação
+  senha                 String   // Senha para autenticação
+  metodoAutenticacao    String   // LOGIN, PLAIN, CRAM-MD5
+  timeoutConexao        Int      // Timeout da conexão em segundos
+  usarSSL               Boolean  // Se deve usar SSL/TLS
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([servidorSMTP, porta, emailEnvio]) // Garante unicidade da configuração
+  @@map("config_emails")
+}
+
+// Configurações de WhatsApp
+model ConfigWhatsApp {
+  id                      Int      @id @default(autoincrement())
+  phoneNumberId           String   @map("phone_number_id") // ID do número de telefone no Facebook
+  accessToken             String   @map("access_token")    // Token de acesso da API
+  businessAccountId       String?  @map("business_account_id") // ID da conta comercial (opcional)
+  verifyToken             String?  @map("verify_token")    // Token de verificação do webhook (opcional)
+  numeroTelefone          String   @map("numero_telefone") // Número de telefone formatado
+  nomeExibicao            String   @map("nome_exibicao")   // Nome que aparece no WhatsApp
+  ativo                   Boolean  @default(true)          // Se a configuração está ativa
+  webhookUrl              String?  @map("webhook_url")     // URL do webhook (opcional)
+  configuracoesAdicionais Json?    @map("configuracoes_adicionais") // JSON com configurações extras
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@unique([phoneNumberId, numeroTelefone]) // Garante unicidade da configuração
+  @@map("config_whatsapp")
+}
+
+enum NivelUsuario {
+  ADMINISTRADOR
+  USUARIO
+  CONVIDADO
+}
+
+enum TipoNotificacao {
+  SISTEMA
+  PIX
+  COBRANCA
+  FATURA
+  BOLETO
+  ALERTA
+}
+
+enum StatusNotificacao {
+  NAO_LIDA
+  LIDA
+  DESCARTADA
+}
+
+enum PrioridadeNotificacao {
+  BAIXA
+  MEDIA
+  ALTA
+}
+
+model Notificacao {
+  id              Int                    @id @default(autoincrement())
+  titulo          String                 @db.VarChar(100)
+  conteudo        String                 @db.Text
+  tipo            TipoNotificacao        @default(SISTEMA)
+  status          StatusNotificacao      @default(NAO_LIDA)
+  prioridade      PrioridadeNotificacao  @default(MEDIA)
+  usuarioId       Int?                   @map("usuario_id")
+  dadosAdicionais Json?                  @map("dados_adicionais")
+  link            String?                @db.VarChar(255)
+  expirarEm       DateTime?              @map("expirar_em")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  // Relação com Usuario
+  usuario         Usuario?               @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@map("notificacoes")
+}
+
+// Enums para Lotes Agrícolas
+enum CategoriaArea {
+  COLONO
+  TECNICO
+  EMPRESARIAL
+  ADJACENTE
+}
+
+enum PeriodicidadeCultura {
+  PERENE
+  TEMPORARIA
+}
+
+// Modelo de Culturas
+model Cultura {
+  id                Int                  @id @default(autoincrement())
+  descricao         String               @unique
+  periodicidade     PeriodicidadeCultura
+  permitirConsorcio Boolean              @default(false)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  // Relação com LotesCulturas
+  lotesCulturas     LotesCulturas[]
+
+  @@map("culturas")
+}
+
+// Modelo de Áreas Agrícolas
+model AreaAgricola {
+  id              Int              @id @default(autoincrement())
+  nome            String           @db.VarChar(100)
+  categoria       CategoriaArea    @default(COLONO)
+  areaTotal       Float            @map("area_total")
+  coordenadas     Json?            // Coordenadas geográficas no formato GeoJSON
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relações
+  lotesCulturas   LotesCulturas[]
+  frutasPedidos   FrutasPedidos[]  // NOVA: Relação com frutas dos pedidos
+
+  @@map("areas_agricolas")
+}
+
+// Tabela de relacionamento entre Áreas e Culturas
+model LotesCulturas {
+  id              Int           @id @default(autoincrement())
+  areaAgricolaId  Int           @map("area_agricola_id")
+  culturaId       Int           @map("cultura_id")
+  areaPlantada    Float         @map("area_plantada")
+  areaProduzindo  Float         @default(0) @map("area_produzindo")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relações
+  areaAgricola    AreaAgricola  @relation(fields: [areaAgricolaId], references: [id], onDelete: Cascade)
+  cultura         Cultura       @relation(fields: [culturaId], references: [id], onDelete: Cascade)
+
+  @@unique([areaAgricolaId, culturaId])
+  @@map("lotes_culturas")
+}
+
+// Enums para o módulo de frutas
+enum CategoriaFruta {
+  CITRICOS
+  TROPICAIS
+  TEMPERADAS
+  SECAS
+  EXOTICAS
+  VERMELHAS
+  VERDES
+}
+
+enum StatusFruta {
+  ATIVA
+  INATIVA
+}
+
+// Modelo ultra simplificado de Frutas
+model Fruta {
+  id                    Int              @id @default(autoincrement())
+  nome                  String           @db.VarChar(100)
+  
+  // Campos opcionais (nullable)
+  codigo                String?          @unique
+  categoria             CategoriaFruta?
+  descricao             String?          @db.Text
+  status                StatusFruta?     @default(ATIVA)
+  nomeCientifico        String?          @map("nome_cientifico")
+  corPredominante       String?          @map("cor_predominante")
+  epocaColheita         String?          @map("epoca_colheita")
+  observacoes           String?          @db.Text
+  
+  // Metadados
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+  
+  // Relações
+  frutasPedidos         FrutasPedidos[]  // Nova relação 1:N
+  
+  @@map("frutas")
+}
+
+enum StatusCliente {
+  ATIVO
+  INATIVO
+}
+
+enum ContaDestino {
+  ALENCAR
+  FRANCIALDA
+  GAVETA
+}
+
+enum StatusPedido {
+  PEDIDO_CRIADO
+  AGUARDANDO_COLHEITA
+  COLHEITA_REALIZADA
+  AGUARDANDO_PRECIFICACAO
+  PRECIFICACAO_REALIZADA
+  AGUARDANDO_PAGAMENTO
+  PAGAMENTO_PARCIAL
+  PAGAMENTO_REALIZADO
+  PEDIDO_FINALIZADO
+  CANCELADO
+}
+
+enum UnidadeMedida {
+  KG
+  TON
+  CX
+  UND
+}
+
+enum MetodoPagamento {
+  PIX
+  BOLETO
+  TRANSFERENCIA
+  DINHEIRO
+  CHEQUE
+}
+
+model Cliente {
+  id                Int      @id @default(autoincrement())
+  nome              String   @db.VarChar(100)
+  razaoSocial       String?  @db.VarChar(100)
+  cnpj              String?  @db.VarChar(18)
+  cpf               String?  @db.VarChar(14)
+  inscricaoEstadual String?  @db.VarChar(20)
+  inscricaoMunicipal String? @db.VarChar(20)
+  
+  // Endereço
+  cep               String?  @db.VarChar(9)
+  logradouro        String?  @db.VarChar(100)
+  numero            String?  @db.VarChar(10)
+  complemento       String?  @db.VarChar(50)
+  bairro            String?  @db.VarChar(50)
+  cidade            String?  @db.VarChar(50)
+  estado            String?  @db.VarChar(2)
+  
+  // Comunicação
+  telefone1         String?  @db.VarChar(15)
+  telefone2         String?  @db.VarChar(15)
+  email1            String?  @db.VarChar(100)
+  email2            String?  @db.VarChar(100)
+  
+  // Informações adicionais
+  observacoes       String?  @db.Text
+  status            StatusCliente @default(ATIVO)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relações
+  pedidos           Pedido[]
+
+  @@map("clientes")
+}
+
+// NOVA: Modelo de Fornecedores
+model Fornecedor {
+  id              Int              @id @default(autoincrement())
+  nome            String           @db.VarChar(100)
+  cnpj            String?          @unique
+  cpf             String?          @unique
+  telefone        String?
+  email           String?
+  endereco        String?
+  observacoes     String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relações
+  areas           AreaFornecedor[]
+  
+  @@map("fornecedores")
+}
+
+// NOVA: Modelo de Áreas dos Fornecedores
+model AreaFornecedor {
+  id              Int              @id @default(autoincrement())
+  fornecedorId    Int
+  nome            String           @db.VarChar(100)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relações
+  fornecedor      Fornecedor       @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  frutasPedidos   FrutasPedidos[]  // NOVA: Relação com frutas dos pedidos
+  
+  @@map("areas_fornecedores")
+}
+
+// Modelo de Pedidos
+model Pedido {
+  id                    Int              @id @default(autoincrement())
+  numeroPedido          String           @unique // Geração automática: PED-2024-0001
+  
+  // Relacionamentos
+  clienteId             Int
+  
+  // Dados do Pedido
+  dataPedido            DateTime         @default(now())
+  dataPrevistaColheita  DateTime
+  dataColheita          DateTime?
+  
+  // Colheita - REMOVIDO: fitaColheita movido para frutasPedidos
+  
+  // Financeiro (valores consolidados)
+  frete                 Float?           // Opcional
+  icms                  Float?           // Opcional
+  desconto              Float?           // Opcional
+  avaria                Float?           // Opcional (renomeado de abatimento)
+  valorFinal            Float?           // Calculado automaticamente
+  valorRecebido         Float?           // Valor recebido consolidado (soma dos pagamentos)
+  
+  // Frete (informações adicionais)
+  pesagem               String?          // Peso para controle (string para flexibilidade)
+  placaPrimaria         String?          // Placa do carro principal
+  placaSecundaria       String?          // Placa do carro secundário (reboque)
+  nomeMotorista         String?          // Nome do motorista
+  
+  // Status e Observações
+  status                StatusPedido     @default(PEDIDO_CRIADO)
+  observacoes           String?          @db.Text
+  observacoesColheita   String?          @db.Text
+  
+  // Metadados
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  // Relações
+  cliente               Cliente          @relation(fields: [clienteId], references: [id])
+  frutasPedidos         FrutasPedidos[]  // Relação 1:N com frutas
+  pagamentosPedidos     PagamentosPedidos[] // NOVA: Relação 1:N com pagamentos
+  
+  @@map("pedidos")
+}
+
+// Nova tabela para múltiplas frutas por pedido
+model FrutasPedidos {
+  id                    Int              @id @default(autoincrement())
+  pedidoId              Int              // Relação com o pedido
+  frutaId               Int              // Relação com a fruta
+  
+  // Área de origem (ou é própria ou é de terceiro)
+  areaPropriaId         Int?             // FK para areas (áreas próprias)
+  areaFornecedorId      Int?             // FK para areas_fornecedores (áreas de terceiros)
+  
+  // Quantidades
+  quantidadePrevista    Float
+  quantidadeReal        Float?
+  quantidadeReal2       Float?           // Segunda unidade
+  
+  // Colheita
+  fitaColheita          String?          // Cor da fita para identificação
+  
+  // Unidades de medida
+  unidadeMedida1        UnidadeMedida    // Obrigatória
+  unidadeMedida2        UnidadeMedida?   // Opcional
+  
+  // Precificação
+  valorUnitario         Float?
+  valorTotal            Float?
+  unidadePrecificada    UnidadeMedida?
+  
+  // Metadados
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  // Relações
+  pedido                Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  fruta                 Fruta            @relation(fields: [frutaId], references: [id])
+  areaPropria           AreaAgricola?    @relation(fields: [areaPropriaId], references: [id])
+  areaFornecedor        AreaFornecedor?  @relation(fields: [areaFornecedorId], references: [id])
+  
+  @@unique([pedidoId, frutaId]) // Evita duplicatas
+  @@map("frutas_pedidos")
+}
+
+// NOVA: Tabela para múltiplos pagamentos por pedido
+model PagamentosPedidos {
+  id                    Int              @id @default(autoincrement())
+  pedidoId              Int              // Relação com o pedido
+  
+  // Dados do Pagamento
+  dataPagamento         DateTime         // Data do pagamento
+  valorRecebido         Float            // Valor recebido neste pagamento
+  metodoPagamento       MetodoPagamento  // Método de pagamento
+  contaDestino          ContaDestino
+  observacoesPagamento  String?          @db.Text // Observações opcionais
+  
+  // Novos campos para cheques e referências
+  chequeCompensado      Boolean?         @default(false) // Se o cheque foi compensado
+  referenciaExterna     String?          @db.VarChar(100) // Referência externa (número do cheque, PIX, etc.)
+  
+  // Metadados
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  
+  // Relações
+  pedido                Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  
+  @@map("pagamentos_pedidos")
+}

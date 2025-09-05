@@ -1,0 +1,97 @@
+/* src/components/common/menus/ModernDropdownMenu.css */
+/* Estilos para o menu dropdown moderno */
+
+.modern-menu {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 200px;
+  max-width: 300px;
+  border: 1px solid #f0f0f0;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.menu-header {
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 12px;
+}
+
+.menu-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.menu-item-description {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 2px;
+}
+
+.menu-category {
+  padding: 4px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8c8c8c;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background-color: #fafafa;
+  margin: 4px 0;
+}
+
+.menu-item-hover:hover {
+  background-color: #f5f5f5;
+  transform: translateX(2px);
+}
+
+/* Estilos para dropdowns customizados */
+.custom-dropdown-menu .ant-dropdown-menu {
+  padding: 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.actions-dropdown-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* Animação de entrada */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Estados desabilitados */
+.menu-item-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.menu-item-disabled:hover {
+  background-color: transparent;
+  transform: none;
+}
+
+.text-disabled {
+  color: #d9d9d9 !important;
+} 

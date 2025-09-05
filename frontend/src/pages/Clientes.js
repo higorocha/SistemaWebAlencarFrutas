@@ -1,0 +1,231 @@
+// src/pages/Clientes.js
+
+import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
+import { Typography, Button, Space, Modal, Spin } from "antd";
+import {
+  OrderedListOutlined,
+  PartitionOutlined,
+  PlusCircleOutlined,
+} from "@ant-design/icons";
+import axiosInstance from "../api/axiosConfig";
+import { Pagination } from "antd";
+import { showNotification } from "../config/notificationConfig";
+import { Box } from "@mui/material";
+import LoadingFallback from "components/common/loaders/LoadingFallback";
+import { PrimaryButton } from "components/common/buttons";
+import { SearchInput } from "components/common/search";
+
+const ClientesTable = lazy(() => import("../components/clientes/ClientesTable"));
+const AddEditClienteDialog = lazy(() =>
+  import("../components/clientes/AddEditClienteDialog")
+);
+
+const Clientes = () => {
+  const [clientes, setClientes] = useState([]);
+  const [clientesFiltrados, setClientesFiltrados] = useState([]);
+  
+  // Estados para paginação controlada
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Estados da aplicação
+  const [loading, setLoading] = useState(false);
+  const [totalClientes, setTotalClientes] = useState(0);
+  
+  // Estados para busca
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState(""); // Novo estado para filtro de status
+
+  // Estados do modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [clienteEditando, setClienteEditando] = useState(null);
+
+  const { Title } = Typography;
+
+  // Função para buscar clientes da API com parâmetros
+  const fetchClientes = useCallback(async (page = 1, limit = 20, search = "", status = "") => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      
+      if (page) params.append('page', page.toString());
+      if (limit) params.append('limit', limit.toString());
+      if (search) params.append('search', search);
+      if (status) params.append('status', status);
+
+      const response = await axiosInstance.get(`/api/clientes?${params.toString()}`);
+      
+      setClientes(response.data.data || []);
+      setClientesFiltrados(response.data.data || []);
+      setTotalClientes(response.data.total || 0);
+      setCurrentPage(response.data.page || 1);
+      
+    } catch (error) {
+      console.error("Erro ao buscar clientes:", error);
+      showNotification("error", "Erro", "Erro ao carregar clientes");
+      setClientes([]);
+      setClientesFiltrados([]);
+      setTotalClientes(0);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // useEffect para carregar clientes na inicialização
+  useEffect(() => {
+    fetchClientes(currentPage, pageSize, searchTerm, statusFilter);
+  }, [fetchClientes, currentPage, pageSize, searchTerm, statusFilter]);
+
+  // Função para lidar com busca
+  const handleSearch = useCallback((value) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Reset para primeira página ao buscar
+  }, []);
+
+  // Função para lidar com mudança de filtro de status
+  const handleStatusFilter = useCallback((status) => {
+    setStatusFilter(status);
+    setCurrentPage(1); // Reset para primeira página ao filtrar
+  }, []);
+
+  // Função para lidar com mudança de página
+  const handlePageChange = useCallback((page, size) => {
+    setCurrentPage(page);
+    setPageSize(size);
+  }, []);
+
+  // Função para abrir modal de criação
+  const handleOpenCreateModal = useCallback(() => {
+    setClienteEditando(null);
+    setModalOpen(true);
+  }, []);
+
+  // Função para abrir modal de edição
+  const handleOpenEditModal = useCallback((cliente) => {
+    setClienteEditando(cliente);
+    setModalOpen(true);
+  }, []);
+
+  // Função para fechar modal
+  const handleCloseModal = useCallback(() => {
+    setModalOpen(false);
+    setClienteEditando(null);
+  }, []);
+
+  // Função para salvar cliente (criar ou editar)
+  const handleSaveCliente = useCallback(async (clienteData) => {
+    try {
+      setLoading(true);
+      
+      if (clienteEditando) {
+        // Editando cliente existente
+        await axiosInstance.patch(`/api/clientes/${clienteEditando.id}`, clienteData);
+        showNotification("success", "Sucesso", "Cliente atualizado com sucesso!");
+      } else {
+        // Criando novo cliente
+        await axiosInstance.post("/api/clientes", clienteData);
+        showNotification("success", "Sucesso", "Cliente criado com sucesso!");
+      }
+      
+      handleCloseModal();
+      // Recarregar lista de clientes
+      await fetchClientes(currentPage, pageSize, searchTerm, statusFilter);
+      
+    } catch (error) {
+      console.error("Erro ao salvar cliente:", error);
+      const message = error.response?.data?.message || "Erro ao salvar cliente";
+      showNotification("error", "Erro", message);
+    } finally {
+      setLoading(false);
+    }
+  }, [clienteEditando, fetchClientes, currentPage, pageSize, searchTerm, statusFilter, handleCloseModal]);
+
+  // Função para deletar cliente
+  const handleDeleteCliente = useCallback(async (clienteId) => {
+    try {
+      await axiosInstance.delete(`/api/clientes/${clienteId}`);
+      showNotification("success", "Sucesso", "Cliente removido com sucesso!");
+      
+      // Recarregar lista de clientes
+      await fetchClientes(currentPage, pageSize, searchTerm, statusFilter);
+      
+    } catch (error) {
+      console.error("Erro ao deletar cliente:", error);
+      const message = error.response?.data?.message || "Erro ao remover cliente";
+      showNotification("error", "Erro", message);
+    }
+  }, [fetchClientes, currentPage, pageSize, searchTerm, statusFilter]);
+
+  return (
+         <div style={{ padding: 16 }}>
+      {/* Título */}
+      <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
+        Gestão de Clientes
+      </Typography.Title>
+
+      {/* Botão */}
+      <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+        <PrimaryButton
+          onClick={handleOpenCreateModal}
+          icon={<PlusCircleOutlined />}
+        >
+          Novo Cliente
+        </PrimaryButton>
+      </div>
+
+      {/* Campo de Busca */}
+      <div style={{ marginBottom: "24px" }}>
+                 <SearchInput
+           placeholder="Buscar clientes por nome ou CPF/CNPJ..."
+           value={searchTerm}
+           onChange={(value) => setSearchTerm(value)}
+           style={{ marginTop: "8px" }}
+         />
+      </div>
+
+             {/* Tabela */}
+       <Suspense fallback={<LoadingFallback />}>
+         <ClientesTable
+           clientes={clientesFiltrados}
+           loading={loading}
+           onEdit={handleOpenEditModal}
+           onDelete={handleDeleteCliente}
+           onStatusFilter={handleStatusFilter}
+           currentStatusFilter={statusFilter}
+         />
+       </Suspense>
+
+       {/* Paginação */}
+       {totalClientes > 0 && (
+         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
+           <Pagination
+             current={currentPage}
+             pageSize={pageSize}
+             total={totalClientes}
+             onChange={handlePageChange}
+             onShowSizeChange={handlePageChange}
+             showSizeChanger
+             showQuickJumper
+             showTotal={(total, range) => 
+               `${range[0]}-${range[1]} de ${total} clientes`
+             }
+             pageSizeOptions={['10', '20', '50', '100']}
+           />
+         </div>
+       )}
+
+             {/* Modal de Criação/Edição */}
+       <Suspense fallback={<Spin size="large" />}>
+         <AddEditClienteDialog
+           open={modalOpen}
+           onClose={handleCloseModal}
+           onSave={handleSaveCliente}
+           cliente={clienteEditando}
+           loading={loading}
+         />
+       </Suspense>
+     </div>
+   );
+ };
+
+export default Clientes;

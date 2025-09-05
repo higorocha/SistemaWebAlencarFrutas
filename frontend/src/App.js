@@ -1,0 +1,75 @@
+// src/App.js
+import React from "react";
+import CustomScrollbar from "./CustomScrollbar.js";
+import "simplebar-react/dist/simplebar.min.css";
+import "antd/dist/reset.css";
+import ptBR from "antd/lib/locale/pt_BR";
+import { AuthProvider } from "./contexts/AuthContext";
+import PrivateRoute from './components/PrivateRoute';
+
+import { ConfigProvider } from "antd";
+import "./App.css";
+import "./global.css";
+import "./FormGlobal.css";
+import "./EditableTableForm.css";
+import "./components/common/buttons/ButtonStyles.css";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout";
+import Dashboard from "./pages/Dashboard";
+import Configuracoes from "./pages/Configuracoes";
+import AreasAgricolas from "./pages/AreasAgricolas";
+import Frutas from "./pages/Frutas";
+import Clientes from "./pages/Clientes";
+import Pedidos from "./pages/Pedidos";
+import Fornecedores from "./pages/FornecedoresPage";
+import Login from "./pages/Login";
+import { NotificacaoProvider } from './contexts/NotificacaoContext';
+import { useThemeVariables } from './hooks/useThemeVariables';
+
+const LoadingContext = React.createContext();
+
+const App = () => {
+  const [loading, setLoading] = React.useState(false);
+  
+  // Aplicar CSS Variables do tema
+  useThemeVariables();
+
+  return (
+    <ConfigProvider locale={ptBR}>
+      <AuthProvider>
+        <LoadingContext.Provider value={{ loading, setLoading }}>
+          <CustomScrollbar>
+            <Router>
+              <Routes>
+                {/* Rota pública */}
+                <Route path="/login" element={<Login />} />
+                
+                {/* Rotas protegidas */}
+                <Route path="/*" element={
+                  <PrivateRoute>
+                    <NotificacaoProvider>
+                    <Layout>
+                      <Routes>
+                        <Route path="/" element={<Dashboard />} />
+                        <Route path="/areas-agricolas" element={<AreasAgricolas />} />
+                        <Route path="/frutas" element={<Frutas />} />
+                        <Route path="/clientes" element={<Clientes />} />
+                        <Route path="/pedidos" element={<Pedidos />} />
+                        <Route path="/fornecedores" element={<Fornecedores />} />
+                        <Route path="/configuracoes" element={<Configuracoes />} />
+                      </Routes>
+                    </Layout>
+                    </NotificacaoProvider>
+                  </PrivateRoute>
+                } />
+              </Routes>
+            </Router>
+          </CustomScrollbar>
+          {loading && <div className="spinner">Loading...</div>}
+        </LoadingContext.Provider>
+      </AuthProvider>
+    </ConfigProvider>
+  );
+};
+
+export default App;

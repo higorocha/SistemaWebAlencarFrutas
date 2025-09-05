@@ -1,0 +1,66 @@
+/* Reset específico para o form de login */
+.login-form .ant-input, 
+.login-form .ant-input-affix-wrapper,
+.login-form .ant-select .ant-select-selector, 
+.login-form .ant-picker {
+  margin-bottom: 0 !important;  /* Sobrescreve a margem do FormGlobal */
+}
+
+/* Wrapper do input */
+.login-form .ant-input-affix-wrapper {
+  height: 50px !important;
+  border-radius: 8px !important;
+  border: 1px solid #d9d9d9 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  background-color: #fff !important;
+  padding: 0 11px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Input dentro do wrapper */
+.login-form .ant-input,
+.login-form .ant-input-password input {
+  height: 48px !important;
+  line-height: 48px !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 16px !important;
+}
+
+/* Ícones */
+.login-form .ant-input-prefix {
+  height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  margin-right: 12px !important;
+}
+
+.login-form .ant-input-password-icon {
+  height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  margin: 0 !important;
+  color: rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Form Item */
+.login-form .ant-form-item {
+  margin-bottom: 24px !important;
+}
+
+.login-form .ant-form-item-explain-error {
+  margin-top: 4px !important;
+  font-size: 12px !important;
+}
+
+/* Estados hover e focus */
+.login-form .ant-input-affix-wrapper:hover {
+  border-color: #40a9ff !important;
+}
+
+.login-form .ant-input-affix-wrapper-focused {
+  border-color: #1890ff !important;
+  box-shadow: none !important;
+}

@@ -1,0 +1,136 @@
+/* Estilização do scrollbar para Webkit (Chrome, Safari, newer versions of Opera) */
+::-webkit-scrollbar {
+    width: 8px;  /* largura do scrollbar vertical */
+    height: 8px; /* altura do scrollbar horizontal */
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1; /* cor de fundo da trilha */
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #888; /* cor do "polegar" do scrollbar */
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555; /* cor do "polegar" ao passar o mouse */
+  }
+  
+  /* Estilização do scrollbar para Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+  }
+  
+  /* Estilização para IE e Edge */
+  * {
+    -ms-overflow-style: -ms-autohiding-scrollbar;
+  }
+  
+  /* Estilização para elementos com scroll */
+  .scroll-container {
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+  }
+  
+  .scroll-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scroll-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  
+  .scroll-container::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 4px;
+  }
+  
+  .scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+
+  /* Estilos para scrollbars em componentes Ant Design */
+.ant-select-dropdown-menu::-webkit-scrollbar,
+.ant-table-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ant-select-dropdown-menu::-webkit-scrollbar-thumb,
+.ant-table-body::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 4px;
+}
+
+.ant-select-dropdown-menu::-webkit-scrollbar-track,
+.ant-table-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+/* FIM*/
+  
+  
+/*personalização das tabelas*/
+/* Estilizando o cabeçalho da tabela */
+.my-custom-table .ant-table-thead > tr > th {
+    background-color: #33c05ff0 !important; /* Cinza mais escuro */
+    color: #ffffff !important; /* Texto branco */
+    font-weight: bold !important;
+    transition: background-color 0.3s ease; /* Transição suave */
+  }
+  
+  /* Efeito de hover nas colunas do cabeçalho */
+  .my-custom-table .ant-table-thead > tr > th:hover {
+    background-color: #68d089 !important; /* Cinza mais claro no hover */
+  }
+  
+  /* Efeito de hover nas linhas da tabela */
+  .my-custom-table .ant-table-tbody > tr:hover > td {
+    background-color: #a79e9e !important; /* Fundo ao passar o mouse */
+  }
+  
+  /* Estilizando os botões dentro das ações 
+  .my-custom-table .ant-table-tbody > tr > td .ant-btn-primary {
+    background-color: #1890ff !important; 
+    border-color: #1890ff !important;
+  }*/
+  
+  .my-custom-table .ant-table-tbody > tr > td .ant-btn-danger {
+    background-color: #ff4d4f !important; /* Vermelho padrão AntD */
+    border-color: #ff4d4f !important;
+  }
+  
+  /* Opcional: Ajustando o ícone de sorter para melhor visibilidade */
+  .my-custom-table .ant-table-column-sorter-inner {
+    color: #ffffff !important; /* Ícones brancos */
+  }
+  
+  /* Estilos para linhas ímpares */
+  .my-custom-table .ant-table-tbody > tr.odd-row > td {
+    background-color: #e6e0e0  !important; /* Cor de fundo para linhas ímpares */
+  }
+  
+  /* Estilos para linhas pares */
+  .my-custom-table .ant-table-tbody > tr.even-row > td {
+    background-color: #f9f9f9 !important; /* Cor de fundo para linhas pares */
+  }
+  
+  /*ajustando altura das linhas*/
+  .ant-table-tbody > tr > td {
+    height: 50px !important; /* Ajuste este valor conforme necessário */
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+  }
+
+  .substitle-graficos {
+    color: #a79e9e;
+    margin-top: "0px";
+    font-size: "14px";
+  }
+
+  

@@ -1,0 +1,171 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsNumber, IsString, IsDateString, IsEnum, IsArray, ValidateNested, IsPositive } from 'class-validator';
+import { Type } from 'class-transformer';
+
+// Definindo os tipos dos enums
+type StatusPedido = 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'AGUARDANDO_PRECIFICACAO' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
+type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
+
+// DTO para atualizar fruta do pedido
+export class UpdateFrutaPedidoDto {
+  @ApiPropertyOptional({ description: 'ID da fruta do pedido' })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID da fruta do pedido deve ser um número' })
+  frutaPedidoId?: number;
+
+  @ApiPropertyOptional({ description: 'ID da fruta' })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID da fruta deve ser um número' })
+  frutaId?: number;
+
+  @ApiPropertyOptional({ description: 'ID da área própria (deixe null se for área de terceiro)' })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID da área própria deve ser um número' })
+  @IsPositive({ message: 'ID da área própria deve ser positivo' })
+  areaPropriaId?: number;
+
+  @ApiPropertyOptional({ description: 'ID da área de fornecedor (deixe null se for área própria)' })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID da área de fornecedor deve ser um número' })
+  @IsPositive({ message: 'ID da área de fornecedor deve ser positivo' })
+  areaFornecedorId?: number;
+
+  @ApiPropertyOptional({ description: 'Quantidade prevista' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Quantidade prevista deve ser um número' })
+  @IsPositive({ message: 'Quantidade prevista deve ser positiva' })
+  quantidadePrevista?: number;
+
+  @ApiPropertyOptional({ description: 'Quantidade real' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Quantidade real deve ser um número' })
+  @IsPositive({ message: 'Quantidade real deve ser positiva' })
+  quantidadeReal?: number;
+
+  @ApiPropertyOptional({ description: 'Quantidade real 2' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Quantidade real 2 deve ser um número' })
+  @IsPositive({ message: 'Quantidade real 2 deve ser positiva' })
+  quantidadeReal2?: number;
+
+  @ApiPropertyOptional({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND'] })
+  @IsOptional()
+  @IsEnum(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade de medida 1 deve ser KG, TON, CX ou UND' })
+  unidadeMedida1?: UnidadeMedida;
+
+  @ApiPropertyOptional({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND'] })
+  @IsOptional()
+  @IsEnum(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade de medida 2 deve ser KG, TON, CX ou UND' })
+  unidadeMedida2?: UnidadeMedida;
+
+  @ApiPropertyOptional({ description: 'Valor unitário' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Valor unitário deve ser um número' })
+  @IsPositive({ message: 'Valor unitário deve ser positivo' })
+  valorUnitario?: number;
+
+  @ApiPropertyOptional({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND'] })
+  @IsOptional()
+  @IsEnum(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade precificada deve ser KG, TON, CX ou UND' })
+  unidadePrecificada?: UnidadeMedida;
+
+  @ApiPropertyOptional({ description: 'Valor total da fruta (quantidade * valor unitário)' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Valor total deve ser um número' })
+  valorTotal?: number;
+
+  @ApiPropertyOptional({ description: 'Cor da fita para identificação' })
+  @IsOptional()
+  @IsString({ message: 'Fita de colheita deve ser uma string' })
+  fitaColheita?: string;
+}
+
+// DTO principal para atualização completa do pedido
+export class UpdatePedidoCompletoDto {
+  @ApiPropertyOptional({ description: 'ID do cliente' })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID do cliente deve ser um número' })
+  clienteId?: number;
+
+  @ApiPropertyOptional({ description: 'Data prevista para colheita' })
+  @IsOptional()
+  @IsDateString({}, { message: 'Data prevista para colheita deve ser uma data válida' })
+  dataPrevistaColheita?: string;
+
+  @ApiPropertyOptional({ description: 'Data da colheita' })
+  @IsOptional()
+  @IsDateString({}, { message: 'Data da colheita deve ser uma data válida' })
+  dataColheita?: string;
+
+  // REMOVIDO: fitaColheita movido para frutasPedidos
+
+  @ApiPropertyOptional({ description: 'Observações' })
+  @IsOptional()
+  @IsString({ message: 'Observações deve ser uma string' })
+  observacoes?: string;
+
+  @ApiPropertyOptional({ description: 'Observações da colheita' })
+  @IsOptional()
+  @IsString({ message: 'Observações da colheita deve ser uma string' })
+  observacoesColheita?: string;
+
+  @ApiPropertyOptional({ description: 'Frete' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Frete deve ser um número' })
+  frete?: number;
+
+  @ApiPropertyOptional({ description: 'ICMS' })
+  @IsOptional()
+  @IsNumber({}, { message: 'ICMS deve ser um número' })
+  icms?: number;
+
+  @ApiPropertyOptional({ description: 'Desconto' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Desconto deve ser um número' })
+  desconto?: number;
+
+  @ApiPropertyOptional({ description: 'Avaria' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Avaria deve ser um número' })
+  avaria?: number;
+
+  @ApiPropertyOptional({ description: 'Valor recebido consolidado' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Valor recebido deve ser um número' })
+  valorRecebido?: number;
+
+  @ApiPropertyOptional({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO'] })
+  @IsOptional()
+  @IsEnum(['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO'], { message: 'Status deve ser válido' })
+  status?: StatusPedido;
+
+  @ApiPropertyOptional({ description: 'Frutas do pedido', type: [UpdateFrutaPedidoDto] })
+  @IsOptional()
+  @IsArray({ message: 'Frutas deve ser um array' })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateFrutaPedidoDto)
+  frutas?: UpdateFrutaPedidoDto[];
+
+  // NOVOS: Campos de frete
+  @ApiPropertyOptional({ description: 'Pesagem para controle' })
+  @IsOptional()
+  @IsString({ message: 'Pesagem deve ser uma string' })
+  pesagem?: string;
+
+  @ApiPropertyOptional({ description: 'Placa do carro principal' })
+  @IsOptional()
+  @IsString({ message: 'Placa primária deve ser uma string' })
+  placaPrimaria?: string;
+
+  @ApiPropertyOptional({ description: 'Placa do carro secundário (reboque)' })
+  @IsOptional()
+  @IsString({ message: 'Placa secundária deve ser uma string' })
+  placaSecundaria?: string;
+
+  @ApiPropertyOptional({ description: 'Nome do motorista' })
+  @IsOptional()
+  @IsString({ message: 'Nome do motorista deve ser uma string' })
+  nomeMotorista?: string;
+}
+
+

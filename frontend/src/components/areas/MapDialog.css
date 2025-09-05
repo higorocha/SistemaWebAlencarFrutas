@@ -1,0 +1,52 @@
+/* src/components/lotes/MapDialog.css */
+
+.map-container {
+    position: relative;
+    width: 100%;
+    height: 450px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  .map-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background-color: white;
+    padding: 5px;
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    z-index: 2;
+  }
+  
+  .area-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    margin-top: 16px;
+  }
+  
+  .area-input .ant-input-affix-wrapper {
+    border-color: #1890ff;
+  }
+  
+  .map-tooltip {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.65);
+    margin-bottom: 8px;
+  }
+  
+  /* Animação para destacar os pontos arrastáveis */
+  @keyframes pulsate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  
+  .draggable-point:hover {
+    animation: pulsate 1.5s infinite;
+  }

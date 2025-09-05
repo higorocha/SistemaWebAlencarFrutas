@@ -1,0 +1,45 @@
+import { NestFactory } from '@nestjs/core';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
+import { AppModule } from './app.module';
+import * as dotenv from 'dotenv';
+
+// Carregar variáveis de ambiente
+dotenv.config();
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  // Configurar validação global
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }));
+  
+  // Configurar CORS para permitir conexão com frontend
+  app.enableCors({
+    origin: ['http://localhost:3002'], // Frontend na porta 3002
+    credentials: true,
+  });
+  
+  // Configurar Swagger
+  const config = new DocumentBuilder()
+    .setTitle('AlencarFrutas API')
+    .setDescription('API do sistema de gestão AlencarFrutas')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+  
+  const port = process.env.PORT || 5002;
+  await app.listen(port);
+  
+  console.log(`🚀 Servidor NestJS rodando na porta ${port}`);
+  console.log(`📱 Frontend: http://localhost:3002`);
+  console.log(`🔧 Backend: http://localhost:${port}`);
+  console.log(`📚 Documentação: http://localhost:${port}/api`);
+}
+bootstrap();

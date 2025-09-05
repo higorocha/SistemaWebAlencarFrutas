@@ -1,0 +1,28 @@
+/* src/components/common/buttons/ButtonStyles.css */
+/* Estilos de hover simplificados para todos os botões reutilizáveis */
+
+/* Hover para PrimaryButton */
+.primary-button-hover:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+  transform: translateY(-1px);
+}
+
+/* Hover para SecondaryButton */
+.secondary-button-hover:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+  transform: translateY(-1px);
+}
+
+/* Hover para HeaderButton */
+.header-button-hover:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+  transform: translateY(-1px);
+}
+
+/* Garantir que os botões desabilitados não tenham hover */
+.primary-button-hover:disabled:hover,
+.secondary-button-hover:disabled:hover,
+.header-button-hover:disabled:hover {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  transform: none;
+} 

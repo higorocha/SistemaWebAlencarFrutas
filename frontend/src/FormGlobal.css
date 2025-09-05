@@ -1,0 +1,446 @@
+/* src/styles/FormGlobal.css */
+
+/* CSS Variables para tema - serão definidas pelo theme.js */
+:root {
+  /* Cores de Input - Padrão (serão sobrescritas pelo theme.js) */
+  --input-text-color: #065f46;
+  --input-placeholder-color: #059669;
+  --input-border-color: #d1fae5;
+  --input-focus-border-color: #059669;
+  --input-focus-shadow-color: rgba(5, 150, 105, 0.2);
+  --input-background-color: #ffffff;
+  --input-icon-color: #059669;
+  --input-error-color: #ff4d4f;
+  --input-error-hover-color: #ff7875;
+}
+  
+  /* Estilos base para todos os formulários */
+  .ant-form {
+      width: 100%;
+      max-width: 100%;
+      padding: 0 !important; /* Remove padding lateral extra */
+  }
+    
+  /* Estilos para Form Items - CONTROLA O ESPAÇAMENTO ENTRE OS CAMPOS */
+  .ant-form-item {
+      /* Mantemos o margin-bottom para controlar o espaçamento entre os Form.Items */
+      margin-bottom: 24px !important; 
+  }
+    
+  /* Remove margin-bottom do último item do formulário para evitar espaço extra no final */
+  .ant-form-item:last-child {
+      margin-bottom: 0 !important;
+  }
+    
+  /* Estilos para Labels */
+  .ant-form-item-label > label {
+      height: auto;
+      padding-top: 12px !important; /* Aumenta a distância do label para o input superior */
+      margin-bottom: 0px !important; /* Pequeno espaço entre o label e o seu input */
+  }
+    
+  /* Aplica box-sizing a todos os elementos para cálculo de tamanho consistente */
+  *, *::before, *::after {
+      box-sizing: border-box;
+  }
+    
+  /* Estilos base para inputs (text, number, password), selects e datepicker - TEMA VERDE */
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-select .ant-select-selector,
+  .ant-picker,
+  .ant-input-number { /* Adicionado .ant-input-number para padronização */
+      width: 100% !important;
+      height: 50px !important; 
+      border-radius: 8px !important;
+      border: 1px solid var(--input-border-color) !important; /* Usa CSS Variable */
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+      background-color: var(--input-background-color) !important; /* Usa CSS Variable */
+      font-size: 16px !important;
+      /* margin-bottom removido para separar aparência de layout */
+      color: var(--input-text-color) !important; /* Usa CSS Variable */
+  }
+  
+  /* Garante que o Select completo também não tenha margin-bottom */
+  .ant-select {
+      margin-bottom: 0 !important;
+  }
+  
+  /* REGRA GLOBAL: Força margin-bottom 0 em QUALQUER elemento direto dentro do Form.Item */
+  .ant-form-item-control-input > * {
+      margin-bottom: 0 !important;
+  }
+  
+  /* Regra específica para componentes customizados (styled-components) */
+  .ant-form-item-control-input > div {
+      margin-bottom: 0 !important;
+  }
+  
+  /* Padding para inputs normais, selects e pickers */
+  .ant-input,
+  .ant-select .ant-select-selector,
+  .ant-picker {
+      padding: 0 11px !important;
+  }
+  
+  /* O wrapper de inputs com ícones (prefix/suffix) */
+  .ant-input-affix-wrapper {
+      padding: 0 11px !important;
+      display: flex !important;
+      align-items: center !important;
+  }
+  
+  /* Ajuste para o input DENTRO de um wrapper com ícone (prefix/suffix) */
+  .ant-input-affix-wrapper > input.ant-input {
+      height: 100% !important; 
+      border: none !important;
+      box-shadow: none !important;
+      font-size: 16px !important;
+      background-color: transparent !important;
+      /* REMOVEMOS o 'padding: 0' e 'line-height' para que o AntD possa alinhar o texto corretamente ao lado do ícone */
+  }
+  
+  /* Ajuste específico para o InputNumber, que tem uma estrutura interna diferente */
+  .ant-input-number .ant-input-number-input-wrap input.ant-input-number-input {
+      height: 100% !important; 
+      padding: 0 !important; 
+      border: none !important;
+      box-shadow: none !important;
+      font-size: 16px !important;
+      line-height: 50px !important;
+      background-color: transparent !important;
+  }
+  
+  /* Estilos específicos para o InputNumber para alinhamento e consistência */
+  .ant-input-number {
+      display: flex !important;
+      align-items: center !important;
+      padding: 0 11px !important;
+  }
+  
+  .ant-input-number-input-wrap {
+      height: 100% !important;
+  }
+  
+  /* Estilos para estados de hover e focus - TEMA VERDE */
+  .ant-input:hover,
+  .ant-input-affix-wrapper:hover,
+  .ant-select:hover .ant-select-selector,
+  .ant-picker:hover,
+  .ant-input-number:hover { /* Adicionado .ant-input-number */
+      border-color: var(--input-focus-border-color) !important; /* Usa CSS Variable */
+  }
+    
+  .ant-input:focus,
+  .ant-input-focused,
+  .ant-input-affix-wrapper-focused,
+  .ant-select-focused .ant-select-selector,
+  .ant-picker-focused,
+  .ant-input-number-focused { /* Adicionado .ant-input-number-focused */
+      border-color: var(--input-focus-border-color) !important; /* Usa CSS Variable */
+      box-shadow: 0 0 0 2px var(--input-focus-shadow-color) !important; /* Usa CSS Variable */
+  }
+    
+  /* Estilos para placeholder - TEMA VERDE */
+  .ant-input::placeholder,
+  .ant-select-selection-placeholder,
+  .ant-picker-input > input::placeholder,
+  .ant-input-number-input::placeholder {
+      color: var(--input-placeholder-color) !important; /* Usa CSS Variable */
+  }
+    
+  /* Estilos para estados de erro */
+  .ant-form-item-has-error .ant-input,
+  .ant-form-item-has-error .ant-input-affix-wrapper,
+  .ant-form-item-has-error .ant-select .ant-select-selector,
+  .ant-form-item-has-error .ant-picker,
+  .ant-form-item-has-error .ant-input-number { /* Adicionado .ant-input-number */
+      border-color: var(--input-error-color) !important; /* Usa CSS Variable */
+  }
+    
+  .ant-form-item-has-error .ant-input:hover,
+  .ant-form-item-has-error .ant-input-affix-wrapper:hover,
+  .ant-form-item-has-error .ant-select:hover .ant-select-selector,
+  .ant-form-item-has-error .ant-picker:hover,
+  .ant-form-item-has-error .ant-input-number:hover { /* Adicionado .ant-input-number */
+      border-color: var(--input-error-hover-color) !important; /* Usa CSS Variable */
+  }
+    
+  /* Ajustes responsivos */
+  @media (max-width: 576px) {
+      .ant-form-item {
+          margin-bottom: 12px !important;
+      }
+  }
+    
+  /* Ajustes para dropdown do Select */
+  .ant-select-dropdown {
+      font-size: 16px;
+  }
+    
+  .ant-select-item {
+      padding: 8px 12px;
+  }
+    
+  .ant-select-item-option-selected {
+      background-color: #e6f7ff;
+  }
+    
+  /* CORREÇÃO DEFINITIVA: Padronização de validação para TODOS os elementos de form */
+  
+  /* REMOVE qualquer margin-bottom dos campos com erro - apenas o Form.Item controla espaçamento */
+  .ant-form-item-has-error .ant-input,
+  .ant-form-item-has-error .ant-input-affix-wrapper,
+  .ant-form-item-has-error .ant-picker,
+  .ant-form-item-has-error .ant-input-number {
+    margin-bottom: 0 !important; /* FORÇA margin-bottom 0 em todos os campos EXCETO select */
+  }
+  
+  /* CORREÇÃO ESPECÍFICA PARA SELECT: Adiciona pequeno espaçamento quando há erro */
+  .ant-form-item-has-error .ant-select {
+    margin-bottom: 10px !important; /* Pequeno espaçamento apenas para o select */
+  }
+  
+  /* Garante que seletores internos não tenham margin adicional */
+  .ant-form-item-has-error .ant-select .ant-select-selector {
+    margin-bottom: 0 !important;
+  }
+  
+  /* Controle de espaçamento apenas pelo container do Form.Item */
+  .ant-form-item-has-error .ant-form-item-control-input {
+    margin-bottom: 0 !important; /* Remove margin extra do container */
+  }
+  
+  /* Padronização da mensagem de erro */
+  .ant-form-item-explain-error {
+    font-size: 14px !important;
+    padding-left: 2px !important;
+    margin-top: 0 !important; /* Remove margin-top para evitar espaço duplo */
+    padding-top: 0 !important; /* Remove padding-top para evitar espaço duplo */
+    line-height: 1.4 !important; /* Controla altura da linha */
+  }
+  
+  /* Garante que a explicação de erro não adicione espaço extra */
+  .ant-form-item-explain {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+  
+  /* Ajustes para o sufixo e prefixo do Input */
+  .ant-input-affix-wrapper .ant-input-suffix,
+  .ant-input-affix-wrapper .ant-input-prefix {
+      position: relative !important; /* Mudado de absolute para relative para melhor fluxo */
+      margin: 0 !important;
+      display: flex !important;
+      align-items: center !important;
+  }
+  
+  .ant-input-prefix {
+      margin-right: 8px !important; /* Adiciona espaço entre o ícone e o texto */
+  }
+    
+  .ant-input-affix-wrapper .ant-input-suffix .anticon,
+  .ant-input-affix-wrapper .ant-input-prefix .anticon {
+      color: var(--input-icon-color) !important; /* Usa CSS Variable */
+  }
+  
+  /* Estilos para o Select para garantir altura e alinhamento consistentes */
+  .ant-select .ant-select-selector {
+      display: flex !important;
+      align-items: center !important;
+      height: 50px !important;
+  }
+  
+  .ant-select-single .ant-select-selector .ant-select-selection-item,
+  .ant-select-single .ant-select-selector .ant-select-selection-placeholder {
+      line-height: 50px !important; 
+      height: 50px !important;
+      display: flex !important;
+      align-items: center !important;
+      margin: 0 !important; 
+      padding: 0 !important;
+  }
+  
+  /* Para o input de busca dentro do Select com showSearch */
+  .ant-select-selection-search-input {
+      height: 50px !important;
+      padding: 0 !important;
+      font-size: 16px !important;
+  }
+  
+  /* REGRA DEFINITIVA PARA ESPAÇAMENTO CONSISTENTE DOS FORMULÁRIOS */
+  .ant-input-wrapper,
+  .ant-select,
+  .ant-picker {
+      margin-bottom: 12px !important;
+  }
+  
+  /* ==========================
+     ESTILOS GLOBAIS DE PAGINAÇÃO
+     Layout: igual Frutas
+     Select de quantidade: igual Áreas
+     ========================== */
+  .ant-table-pagination.ant-pagination,
+  .ant-pagination {
+    margin-top: 8px !important;
+    padding: 8px 0 !important;
+  }
+
+  /* Alinhamento vertical consistente dos controles */
+  .ant-pagination,
+  .ant-pagination * {
+    vertical-align: middle !important;
+  }
+
+  /* Estado disabled consistente em botões prev/next */
+  .ant-pagination-prev.ant-pagination-disabled .ant-pagination-item-link,
+  .ant-pagination-next.ant-pagination-disabled .ant-pagination-item-link {
+    color: #bfbfbf !important;
+    border-color: #f0f0f0 !important;
+    background: #f5f5f5 !important;
+    cursor: not-allowed !important;
+  }
+
+  .ant-pagination-prev .ant-pagination-item-link,
+  .ant-pagination-next .ant-pagination-item-link {
+    height: 32px !important;
+    line-height: 30px !important;
+    border-radius: 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Itens de página */
+  .ant-pagination-item {
+    min-width: 32px !important;
+    height: 32px !important;
+    line-height: 30px !important;
+    border-radius: 6px !important;
+    border: 1px solid #d9d9d9 !important;
+    background: #ffffff !important;
+    color: #333333 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .ant-pagination-item:hover {
+    border-color: #059669 !important;
+    color: #059669 !important;
+    background: #ffffff !important;
+  }
+
+  .ant-pagination-item-active {
+    border-color: #059669 !important;
+    color: #059669 !important;
+    background: #ffffff !important;
+    font-weight: 600 !important;
+  }
+
+  /* Botões anterior/próximo */
+  .ant-pagination-prev,
+  .ant-pagination-next {
+    min-width: 32px !important;
+    height: 32px !important;
+    line-height: 30px !important;
+    border-radius: 6px !important;
+    border: 1px solid #d9d9d9 !important;
+    background: #ffffff !important;
+    color: #666666 !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .ant-pagination-prev:hover,
+  .ant-pagination-next:hover {
+    border-color: #059669 !important;
+    color: #059669 !important;
+  }
+
+  /* Container de opções (tamanho, quick jumper) */
+  .ant-pagination-options {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    margin-left: 16px !important;
+  }
+
+  /* Select de tamanho da página (override do FormGlobal de 50px) */
+  .ant-pagination .ant-select {
+    min-width: 80px !important;
+  }
+
+  .ant-pagination .ant-select .ant-select-selector {
+    height: 32px !important;
+    border-radius: 6px !important;
+    border: 1px solid #d9d9d9 !important;
+    padding: 0 8px !important;
+    background: #ffffff !important;
+  }
+
+  .ant-pagination .ant-select-single .ant-select-selector .ant-select-selection-item,
+  .ant-pagination .ant-select-single .ant-select-selector .ant-select-selection-placeholder {
+    line-height: 30px !important;
+    height: 30px !important;
+    display: flex !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .ant-pagination .ant-select-selection-search-input {
+    height: 30px !important;
+    padding: 0 !important;
+  }
+
+  /* Quick jumper compacto */
+  .ant-pagination-options-quick-jumper {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    color: #666666 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+  }
+
+  .ant-pagination-options-quick-jumper input {
+    width: 45px !important;
+    height: 32px !important;
+    border: 1px solid #d9d9d9 !important;
+    border-radius: 6px !important;
+    text-align: center !important;
+    font-size: 14px !important;
+    background: #ffffff !important;
+    color: #333333 !important;
+  }
+
+  /* Responsivo */
+  @media (max-width: 768px) {
+    .ant-pagination {
+      flex-direction: column !important;
+      gap: 12px !important;
+    }
+
+    .ant-pagination-total-text {
+      order: -1 !important;
+      margin-right: 0 !important;
+    }
+
+    .ant-pagination-options {
+      margin-left: 0 !important;
+    }
+  }
+
+  /* Remove ícone de seta dos selects de paginação */
+  .ant-pagination .ant-select .ant-select-arrow {
+    display: none !important;
+  }
+
+  /* Cursor pointer para elementos clicáveis da paginação */
+  .ant-pagination-item,
+  .ant-pagination-prev,
+  .ant-pagination-next,
+  .ant-pagination .ant-select .ant-select-selector {
+    cursor: pointer !important;
+  }
+  

@@ -1,0 +1,221 @@
+/* EditableTableOverride.css (CSS Unificado) */
+
+/* =============================
+   1. Estilos gerais da Tabela
+============================= */
+.my-custom-table .ant-table-thead > tr > th {
+    background-color: #33c05ff0 !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    transition: background-color 0.3s ease;
+  }
+  
+  .my-custom-table .ant-table-thead > tr > th:hover {
+    background-color: #68d089 !important;
+  }
+  
+  .my-custom-table .ant-table-tbody > tr:hover > td {
+    background-color: #a79e9e !important;
+  }
+  
+  .my-custom-table .ant-table-tbody > tr.odd-row > td {
+    background-color: #e6e0e0 !important;
+  }
+  
+  .my-custom-table .ant-table-tbody > tr.even-row > td {
+    background-color: #f9f9f9 !important;
+  }
+  
+  /* Ajuste da altura das linhas da tabela (se desejar) */
+  .my-custom-table .ant-table-tbody > tr > td {
+    height: 50px !important; 
+    padding: 8px !important;
+  }
+  
+  /* Estilo para nova linha */
+  .new-row {
+    background-color: #f0f9ff !important;
+  }
+  
+  /* Quando a linha está vazia (não tem id) */
+  .empty-row td {
+    text-align: center !important;
+    color: rgba(0, 0, 0, 0.45);
+    background-color: #fff !important;
+  }
+  
+  .empty-row td[colspan="7"]::after {
+    content: "Não há dados cadastrados";
+    font-size: 14px;
+  }
+  
+  /* =============================
+     2. Campos em edição (Form.Item)
+  ============================= */
+  
+  /* Remove margin/padding do Form.Item para encaixar bem na célula */
+  .my-custom-table .editable-row .ant-form-item {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Ajusta altura do container interno do Form.Item */
+  .my-custom-table .editable-row .ant-form-item-control-input,
+  .my-custom-table .editable-row .ant-form-item-control-input-content {
+    display: flex;
+    align-items: center;
+    height: 32px !important; /* altura padrão dos campos */
+  }
+  
+  /* 
+     2.1. Campos: Input, Select, DatePicker etc. 
+     - altura 32px, borda arredondada, etc.
+  */
+  .my-custom-table .editable-row .ant-input,
+  .my-custom-table .editable-row .ant-select .ant-select-selector,
+  .my-custom-table .editable-row .ant-picker {
+    width: 100% !important;         /* ocupar toda a largura disponível dentro do td */
+    height: 32px !important;        /* altura padrão */
+    border-radius: 8px !important;  /* arredondamento */
+    margin-bottom: 0 !important;    
+    padding: 4px 11px !important;   /* espaço interno */
+    box-shadow: none !important;    /* remove sombras extras */
+    border: 1px solid #d9d9d9 !important;
+    background-color: #fff !important;
+    font-size: 14px !important;
+  }
+  
+  /* =============================
+     3. Ajustes específicos para SELECT
+  ============================= */
+  
+  /* 
+     a) Ajuste do contêiner principal do Select (single).
+     Isso afeta tanto showSearch quanto normal, garantindo que 
+     o conteúdo fique verticalmente centralizado.
+  */
+  .my-custom-table .editable-row .ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 11px !important; /* se quiser manter o padding horizontal */
+  }
+  
+  /* 
+     b) Alinhamento vertical do item selecionado e placeholder.
+     line-height e height precisam ser 32px para ficar centralizado.
+  */
+  .my-custom-table .editable-row .ant-select-single .ant-select-selector .ant-select-selection-item,
+  .my-custom-table .editable-row .ant-select-single .ant-select-selector .ant-select-selection-placeholder {
+    line-height: 32px !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Ajuste do dropdown do select (opcional) */
+  .my-custom-table .ant-select-dropdown {
+    font-size: 14px;
+  }
+  
+  /* =============================
+     4. Select com showSearch
+  ============================= */
+  
+  /* 
+     a) Forçar o container .ant-select-selector a ser flex, 
+        garantindo alinhamento vertical do input de busca
+  */
+  .my-custom-table .editable-row .ant-select-selector {
+    display: flex !important;
+    align-items: center !important;
+    /* Se já tiver height e padding, mantenha */
+  }
+  
+  /* 
+     b) Ajuste a div interna responsável pela busca
+        .ant-select-selection-search
+  */
+  .my-custom-table .editable-row .ant-select-selector .ant-select-selection-search {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+  }
+  
+  /* 
+     c) Ajuste do input real de busca 
+        (pode ter a classe .ant-input ou .ant-select-selection-search-input)
+  */
+  .my-custom-table .editable-row .ant-select-selector .ant-select-selection-search input {
+    height: 32px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* =============================
+     5. Ajustes específicos para DatePicker
+  ============================= */
+  .my-custom-table .editable-row .ant-picker {
+    display: flex !important;
+    align-items: center !important;
+  }
+  
+  /* Container de input do DatePicker */
+  .my-custom-table .editable-row .ant-picker-input {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+  }
+  
+  /* O input interno do DatePicker (texto de data) */
+  .my-custom-table .editable-row .ant-picker input {
+    padding: 0 !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  
+  /* =============================
+     6. Ajustes para Switch (se usar)
+  ============================= */
+  .my-custom-table .editable-row .ant-switch {
+    display: flex !important;
+    align-self: center !important;
+  }
+  
+  /* =============================
+     7. Hover e Focus (opcional)
+  ============================= */
+  .my-custom-table .editable-row .ant-input:hover,
+  .my-custom-table .editable-row .ant-select-selector:hover,
+  .my-custom-table .editable-row .ant-picker:hover {
+    border-color: #40a9ff !important;
+  }
+  
+
+  /*====================================*/
+  /* Estilos para os campos de formulário na tabela */
+
+  
+  /* Removendo margin-bottom do select search */
+  .editable-row .ant-select-show-search {
+    margin-bottom: 0 !important;
+  }
+  
+  /* Ajustando altura do select para combinar com inputs */
+  .editable-row .ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
+    height: 32px !important;
+    padding: 0 11px !important;
+  }
+  
+  /* Ajustando alinhamento vertical do texto no select */
+  .editable-row .ant-select-single .ant-select-selector .ant-select-selection-item,
+  .editable-row .ant-select-single .ant-select-selector .ant-select-selection-placeholder {
+    line-height: 30px !important;
+  }
+  
