@@ -9,15 +9,15 @@ async function main() {
   // Criar usuário administrador padrão
   const hashedPassword = await bcrypt.hash('123456', 10); // Senha padrão: 123456
 
-  const adminUser = await prisma.user.upsert({
+  const adminUser = await prisma.usuario.upsert({
     where: { email: 'admin@alencarfrutas.com.br' },
     update: {},
     create: {
       nome: 'Administrador',
+      cpf: '000.000.000-00',
       email: 'admin@alencarfrutas.com.br',
       senha: hashedPassword,
-      role: 'ADMIN',
-      status: 'ATIVO',
+      nivel: 'ADMINISTRADOR',
     },
   });
 
@@ -25,11 +25,11 @@ async function main() {
     id: adminUser.id,
     nome: adminUser.nome,
     email: adminUser.email,
-    role: adminUser.role,
+    nivel: adminUser.nivel,
   });
 
   console.log('\n📋 Credenciais de acesso:');
-  console.log('Email: admin@alencarfrutas.com');
+  console.log('Email: admin@alencarfrutas.com.br');
   console.log('Senha: 123456');
   console.log('\n⚠️  ALTERE A SENHA APÓS O PRIMEIRO LOGIN!');
 
