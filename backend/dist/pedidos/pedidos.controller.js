@@ -23,6 +23,9 @@ let PedidosController = class PedidosController {
     constructor(pedidosService) {
         this.pedidosService = pedidosService;
     }
+    getDashboardStats(paginaFinalizados, limitFinalizados) {
+        return this.pedidosService.getDashboardStats(paginaFinalizados ? parseInt(paginaFinalizados) : 1, limitFinalizados ? parseInt(limitFinalizados) : 10);
+    }
     create(createPedidoDto) {
         return this.pedidosService.create(createPedidoDto);
     }
@@ -72,6 +75,19 @@ let PedidosController = class PedidosController {
     }
 };
 exports.PedidosController = PedidosController;
+__decorate([
+    (0, common_1.Get)('dashboard'),
+    (0, swagger_1.ApiOperation)({ summary: 'Obter estatísticas da dashboard de pedidos' }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Estatísticas da dashboard obtidas com sucesso',
+    }),
+    __param(0, (0, common_1.Query)('paginaFinalizados')),
+    __param(1, (0, common_1.Query)('limitFinalizados')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "getDashboardStats", null);
 __decorate([
     (0, common_1.Post)(),
     (0, swagger_1.ApiOperation)({ summary: 'Criar um novo pedido' }),

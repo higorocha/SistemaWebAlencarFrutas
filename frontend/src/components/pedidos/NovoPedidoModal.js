@@ -93,6 +93,12 @@ const NovoPedidoModal = ({
           showNotification("error", "Erro", `Complete todos os campos obrigatórios da fruta ${i + 1}`);
           return;
         }
+        
+        // Validar se as unidades são diferentes
+        if (fruta.unidadeMedida2 && fruta.unidadeMedida1 === fruta.unidadeMedida2) {
+          showNotification("warning", "Aviso", `As unidades de medida da fruta ${i + 1} devem ser diferentes`);
+          return;
+        }
       }
 
       const formData = {

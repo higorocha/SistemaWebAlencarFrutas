@@ -32,6 +32,22 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class PedidosController {
   constructor(private readonly pedidosService: PedidosService) {}
 
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Obter estatísticas da dashboard de pedidos' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Estatísticas da dashboard obtidas com sucesso',
+  })
+  getDashboardStats(
+    @Query('paginaFinalizados') paginaFinalizados?: string,
+    @Query('limitFinalizados') limitFinalizados?: string,
+  ) {
+    return this.pedidosService.getDashboardStats(
+      paginaFinalizados ? parseInt(paginaFinalizados) : 1,
+      limitFinalizados ? parseInt(limitFinalizados) : 10
+    );
+  }
+
   @Post()
   @ApiOperation({ summary: 'Criar um novo pedido' })
   @ApiResponse({

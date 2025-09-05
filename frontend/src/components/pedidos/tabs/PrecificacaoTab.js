@@ -157,56 +157,6 @@ const PrecificacaoTab = ({
   };
 
   return (
-    <>
-      {/* CSS local para sobrescrever estilos do Ant Design */}
-      <style>
-        {`
-          /* Estilo para campos desabilitados customizados (sem segunda unidade) */
-          .custom-disabled-visual.ant-input-disabled {
-            background-color: #e8e8e8 !important;
-            color: rgba(0, 0, 0, 0.25) !important; 
-          }
-
-          /* Estilo global para campos desabilitados comuns */
-          .ant-input-disabled,
-          .ant-select-disabled .ant-select-selector {
-            background-color: #f8f9fa !important;
-            border-color: #f8bbb4 !important;
-            color: #6c757d !important;
-            cursor: not-allowed !important;
-            opacity: 0.8 !important;
-          }
-
-          /* Estilo para campos habilitados - hover verde sutil */
-          .ant-input:not(.ant-input-disabled):hover,
-          .ant-select:not(.ant-select-disabled) .ant-select-selector:hover {
-            border-color: #95d5b2 !important;
-            transition: border-color 0.2s ease !important;
-          }
-
-          /* Estilo para campos habilitados - focus verde */
-          .ant-input:not(.ant-input-disabled):focus,
-          .ant-select:not(.ant-select-disabled) .ant-select-focused .ant-select-selector {
-            border-color: #059669 !important;
-            box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
-          }
-
-          /* Melhorar contraste do placeholder em campos habilitados */
-          .ant-input:not(.ant-input-disabled)::placeholder {
-            color: #9ca3af !important;
-          }
-
-          /* Estilo para MaskedDecimalInput */
-          .ant-input-group .ant-input:not(.ant-input-disabled):hover {
-            border-color: #95d5b2 !important;
-          }
-
-          .ant-input-group .ant-input:not(.ant-input-disabled):focus {
-            border-color: #059669 !important;
-            box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
-          }
-        `}
-      </style>
     <div style={{ minHeight: "830px", position: "relative", paddingBottom: "80px" }}>
       {/* Frutas da Precificação */}
       <Card
@@ -287,8 +237,6 @@ const PrecificacaoTab = ({
                   value={frutas.find(f => f.id === fruta.frutaId)?.nome || ''}
                   style={{
                     borderRadius: "6px",
-                    borderColor: "#d9d9d9",
-                    backgroundColor: "#f5f5f5",
                   }}
                 />
               </Col>
@@ -300,8 +248,6 @@ const PrecificacaoTab = ({
                   value={`${fruta.quantidadeReal || '0'} ${fruta.unidadeMedida1 || ''}`.trim()}
                   style={{
                     borderRadius: "6px",
-                    borderColor: "#d9d9d9",
-                    backgroundColor: "#f5f5f5",
                   }}
                 />
               </Col>
@@ -314,8 +260,6 @@ const PrecificacaoTab = ({
                   className={!fruta.unidadeMedida2 ? 'custom-disabled-visual' : ''}
                   style={{
                     borderRadius: "6px",
-                    borderColor: "#d9d9d9",
-                    backgroundColor: "#f5f5f5",
                   }}
                 />
               </Col>
@@ -332,8 +276,6 @@ const PrecificacaoTab = ({
                   }
                   style={{
                     borderRadius: "6px",
-                    borderColor: "#d9d9d9",
-                    backgroundColor: "#f5f5f5",
                   }}
                 />
               </Col>
@@ -345,8 +287,6 @@ const PrecificacaoTab = ({
                   value={fruta.fitaColheita || '-'}
                   style={{
                     borderRadius: "6px",
-                    borderColor: "#d9d9d9",
-                    backgroundColor: "#f5f5f5",
                   }}
                 />
               </Col>
@@ -648,7 +588,6 @@ const PrecificacaoTab = ({
         </div>
       )}
     </div>
-    </>
   );
 };
 

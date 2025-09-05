@@ -205,36 +205,6 @@ const ColheitaModal = ({
   };
 
   return (
-    <>
-      {/* CSS local para sobrescrever estilos do Ant Design */}
-      <style>
-        {`
-          /* Estilo para campos desabilitados */
-          .custom-disabled-visual.ant-input-disabled {
-            background-color: #e8e8e8 !important;
-            color: rgba(0, 0, 0, 0.25) !important; 
-          }
-
-          /* Ocultar mensagens de erro */
-          .ant-form-item-has-error .ant-form-item-explain,
-          .ant-form-item-has-error .ant-form-item-split,
-          .ant-form-item-explain,
-          .ant-form-item-split {
-            display: none !important;
-          }
-
-          /* Estilo para o campo mascarado */
-          .ant-input {
-            border-radius: 6px;
-            border-color: #d9d9d9;
-          }
-
-          .ant-input:focus {
-            border-color: #059669;
-            box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
-          }
-        `}
-      </style>
       <Modal
       title={
         <span style={{ 
@@ -835,7 +805,6 @@ const ColheitaModal = ({
                  </div>
        </Form>
      </Modal>
-     </>
    );
  };
 

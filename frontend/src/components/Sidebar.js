@@ -76,6 +76,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
   const menuItems = [{ text: "Dashboard", icon: <Dashboard />, path: "/" }];
 
   const pedidosItems = [
+    { text: "Dashboard", icon: <BarChart />, path: "/pedidos/dashboard" },
     { text: "Pedidos", icon: <ReconciliationOutlined />, path: "/pedidos" },
   ];
 

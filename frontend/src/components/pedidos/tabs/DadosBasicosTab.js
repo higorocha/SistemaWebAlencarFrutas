@@ -84,10 +84,10 @@ const DadosBasicosTab = ({
   };
 
   const handleChange = (field, value) => {
-    // Para campos enum opcionais, converter string vazia para undefined
+    // Para campos enum opcionais, converter string vazia ou undefined para null
     let processedValue = value;
-    if (field === 'unidadeMedida2' && value === '') {
-      processedValue = undefined;
+    if (field === 'unidadeMedida2' && (value === '' || value === undefined)) {
+      processedValue = null;
     }
 
     setPedidoAtual(prev => ({
@@ -112,7 +112,7 @@ const DadosBasicosTab = ({
         frutaId: undefined,
         quantidadePrevista: undefined,
         unidadeMedida1: undefined,
-        unidadeMedida2: undefined,
+        unidadeMedida2: null,
         // Campos de colheita
         quantidadeReal: null,
         quantidadeReal2: null,
@@ -121,7 +121,7 @@ const DadosBasicosTab = ({
         fitaColheita: undefined,
         // Campos de precificação
         valorUnitario: 0,
-        unidadePrecificada: undefined,
+        unidadePrecificada: undefined, // Será definida automaticamente quando unidadeMedida1 for selecionada
         valorTotal: 0,
       }]
     }));
@@ -142,7 +142,35 @@ const DadosBasicosTab = ({
     setPedidoAtual(prev => {
       const novasFrutas = prev.frutas.map((fruta, i) => {
         if (i === index) {
-          return { ...fruta, [field]: value };
+          // Para campos enum opcionais, converter string vazia ou undefined para null
+          let processedValue = value;
+          if (field === 'unidadeMedida2' && (value === '' || value === undefined)) {
+            processedValue = null;
+          }
+          
+          const frutaAtualizada = { ...fruta, [field]: processedValue };
+          
+          // Ajustar unidadePrecificada quando há inconsistência
+          if (field === 'unidadeMedida1' || field === 'unidadeMedida2') {
+            const unidade1 = field === 'unidadeMedida1' ? processedValue : fruta.unidadeMedida1;
+            const unidade2 = field === 'unidadeMedida2' ? processedValue : fruta.unidadeMedida2;
+            const unidadePrecificadaAtual = fruta.unidadePrecificada;
+            
+            // Se a unidade precificada não coincide mais com nenhuma das unidades disponíveis
+            if (unidadePrecificadaAtual && 
+                unidadePrecificadaAtual !== unidade1 && 
+                unidadePrecificadaAtual !== unidade2) {
+              // Definir a unidade primária como padrão para precificação
+              frutaAtualizada.unidadePrecificada = unidade1;
+            }
+            
+            // Se não há unidade precificada definida, definir a primária como padrão
+            if (!frutaAtualizada.unidadePrecificada && unidade1) {
+              frutaAtualizada.unidadePrecificada = unidade1;
+            }
+          }
+          
+          return frutaAtualizada;
         }
         return fruta;
       });
@@ -438,7 +466,7 @@ const DadosBasicosTab = ({
                   <Form.Item>
                     <Select 
                       placeholder="Selecione a unidade (opcional)" 
-                      value={fruta.unidadeMedida2 || undefined}
+                      value={fruta.unidadeMedida2}
                       onChange={(value) => handleFrutaChange(index, 'unidadeMedida2', value)}
                       allowClear
                       style={{

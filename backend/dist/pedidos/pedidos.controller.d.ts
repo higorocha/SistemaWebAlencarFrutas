@@ -3,6 +3,7 @@ import { CreatePedidoDto, UpdatePedidoDto, UpdateColheitaDto, UpdatePrecificacao
 export declare class PedidosController {
     private readonly pedidosService;
     constructor(pedidosService: PedidosService);
+    getDashboardStats(paginaFinalizados?: string, limitFinalizados?: string): Promise<any>;
     create(createPedidoDto: CreatePedidoDto): Promise<PedidoResponseDto>;
     createPagamento(createPagamentoDto: CreatePagamentoDto): Promise<PagamentoPedidoResponseDto>;
     findPagamentosByPedido(id: string): Promise<PagamentoPedidoResponseDto[]>;

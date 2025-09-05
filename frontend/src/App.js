@@ -21,6 +21,7 @@ import AreasAgricolas from "./pages/AreasAgricolas";
 import Frutas from "./pages/Frutas";
 import Clientes from "./pages/Clientes";
 import Pedidos from "./pages/Pedidos";
+import PedidosDashboard from "./pages/PedidosDashboard";
 import Fornecedores from "./pages/FornecedoresPage";
 import Login from "./pages/Login";
 import { NotificacaoProvider } from './contexts/NotificacaoContext';
@@ -55,6 +56,7 @@ const App = () => {
                         <Route path="/frutas" element={<Frutas />} />
                         <Route path="/clientes" element={<Clientes />} />
                         <Route path="/pedidos" element={<Pedidos />} />
+                        <Route path="/pedidos/dashboard" element={<PedidosDashboard />} />
                         <Route path="/fornecedores" element={<Fornecedores />} />
                         <Route path="/configuracoes" element={<Configuracoes />} />
                       </Routes>

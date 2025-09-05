@@ -249,36 +249,6 @@ const PrecificacaoModal = ({
   };
 
   return (
-    <>
-      {/* CSS local para sobrescrever estilos do Ant Design */}
-      <style>
-        {`
-          /* Estilo para campos desabilitados */
-          .custom-disabled-visual.ant-input-disabled {
-            background-color: #e8e8e8 !important;
-            color: rgba(0, 0, 0, 0.25) !important; 
-          }
-
-          /* Ocultar mensagens de erro */
-          .ant-form-item-has-error .ant-form-item-explain,
-          .ant-form-item-has-error .ant-form-item-split,
-          .ant-form-item-explain,
-          .ant-form-item-split {
-            display: none !important;
-          }
-
-          /* Estilo para o campo mascarado */
-          .ant-input {
-            border-radius: 6px;
-            border-color: #d9d9d9;
-          }
-
-          .ant-input:focus {
-            border-color: #059669;
-            box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
-          }
-        `}
-      </style>
       <Modal
       title={
         <span style={{ 
@@ -461,8 +431,6 @@ const PrecificacaoModal = ({
                               value={fruta?.frutaNome || ''}
                               style={{
                                 borderRadius: "6px",
-                                borderColor: "#d9d9d9",
-                                backgroundColor: "#f5f5f5",
                               }}
                             />
                           </Form.Item>
@@ -470,34 +438,26 @@ const PrecificacaoModal = ({
 
                         {/* Quantidade Real */}
                         <Col xs={24} md={2}>
-                          <Form.Item>
-                            <Input
-                              disabled
-                              value={`${fruta?.quantidadeReal || '0'} ${fruta?.unidadeMedida1 || ''}`.trim()}
-                              style={{
-                                borderRadius: "6px",
-                                borderColor: "#d9d9d9",
-                                backgroundColor: "#f5f5f5",
-                              }}
-                            />
-                          </Form.Item>
+                          <Input
+                            disabled
+                            value={`${fruta?.quantidadeReal || '0'} ${fruta?.unidadeMedida1 || ''}`.trim()}
+                            style={{
+                              borderRadius: "6px",
+                            }}
+                          />
                         </Col>
 
-                                    {/* Quantidade Real 2 */}
-            <Col xs={24} md={2}>
-              <Form.Item>
-                <Input
-                  disabled
-                  value={fruta?.unidadeMedida2 ? `${fruta?.quantidadeReal2 || '0'} ${fruta?.unidadeMedida2}`.trim() : ''}
-                  style={{
-                    borderRadius: "6px",
-                    borderColor: "#d9d9d9",
-                    backgroundColor: "#f5f5f5",
-                  }}
-                  className={!fruta?.unidadeMedida2 ? 'custom-disabled-visual' : ''}
-                />
-              </Form.Item>
-            </Col>
+                        {/* Quantidade Real 2 */}
+                        <Col xs={24} md={2}>
+                          <Input
+                            disabled
+                            value={fruta?.unidadeMedida2 ? `${fruta?.quantidadeReal2 || '0'} ${fruta?.unidadeMedida2}`.trim() : ''}
+                            style={{
+                              borderRadius: "6px",
+                            }}
+                            className={!fruta?.unidadeMedida2 ? 'custom-disabled-visual' : ''}
+                          />
+                        </Col>
 
                         {/* Área de Origem */}
                         <Col xs={24} md={7}>
@@ -510,8 +470,6 @@ const PrecificacaoModal = ({
                               value={fruta?.areaOrigem || '-'}
                               style={{
                                 borderRadius: "6px",
-                                borderColor: "#d9d9d9",
-                                backgroundColor: "#f5f5f5",
                               }}
                             />
                           </Form.Item>
@@ -519,20 +477,13 @@ const PrecificacaoModal = ({
 
                         {/* Fita de Colheita */}
                         <Col xs={24} md={3}>
-                          <Form.Item
-                            {...restField}
-                            name={[name, 'fitaColheita']}
-                          >
-                            <Input
-                              disabled
-                              value={fruta?.fitaColheita ? fruta.fitaColheita : '-'}
-                              style={{
-                                borderRadius: "6px",
-                                borderColor: "#d9d9d9",
-                                backgroundColor: "#f5f5f5",
-                              }}
-                            />
-                          </Form.Item>
+                          <Input
+                            disabled
+                            value={fruta?.fitaColheita ? fruta.fitaColheita : '-'}
+                            style={{
+                              borderRadius: "6px",
+                            }}
+                          />
                         </Col>
 
                         {/* Valor Unitário */}
@@ -574,20 +525,18 @@ const PrecificacaoModal = ({
 
                         {/* Valor Total */}
                         <Col xs={24} md={3}>
-                          <Form.Item>
-                            <Input
-                              disabled
-                              value={formatarValorMonetario(fruta?.valorTotal || 0)}
-                              style={{
-                                borderRadius: "6px",
-                                borderColor: "#d9d9d9",
-                                backgroundColor: "#f0fdf4",
-                                textAlign: "center",
-                                fontWeight: "600",
-                                color: "#15803d",
-                              }}
-                            />
-                          </Form.Item>
+                          <Input
+                            disabled
+                            value={formatarValorMonetario(fruta?.valorTotal || 0)}
+                            style={{
+                              borderRadius: "6px",
+                              borderColor: "#d9d9d9",
+                              backgroundColor: "#f0fdf4",
+                              textAlign: "center",
+                              fontWeight: "600",
+                              color: "#15803d",
+                            }}
+                          />
                         </Col>
                       </Row>
 
@@ -843,7 +792,6 @@ const PrecificacaoModal = ({
         </div>
       </Form>
       </Modal>
-    </>
   );
 };
 

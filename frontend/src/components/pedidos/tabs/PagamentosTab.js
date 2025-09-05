@@ -71,7 +71,8 @@ const PagamentosTab = ({
         const valorNovo = pagamentoData.valorRecebido || 0;
         const diferenca = valorNovo - valorOriginal;
         
-        await axiosInstance.put(`/api/pedidos/pagamentos/${pagamentoData.id}`, pagamentoData);
+        const { id, ...dadosSemId } = pagamentoData;
+        await axiosInstance.patch(`/api/pedidos/pagamentos/${id}`, dadosSemId);
         showNotification("success", "Sucesso", "Pagamento atualizado com sucesso!");
         
         // Atualizar o valorRecebido do pedido localmente
@@ -539,7 +540,7 @@ const PagamentosTab = ({
           setNovoPagamentoModalOpen(false);
           setPagamentoEditando(null);
         }}
-        onSubmit={handleNovoPagamento}
+        onSave={handleNovoPagamento}
         pedido={pedido}
         pagamentoEditando={pagamentoEditando}
       />

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsNumber, IsString, IsDateString, IsEnum, IsArray, ValidateNested, IsPositive } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 // Definindo os tipos dos enums
 type StatusPedido = 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'AGUARDANDO_PRECIFICACAO' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
@@ -54,9 +54,10 @@ export class UpdateFrutaPedidoDto {
   unidadeMedida1?: UnidadeMedida;
 
   @ApiPropertyOptional({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND'] })
+  @Transform(({ value }) => value === undefined || value === '' ? null : value)
   @IsOptional()
   @IsEnum(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade de medida 2 deve ser KG, TON, CX ou UND' })
-  unidadeMedida2?: UnidadeMedida;
+  unidadeMedida2?: UnidadeMedida | null;
 
   @ApiPropertyOptional({ description: 'Valor unitário' })
   @IsOptional()

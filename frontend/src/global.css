@@ -133,4 +133,89 @@
     font-size: "14px";
   }
 
+  /* ===== ESTILOS GLOBAIS PARA CAMPOS DISABLED ===== */
+  
+  /* Estilo para campos desabilitados customizados (sem segunda unidade) */
+  .custom-disabled-visual.ant-input-disabled,
+  .ant-form-item .custom-disabled-visual.ant-input-disabled {
+    background-color: #e8e8e8 !important;
+    color: rgba(0, 0, 0, 0.25) !important; 
+  }
+
+  /* Estilo global para campos desabilitados comuns */
+  .ant-input-disabled,
+  .ant-input[disabled],
+  .ant-select-disabled .ant-select-selector,
+  .ant-picker-disabled {
+    background-color: #f8f9fa !important;
+    border-color: #f8bbb4 !important;
+    color: #6c757d !important;
+    cursor: not-allowed !important;
+    opacity: 0.8 !important;
+  }
+
+  /* Regra mais específica para garantir aplicação */
+  input.ant-input[disabled] {
+    background-color: #f8f9fa !important;
+    border-color: #f8bbb4 !important;
+    color: #6c757d !important;
+    cursor: not-allowed !important;
+    opacity: 0.8 !important;
+  }
+
+  /* Regra super específica para forçar aplicação */
+  .ant-modal .ant-input[disabled],
+  .ant-modal input.ant-input[disabled] {
+    background-color: #f8f9fa !important;
+    border-color: #f8bbb4 !important;
+    color: #6c757d !important;
+    cursor: not-allowed !important;
+    opacity: 0.8 !important;
+  }
+
+  /* Estilo para campos habilitados - hover verde sutil */
+  .ant-input:not(.ant-input-disabled):hover,
+  .ant-select:not(.ant-select-disabled) .ant-select-selector:hover,
+  .ant-picker:not(.ant-picker-disabled):hover .ant-picker-input input {
+    border-color: #95d5b2 !important;
+    transition: border-color 0.2s ease !important;
+  }
+
+  /* Estilo para campos habilitados - focus verde */
+  .ant-input:not(.ant-input-disabled):focus,
+  .ant-select:not(.ant-select-disabled) .ant-select-focused .ant-select-selector,
+  .ant-picker:not(.ant-picker-disabled).ant-picker-focused .ant-picker-input input {
+    border-color: #059669 !important;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
+  }
+
+  /* Melhorar contraste do placeholder em campos habilitados */
+  .ant-input:not(.ant-input-disabled)::placeholder {
+    color: #9ca3af !important;
+  }
+
+  /* Estilo para MaskedDecimalInput */
+  .ant-input-group .ant-input:not(.ant-input-disabled):hover {
+    border-color: #95d5b2 !important;
+  }
+
+  .ant-input-group .ant-input:not(.ant-input-disabled):focus {
+    border-color: #059669 !important;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
+  }
+
+  /* Ocultar mensagens de erro */
+  .ant-form-item-has-error .ant-form-item-explain,
+  .ant-form-item-has-error .ant-form-item-split,
+  .ant-form-item-explain,
+  .ant-form-item-split {
+    display: none !important;
+  }
+
+  /* Estilo base para campos */
+  .ant-input {
+    border-radius: 6px;
+    border-color: #d9d9d9;
+  }
+
   

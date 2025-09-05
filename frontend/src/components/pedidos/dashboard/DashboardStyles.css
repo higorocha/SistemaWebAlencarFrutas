@@ -1,0 +1,508 @@
+/* Dashboard Responsiva - Estilos específicos */
+
+/* Container principal da dashboard */
+.dashboard-container {
+  padding: 16px;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Header responsivo */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Cards de pedidos - layout vertical responsivo */
+.pedido-card-container {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.pedido-card-content {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  flex-wrap: wrap;
+}
+
+.pedido-info-container {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pedido-info-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.pedido-numero {
+  min-width: 110px;
+  min-height: 40px; /* Altura mínima para acomodar número + valor */
+  justify-content: flex-start;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Cabeçalho das colunas - centralizado verticalmente */
+.cabecalho-dashboard {
+  display: flex !important;
+  align-items: center !important;
+  min-height: auto !important;
+  height: auto !important;
+}
+
+/* Cabeçalho usa flex para distribuir largura igualmente */
+.pedido-card-content .pedido-info-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.pedido-card-content .pedido-info-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.pedido-card-content .pedido-frutas {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.pedido-cliente {
+  min-width: 100px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.pedido-frutas {
+  min-width: 70px;
+  text-align: left;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.pedido-data {
+  min-width: 90px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.pedido-valor {
+  min-width: 80px;
+  text-align: right;
+}
+
+.pedido-action-button {
+  flex-shrink: 0;
+  text-align: left;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex: 0 0 60px;
+}
+
+/* Responsividade para tablets */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 12px;
+  }
+  
+  .dashboard-header h2 {
+    font-size: 20px !important;
+  }
+  
+  .pedido-info-container {
+    gap: 6px;
+  }
+  
+  .pedido-numero {
+    min-width: 100px;
+    flex: 1 1 100px;
+  }
+  
+  .pedido-frutas {
+    min-width: 60px;
+    flex: 1 1 60px;
+  }
+  
+  .pedido-cliente {
+    min-width: 90px;
+    flex: 1 1 90px;
+  }
+  
+  .pedido-data {
+    min-width: 60px;
+    flex: 1 1 60px;
+  }
+  
+  .pedido-action-button {
+    flex: 0 0 50px;
+  }
+  
+  .pedido-valor {
+    min-width: 70px;
+  }
+  
+  /* Cabeçalho responsivo - mantém flex mas com larguras mínimas */
+  .pedido-card-content .pedido-numero {
+    flex: 1 1 100px;
+    min-width: 100px;
+  }
+  
+  .pedido-card-content .pedido-cliente {
+    flex: 1 1 90px;
+    min-width: 90px;
+  }
+  
+  .pedido-card-content .pedido-frutas {
+    flex: 1 1 60px;
+    min-width: 60px;
+  }
+  
+  .pedido-card-content .pedido-data {
+    flex: 1 1 60px;
+    min-width: 60px;
+  }
+  
+  .pedido-card-content .pedido-action-button {
+    flex: 0 0 50px;
+  }
+}
+
+/* Responsividade para mobile */
+@media (max-width: 576px) {
+  .dashboard-container {
+    padding: 8px;
+  }
+  
+  .dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 8px;
+  }
+  
+  .dashboard-header h2 {
+    font-size: 18px !important;
+    margin-bottom: 8px;
+  }
+  
+  /* Cards de pedidos empilhados verticalmente em mobile */
+  .pedido-card-content {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    min-height: auto;
+  }
+  
+  .pedido-info-container {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    gap: 6px;
+  }
+  
+  .pedido-action-button {
+    align-self: flex-end !important;
+    margin-top: 8px;
+  }
+  
+  /* Ajustar tamanhos dos elementos em mobile */
+  .pedido-numero {
+    min-width: 80px;
+    font-size: 12px;
+    flex: 1 1 80px;
+  }
+  
+  .pedido-frutas {
+    min-width: 60px;
+    flex: 1 1 60px;
+  }
+  
+  .pedido-cliente {
+    min-width: 80px;
+    font-size: 11px;
+    flex: 1 1 80px;
+  }
+  
+  .pedido-data {
+    min-width: 50px;
+    font-size: 10px;
+    flex: 1 1 50px;
+  }
+  
+  .pedido-action-button {
+    flex: 0 0 40px;
+  }
+  
+  .pedido-valor {
+    min-width: 60px;
+    font-size: 11px;
+  }
+  
+  /* Cabeçalho responsivo para mobile */
+  .pedido-card-content .pedido-numero {
+    flex: 1 1 80px;
+    min-width: 80px;
+    font-size: 10px;
+  }
+  
+  .pedido-card-content .pedido-cliente {
+    flex: 1 1 80px;
+    min-width: 80px;
+    font-size: 10px;
+  }
+  
+  .pedido-card-content .pedido-frutas {
+    flex: 1 1 50px;
+    min-width: 50px;
+    font-size: 10px;
+  }
+  
+  .pedido-card-content .pedido-data {
+    flex: 1 1 50px;
+    min-width: 50px;
+    font-size: 10px;
+  }
+  
+  .pedido-card-content .pedido-action-button {
+    flex: 0 0 40px;
+    font-size: 10px;
+  }
+  
+  /* Seções com padding reduzido */
+  .ant-card-body {
+    padding: 8px 12px !important;
+  }
+  
+  /* Botões menores em mobile */
+  .ant-btn-sm {
+    height: 28px !important;
+    min-width: 32px !important;
+  }
+}
+
+/* Responsividade para mobile muito pequeno */
+@media (max-width: 375px) {
+  .dashboard-container {
+    padding: 4px;
+  }
+  
+  .pedido-info-container {
+    gap: 4px;
+  }
+  
+  .pedido-numero {
+    min-width: 70px;
+  }
+  
+  .pedido-frutas {
+    min-width: 50px;
+  }
+  
+  .pedido-cliente {
+    min-width: 70px;
+  }
+  
+  .pedido-data {
+    min-width: 45px;
+  }
+  
+  .pedido-valor {
+    min-width: 55px;
+  }
+}
+
+/* Melhorar scrolling horizontal quando necessário */
+.pedido-info-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.pedido-info-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.pedido-info-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.pedido-info-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Garantir que textos não quebrem linha desnecessariamente */
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Estilos para scroll customizado nas seções de status */
+.status-section-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f1f1f1;
+}
+
+.status-section-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.status-section-scroll::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.status-section-scroll::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+  border: 1px solid #f1f1f1;
+}
+
+.status-section-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Cards de estatísticas - força uma linha */
+.status-cards-row {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 8px;
+  margin-bottom: 24px;
+  overflow-x: auto; /* Scroll horizontal se necessário em mobile */
+}
+
+.status-cards-col {
+  flex: 1;
+  min-width: 120px; /* Largura mínima ajustada para 6 cards */
+  max-width: none;
+}
+
+/* Responsividade específica para os cards */
+@media (max-width: 992px) {
+  .status-cards-col {
+    min-width: 110px;
+  }
+}
+
+@media (max-width: 768px) {
+  .status-cards-row {
+    gap: 6px;
+  }
+  
+  .status-cards-col {
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 576px) {
+  .status-cards-row {
+    gap: 4px;
+    padding-bottom: 4px;
+  }
+  
+  .status-cards-col {
+    min-width: 90px;
+  }
+}
+
+/* Container das seções lado a lado */
+.status-sections-container {
+  margin-bottom: 32px;
+  height: 520px; /* Ajustado para coincidir com altura dos cards */
+}
+
+/* Responsividade para as seções lado a lado */
+@media (max-width: 992px) {
+  .status-sections-container {
+    height: auto;
+  }
+  
+  .status-section-scroll {
+    height: 350px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .status-section-scroll {
+    height: 300px !important;
+  }
+}
+
+/* Seções colapsáveis em mobile se necessário */
+@media (max-width: 576px) {
+  .ant-card-head {
+    padding: 12px 16px !important;
+  }
+  
+  .ant-card-head-title {
+    font-size: 14px !important;
+  }
+  
+  .ant-statistic-title {
+    font-size: 10px !important;
+  }
+  
+  .ant-statistic-content-value {
+    font-size: 16px !important;
+  }
+}
+
+/* Hover effects para cards de pedidos */
+.pedido-card-container:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  border-color: #059669 !important;
+  transition: all 0.3s ease !important;
+}
+
+.pedido-card-container:hover .pedido-numero strong {
+  color: #047857 !important;
+}
+
+.pedido-card-container:hover .pedido-cliente .ant-typography {
+  color: #059669 !important;
+}
+
+/* Hover específico para cards vencidos */
+.pedido-card-container:hover[style*="border-left: 3px solid #ff4d4f"] {
+  border-left-color: #ff7875 !important;
+  border-color: #ffccc7 !important;
+}

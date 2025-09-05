@@ -301,12 +301,99 @@ npx prisma migrate deploy   # Deploy migrations to production
 - ✅ **Exemplo:** Pedido usa `numeroPedido` (não `numero` ou `id` para exibição)
 - ⚠️ **Processo:** Ler DTOs, schemas ou fazer chamadas de teste para confirmar estrutura
 
+### Verificação de Relacionamentos Prisma
+- ✅ **SEMPRE consultar o schema.prisma** antes de usar relacionamentos
+- ✅ **NÃO supor nomes de relacionamentos** - verificar antes de usar
+- ✅ **Exemplo:** Relação é `frutasPedidos` (não `frutas`), relacionamento correto conforme schema
+- ⚠️ **Processo:** `grep "model Pedido" prisma/schema.prisma` para confirmar relacionamentos disponíveis
+
 ### Sistema de Notificações
 - ✅ **SEMPRE usar showNotification** para alerts/mensagens no sistema
 - ✅ **Import:** `import { showNotification } from "../../config/notificationConfig";`
 - ✅ **Localização:** `frontend/src/config/notificationConfig.js`
 - ✅ **Tipos:** `"success"`, `"error"`, `"warning"`, `"info"`
 - ✅ **Padrão:** `showNotification("error", "Título", "Mensagem detalhada")`
+
+### Padrão de Paginação no Sistema
+- ✅ **Estados obrigatórios:**
+  - `const [currentPage, setCurrentPage] = useState(1);`
+  - `const [pageSize, setPageSize] = useState(20);` // Padrão: 20 itens
+  - `const [total, setTotal] = useState(0);` // Total de registros
+
+- ✅ **Componente Pagination padronizado:**
+  ```jsx
+  <Pagination
+    current={currentPage}
+    pageSize={pageSize}
+    total={total}
+    onChange={handlePageChange} // Função que atualiza página e size
+    onShowSizeChange={handlePageChange} // Mesma função para mudança de tamanho
+    showSizeChanger
+    showQuickJumper
+    showTotal={(total, range) => `${range[0]}-${range[1]} de ${total} [entidade]`}
+    pageSizeOptions={['10', '20', '50', '100']} // Opções padrão
+    style={{ justifyContent: "flex-end" }} // Alinhamento à direita
+  />
+  ```
+
+- ✅ **Função handlePageChange padrão:**
+  ```jsx
+  const handlePageChange = (page, size) => {
+    setCurrentPage(page);
+    setPageSize(size || pageSize);
+    // Chamar API com novos parâmetros
+  };
+  ```
+
+- ⚠️ **Processo:** Sempre seguir este padrão para consistência visual e funcional
+
+---
+
+## 🔧 **Correções e Melhorias Implementadas**
+
+### 📋 Dashboard de Pedidos (Implementado em 05/09/2025)
+- ✅ **Dashboard completa** com seções por status lado a lado
+- ✅ **Cards de estatísticas** com 6 indicadores em linha única
+- ✅ **Seções com scroll interno** e altura fixa (500px)
+- ✅ **Integração backend** com endpoint `/api/pedidos/dashboard`
+- ✅ **Modais funcionais** para todas as operações (colheita, precificação, pagamento)
+- ✅ **Padronização visual** entre dashboard e página principal
+
+### 🚨 Problemas Críticos Resolvidos
+
+#### Thread-Safety na Geração de Números
+- ❌ **Problema:** Duplicação de `numeroPedido` por lógica inadequada usando `count()`
+- ✅ **Solução:** Implementada busca por maior número existente + incremento
+- 📍 **Arquivo:** `backend/src/pedidos/pedidos.service.ts:83-108`
+
+#### Validação de Unidades de Medida
+- ❌ **Problema:** Frontend permitia unidades iguais (unidadeMedida1 = unidadeMedida2)
+- ✅ **Solução:** Validação adicionada com notificação de "warning" em vez de "error"
+- 📍 **Arquivo:** `frontend/src/components/pedidos/NovoPedidoModal.js:98-101`
+
+#### Gestão de Pagamentos na Dashboard
+- ❌ **Problema:** Props `onNovoPagamento` e `onRemoverPagamento` ausentes
+- ❌ **Problema:** Inconsistência HTTP (PUT vs PATCH)
+- ❌ **Problema:** UI "piscando" durante operações
+- ✅ **Soluções:** 
+  - Handlers implementados com carregamento otimizado
+  - Padronizado uso de PATCH para atualizações
+  - Loading separado (`operacaoLoading`) para evitar "flickering"
+- 📍 **Arquivos:** `frontend/src/pages/PedidosDashboard.js:168-248`
+
+#### Padronização Visual
+- ✅ **Ícones padronizados** entre Dashboard e PedidosTable:
+  - Colheita: `ShoppingOutlined` + azul (#1890ff)
+  - Precificação: `DollarOutlined` + roxo (#722ed1)
+  - Pagamento: `CreditCardOutlined` + amarelo (#faad14)
+- 📍 **Arquivos:** StatusSection.js, PedidoCard.js
+
+### 🎯 Arquivos Principais Modificados
+- `frontend/src/pages/PedidosDashboard.js` - Dashboard principal
+- `frontend/src/components/pedidos/dashboard/StatusSection.js` - Seções por status
+- `frontend/src/components/pedidos/dashboard/PedidoCard.js` - Cards de pedidos
+- `frontend/src/components/pedidos/NovoPedidoModal.js` - Validação unidades
+- `backend/src/pedidos/pedidos.service.ts` - Geração thread-safe de números
 
 ---
 

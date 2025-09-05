@@ -84,9 +84,10 @@ __decorate([
 ], UpdateFrutaPedidoDto.prototype, "unidadeMedida1", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND'] }),
+    (0, class_transformer_1.Transform)(({ value }) => value === undefined || value === '' ? null : value),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade de medida 2 deve ser KG, TON, CX ou UND' }),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], UpdateFrutaPedidoDto.prototype, "unidadeMedida2", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ description: 'Valor unitário' }),

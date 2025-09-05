@@ -68,7 +68,7 @@ const PagamentoModal = ({
       setPagamentos(pagamentosArray);
     } catch (error) {
       console.error("Erro ao buscar pagamentos:", error);
-      message.error("Erro ao carregar pagamentos");
+      showNotification("error", "Erro", "Erro ao carregar pagamentos");
     } finally {
       setLoadingPagamentos(false);
     }
@@ -77,7 +77,7 @@ const PagamentoModal = ({
   const handleNovoPagamento = async (pagamentoData) => {
     try {
       await onNovoPagamento(pagamentoData);
-      await fetchPagamentos(); // Recarregar lista
+      await fetchPagamentos(); // Recarregar lista interna
       setNovoPagamentoModalOpen(false);
       setPagamentoEditando(null);
       // Não mostrar mensagem aqui pois a página principal já mostra
@@ -103,10 +103,10 @@ const PagamentoModal = ({
     
     try {
       await onRemoverPagamento(pagamentoParaRemover.id);
-      await fetchPagamentos(); // Recarregar lista
-      // Não exibir notificação aqui pois o componente pai já exibe
+      await fetchPagamentos(); // Recarregar lista interna
       setConfirmModalOpen(false);
       setPagamentoParaRemover(null);
+      // Não exibir notificação aqui pois o componente pai já exibe
     } catch (error) {
       console.error("Erro ao remover pagamento:", error);
       showNotification("error", "Erro", "Erro ao remover pagamento");

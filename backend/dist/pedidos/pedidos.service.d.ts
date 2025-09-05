@@ -3,6 +3,7 @@ import { CreatePedidoDto, UpdatePedidoDto, UpdateColheitaDto, UpdatePrecificacao
 export declare class PedidosService {
     private prisma;
     constructor(prisma: PrismaService);
+    getDashboardStats(paginaFinalizados?: number, limitFinalizados?: number): Promise<any>;
     private convertNullToUndefined;
     private gerarNumeroPedido;
     private calcularValoresConsolidados;

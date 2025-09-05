@@ -17,6 +17,171 @@ let PedidosService = class PedidosService {
     constructor(prisma) {
         this.prisma = prisma;
     }
+    async getDashboardStats(paginaFinalizados = 1, limitFinalizados = 10) {
+        const pedidosAtivos = await this.prisma.pedido.findMany({
+            where: {
+                status: {
+                    notIn: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+                }
+            },
+            include: {
+                cliente: {
+                    select: {
+                        id: true,
+                        nome: true
+                    }
+                },
+                frutasPedidos: {
+                    include: {
+                        fruta: {
+                            select: {
+                                id: true,
+                                nome: true,
+                                categoria: true
+                            }
+                        },
+                        areaPropria: {
+                            select: {
+                                id: true,
+                                nome: true
+                            }
+                        },
+                        areaFornecedor: {
+                            select: {
+                                id: true,
+                                nome: true,
+                                fornecedor: {
+                                    select: {
+                                        id: true,
+                                        nome: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                pagamentosPedidos: {
+                    select: {
+                        id: true,
+                        valorRecebido: true,
+                        dataPagamento: true,
+                        metodoPagamento: true
+                    }
+                }
+            },
+            orderBy: [
+                { dataPrevistaColheita: 'asc' },
+                { id: 'desc' }
+            ]
+        });
+        const todosPedidos = await this.prisma.pedido.findMany({
+            select: {
+                id: true,
+                status: true,
+                valorFinal: true,
+                valorRecebido: true,
+                dataPrevistaColheita: true
+            }
+        });
+        const stats = {
+            totalPedidos: todosPedidos.length,
+            pedidosAtivos: 0,
+            pedidosFinalizados: 0,
+            valorTotalAberto: 0,
+            valorRecebido: 0,
+            pedidosVencidos: 0,
+        };
+        todosPedidos.forEach(pedido => {
+            const { status, valorFinal, valorRecebido } = pedido;
+            if (!['PEDIDO_FINALIZADO', 'CANCELADO'].includes(status)) {
+                stats.pedidosAtivos++;
+                if (valorFinal)
+                    stats.valorTotalAberto += valorFinal;
+            }
+            if (['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO'].includes(status)) {
+                stats.pedidosFinalizados++;
+            }
+            if (valorRecebido)
+                stats.valorRecebido += valorRecebido;
+        });
+        const skipFinalizados = (paginaFinalizados - 1) * limitFinalizados;
+        const [pedidosFinalizados, totalFinalizados] = await Promise.all([
+            this.prisma.pedido.findMany({
+                where: {
+                    status: {
+                        in: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+                    }
+                },
+                include: {
+                    cliente: {
+                        select: {
+                            id: true,
+                            nome: true
+                        }
+                    },
+                    frutasPedidos: {
+                        include: {
+                            fruta: {
+                                select: {
+                                    id: true,
+                                    nome: true,
+                                    categoria: true
+                                }
+                            }
+                        }
+                    },
+                    pagamentosPedidos: {
+                        select: {
+                            id: true,
+                            valorRecebido: true,
+                            dataPagamento: true,
+                            metodoPagamento: true
+                        }
+                    }
+                },
+                orderBy: [
+                    { updatedAt: 'desc' },
+                    { id: 'desc' }
+                ],
+                skip: skipFinalizados,
+                take: limitFinalizados
+            }),
+            this.prisma.pedido.count({
+                where: {
+                    status: {
+                        in: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+                    }
+                }
+            })
+        ]);
+        const pedidosAtivosFomatados = pedidosAtivos.map(pedido => this.convertNullToUndefined({
+            ...pedido,
+            numeroPedido: pedido.numeroPedido,
+            dataPrevistaColheita: pedido.dataPrevistaColheita?.toISOString().split('T')[0],
+            dataColheita: pedido.dataColheita?.toISOString().split('T')[0],
+            createdAt: pedido.createdAt?.toISOString(),
+            updatedAt: pedido.updatedAt?.toISOString(),
+        }));
+        const pedidosFinalizadosFormatados = pedidosFinalizados.map(pedido => this.convertNullToUndefined({
+            ...pedido,
+            numeroPedido: pedido.numeroPedido,
+            dataPrevistaColheita: pedido.dataPrevistaColheita?.toISOString().split('T')[0],
+            dataColheita: pedido.dataColheita?.toISOString().split('T')[0],
+            createdAt: pedido.createdAt?.toISOString(),
+            updatedAt: pedido.updatedAt?.toISOString(),
+        }));
+        return {
+            stats,
+            pedidos: pedidosAtivosFomatados,
+            finalizados: {
+                data: pedidosFinalizadosFormatados,
+                total: totalFinalizados,
+                page: paginaFinalizados,
+                limit: limitFinalizados,
+                totalPages: Math.ceil(totalFinalizados / limitFinalizados)
+            }
+        };
+    }
     convertNullToUndefined(obj) {
         if (obj === null)
             return undefined;
@@ -42,15 +207,24 @@ let PedidosService = class PedidosService {
     }
     async gerarNumeroPedido() {
         const ano = new Date().getFullYear();
-        const count = await this.prisma.pedido.count({
+        const prefixo = `PED-${ano}-`;
+        const ultimoPedido = await this.prisma.pedido.findFirst({
             where: {
                 numeroPedido: {
-                    startsWith: `PED-${ano}-`
+                    startsWith: prefixo
                 }
+            },
+            orderBy: {
+                numeroPedido: 'desc'
             }
         });
-        const sequencial = (count + 1).toString().padStart(4, '0');
-        return `PED-${ano}-${sequencial}`;
+        let proximoNumero = 1;
+        if (ultimoPedido) {
+            const ultimoSequencial = ultimoPedido.numeroPedido.replace(prefixo, '');
+            proximoNumero = parseInt(ultimoSequencial) + 1;
+        }
+        const sequencial = proximoNumero.toString().padStart(4, '0');
+        return `${prefixo}${sequencial}`;
     }
     calcularValoresConsolidados(frutasPedidos, frete, icms, desconto, avaria) {
         const valorTotalFrutas = frutasPedidos.reduce((total, fruta) => {

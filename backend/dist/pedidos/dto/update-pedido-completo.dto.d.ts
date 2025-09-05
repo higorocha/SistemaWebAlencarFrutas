@@ -9,7 +9,7 @@ export declare class UpdateFrutaPedidoDto {
     quantidadeReal?: number;
     quantidadeReal2?: number;
     unidadeMedida1?: UnidadeMedida;
-    unidadeMedida2?: UnidadeMedida;
+    unidadeMedida2?: UnidadeMedida | null;
     valorUnitario?: number;
     unidadePrecificada?: UnidadeMedida;
     valorTotal?: number;

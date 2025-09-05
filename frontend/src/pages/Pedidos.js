@@ -242,8 +242,9 @@ const Pedidos = () => {
     try {
       setLoading(true);
       if (pagamentoData.id) {
-        // Edição - usar PUT
-        await axiosInstance.put(`/api/pedidos/pagamentos/${pagamentoData.id}`, pagamentoData);
+        // Edição - usar PATCH (remover id do body)
+        const { id, ...dadosSemId } = pagamentoData;
+        await axiosInstance.patch(`/api/pedidos/pagamentos/${id}`, dadosSemId);
         showNotification("success", "Sucesso", "Pagamento atualizado com sucesso!");
       } else {
         // Criação - usar POST
