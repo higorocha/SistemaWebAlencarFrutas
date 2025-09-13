@@ -5,16 +5,8 @@ import { Type } from 'class-transformer';
 // Definindo os tipos dos enums
 type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
 
-// DTO para cada fruta do pedido
-export class FrutaPedidoDto {
-  @ApiProperty({
-    description: 'ID da fruta',
-    example: 1,
-  })
-  @IsNumber()
-  @IsPositive()
-  frutaId: number;
-
+// DTO para área da fruta (pode ser própria ou de fornecedor)
+export class FrutaAreaDto {
   @ApiPropertyOptional({
     description: 'ID da área própria (deixe null se for área de terceiro)',
     example: 1,
@@ -32,6 +24,53 @@ export class FrutaPedidoDto {
   @IsNumber()
   @IsPositive()
   areaFornecedorId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Observações sobre esta área',
+    example: 'Área com boa produtividade',
+  })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+}
+
+// DTO para fita da fruta (específico para bananas)
+export class FrutaFitaDto {
+  @ApiProperty({
+    description: 'ID da fita de banana',
+    example: 1,
+  })
+  @IsNumber()
+  @IsPositive()
+  fitaBananaId: number;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade desta fita (opcional)',
+    example: 500.0,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  quantidadeFita?: number;
+
+  @ApiPropertyOptional({
+    description: 'Observações sobre esta fita',
+    example: 'Fita para banana premium',
+  })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+}
+
+// DTO para cada fruta do pedido (NOVA ESTRUTURA)
+export class FrutaPedidoDto {
+  @ApiProperty({
+    description: 'ID da fruta',
+    example: 1,
+  })
+  @IsNumber()
+  @IsPositive()
+  frutaId: number;
 
   @ApiProperty({
     description: 'Quantidade prevista',
@@ -57,6 +96,48 @@ export class FrutaPedidoDto {
   @IsOptional()
   @IsEnum(['KG', 'TON', 'CX', 'UND'])
   unidadeMedida2?: UnidadeMedida;
+
+  @ApiProperty({
+    description: 'Array de áreas para esta fruta (mínimo 1)',
+    type: [FrutaAreaDto],
+    example: [
+      {
+        areaPropriaId: 1,
+        observacoes: 'Área principal'
+      },
+      {
+        areaFornecedorId: 2,
+        observacoes: 'Área de fornecedor parceiro'
+      }
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FrutaAreaDto)
+  @IsNotEmpty()
+  areas: FrutaAreaDto[];
+
+  @ApiPropertyOptional({
+    description: 'Array de fitas para esta fruta (apenas para bananas)',
+    type: [FrutaFitaDto],
+    example: [
+      {
+        fitaBananaId: 1,
+        quantidadeFita: 500.0,
+        observacoes: 'Fita vermelha premium'
+      },
+      {
+        fitaBananaId: 2,
+        quantidadeFita: 300.0,
+        observacoes: 'Fita azul padrão'
+      }
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FrutaFitaDto)
+  fitas?: FrutaFitaDto[];
 }
 
 export class CreatePedidoDto {
@@ -83,7 +164,19 @@ export class CreatePedidoDto {
         frutaId: 1,
         quantidadePrevista: 1000.5,
         unidadeMedida1: 'KG',
-        unidadeMedida2: 'CX'
+        unidadeMedida2: 'CX',
+        areas: [
+          {
+            areaPropriaId: 1,
+            observacoes: 'Área principal'
+          }
+        ],
+        fitas: [
+          {
+            fitaBananaId: 1,
+            quantidadeFita: 500.0
+          }
+        ]
       }
     ],
   })

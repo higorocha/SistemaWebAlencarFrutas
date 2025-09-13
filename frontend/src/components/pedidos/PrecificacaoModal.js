@@ -15,6 +15,8 @@ import {
   Statistic,
   Select,
   Input,
+  Tag,
+  Tooltip,
 } from "antd";
 import {
   SaveOutlined,
@@ -26,10 +28,16 @@ import {
   AppleOutlined,
   EnvironmentOutlined,
   FileTextOutlined,
+  LinkOutlined,
+  TagOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
-import { MaskedDecimalInput } from "../../components/common/inputs";
+import { MonetaryInput } from "../../components/common/inputs";
+import { FormButton } from "../common/buttons";
+import VisualizarAreasFitasModal from "./VisualizarAreasFitasModal";
+import axiosInstance from "../../api/axiosConfig";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -51,6 +59,39 @@ const PrecificacaoModal = ({
     avaria: 0,
     valorFinal: 0,
   });
+  
+  // Estados para dados e modais
+  const [areasProprias, setAreasProprias] = useState([]);
+  const [areasFornecedores, setAreasFornecedores] = useState([]);
+  const [fitasBanana, setFitasBanana] = useState([]);
+  const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
+  const [frutaSelecionada, setFrutaSelecionada] = useState(null);
+  const [tipoVisualizacao, setTipoVisualizacao] = useState('areas'); // 'areas' ou 'fitas'
+
+  // Carregar dados quando modal abrir
+  useEffect(() => {
+    const fetchDados = async () => {
+      try {
+        // Buscar áreas próprias
+        const responseAreas = await axiosInstance.get("/api/areas-agricolas");
+        setAreasProprias(responseAreas.data || []);
+
+        // Buscar áreas de fornecedores
+        const responseAreasFornecedores = await axiosInstance.get("/api/areas-fornecedores");
+        setAreasFornecedores(responseAreasFornecedores.data || []);
+
+        // Buscar fitas de banana
+        const responseFitas = await axiosInstance.get("/fitas-banana");
+        setFitasBanana(responseFitas.data || []);
+      } catch (error) {
+        console.error("Erro ao buscar dados:", error);
+      }
+    };
+
+    if (open) {
+      fetchDados();
+    }
+  }, [open]);
 
   // Resetar formulário quando modal abrir
   useEffect(() => {
@@ -64,15 +105,9 @@ const PrecificacaoModal = ({
           quantidadeReal2: fruta.quantidadeReal2 || 0,
           unidadeMedida1: fruta.unidadeMedida1,
           unidadeMedida2: fruta.unidadeMedida2,
-          areaPropria: fruta.areaPropria ? fruta.areaPropria.nome : null,
-          areaFornecedor: fruta.areaFornecedor ? fruta.areaFornecedor.nome : null,
-          fornecedor: fruta.areaFornecedor?.fornecedor ? fruta.areaFornecedor.fornecedor.nome : null,
-          areaOrigem: fruta.areaPropria 
-            ? fruta.areaPropria.nome 
-            : fruta.areaFornecedor 
-              ? `${fruta.areaFornecedor.nome} - ${fruta.areaFornecedor.fornecedor?.nome || 'Fornecedor'}`
-              : '-',
-          fitaColheita: fruta.fitaColheita || null,
+          // NOVA ESTRUTURA: Arrays de áreas e fitas
+          areas: fruta.areas || [],
+          fitas: fruta.fitas || [],
           valorUnitario: fruta.valorUnitario || 0,
           unidadePrecificada: fruta.unidadePrecificada || fruta.unidadeMedida1,
           valorTotal: fruta.valorTotal || 0,
@@ -125,14 +160,20 @@ const PrecificacaoModal = ({
       return total + valorTotalFruta;
     }, 0);
 
-    const valorFinal = valorTotalFrutas + frete + icms - desconto - avaria;
+    // Converter valores monetários para número se necessário
+    const freteNum = typeof frete === 'string' ? parseFloat(frete) || 0 : frete || 0;
+    const icmsNum = typeof icms === 'string' ? parseFloat(icms) || 0 : icms || 0;
+    const descontoNum = typeof desconto === 'string' ? parseFloat(desconto) || 0 : desconto || 0;
+    const avariaNum = typeof avaria === 'string' ? parseFloat(avaria) || 0 : avaria || 0;
+
+    const valorFinal = valorTotalFrutas + freteNum + icmsNum - descontoNum - avariaNum;
 
     setValores({
       valorTotalFrutas,
-      frete,
-      icms,
-      desconto,
-      avaria,
+      frete: freteNum,
+      icms: icmsNum,
+      desconto: descontoNum,
+      avaria: avariaNum,
       valorFinal: Math.max(0, valorFinal),
     });
   };
@@ -188,6 +229,70 @@ const PrecificacaoModal = ({
     calcularValoresConsolidados(frutas, frete || 0, icms || 0, desconto || 0, avaria || 0);
   };
 
+  // Funções para abrir modais de visualização
+  const handleVisualizarAreas = (fruta, frutaIndex) => {
+    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+    setTipoVisualizacao('areas');
+    setVisualizarModalOpen(true);
+  };
+
+  const handleVisualizarFitas = (fruta, frutaIndex) => {
+    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+    setTipoVisualizacao('fitas');
+    setVisualizarModalOpen(true);
+  };
+
+  // Verificar se fruta tem áreas vinculadas (não placeholders)
+  const hasLinkedAreas = (fruta) => {
+    return fruta?.areas && fruta.areas.some(area => 
+      area.areaPropriaId || area.areaFornecedorId
+    );
+  };
+
+  // Verificar se fruta tem fitas vinculadas
+  const hasLinkedFitas = (fruta) => {
+    return fruta?.fitas && fruta.fitas.length > 0;
+  };
+
+  // Obter nomes das áreas vinculadas
+  const getLinkedAreasNames = (fruta) => {
+    if (!fruta?.areas) return [];
+    
+    const realAreas = fruta.areas.filter(area => 
+      area.areaPropriaId || area.areaFornecedorId
+    );
+
+    return realAreas.map(area => {
+      if (area.areaPropriaId) {
+        const areaPropria = areasProprias.find(a => a.id === area.areaPropriaId);
+        return {
+          nome: areaPropria?.nome?.toUpperCase() || `ÁREA ${area.areaPropriaId}`,
+          tipo: 'propria'
+        };
+      } else {
+        const areaFornecedor = areasFornecedores.find(a => a.id === area.areaFornecedorId);
+        return {
+          nome: areaFornecedor?.nome?.toUpperCase() || `ÁREA FORNECEDOR ${area.areaFornecedorId}`,
+          tipo: 'fornecedor'
+        };
+      }
+    });
+  };
+
+  // Obter nomes das fitas vinculadas
+  const getLinkedFitasNames = (fruta) => {
+    if (!fruta?.fitas) return [];
+    
+    return fruta.fitas.map(fita => {
+      const fitaBanana = fitasBanana.find(f => f.id === fita.fitaBananaId);
+      return {
+        nome: fitaBanana?.nome || `Fita ${fita.fitaBananaId}`,
+        cor: fitaBanana?.corHex || '#52c41a',
+        quantidade: fita.quantidadeFita
+      };
+    });
+  };
+
   const handleSubmit = async (values) => {
     try {
       setSubmitLoading(true);
@@ -203,13 +308,13 @@ const PrecificacaoModal = ({
       const formData = {
         frutas: values.frutas.map(fruta => ({
           frutaPedidoId: fruta.frutaPedidoId,
-          valorUnitario: fruta.valorUnitario,
+          valorUnitario: typeof fruta.valorUnitario === 'string' ? parseFloat(fruta.valorUnitario) : fruta.valorUnitario,
           unidadePrecificada: fruta.unidadePrecificada,
         })),
-        frete: values.frete || 0,
-        icms: values.icms || 0,
-        desconto: values.desconto || 0,
-        avaria: values.avaria || 0,
+        frete: values.frete ? (typeof values.frete === 'string' ? parseFloat(values.frete) : values.frete) : 0,
+        icms: values.icms ? (typeof values.icms === 'string' ? parseFloat(values.icms) : values.icms) : 0,
+        desconto: values.desconto ? (typeof values.desconto === 'string' ? parseFloat(values.desconto) : values.desconto) : 0,
+        avaria: values.avaria ? (typeof values.avaria === 'string' ? parseFloat(values.avaria) : values.avaria) : 0,
       };
 
       await onSave(formData);
@@ -376,28 +481,28 @@ const PrecificacaoModal = ({
                       Fruta
                     </span>
                   </Col>
-                  <Col xs={24} md={2}>
+                  <Col xs={24} md={3}>
                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                       <CalculatorOutlined style={{ marginRight: 8 }} />
                       Und 1
                     </span>
                   </Col>
-                  <Col xs={24} md={2}>
+                  <Col xs={24} md={3}>
                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                       <CalculatorOutlined style={{ marginRight: 8 }} />
                       Und 2
                     </span>
                   </Col>
-                  <Col xs={24} md={7}>
+                  <Col xs={24} md={4}>
                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                       <EnvironmentOutlined style={{ marginRight: 8 }} />
-                      Área
+                      Áreas
                     </span>
                   </Col>
                   <Col xs={24} md={3}>
                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <FileTextOutlined style={{ marginRight: 8 }} />
-                      Fita
+                      <TagOutlined style={{ marginRight: 8 }} />
+                      Fitas
                     </span>
                   </Col>
                   <Col xs={24} md={3}>
@@ -406,7 +511,7 @@ const PrecificacaoModal = ({
                       Valor Unit.
                     </span>
                   </Col>
-                  <Col xs={24} md={3}>
+                  <Col xs={24} md={4}>
                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                       <CalculatorOutlined style={{ marginRight: 8 }} />
                       Total
@@ -426,18 +531,20 @@ const PrecificacaoModal = ({
                             {...restField}
                             name={[name, 'frutaNome']}
                           >
-                            <Input
-                              disabled
-                              value={fruta?.frutaNome || ''}
-                              style={{
-                                borderRadius: "6px",
-                              }}
-                            />
+                            <Tooltip title={fruta?.frutaNome || ''} placement="top">
+                              <Input
+                                disabled
+                                value={fruta?.frutaNome || ''}
+                                style={{
+                                  borderRadius: "6px",
+                                }}
+                              />
+                            </Tooltip>
                           </Form.Item>
                         </Col>
 
                         {/* Quantidade Real */}
-                        <Col xs={24} md={2}>
+                        <Col xs={24} md={3}>
                           <Input
                             disabled
                             value={`${fruta?.quantidadeReal || '0'} ${fruta?.unidadeMedida1 || ''}`.trim()}
@@ -448,7 +555,7 @@ const PrecificacaoModal = ({
                         </Col>
 
                         {/* Quantidade Real 2 */}
-                        <Col xs={24} md={2}>
+                        <Col xs={24} md={3}>
                           <Input
                             disabled
                             value={fruta?.unidadeMedida2 ? `${fruta?.quantidadeReal2 || '0'} ${fruta?.unidadeMedida2}`.trim() : ''}
@@ -459,31 +566,108 @@ const PrecificacaoModal = ({
                           />
                         </Col>
 
-                        {/* Área de Origem */}
-                        <Col xs={24} md={7}>
-                          <Form.Item
-                            {...restField}
-                            name={[name, 'areaOrigem']}
-                          >
-                            <Input
-                              disabled
-                              value={fruta?.areaOrigem || '-'}
-                              style={{
-                                borderRadius: "6px",
-                              }}
-                            />
-                          </Form.Item>
+                        {/* Coluna de Áreas */}
+                        <Col xs={24} md={4}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            {hasLinkedAreas(fruta) ? (
+                              <>
+                                  {/* Botão com apenas ícone */}
+                                  <Tooltip title="Ver áreas">
+                                    <FormButton
+                                      icon={<EyeOutlined />}
+                                      onClick={() => handleVisualizarAreas(fruta, index)}
+                                      style={{ 
+                                        minWidth: '32px',
+                                        width: '32px',
+                                        padding: '0'
+                                      }}
+                                    />
+                                  </Tooltip>
+                                
+                                {/* Badges das áreas */}
+                                {getLinkedAreasNames(fruta).slice(0, 1).map((area, idx) => (
+                                  <Tag 
+                                    key={idx} 
+                                    size="small" 
+                                    color={area.tipo === 'propria' ? 'green' : 'blue'}
+                                    style={{ 
+                                      fontSize: '11px',
+                                      maxWidth: '60px',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {area.nome}
+                                  </Tag>
+                                ))}
+                                
+                                {/* Badge "+X" se houver mais áreas */}
+                                {getLinkedAreasNames(fruta).length > 1 && (
+                                  <Tag size="small" color="blue" style={{ fontSize: '11px' }}>
+                                    +{getLinkedAreasNames(fruta).length - 1}
+                                  </Tag>
+                                )}
+                              </>
+                            ) : (
+                              <Tag color="default" style={{ fontSize: '11px' }}>
+                                Sem áreas
+                              </Tag>
+                            )}
+                          </div>
                         </Col>
 
-                        {/* Fita de Colheita */}
+                        {/* Coluna de Fitas */}
                         <Col xs={24} md={3}>
-                          <Input
-                            disabled
-                            value={fruta?.fitaColheita ? fruta.fitaColheita : '-'}
-                            style={{
-                              borderRadius: "6px",
-                            }}
-                          />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            {hasLinkedFitas(fruta) ? (
+                              <>
+                                  {/* Botão com apenas ícone */}
+                                  <Tooltip title="Ver fitas">
+                                    <FormButton
+                                      icon={<EyeOutlined />}
+                                      onClick={() => handleVisualizarFitas(fruta, index)}
+                                      style={{ 
+                                        minWidth: '32px',
+                                        width: '32px',
+                                        padding: '0'
+                                      }}
+                                    />
+                                  </Tooltip>
+                                
+                                {/* Badges das fitas */}
+                                {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
+                                  <Tag 
+                                    key={idx} 
+                                    size="small" 
+                                    style={{ 
+                                      fontSize: '11px',
+                                      backgroundColor: fita.cor + '20',
+                                      borderColor: fita.cor,
+                                      color: '#333',
+                                      maxWidth: '60px',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {fita.nome}
+                                  </Tag>
+                                ))}
+                                
+                                {/* Badge "+X" se houver mais fitas */}
+                                {getLinkedFitasNames(fruta).length > 1 && (
+                                  <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
+                                    +{getLinkedFitasNames(fruta).length - 1}
+                                  </Tag>
+                                )}
+                              </>
+                            ) : (
+                              <Tag color="default" style={{ fontSize: '11px' }}>
+                                Sem fitas
+                              </Tag>
+                            )}
+                          </div>
                         </Col>
 
                         {/* Valor Unitário */}
@@ -493,16 +677,21 @@ const PrecificacaoModal = ({
                             name={[name, 'valorUnitario']}
                             rules={[
                               { required: true, message: 'Valor obrigatório' },
-                              { type: 'number', min: 0.01, message: 'Valor deve ser maior que 0' }
+                              {
+                                validator: (_, value) => {
+                                  // Converter string para número se necessário
+                                  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                  
+                                  if (!numValue || numValue <= 0) {
+                                    return Promise.reject(new Error("Valor deve ser maior que zero"));
+                                  }
+                                  
+                                  return Promise.resolve();
+                                }
+                              }
                             ]}
-                            // NORMALIZADOR: Converte o valor de texto para número puro
-                            normalize={(value) => {
-                              if (!value) return null;
-                              const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                              return isNaN(numero) ? null : numero;
-                            }}
                           >
-                            <MaskedDecimalInput
+                            <MonetaryInput
                               placeholder="Ex: 2,50"
                               addonAfter={
                                 <span
@@ -524,7 +713,7 @@ const PrecificacaoModal = ({
                         </Col>
 
                         {/* Valor Total */}
-                        <Col xs={24} md={3}>
+                        <Col xs={24} md={4}>
                           <Input
                             disabled
                             value={formatarValorMonetario(fruta?.valorTotal || 0)}
@@ -580,13 +769,25 @@ const PrecificacaoModal = ({
                   </Space>
                 }
                 name="frete"
-                normalize={(value) => {
-                  if (!value) return null;
-                  const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                  return isNaN(numero) ? null : numero;
-                }}
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      // Se não tem valor, é válido (campo opcional)
+                      if (!value) return Promise.resolve();
+                      
+                      // Converter string para número se necessário
+                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                      
+                      if (numValue < 0) {
+                        return Promise.reject(new Error("Frete não pode ser negativo"));
+                      }
+                      
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
-                <MaskedDecimalInput
+                <MonetaryInput
                   placeholder="Ex: 150,00"
                   addonAfter="R$"
                   size="large"
@@ -603,13 +804,25 @@ const PrecificacaoModal = ({
                   </Space>
                 }
                 name="icms"
-                normalize={(value) => {
-                  if (!value) return null;
-                  const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                  return isNaN(numero) ? null : numero;
-                }}
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      // Se não tem valor, é válido (campo opcional)
+                      if (!value) return Promise.resolve();
+                      
+                      // Converter string para número se necessário
+                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                      
+                      if (numValue < 0) {
+                        return Promise.reject(new Error("ICMS não pode ser negativo"));
+                      }
+                      
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
-                <MaskedDecimalInput
+                <MonetaryInput
                   placeholder="Ex: 89,75"
                   addonAfter="R$"
                   size="large"
@@ -626,13 +839,25 @@ const PrecificacaoModal = ({
                   </Space>
                 }
                 name="desconto"
-                normalize={(value) => {
-                  if (!value) return null;
-                  const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                  return isNaN(numero) ? null : numero;
-                }}
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      // Se não tem valor, é válido (campo opcional)
+                      if (!value) return Promise.resolve();
+                      
+                      // Converter string para número se necessário
+                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                      
+                      if (numValue < 0) {
+                        return Promise.reject(new Error("Desconto não pode ser negativo"));
+                      }
+                      
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
-                <MaskedDecimalInput
+                <MonetaryInput
                   placeholder="Ex: 50,00"
                   addonAfter="R$"
                   size="large"
@@ -649,13 +874,25 @@ const PrecificacaoModal = ({
                   </Space>
                 }
                 name="avaria"
-                normalize={(value) => {
-                  if (!value) return null;
-                  const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                  return isNaN(numero) ? null : numero;
-                }}
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      // Se não tem valor, é válido (campo opcional)
+                      if (!value) return Promise.resolve();
+                      
+                      // Converter string para número se necessário
+                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                      
+                      if (numValue < 0) {
+                        return Promise.reject(new Error("Avaria não pode ser negativo"));
+                      }
+                      
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
-                <MaskedDecimalInput
+                <MonetaryInput
                   placeholder="Ex: 25,00"
                   addonAfter="R$"
                   size="large"
@@ -791,6 +1028,20 @@ const PrecificacaoModal = ({
           </Button>
         </div>
       </Form>
+
+      {/* Modal de Visualizar Áreas/Fitas */}
+      <VisualizarAreasFitasModal
+        open={visualizarModalOpen}
+        onClose={() => {
+          setVisualizarModalOpen(false);
+          setFrutaSelecionada(null);
+        }}
+        fruta={frutaSelecionada}
+        tipo={tipoVisualizacao}
+        areasProprias={areasProprias}
+        areasFornecedores={areasFornecedores}
+        fitasBanana={fitasBanana}
+      />
       </Modal>
   );
 };

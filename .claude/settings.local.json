@@ -3,7 +3,12 @@
     "allow": [
       "Bash(dir)",
       "Bash(Get-ExecutionPolicy)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma:*)",
+      "Bash(find:*)",
+      "Bash(dir:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

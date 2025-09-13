@@ -9,15 +9,140 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UpdatePedidoCompletoDto = exports.UpdateFrutaPedidoDto = void 0;
+exports.UpdatePedidoCompletoDto = exports.UpdateFrutaPedidoDto = exports.UpdateCompletoFitaDto = exports.UpdateCompletoAreaDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
+class UpdateCompletoAreaDto {
+    id;
+    areaPropriaId;
+    areaFornecedorId;
+    observacoes;
+}
+exports.UpdateCompletoAreaDto = UpdateCompletoAreaDto;
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID da área (para update de área existente)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateCompletoAreaDto.prototype, "id", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID da área própria (deixe null se for área de fornecedor)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateCompletoAreaDto.prototype, "areaPropriaId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID da área de fornecedor (deixe null se for área própria)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateCompletoAreaDto.prototype, "areaFornecedorId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Observações sobre esta área',
+        example: 'Área atualizada',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateCompletoAreaDto.prototype, "observacoes", void 0);
+class UpdateCompletoFitaDto {
+    id;
+    fitaBananaId;
+    controleBananaId;
+    quantidadeFita;
+    observacoes;
+    detalhesAreas;
+}
+exports.UpdateCompletoFitaDto = UpdateCompletoFitaDto;
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID da fita (para update de fita existente)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateCompletoFitaDto.prototype, "id", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'ID da fita de banana',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateCompletoFitaDto.prototype, "fitaBananaId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID do controle de banana (lote específico)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateCompletoFitaDto.prototype, "controleBananaId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Quantidade desta fita',
+        example: 250.0,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateCompletoFitaDto.prototype, "quantidadeFita", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Observações sobre esta fita',
+        example: 'Fita atualizada',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateCompletoFitaDto.prototype, "observacoes", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Detalhes das áreas para subtração específica de estoque',
+        type: 'array',
+        items: {
+            type: 'object',
+            properties: {
+                fitaBananaId: { type: 'number', description: 'ID da fita' },
+                areaId: { type: 'number', description: 'ID da área' },
+                quantidade: { type: 'number', description: 'Quantidade desta área' }
+            }
+        }
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    __metadata("design:type", Array)
+], UpdateCompletoFitaDto.prototype, "detalhesAreas", void 0);
 class UpdateFrutaPedidoDto {
     frutaPedidoId;
     frutaId;
-    areaPropriaId;
-    areaFornecedorId;
     quantidadePrevista;
     quantidadeReal;
     quantidadeReal2;
@@ -26,7 +151,8 @@ class UpdateFrutaPedidoDto {
     valorUnitario;
     unidadePrecificada;
     valorTotal;
-    fitaColheita;
+    areas;
+    fitas;
 }
 exports.UpdateFrutaPedidoDto = UpdateFrutaPedidoDto;
 __decorate([
@@ -41,20 +167,6 @@ __decorate([
     (0, class_validator_1.IsNumber)({}, { message: 'ID da fruta deve ser um número' }),
     __metadata("design:type", Number)
 ], UpdateFrutaPedidoDto.prototype, "frutaId", void 0);
-__decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'ID da área própria (deixe null se for área de terceiro)' }),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)({}, { message: 'ID da área própria deve ser um número' }),
-    (0, class_validator_1.IsPositive)({ message: 'ID da área própria deve ser positivo' }),
-    __metadata("design:type", Number)
-], UpdateFrutaPedidoDto.prototype, "areaPropriaId", void 0);
-__decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'ID da área de fornecedor (deixe null se for área própria)' }),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)({}, { message: 'ID da área de fornecedor deve ser um número' }),
-    (0, class_validator_1.IsPositive)({ message: 'ID da área de fornecedor deve ser positivo' }),
-    __metadata("design:type", Number)
-], UpdateFrutaPedidoDto.prototype, "areaFornecedorId", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ description: 'Quantidade prevista' }),
     (0, class_validator_1.IsOptional)(),
@@ -109,11 +221,40 @@ __decorate([
     __metadata("design:type", Number)
 ], UpdateFrutaPedidoDto.prototype, "valorTotal", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Cor da fita para identificação' }),
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Array de áreas para esta fruta',
+        type: [UpdateCompletoAreaDto],
+        example: [
+            {
+                areaPropriaId: 1,
+                observacoes: 'Área atualizada'
+            }
+        ],
+    }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)({ message: 'Fita de colheita deve ser uma string' }),
-    __metadata("design:type", String)
-], UpdateFrutaPedidoDto.prototype, "fitaColheita", void 0);
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => UpdateCompletoAreaDto),
+    __metadata("design:type", Array)
+], UpdateFrutaPedidoDto.prototype, "areas", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Array de fitas para esta fruta (apenas para bananas)',
+        type: [UpdateCompletoFitaDto],
+        example: [
+            {
+                fitaBananaId: 1,
+                quantidadeFita: 300.0,
+                observacoes: 'Fita atualizada'
+            }
+        ],
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => UpdateCompletoFitaDto),
+    __metadata("design:type", Array)
+], UpdateFrutaPedidoDto.prototype, "fitas", void 0);
 class UpdatePedidoCompletoDto {
     clienteId;
     dataPrevistaColheita;

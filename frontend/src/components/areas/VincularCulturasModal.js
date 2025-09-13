@@ -41,6 +41,7 @@ const VincularCulturasModal = ({
   culturas,
   culturasArea = [],
   onUpdateCulturas,
+  onCulturasReload,
 }) => {
   const [form] = Form.useForm();
   const theme = useTheme();
@@ -194,6 +195,9 @@ const VincularCulturasModal = ({
     // Recarregar a lista de culturas do sistema
     // Isso será chamado quando o modal de culturas do sistema for fechado
     // O componente pai deve recarregar as culturas
+    if (onCulturasReload) {
+      onCulturasReload();
+    }
     if (onUpdateCulturas) {
       onUpdateCulturas(culturasAreaState);
     }
@@ -570,6 +574,7 @@ VincularCulturasModal.propTypes = {
   culturas: PropTypes.array.isRequired,
   culturasArea: PropTypes.array,
   onUpdateCulturas: PropTypes.func.isRequired,
+  onCulturasReload: PropTypes.func,
 };
 
 export default VincularCulturasModal; 

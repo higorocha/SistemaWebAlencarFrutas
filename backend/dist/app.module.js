@@ -27,6 +27,9 @@ const clientes_module_1 = require("./clientes/clientes.module");
 const pedidos_module_1 = require("./pedidos/pedidos.module");
 const fornecedores_module_1 = require("./fornecedores/fornecedores.module");
 const areas_fornecedores_module_1 = require("./areas-fornecedores/areas-fornecedores.module");
+const fitas_banana_module_1 = require("./fitas-banana/fitas-banana.module");
+const controle_banana_module_1 = require("./controle-banana/controle-banana.module");
+const historico_fitas_module_1 = require("./historico-fitas/historico-fitas.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -58,6 +61,9 @@ exports.AppModule = AppModule = __decorate([
             pedidos_module_1.PedidosModule,
             fornecedores_module_1.FornecedoresModule,
             areas_fornecedores_module_1.AreasFornecedoresModule,
+            fitas_banana_module_1.FitasBananaModule,
+            controle_banana_module_1.ControleBananaModule,
+            historico_fitas_module_1.HistoricoFitasModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService, prisma_service_1.PrismaService],

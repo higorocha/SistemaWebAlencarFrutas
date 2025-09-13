@@ -2,35 +2,20 @@ import { IsString, IsOptional, IsNumber, IsDateString, IsPositive, Min, IsArray,
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 
-// Validador customizado para áreas excludentes
-export class AreasExcludentesConstraint {
-  validate(value: any, args: any) {
-    const fruta = args.object;
-    const hasAreaPropria = fruta.areaPropriaId !== undefined && fruta.areaPropriaId !== null;
-    const hasAreaFornecedor = fruta.areaFornecedorId !== undefined && fruta.areaFornecedorId !== null;
-    
-    // Deve ter exatamente uma área selecionada
-    return (hasAreaPropria && !hasAreaFornecedor) || (!hasAreaPropria && hasAreaFornecedor);
-  }
-
-  defaultMessage() {
-    return 'Cada fruta deve ter exatamente uma área selecionada (própria OU fornecedor)';
-  }
-}
-
-// DTO para atualizar colheita de cada fruta
-export class UpdateColheitaFrutaDto {
-  @ApiProperty({
-    description: 'ID da fruta do pedido',
+// DTO para área da fruta na colheita
+export class UpdateColheitaAreaDto {
+  @ApiPropertyOptional({
+    description: 'ID da área (para update de área existente)',
     example: 1,
   })
   @Type(() => Number)
+  @IsOptional()
   @IsNumber()
   @IsPositive()
-  frutaPedidoId: number;
+  id?: number;
 
   @ApiPropertyOptional({
-    description: 'ID da área própria (deixe null se for área de terceiro)',
+    description: 'ID da área própria (deixe null se for área de fornecedor)',
     example: 1,
   })
   @Type(() => Number)
@@ -49,6 +34,97 @@ export class UpdateColheitaFrutaDto {
   @IsPositive()
   areaFornecedorId?: number;
 
+  @ApiPropertyOptional({
+    description: 'Observações sobre esta área',
+    example: 'Área com boa colheita',
+  })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+}
+
+// DTO para fita da fruta na colheita
+export class UpdateColheitaFitaDto {
+  @ApiPropertyOptional({
+    description: 'ID da fita (para update de fita existente)',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  id?: number;
+
+  @ApiProperty({
+    description: 'ID da fita de banana',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  fitaBananaId: number;
+
+  @ApiPropertyOptional({
+    description: 'ID do controle de banana (lote específico)',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  controleBananaId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade desta fita',
+    example: 250.0,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  quantidadeFita?: number;
+
+  @ApiPropertyOptional({
+    description: 'Observações sobre esta fita',
+    example: 'Fita para banana premium',
+  })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Detalhes das áreas para subtração específica de estoque',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        fitaBananaId: { type: 'number', description: 'ID da fita' },
+        areaId: { type: 'number', description: 'ID da área' },
+        quantidade: { type: 'number', description: 'Quantidade desta área' }
+      }
+    }
+  })
+  @IsOptional()
+  @IsArray()
+  detalhesAreas?: Array<{
+    fitaBananaId: number;
+    areaId: number;
+    quantidade: number;
+    controleBananaId: number; // ID específico do lote de controle
+  }>;
+}
+
+// DTO para atualizar colheita de cada fruta (NOVA ESTRUTURA)
+export class UpdateColheitaFrutaDto {
+  @ApiProperty({
+    description: 'ID da fruta do pedido',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  frutaPedidoId: number;
+
   @ApiProperty({
     description: 'Quantidade real colhida',
     example: 985.5,
@@ -58,7 +134,10 @@ export class UpdateColheitaFrutaDto {
   @IsPositive()
   quantidadeReal: number;
 
-  @ApiPropertyOptional({ description: 'Quantidade real colhida na segunda unidade (quando houver)', example: 50.0 })
+  @ApiPropertyOptional({ 
+    description: 'Quantidade real colhida na segunda unidade (quando houver)', 
+    example: 50.0 
+  })
   @Transform(({ value }) => (value === '' || value === null ? undefined : value))
   @Type(() => Number)
   @IsOptional()
@@ -66,14 +145,42 @@ export class UpdateColheitaFrutaDto {
   @Min(0)
   quantidadeReal2?: number;
 
-  @ApiPropertyOptional({ description: 'Cor da fita utilizada para esta fruta', example: 'Verde' })
-  @IsOptional()
-  @IsString()
-  fitaColheita?: string;
+  @ApiProperty({
+    description: 'Array de áreas para esta fruta (mínimo 1)',
+    type: [UpdateColheitaAreaDto],
+    example: [
+      {
+        areaPropriaId: 1,
+        observacoes: 'Área principal da colheita'
+      },
+      {
+        areaFornecedorId: 2,
+        observacoes: 'Área do fornecedor parceiro'
+      }
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateColheitaAreaDto)
+  @IsNotEmpty()
+  areas: UpdateColheitaAreaDto[];
 
-  // Validação customizada para áreas excludentes
-  @Validate(AreasExcludentesConstraint)
-  areasValidation: any;
+  @ApiPropertyOptional({
+    description: 'Array de fitas para esta fruta (apenas para bananas)',
+    type: [UpdateColheitaFitaDto],
+    example: [
+      {
+        fitaBananaId: 1,
+        quantidadeFita: 500.0,
+        observacoes: 'Fita vermelha premium'
+      }
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateColheitaFitaDto)
+  fitas?: UpdateColheitaFitaDto[];
 }
 
 export class UpdateColheitaDto {
@@ -92,10 +199,21 @@ export class UpdateColheitaDto {
     example: [
       {
         frutaPedidoId: 1,
-        areaPropriaId: 1,
         quantidadeReal: 985.5,
         quantidadeReal2: 50.0,
-        fitaColheita: 'Verde'
+        areas: [
+          {
+            areaPropriaId: 1,
+            observacoes: 'Área principal da colheita'
+          }
+        ],
+        fitas: [
+          {
+            fitaBananaId: 1,
+            quantidadeFita: 300.0,
+            observacoes: 'Fita verde premium'
+          }
+        ]
       }
     ],
   })

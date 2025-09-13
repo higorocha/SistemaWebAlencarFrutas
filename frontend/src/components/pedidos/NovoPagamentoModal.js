@@ -29,7 +29,7 @@ import {
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
-import { MaskedDecimalInput } from "../../components/common/inputs";
+import { MonetaryInput } from "../../components/common/inputs";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -331,7 +331,7 @@ const NovoPagamentoModal = ({
                   }
                 ]}
               >
-                <MaskedDecimalInput
+                <MonetaryInput
                   placeholder="0,00"
                   style={{ borderRadius: 6 }}
                   addonAfter="R$"

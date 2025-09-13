@@ -17,10 +17,10 @@ export declare class PedidosController {
     }>;
     findOne(id: string): Promise<PedidoResponseDto>;
     update(id: string, updatePedidoDto: UpdatePedidoDto): Promise<PedidoResponseDto>;
-    updateColheita(id: string, updateColheitaDto: UpdateColheitaDto): Promise<PedidoResponseDto>;
+    updateColheita(id: string, updateColheitaDto: UpdateColheitaDto, req: any): Promise<PedidoResponseDto>;
     updatePrecificacao(id: string, updatePrecificacaoDto: UpdatePrecificacaoDto): Promise<PedidoResponseDto>;
     updatePagamento(id: string, updatePagamentoDto: UpdatePagamentoDto): Promise<PedidoResponseDto>;
-    updateCompleto(id: string, updatePedidoCompletoDto: UpdatePedidoCompletoDto): Promise<PedidoResponseDto>;
+    updateCompleto(id: string, updatePedidoCompletoDto: UpdatePedidoCompletoDto, req: any): Promise<PedidoResponseDto>;
     finalizar(id: string): Promise<PedidoResponseDto>;
     cancelar(id: string): Promise<PedidoResponseDto>;
     remove(id: string): Promise<void>;

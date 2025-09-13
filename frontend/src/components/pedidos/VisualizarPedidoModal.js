@@ -12,7 +12,8 @@ import {
   Divider, 
   Table, 
   Empty,
-  Button
+  Button,
+  Tooltip
 } from "antd";
 import PropTypes from "prop-types";
 import { 
@@ -27,9 +28,10 @@ import {
   CarOutlined,
   CalculatorOutlined,
   BankOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
+  TagOutlined
 } from "@ant-design/icons";
-import { formatarValorMonetario } from "../../utils/formatters";
+import { formatarValorMonetario, numberFormatter } from "../../utils/formatters";
 import { PDFButton } from "../common/buttons";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
@@ -76,13 +78,13 @@ const VisualizarPedidoModal = ({
     showNotification("info", "Em Desenvolvimento", "A funcionalidade de exportação PDF ainda está em desenvolvimento.");
   };
 
-  // Colunas da tabela de frutas
+  // Colunas da tabela de valores das frutas
   const frutasColumns = [
     {
       title: 'Fruta',
       dataIndex: ['fruta', 'nome'],
       key: 'fruta',
-      width: 120,
+      width: 150,
       render: (nome) => (
         <Text strong style={{ color: "#059669" }}>
           {nome || '-'}
@@ -90,39 +92,16 @@ const VisualizarPedidoModal = ({
       ),
     },
     {
-      title: 'Área',
-      key: 'area',
-      width: 150,
-      render: (_, record) => {
-        const areaNome = record.areaPropria?.nome || record.areaFornecedor?.nome || '-';
-        const isAreaPropria = !!record.areaPropria;
-        const fornecedor = record.areaFornecedor?.fornecedor?.nome;
-        
-        return (
-          <Tag color={isAreaPropria ? "green" : "blue"}>
-            {isAreaPropria ? (
-              <span><EnvironmentOutlined style={{ marginRight: 4 }} /> {areaNome}</span>
-            ) : (
-              <span>
-                <UserOutlined style={{ marginRight: 4 }} />
-                {fornecedor} • <EnvironmentOutlined style={{ marginRight: 4 }} /> {areaNome}
-              </span>
-            )}
-          </Tag>
-        );
-      },
-    },
-    {
       title: 'Qtd. Prevista',
       key: 'quantidadePrevista',
-      width: 120,
+      width: 140,
       align: 'center',
       render: (_, record) => {
         const qtd = record.quantidadePrevista || 0;
         const unidade = record.unidadeMedida1 || '';
         return (
           <Text type="secondary">
-            {qtd.toFixed(2)} {unidade}
+            {numberFormatter(qtd)} {unidade}
           </Text>
         );
       },
@@ -130,7 +109,7 @@ const VisualizarPedidoModal = ({
     {
       title: 'Qtd. Real',
       key: 'quantidadeReal',
-      width: 120,
+      width: 140,
       align: 'center',
       render: (_, record) => {
         // Só exibir se houver unidade de precificação
@@ -151,7 +130,7 @@ const VisualizarPedidoModal = ({
         
         return (
           <Text strong style={{ color: "#10b981" }}>
-            {qtd.toFixed(2)} {unidade}
+            {numberFormatter(qtd)} {unidade}
           </Text>
         );
       },
@@ -160,7 +139,7 @@ const VisualizarPedidoModal = ({
       title: 'Preço Unitário',
       dataIndex: 'valorUnitario',
       key: 'valorUnitario',
-      width: 120,
+      width: 140,
       align: 'right',
       render: (preco) => (
         <Text strong style={{ color: preco ? "#059669" : "#999" }}>
@@ -172,7 +151,7 @@ const VisualizarPedidoModal = ({
       title: 'Total',
       dataIndex: 'valorTotal',
       key: 'valorTotal',
-      width: 120,
+      width: 140,
       align: 'right',
       render: (total) => (
         <Text strong style={{ 
@@ -191,7 +170,7 @@ const VisualizarPedidoModal = ({
       title: 'Data',
       dataIndex: 'dataPagamento',
       key: 'dataPagamento',
-      width: 100,
+      width: 90,
       render: (data) => (
         <Text>
           <CalendarOutlined style={{ marginRight: 4, color: "#059669" }} />
@@ -203,8 +182,8 @@ const VisualizarPedidoModal = ({
       title: 'Valor',
       dataIndex: 'valorRecebido',
       key: 'valorRecebido',
-      width: 120,
-      align: 'right',
+      width: 100,
+      align: 'left',
       render: (valor) => (
         <Text strong style={{ color: "#059669", fontSize: "14px" }}>
           {formatarValorMonetario(valor)}
@@ -215,7 +194,7 @@ const VisualizarPedidoModal = ({
       title: 'Método',
       dataIndex: 'metodoPagamento',
       key: 'metodoPagamento',
-      width: 120,
+      width: 100,
       render: (metodo) => {
         const metodos = {
           PIX: { color: "#52c41a", icon: "💳" },
@@ -237,7 +216,7 @@ const VisualizarPedidoModal = ({
       title: 'Conta',
       dataIndex: 'contaDestino',
       key: 'contaDestino',
-      width: 120,
+      width: 100,
       render: (conta) => (
         <Tag color="blue">
           <CreditCardOutlined style={{ marginRight: 4 }} />
@@ -249,9 +228,36 @@ const VisualizarPedidoModal = ({
       title: 'Vale',
       dataIndex: 'referenciaExterna',
       key: 'referenciaExterna',
-      width: 100,
+      width: 80,
       ellipsis: true,
       render: (ref) => ref || '-',
+    },
+    {
+      title: 'Observações',
+      dataIndex: 'observacoesPagamento',
+      key: 'observacoesPagamento',
+      width: 150,
+      ellipsis: true,
+      render: (observacoes) => {
+        if (!observacoes) return <Text type="secondary">-</Text>;
+        
+        return (
+          <Tooltip title={observacoes} placement="topLeft">
+            <Text 
+              style={{ 
+                cursor: 'pointer',
+                color: '#666',
+                fontSize: '13px'
+              }}
+            >
+              {observacoes.length > 20 
+                ? `${observacoes.substring(0, 20)}...` 
+                : observacoes
+              }
+            </Text>
+          </Tooltip>
+        );
+      },
     },
   ];
 
@@ -384,9 +390,9 @@ const VisualizarPedidoModal = ({
               margin: "4px 0 0 0", 
               color: "#666", 
               fontSize: "14px",
-              fontStyle: "italic"
+              fontStyle: pedido.observacoes ? "normal" : "italic"
             }}>
-              Observações não disponíveis nesta visualização
+              {pedido.observacoes || "Nenhuma observação registrada"}
             </Paragraph>
           </Col>
         </Row>
@@ -410,32 +416,184 @@ const VisualizarPedidoModal = ({
         }}
       >
         {pedido.frutasPedidos && pedido.frutasPedidos.length > 0 ? (
-          <Table
-            columns={frutasColumns}
-            dataSource={pedido.frutasPedidos}
-            rowKey="id"
-            pagination={false}
-            size="small"
-            style={{ border: "1px solid #e8e8e8", borderRadius: "8px" }}
-            components={{
-              header: {
-                cell: (props) => (
-                  <th
-                    {...props}
-                    style={{
-                      ...props.style,
-                      backgroundColor: '#059669',
-                      color: '#ffffff',
-                      fontWeight: 600,
-                      padding: '12px 16px',
-                      fontSize: '14px',
-                      borderBottom: 'none',
-                    }}
-                  />
-                ),
-              },
-            }}
-          />
+          <>
+            {/* Subseção: Valores */}
+            <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
+              <DollarOutlined style={{ marginRight: 8 }} />
+              Valores
+            </Title>
+            <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+            <Table
+              columns={frutasColumns}
+              dataSource={pedido.frutasPedidos}
+              rowKey="id"
+              pagination={false}
+              size="small"
+              style={{ border: "1px solid #e8e8e8", borderRadius: "8px", marginBottom: "24px" }}
+              components={{
+                header: {
+                  cell: (props) => (
+                    <th
+                      {...props}
+                      style={{
+                        ...props.style,
+                        backgroundColor: '#059669',
+                        color: '#ffffff',
+                        fontWeight: 600,
+                        padding: '12px 16px',
+                        fontSize: '14px',
+                        borderBottom: 'none',
+                      }}
+                    />
+                  ),
+                },
+              }}
+            />
+
+            {/* Subseção: Áreas e Fitas */}
+            <Title level={5} style={{ color: "#059669", marginBottom: "8px" }}>
+              <EnvironmentOutlined style={{ marginRight: 8 }} />
+              Áreas e Fitas Vinculadas
+            </Title>
+            <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+            {pedido.frutasPedidos.map((frutaPedido, index) => (
+              <div key={frutaPedido.id} style={{ marginBottom: "20px" }}>
+                <div style={{ 
+                  backgroundColor: "#f8fafc", 
+                  border: "1px solid #e2e8f0", 
+                  borderRadius: "8px", 
+                  padding: "16px",
+                  marginBottom: "12px"
+                }}>
+                  <Text strong style={{ color: "#059669", fontSize: "16px", display: "block", marginBottom: "12px" }}>
+                    <AppleOutlined style={{ marginRight: 8 }} />
+                    {frutaPedido.fruta?.nome}
+                  </Text>
+                  
+                  <Row gutter={[16, 16]}>
+                    {/* Áreas */}
+                    <Col span={12}>
+                      <Text strong style={{ color: "#059669", fontSize: "14px", display: "block", marginBottom: "8px" }}>
+                        <EnvironmentOutlined style={{ marginRight: 4 }} />
+                        Áreas ({frutaPedido.areas?.length || 0})
+                      </Text>
+                      {frutaPedido.areas && frutaPedido.areas.length > 0 ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                          {frutaPedido.areas.map((area, areaIndex) => (
+                            <div key={areaIndex} style={{ marginBottom: "4px" }}>
+                              <Tag 
+                                color={area.areaPropria ? "green" : area.areaFornecedor ? "blue" : "orange"}
+                                style={{ marginBottom: "2px" }}
+                              >
+                                {area.areaPropria ? (
+                                  <span>
+                                    <EnvironmentOutlined style={{ marginRight: 4 }} />
+                                    {area.areaPropria.nome}
+                                  </span>
+                                ) : area.areaFornecedor ? (
+                                  <span>
+                                    <UserOutlined style={{ marginRight: 4 }} />
+                                    {area.areaFornecedor.fornecedor?.nome} • {area.areaFornecedor.nome}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: "#f59e0b" }}>
+                                    <InfoCircleOutlined style={{ marginRight: 4 }} />
+                                    Área pendente de definição
+                                  </span>
+                                )}
+                              </Tag>
+                              {/* Exibir observação apenas da primeira área (todas têm a mesma observação) */}
+                              {areaIndex === 0 && area.observacoes && !area.observacoes.includes('Área a ser definida durante a colheita') && (
+                                <div style={{ 
+                                  fontSize: "11px", 
+                                  color: "#666", 
+                                  fontStyle: "italic",
+                                  marginTop: "2px",
+                                  paddingLeft: "4px"
+                                }}>
+                                  {area.observacoes}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Text type="secondary" style={{ fontStyle: "italic" }}>
+                          Nenhuma área vinculada
+                        </Text>
+                      )}
+                    </Col>
+
+                    {/* Fitas */}
+                    <Col span={12}>
+                      <Text strong style={{ color: "#059669", fontSize: "14px", display: "block", marginBottom: "8px" }}>
+                        <TagOutlined style={{ marginRight: 4 }} />
+                        Fitas ({frutaPedido.fitas?.length || 0})
+                      </Text>
+                      {frutaPedido.fitas && frutaPedido.fitas.length > 0 ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                          {frutaPedido.fitas.map((fita, fitaIndex) => (
+                            <React.Fragment key={fitaIndex}>
+                              {/* Conteúdo da fita em uma linha */}
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                {/* Cor da fita */}
+                                <div
+                                  style={{
+                                    width: 10,
+                                    height: 10,
+                                    backgroundColor: fita.fitaBanana?.corHex || '#52c41a',
+                                    borderRadius: '50%',
+                                    border: '1px solid #d9d9d9',
+                                    flexShrink: 0
+                                  }}
+                                />
+                                
+                                {/* Nome da fita e quantidade */}
+                                <span style={{ fontWeight: "600", color: "#333" }}>
+                                  {fita.fitaBanana?.nome || 'Fita'} • {fita.quantidadeFita || 0} und
+                                </span>
+                                
+                                {/* Área de origem */}
+                                <span style={{ color: "#666" }}>
+                                  <EnvironmentOutlined style={{ fontSize: "10px", color: "#10b981", marginRight: "2px" }} />
+                                  {fita.controleBanana?.areaAgricola?.nome || 'Área não identificada'}
+                                </span>
+                                
+                                {/* Observações com tooltip se existirem */}
+                                {fita.observacoes && (
+                                  <Tooltip title={fita.observacoes} placement="top">
+                                    <span style={{ 
+                                      color: "#8b5cf6",
+                                      fontStyle: "italic",
+                                      cursor: "pointer"
+                                    }}>
+                                      📝 {fita.observacoes.length > 10 
+                                        ? `${fita.observacoes.substring(0, 10)}...` 
+                                        : fita.observacoes
+                                      }
+                                    </span>
+                                  </Tooltip>
+                                )}
+                              </div>
+                              
+                              {/* Divider vertical entre lotes de fitas */}
+                              {fitaIndex < frutaPedido.fitas.length - 1 && (
+                                <Divider type="vertical" style={{ height: "16px", margin: "0 4px" }} />
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      ) : (
+                        <Text type="secondary" style={{ fontStyle: "italic" }}>
+                          Nenhuma fita vinculada
+                        </Text>
+                      )}
+                    </Col>
+                  </Row>
+                </div>
+              </div>
+            ))}
+          </>
         ) : (
           <Empty 
             description="Nenhuma fruta cadastrada" 
@@ -626,10 +784,11 @@ const VisualizarPedidoModal = ({
           {/* Subseção: Resumo Financeiro */}
           {pedido.valorFinal && (
             <>
-              <Title level={5} style={{ color: "#059669", marginBottom: "16px" }}>
+              <Title level={5} style={{ color: "#059669", marginBottom: "8px" }}>
                 <DollarOutlined style={{ marginRight: 8 }} />
                 Resumo Financeiro
               </Title>
+              <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
               <Row gutter={[20, 16]} align="middle" style={{ marginBottom: "24px" }}>
                 <Col span={6}>
                   <div style={{ 
@@ -741,10 +900,11 @@ const VisualizarPedidoModal = ({
           {/* Subseção: Histórico de Pagamentos */}
           {pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0 ? (
             <>
-              <Title level={5} style={{ color: "#059669", marginBottom: "16px" }}>
+              <Title level={5} style={{ color: "#059669", marginBottom: "8px" }}>
                 <CalendarOutlined style={{ marginRight: 8 }} />
                 Histórico de Pagamentos
               </Title>
+              <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
               <Table
                 columns={pagamentosColumns}
                 dataSource={pedido.pagamentosPedidos}

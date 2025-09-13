@@ -32,6 +32,7 @@ const getTheme = (mode) =>
               text: "#333333",
               activeItem: "#e3f2fd",
               hoverItem: "#f5f5f5",
+              submenuBackground: "#ededed", // Nova cor para submenus
             },
             status: {
               success: "#10b981", // Verde mais vibrante
@@ -212,6 +213,7 @@ const getTheme = (mode) =>
               text: "#ffffff",
               activeItem: "#132F4C",
               hoverItem: "#173A5E",
+              submenuBackground: "#374151", // Nova cor para submenus no modo escuro
             },
             status: {
               success: "#10b981", // Verde para sucessos (mantém destaque)
@@ -389,6 +391,9 @@ const getTheme = (mode) =>
         root.style.setProperty('--input-icon-color', theme.palette.inputs?.placeholderColor || '#059669');
         root.style.setProperty('--input-error-color', theme.palette.inputs?.errorTextColor || '#ff4d4f');
         root.style.setProperty('--input-error-hover-color', '#ff7875');
+        
+        // Aplicar CSS Variables para Sidebar
+        root.style.setProperty('--sidebar-submenu-bg', theme.palette.sidebar?.submenuBackground || '#ededed');
       }
     },
   });

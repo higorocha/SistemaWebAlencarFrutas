@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { PedidosService } from './pedidos.service';
@@ -244,8 +245,10 @@ export class PedidosController {
   updateColheita(
     @Param('id') id: string,
     @Body() updateColheitaDto: UpdateColheitaDto,
+    @Req() req,
   ): Promise<PedidoResponseDto> {
-    return this.pedidosService.updateColheita(+id, updateColheitaDto);
+    const usuarioId = req.user.id;
+    return this.pedidosService.updateColheita(+id, updateColheitaDto, usuarioId);
   }
 
   @Patch(':id/precificacao')
@@ -310,8 +313,10 @@ export class PedidosController {
   updateCompleto(
     @Param('id') id: string,
     @Body() updatePedidoCompletoDto: UpdatePedidoCompletoDto,
+    @Req() req,
   ): Promise<PedidoResponseDto> {
-    return this.pedidosService.updateCompleto(+id, updatePedidoCompletoDto);
+    const usuarioId = req.user.id;
+    return this.pedidosService.updateCompleto(+id, updatePedidoCompletoDto, usuarioId);
   }
 
   @Patch(':id/finalizar')

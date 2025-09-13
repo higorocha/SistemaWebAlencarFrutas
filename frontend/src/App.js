@@ -23,6 +23,7 @@ import Clientes from "./pages/Clientes";
 import Pedidos from "./pages/Pedidos";
 import PedidosDashboard from "./pages/PedidosDashboard";
 import Fornecedores from "./pages/FornecedoresPage";
+import ControleBanana from "./pages/producao/ControleBanana";
 import Login from "./pages/Login";
 import { NotificacaoProvider } from './contexts/NotificacaoContext';
 import { useThemeVariables } from './hooks/useThemeVariables';
@@ -58,6 +59,7 @@ const App = () => {
                         <Route path="/pedidos" element={<Pedidos />} />
                         <Route path="/pedidos/dashboard" element={<PedidosDashboard />} />
                         <Route path="/fornecedores" element={<Fornecedores />} />
+                        <Route path="/producao/banana" element={<ControleBanana />} />
                         <Route path="/configuracoes" element={<Configuracoes />} />
                       </Routes>
                     </Layout>

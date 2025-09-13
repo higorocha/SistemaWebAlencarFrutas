@@ -16,12 +16,21 @@ import {
   Settings,
   LightMode,
   DarkMode,
-  Agriculture,
+  LocalFlorist,
   WaterDrop,
   MoneyOff,
   WarningAmber as WarningAmberIcon,
+  Apple,
+  Nature,
+  Store,
+  Business,
+  Spa,
+  Assignment,
 } from "@mui/icons-material";
-import { ReconciliationOutlined, UserOutlined } from "@ant-design/icons";
+import { 
+  ShoppingCartOutlined,
+  EnvironmentOutlined 
+} from "@ant-design/icons";
 import {
   LocalAtm as LocalAtmIcon,
   Category as CategoryIcon,
@@ -62,12 +71,13 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
   }, [isOpen, collapseSidebar]);
 
   // ------------------------------------------------------------------
-  // (2) Estados de cada SubMenu (pai) => PEDIDOS e CADASTRO
+  // (2) Estados de cada SubMenu (pai) => PEDIDOS, CADASTRO e PRODUCAO
   //     Se true, aquele pai está aberto.
   // ------------------------------------------------------------------
   const [openParents, setOpenParents] = useState({
     PEDIDOS: false,
     CADASTRO: false,
+    PRODUCAO: false,
   });
 
   // ------------------------------------------------------------------
@@ -77,14 +87,18 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
 
   const pedidosItems = [
     { text: "Dashboard", icon: <BarChart />, path: "/pedidos/dashboard" },
-    { text: "Pedidos", icon: <ReconciliationOutlined />, path: "/pedidos" },
+    { text: "Pedidos", icon: <ShoppingCartOutlined />, path: "/pedidos" },
   ];
 
   const cadastroItems = [
     { text: "Clientes", icon: <People />, path: "/clientes" },
-    { text: "Frutas", icon: <Agriculture />, path: "/frutas" },
-    { text: "Áreas Agrícolas", icon: <EcoIcon />, path: "/areas-agricolas" },
-    { text: "Fornecedores", icon: <UserOutlined />, path: "/fornecedores" },
+    { text: "Frutas", icon: <Apple />, path: "/frutas" },
+    { text: "Áreas Agrícolas", icon: <EnvironmentOutlined />, path: "/areas-agricolas" },
+    { text: "Fornecedores", icon: <Store />, path: "/fornecedores" },
+  ];
+
+  const producaoItems = [
+    { text: "Banana", icon: <Spa />, path: "/producao/banana" },
   ];
 
   // ------------------------------------------------------------------
@@ -113,6 +127,10 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
     ) {
       setOpenParents((prev) => ({ ...prev, CADASTRO: true }));
     }
+    // se "/producao" => abre PRODUCAO
+    if (location.pathname.startsWith("/producao")) {
+      setOpenParents((prev) => ({ ...prev, PRODUCAO: true }));
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------------
@@ -139,6 +157,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
       setOpenParents({
         PEDIDOS: false,
         CADASTRO: false,
+        PRODUCAO: false,
       });
     } else {
       // Modo expandido => single open
@@ -146,6 +165,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
       setOpenParents({
         PEDIDOS: false,
         CADASTRO: false,
+        PRODUCAO: false,
         [parentKey]: true,
       });
     }
@@ -175,16 +195,9 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
       marginBottom: "4px",
     },
     "& .ps-submenu-content": {
-      backgroundColor: theme.palette.action.hover,
+      backgroundColor: theme.palette.sidebar.submenuBackground,
       transition: "none !important", // remove animações
     },
-    ...(mode === "dark" && {
-      backgroundColor: theme.palette.background.default,
-      "& .ps-submenu-content": {
-        backgroundColor: theme.palette.action.selected,
-        transition: "none !important",
-      },
-    }),
   };
 
   // ------------------------------------------------------------------
@@ -390,7 +403,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
           {isOpen ? (
             <SubMenu
               key="CADASTRO"
-              icon={<Settings />}
+              icon={<Assignment />}
               label="Cadastro"
               open={openParents.CADASTRO}
               onOpenChange={(opened) =>
@@ -414,7 +427,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
               key="CADASTRO"
               icon={
                 <Tooltip title="Cadastro" placement="right">
-                  <Settings />
+                  <Assignment />
                 </Tooltip>
               }
               label=""
@@ -434,6 +447,47 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
               }
             >
               {cadastroItems.map((c) => renderMenuItem(c, "CADASTRO"))}
+            </SubMenu>
+          )}
+
+          {/* SUBMENU PRODUÇÃO */}
+          {isOpen ? (
+            <SubMenu
+              key="PRODUCAO"
+              icon={<LocalFlorist />}
+              label="Produção"
+              open={openParents.PRODUCAO}
+              onOpenChange={(opened) =>
+                handleParentOpenChange("PRODUCAO", opened)
+              }
+              className={
+                isMenuActive(["/producao"])
+                  ? "ps-active-parent"
+                  : ""
+              }
+            >
+              {producaoItems.map((p) => renderMenuItem(p, "PRODUCAO"))}
+            </SubMenu>
+          ) : (
+            <SubMenu
+              key="PRODUCAO"
+              icon={
+                <Tooltip title="Produção" placement="right">
+                  <LocalFlorist />
+                </Tooltip>
+              }
+              label=""
+              open={openParents.PRODUCAO}
+              onOpenChange={(opened) =>
+                handleParentOpenChange("PRODUCAO", opened)
+              }
+              className={
+                isMenuActive(["/producao"])
+                  ? "ps-active-parent"
+                  : ""
+              }
+            >
+              {producaoItems.map((p) => renderMenuItem(p, "PRODUCAO"))}
             </SubMenu>
           )}
         </Menu>

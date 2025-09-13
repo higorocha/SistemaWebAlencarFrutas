@@ -1,7 +1,7 @@
 // src/components/pedidos/ColheitaModal.js
 
 import React, { useState, useEffect, useRef } from "react";
-import { Modal, Button, Space, message, Form, Input, Select, DatePicker, InputNumber, Row, Col, Typography, Card, Divider } from "antd";
+import { Modal, Button, Space, message, Form, Input, Select, DatePicker, InputNumber, Row, Col, Typography, Card, Divider, Tag, Tooltip } from "antd";
 import PropTypes from "prop-types";
 import { 
   SaveOutlined, 
@@ -13,12 +13,17 @@ import {
   FileTextOutlined,
   EnvironmentOutlined,
   CarOutlined,
-  UserOutlined
+  UserOutlined,
+  LinkOutlined,
+  TagOutlined
 } from "@ant-design/icons";
 import { showNotification } from "../../config/notificationConfig";
 import moment from "moment";
 import axiosInstance from "../../api/axiosConfig";
-import { MaskedDecimalInput } from "../../components/common/inputs";
+import { MonetaryInput } from "../../components/common/inputs";
+import { FormButton } from "../common/buttons";
+import VincularAreasModal from "./VincularAreasModal";
+import VincularFitasModal from "./VincularFitasModal";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -37,15 +42,21 @@ const ColheitaModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [areasProprias, setAreasProprias] = useState([]);
   const [areasFornecedores, setAreasFornecedores] = useState([]);
+  const [fitasBanana, setFitasBanana] = useState([]);
   const [modoAreaFruta, setModoAreaFruta] = useState({});
   const [selectAberto, setSelectAberto] = useState({});
+  
+  // Estados para os modais de vinculação
+  const [vincularAreasModalOpen, setVincularAreasModalOpen] = useState(false);
+  const [vincularFitasModalOpen, setVincularFitasModalOpen] = useState(false);
+  const [frutaSelecionada, setFrutaSelecionada] = useState(null);
   
   // Ref para controlar o valor original da data de colheita
   const dataColheitaOriginalRef = useRef(null);
 
-  // Carregar áreas próprias e de fornecedores
+  // Carregar áreas próprias, de fornecedores e fitas de banana
   useEffect(() => {
-    const fetchAreas = async () => {
+    const fetchDados = async () => {
       try {
                  // Buscar áreas próprias
          const responseAreas = await axiosInstance.get("/api/areas-agricolas");
@@ -54,14 +65,18 @@ const ColheitaModal = ({
                  // Buscar áreas de fornecedores
          const responseAreasFornecedores = await axiosInstance.get("/api/areas-fornecedores");
          setAreasFornecedores(responseAreasFornecedores.data || []);
+
+         // Buscar fitas de banana
+         const responseFitas = await axiosInstance.get("/fitas-banana");
+         setFitasBanana(responseFitas.data || []);
       } catch (error) {
-        console.error("Erro ao buscar áreas:", error);
-        showNotification("error", "Erro", "Erro ao carregar áreas");
+        console.error("Erro ao buscar dados:", error);
+        showNotification("error", "Erro", "Erro ao carregar dados necessários");
       }
     };
 
     if (open) {
-      fetchAreas();
+      fetchDados();
     }
   }, [open]);
 
@@ -78,9 +93,24 @@ const ColheitaModal = ({
         unidadeMedida2: fruta.unidadeMedida2,
         quantidadeReal: fruta.quantidadeReal || undefined,
         quantidadeReal2: fruta.quantidadeReal2 || undefined,
-        areaPropriaId: fruta.areaPropriaId || undefined,
-        areaFornecedorId: fruta.areaFornecedorId || undefined,
-        fitaColheita: fruta.fitaColheita || undefined
+        // NOVA ESTRUTURA: Arrays de áreas e fitas
+        // Filtrar apenas áreas reais (com IDs), removendo placeholders
+        areas: fruta.areas?.length > 0 ? fruta.areas
+          .filter(area => area.areaPropriaId || area.areaFornecedorId) // Remove placeholders
+          .map(area => ({
+            id: area.id,
+            areaPropriaId: area.areaPropriaId || undefined,
+            areaFornecedorId: area.areaFornecedorId || undefined,
+            observacoes: area.observacoes || ''
+          })) : [], // Array vazio se não há áreas reais
+        fitas: fruta.fitas?.length > 0 ? fruta.fitas.map(fita => ({
+          id: fita.id,
+          fitaBananaId: fita.fitaBananaId,
+          quantidadeFita: fita.quantidadeFita || undefined,
+          observacoes: fita.observacoes || '',
+          // ✅ MANTER detalhesAreas para reconstrução
+          detalhesAreas: fita.detalhesAreas || []
+        })) : []
       })) || [];
 
              // Armazenar o valor original da data de colheita
@@ -122,6 +152,131 @@ const ColheitaModal = ({
     { value: 'Branco', label: 'Branco', color: '#f0f0f0' },
   ];
 
+  // Funções para abrir modais de vinculação
+  const handleVincularAreas = (fruta, frutaIndex) => {
+    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+    setVincularAreasModalOpen(true);
+  };
+
+  const handleVincularFitas = (fruta, frutaIndex) => {
+    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+    setVincularFitasModalOpen(true);
+  };
+
+  // Verificar se fruta é banana para mostrar botão de fitas
+  const isBanana = (frutaNome) => {
+    return frutaNome && frutaNome.toLowerCase().includes('banana');
+  };
+
+  // Verificar se fruta tem áreas vinculadas (não placeholders)
+  const hasLinkedAreas = (fruta) => {
+    return fruta?.areas && fruta.areas.some(area => 
+      area.areaPropriaId || area.areaFornecedorId
+    );
+  };
+
+  // Verificar se fruta tem fitas vinculadas
+  const hasLinkedFitas = (fruta) => {
+    return fruta?.fitas && fruta.fitas.length > 0;
+  };
+
+  // Obter nomes das áreas vinculadas
+  const getLinkedAreasNames = (fruta) => {
+    if (!fruta?.areas) return [];
+    
+    const realAreas = fruta.areas.filter(area => 
+      area.areaPropriaId || area.areaFornecedorId
+    );
+
+    return realAreas.map(area => {
+      if (area.areaPropriaId) {
+        const areaPropria = areasProprias.find(a => a.id === area.areaPropriaId);
+        return {
+          nome: areaPropria?.nome?.toUpperCase() || `ÁREA ${area.areaPropriaId}`,
+          tipo: 'propria'
+        };
+      } else {
+        const areaFornecedor = areasFornecedores.find(a => a.id === area.areaFornecedorId);
+        return {
+          nome: areaFornecedor?.nome?.toUpperCase() || `ÁREA FORNECEDOR ${area.areaFornecedorId}`,
+          tipo: 'fornecedor'
+        };
+      }
+    });
+  };
+
+  // Obter nomes das fitas vinculadas
+  const getLinkedFitasNames = (fruta) => {
+    if (!fruta?.fitas) return [];
+    
+    return fruta.fitas.map(fita => {
+      const fitaBanana = fitasBanana.find(f => f.id === fita.fitaBananaId);
+      return {
+        nome: fitaBanana?.nome || `Fita ${fita.fitaBananaId}`,
+        cor: fitaBanana?.corHex || '#52c41a',
+        quantidade: fita.quantidadeFita
+      };
+    });
+  };
+
+  // Função para salvar áreas vinculadas
+  const handleSalvarAreas = (areas) => {
+    if (!frutaSelecionada) return;
+    
+    // Atualizar formulário com novas áreas
+    const frutasAtuais = form.getFieldValue('frutas') || [];
+    const frutasAtualizadas = frutasAtuais.map((fruta, index) => {
+      if (index === frutaSelecionada.index) {
+        // Se não há áreas selecionadas, criar área placeholder
+        if (!areas || areas.length === 0) {
+          return {
+            ...fruta,
+            areas: [{
+              areaPropriaId: undefined,
+              areaFornecedorId: undefined,
+              observacoes: 'Área a ser definida durante a colheita'
+            }]
+          };
+        }
+        
+        // Se há áreas selecionadas, usar apenas elas
+        return {
+          ...fruta,
+          areas: areas.map(area => ({
+            ...area,
+            areaPropriaId: area.areaPropriaId || undefined,
+            areaFornecedorId: area.areaFornecedorId || undefined,
+            observacoes: area.observacoes || ''
+          }))
+        };
+      }
+      return fruta;
+    });
+
+    form.setFieldsValue({ frutas: frutasAtualizadas });
+    showNotification("success", "Sucesso", "Áreas vinculadas com sucesso!");
+  };
+
+  // Função para salvar fitas vinculadas
+  const handleSalvarFitas = (fitas) => {
+    if (!frutaSelecionada) return;
+    
+    // Atualizar formulário com novas fitas
+    const frutasAtuais = form.getFieldValue('frutas') || [];
+    const frutasAtualizadas = frutasAtuais.map((fruta, index) => {
+      if (index === frutaSelecionada.index) {
+        return {
+          ...fruta,
+          fitas: fitas
+        };
+      }
+      return fruta;
+    });
+
+    form.setFieldsValue({ frutas: frutasAtualizadas });
+    showNotification("success", "Sucesso", "Fitas vinculadas com sucesso!");
+  };
+
   const handleSalvarColheita = async (values) => {
     try {
       setIsSaving(true);
@@ -135,23 +290,55 @@ const ColheitaModal = ({
                                // Validar se todas as frutas têm dados obrigatórios
           for (let i = 0; i < values.frutas.length; i++) {
             const fruta = values.frutas[i];
-                        if (!fruta.quantidadeReal || fruta.quantidadeReal <= 0) {
+            
+            // Converter quantidade real para número se necessário
+            const quantidadeReal = typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal;
+            
+            if (!quantidadeReal || quantidadeReal <= 0) {
                showNotification("error", "Erro", `Informe a quantidade real colhida da fruta ${i + 1}`);
                return;
              }
            
-                        // VALIDAÇÃO: Verificar se exatamente uma área foi selecionada
-             const hasAreaPropria = fruta.areaPropriaId !== undefined && fruta.areaPropriaId !== null;
-             const hasAreaFornecedor = fruta.areaFornecedorId !== undefined && fruta.areaFornecedorId !== null;
+                        // NOVA VALIDAÇÃO: Verificar se pelo menos uma área REAL foi selecionada (não placeholder)
+             const areasReais = fruta.areas?.filter(area => 
+               area.areaPropriaId || area.areaFornecedorId
+             ) || [];
              
-             if (!hasAreaPropria && !hasAreaFornecedor) {
-               showNotification("error", "Erro", `Selecione uma área de origem para a fruta ${i + 1}`);
+             if (areasReais.length === 0) {
+               showNotification("error", "Erro", `Adicione pelo menos uma área de origem para a fruta ${i + 1}`);
                return;
              }
+
+             // Validar cada área real individualmente
+             for (let j = 0; j < areasReais.length; j++) {
+               const area = areasReais[j];
+               const hasAreaPropria = area.areaPropriaId !== undefined && area.areaPropriaId !== null;
+               const hasAreaFornecedor = area.areaFornecedorId !== undefined && area.areaFornecedorId !== null;
+               
+               if (!hasAreaPropria && !hasAreaFornecedor) {
+                 showNotification("error", "Erro", `Fruta ${i + 1}, área ${j + 1}: Selecione uma área válida`);
+                 return;
+               }
+               
+               if (hasAreaPropria && hasAreaFornecedor) {
+                 showNotification("error", "Erro", `Fruta ${i + 1}, área ${j + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
+                 return;
+               }
+             }
+
+             // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
+             const frutaNome = fruta.frutaNome || fruta.fruta?.nome || '';
+             const isFrutaBanana = frutaNome.toLowerCase().includes('banana');
              
-             if (hasAreaPropria && hasAreaFornecedor) {
-               showNotification("error", "Erro", `Fruta ${i + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
-               return;
+             if (isFrutaBanana) {
+               const fitasVinculadas = fruta.fitas?.filter(fita => 
+                 fita.fitaBananaId && fita.quantidadeFita && fita.quantidadeFita > 0
+               ) || [];
+               
+               if (fitasVinculadas.length === 0) {
+                 showNotification("error", "Erro", `A fruta "${frutaNome}" é uma banana e deve ter pelo menos uma fita vinculada`);
+                 return;
+               }
              }
           }
 
@@ -160,14 +347,32 @@ const ColheitaModal = ({
         observacoesColheita: values.observacoesColheita,
         frutas: values.frutas.map(fruta => ({
           frutaPedidoId: fruta.frutaPedidoId,
-          quantidadeReal: fruta.quantidadeReal,
-          quantidadeReal2: fruta.quantidadeReal2,
-          areaPropriaId: fruta.areaPropriaId,
-          areaFornecedorId: fruta.areaFornecedorId,
-          fitaColheita: fruta.fitaColheita
+          // Garantir que quantidades sejam números
+          quantidadeReal: typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal,
+          quantidadeReal2: typeof fruta.quantidadeReal2 === 'string' ? parseFloat(fruta.quantidadeReal2) : fruta.quantidadeReal2,
+          // NOVA ESTRUTURA: Arrays de áreas e fitas
+          // IMPORTANTE: Filtrar apenas áreas reais (com IDs), removendo placeholders
+          areas: fruta.areas?.filter(area => 
+            area.areaPropriaId || area.areaFornecedorId
+          ).map(area => ({
+            id: area.id,
+            areaPropriaId: area.areaPropriaId || undefined,
+            areaFornecedorId: area.areaFornecedorId || undefined,
+            observacoes: area.observacoes || ''
+          })) || [],
+          fitas: fruta.fitas?.filter(fita => 
+            fita.fitaBananaId
+          ).map(fita => ({
+            id: fita.id,
+            fitaBananaId: fita.fitaBananaId,
+            quantidadeFita: fita.quantidadeFita || undefined,
+            observacoes: fita.observacoes || '',
+            // ✅ MANTER detalhesAreas para o backend processar
+            detalhesAreas: fita.detalhesAreas || []
+          })) || []
         })),
         // Campos de frete
-        pesagem: values.pesagem,
+        pesagem: values.pesagem ? String(values.pesagem) : values.pesagem, // Converte para string conforme schema
         placaPrimaria: values.placaPrimaria,
         placaSecundaria: values.placaSecundaria,
         nomeMotorista: values.nomeMotorista
@@ -397,53 +602,72 @@ const ColheitaModal = ({
             {(fields) => (
               <>
                                  {/* Cabeçalho das colunas */}
-                 <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-                   <Col xs={24} md={5}>
-                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                       <AppleOutlined style={{ marginRight: 8 }} />
-                       Fruta
-                     </span>
-                   </Col>
-                   <Col xs={24} md={3}>
-                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                       <CalculatorOutlined style={{ marginRight: 8 }} />
-                       Prevista
-                     </span>
-                   </Col>
-                   <Col xs={24} md={3}>
-                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                       <CalculatorOutlined style={{ marginRight: 8 }} />
-                       Real
-                     </span>
-                   </Col>
-                   <Col xs={24} md={3}>
-                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                       <CalculatorOutlined style={{ marginRight: 8 }} />
-                       Real 2
-                     </span>
-                   </Col>
-                   <Col xs={24} md={6}>
-                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                       <EnvironmentOutlined style={{ marginRight: 8 }} />
-                       Área
-                     </span>
-                   </Col>
-                   <Col xs={24} md={4}>
-                     <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                       <FileTextOutlined style={{ marginRight: 8 }} />
-                       Fita
-                     </span>
-                   </Col>
-                 </Row>
+                 {(() => {
+                   // Verificar se há pelo menos uma fruta banana no pedido
+                   const temBanana = fields.some((_, index) => {
+                     const fruta = form.getFieldValue('frutas')?.[index];
+                     return (fruta?.frutaNome || fruta?.fruta?.nome || '').toLowerCase().includes('banana');
+                   });
+                   
+                   return (
+                     <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
+                       <Col xs={24} md={temBanana ? 5 : 6}>
+                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                           <AppleOutlined style={{ marginRight: 8 }} />
+                           Fruta
+                         </span>
+                       </Col>
+                       <Col xs={24} md={temBanana ? 3 : 4}>
+                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                           <CalculatorOutlined style={{ marginRight: 8 }} />
+                           Prevista
+                         </span>
+                       </Col>
+                       <Col xs={24} md={temBanana ? 3 : 4}>
+                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                           <CalculatorOutlined style={{ marginRight: 8 }} />
+                           Real
+                         </span>
+                       </Col>
+                       <Col xs={24} md={temBanana ? 3 : 4}>
+                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                           <CalculatorOutlined style={{ marginRight: 8 }} />
+                           Real 2
+                         </span>
+                       </Col>
+                       <Col xs={24} md={temBanana ? 6 : 6}>
+                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                           <EnvironmentOutlined style={{ marginRight: 8 }} />
+                           Áreas
+                         </span>
+                       </Col>
+                       {temBanana && (
+                         <Col xs={24} md={4}>
+                           <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                             <TagOutlined style={{ marginRight: 8 }} />
+                             Fitas
+                           </span>
+                         </Col>
+                       )}
+                     </Row>
+                   );
+                 })()}
 
                 {fields.map(({ key, name, ...restField }, index) => {
                   const fruta = form.getFieldValue('frutas')?.[index];
+                  const isFrutaBanana = (fruta?.frutaNome || fruta?.fruta?.nome || '').toLowerCase().includes('banana');
+                  
+                  // Verificar se há pelo menos uma fruta banana no pedido
+                  const temBanana = fields.some((_, idx) => {
+                    const frutaCheck = form.getFieldValue('frutas')?.[idx];
+                    return (frutaCheck?.frutaNome || frutaCheck?.fruta?.nome || '').toLowerCase().includes('banana');
+                  });
                   
                   return (
                     <div key={key}>
                                              <Row gutter={[16, 16]} align="baseline">
                                                  {/* Nome da Fruta */}
-                         <Col xs={24} md={5}>
+                         <Col xs={24} md={temBanana ? 5 : 6}>
                           <Form.Item
                             {...restField}
                             name={[name, 'frutaNome']}
@@ -461,7 +685,7 @@ const ColheitaModal = ({
                         </Col>
 
                                                  {/* Quantidade Prevista */}
-                         <Col xs={24} md={3}>
+                         <Col xs={24} md={temBanana ? 3 : 4}>
                            <Form.Item
                              {...restField}
                            >
@@ -478,22 +702,27 @@ const ColheitaModal = ({
                          </Col>
 
                                                 {/* Quantidade Real */}
-                         <Col xs={24} md={3}>
+                         <Col xs={24} md={temBanana ? 3 : 4}>
                                                        <Form.Item
                               {...restField}
                               name={[name, 'quantidadeReal']}
                               rules={[
-                                { required: true },
-                                { type: 'number', min: 0.01, message: 'Quantidade deve ser maior que 0' }
+                                { required: true, message: "Quantidade real é obrigatória" },
+                                {
+                                  validator: (_, value) => {
+                                    // Converter string para número se necessário
+                                    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                    
+                                    if (!numValue || numValue <= 0) {
+                                      return Promise.reject(new Error("Quantidade deve ser maior que zero"));
+                                    }
+                                    
+                                    return Promise.resolve();
+                                  }
+                                }
                               ]}
-                              // NORMALIZADOR: Converte o valor de texto para número puro
-                              normalize={(value) => {
-                                if (!value) return null;
-                                const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                                return isNaN(numero) ? null : numero;
-                              }}
                             >
-                             <MaskedDecimalInput
+                             <MonetaryInput
                                placeholder="Ex: 985,50"
                                addonAfter={fruta?.unidadeMedida1 || ''}
                                size="large"
@@ -502,18 +731,29 @@ const ColheitaModal = ({
                         </Col>
 
                                                  {/* Quantidade Real 2 */}
-                         <Col xs={24} md={3}>
+                         <Col xs={24} md={temBanana ? 3 : 4}>
                                                        <Form.Item
                               {...restField}
                               name={[name, 'quantidadeReal2']}
-                              // NORMALIZADOR: Converte o valor de texto para número puro
-                              normalize={(value) => {
-                                if (!value) return null;
-                                const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                                return isNaN(numero) ? null : numero;
-                              }}
+                              rules={[
+                                {
+                                  validator: (_, value) => {
+                                    // Se não tem valor, é válido (campo opcional)
+                                    if (!value) return Promise.resolve();
+                                    
+                                    // Converter string para número se necessário
+                                    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                    
+                                    if (numValue && numValue <= 0) {
+                                      return Promise.reject(new Error("Quantidade deve ser maior que zero"));
+                                    }
+                                    
+                                    return Promise.resolve();
+                                  }
+                                }
+                              ]}
                             >
-                             <MaskedDecimalInput
+                             <MonetaryInput
                                 placeholder={!fruta?.unidadeMedida2 ? "-" : "Ex: 50,00"}
                                 addonAfter={fruta?.unidadeMedida2 || ''}
                                 disabled={!fruta?.unidadeMedida2}
@@ -523,136 +763,123 @@ const ColheitaModal = ({
                            </Form.Item>
                          </Col>
 
-                                                                                                   {/* Área de Origem */}
-                          <Col xs={24} md={6}>
-                            <Form.Item
-                              {...restField}
-                              rules={[
-                                { required: true, message: "Selecione uma área de origem" }
-                              ]}
-                            >
-                                                            <Select
-                                 key={`area-select-${name}-${modoAreaFruta[name] || 'propria'}`}
-                                 placeholder="Selecione a área"
-                                 style={{
-                                   borderRadius: "6px",
-                                   borderColor: "#d9d9d9",
-                                 }}
-                                 open={selectAberto[name]}
-                                 onDropdownVisibleChange={(open) => {
-                                   setSelectAberto(prev => ({ ...prev, [name]: open }));
-                                 }}
-                                                                onChange={(value, option) => {
-                                   if (value === 'terceiros') {
-                                     // Usuário quer ver áreas de terceiros
-                                     form.setFieldValue(['frutas', name, 'areaPropriaId'], undefined);
-                                     form.setFieldValue(['frutas', name, 'areaFornecedorId'], undefined);
-                                     setModoAreaFruta(prev => ({ ...prev, [name]: 'terceiros' }));
-                                     // Manter select aberto após troca de modo
-                                     setTimeout(() => {
-                                       setSelectAberto(prev => ({ ...prev, [name]: true }));
-                                     }, 100);
-                                   } else if (value === 'propria') {
-                                     // Usuário quer voltar para áreas próprias
-                                     form.setFieldValue(['frutas', name, 'areaPropriaId'], undefined);
-                                     form.setFieldValue(['frutas', name, 'areaFornecedorId'], undefined);
-                                     setModoAreaFruta(prev => ({ ...prev, [name]: 'propria' }));
-                                     // Manter select aberto após troca de modo
-                                     setTimeout(() => {
-                                       setSelectAberto(prev => ({ ...prev, [name]: true }));
-                                     }, 100);
-                                   } else if (option?.data) {
-                                     // Usuário selecionou uma área específica
-                                     const areaData = option.data;
-                                     if (areaData.tipo === 'propria') {
-                                       form.setFieldValue(['frutas', name, 'areaPropriaId'], areaData.id);
-                                       form.setFieldValue(['frutas', name, 'areaFornecedorId'], undefined);
-                                     } else {
-                                       form.setFieldValue(['frutas', name, 'areaFornecedorId'], areaData.id);
-                                       form.setFieldValue(['frutas', name, 'areaPropriaId'], undefined);
-                                     }
-                                     // Fechar select quando uma área real é selecionada
-                                     setSelectAberto(prev => ({ ...prev, [name]: false }));
-                                   }
-                                 }}
+                        {/* Coluna de Áreas */}
+                        <Col xs={24} md={temBanana ? 6 : 6}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            {hasLinkedAreas(fruta) ? (
+                              <>
+                                  {/* Botão com apenas ícone */}
+                                  <Tooltip title="Gerenciar áreas">
+                                    <FormButton
+                                      icon={<LinkOutlined />}
+                                      onClick={() => handleVincularAreas(fruta, index)}
+                                      style={{ 
+                                        minWidth: '32px',
+                                        width: '32px',
+                                        padding: '0'
+                                      }}
+                                    />
+                                  </Tooltip>
+                                
+                                {/* Badges das áreas */}
+                                {getLinkedAreasNames(fruta).slice(0, 2).map((area, idx) => (
+                                  <Tag 
+                                    key={idx} 
+                                    size="small" 
+                                    color={area.tipo === 'propria' ? 'green' : 'blue'}
+                                    style={{ 
+                                      fontSize: '11px',
+                                      maxWidth: '80px',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {area.nome}
+                                  </Tag>
+                                ))}
+                                
+                                {/* Badge "+X" se houver mais áreas */}
+                                {getLinkedAreasNames(fruta).length > 2 && (
+                                  <Tag size="small" color="blue" style={{ fontSize: '11px' }}>
+                                    +{getLinkedAreasNames(fruta).length - 2}
+                                  </Tag>
+                                )}
+                              </>
+                            ) : (
+                              <FormButton
+                                icon={<LinkOutlined />}
+                                onClick={() => handleVincularAreas(fruta, index)}
+                                style={{ 
+                                  minWidth: '130px'
+                                }}
                               >
-                                                               {/* Renderizar baseado no modo atual */}
-                                {(!modoAreaFruta[name] || modoAreaFruta[name] === 'propria') ? (
-                                 <>
-                                   {/* Áreas Próprias */}
-                                   {areasProprias.map((area) => (
-                                     <Option 
-                                       key={`propria-${area.id}`} 
-                                       value={`propria-${area.id}`}
-                                       data={{ tipo: 'propria', id: area.id }}
-                                     >
-                                       {area.nome}
-                                     </Option>
-                                   ))}
-                                   
-                                   {/* Opção para ir para terceiros */}
-                                   <Option value="terceiros">
-                                     <span style={{ color: '#1890ff', fontWeight: '500' }}>
-                                       🔄 Ver áreas de terceiros
-                                     </span>
-                                   </Option>
-                                 </>
-                               ) : (
-                                 <>
-                                   {/* Opção para voltar para próprias */}
-                                   <Option value="propria">
-                                     <span style={{ color: '#52c41a', fontWeight: '500' }}>
-                                       🔄 Voltar para áreas próprias
-                                     </span>
-                                   </Option>
-                                   
-                                   {/* Áreas de Fornecedores */}
-                                   {areasFornecedores.map((area) => (
-                                     <Option 
-                                       key={`fornecedor-${area.id}`} 
-                                       value={`fornecedor-${area.id}`}
-                                       data={{ tipo: 'fornecedor', id: area.id }}
-                                     >
-                                       {area.nome} - {area.fornecedor?.nome || 'Fornecedor não informado'}
-                                     </Option>
-                                   ))}
-                                 </>
-                               )}
-                             </Select>
-                           </Form.Item>
-                         </Col>
-
-                                                 {/* Fita de Colheita */}
-                         <Col xs={24} md={4}>
-                          <Form.Item
-                            {...restField}
-                            name={[name, 'fitaColheita']}
-                          >
-                            <Select
-                              placeholder="Cor da fita"
-                              allowClear
-                              style={{
-                                borderRadius: "6px",
-                                borderColor: "#d9d9d9",
-                              }}
-                            >
-                              {coresFita.map((cor) => (
-                                <Option key={cor.value} value={cor.value}>
-                                  <Space>
-                                    <div style={{
-                                      width: 16,
-                                      height: 16,
-                                      backgroundColor: cor.color,
-                                      borderRadius: '50%',
-                                      border: '1px solid #d9d9d9'
-                                    }} />
-                                    {cor.label}
-                                  </Space>
-                                </Option>
-                              ))}
-                            </Select>
-                          </Form.Item>
+                                Vincular Áreas
+                              </FormButton>
+                            )}
+                          </div>
                         </Col>
+
+                        {/* Coluna de Fitas - Só aparece para bananas */}
+                        {isFrutaBanana && (
+                          <Col xs={24} md={4}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              {hasLinkedFitas(fruta) ? (
+                                <>
+                                    {/* Botão com apenas ícone */}
+                                    <Tooltip title="Gerenciar fitas">
+                                      <FormButton
+                                        icon={<LinkOutlined />}
+                                        onClick={() => handleVincularFitas(fruta, index)}
+                                        style={{ 
+                                          minWidth: '32px',
+                                          width: '32px',
+                                          padding: '0'
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  
+                                  {/* Badges das fitas */}
+                                  {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
+                                    <Tag 
+                                      key={idx} 
+                                      size="small" 
+                                      style={{ 
+                                        fontSize: '11px',
+                                        backgroundColor: fita.cor + '20',
+                                        borderColor: fita.cor,
+                                        color: '#333',
+                                        maxWidth: '60px',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {fita.nome}
+                                    </Tag>
+                                  ))}
+                                  
+                                  {/* Badge "+X" se houver mais fitas */}
+                                  {getLinkedFitasNames(fruta).length > 1 && (
+                                    <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
+                                      +{getLinkedFitasNames(fruta).length - 1}
+                                    </Tag>
+                                  )}
+                                </>
+                              ) : (
+                                <FormButton
+                                  icon={<LinkOutlined />}
+                                  onClick={() => handleVincularFitas(fruta, index)}
+                                  style={{ 
+                                    minWidth: '120px'
+                                  }}
+                                >
+                                  Vincular Fitas
+                                </FormButton>
+                              )}
+                            </div>
+                          </Col>
+                        )}
                       </Row>
 
                       
@@ -697,13 +924,34 @@ const ColheitaModal = ({
                    </Space>
                  }
                  name="pesagem"
+                 rules={[
+                   {
+                     validator: (_, value) => {
+                       // Se não tem valor, é válido (campo opcional)
+                       if (!value) return Promise.resolve();
+                       
+                       // InputNumber já garante que é número, só validar se é positivo
+                       if (value <= 0) {
+                         return Promise.reject(new Error("Pesagem deve ser maior que zero"));
+                       }
+                       
+                       return Promise.resolve();
+                     }
+                   }
+                 ]}
                >
-                                  <Input
+                                  <InputNumber
                     placeholder="Ex: 2500"
                     style={{
+                      width: "100%",
                       borderRadius: "6px",
                       borderColor: "#d9d9d9",
                     }}
+                    min={1}
+                    max={999999}
+                    controls={false}
+                    formatter={(value) => `${value}`.replace(/[^0-9]/g, '')}
+                    parser={(value) => value.replace(/[^0-9]/g, '')}
                   />
                </Form.Item>
              </Col>
@@ -804,6 +1052,30 @@ const ColheitaModal = ({
           </Button>
                  </div>
        </Form>
+
+       {/* Modal de Vincular Áreas */}
+       <VincularAreasModal
+         open={vincularAreasModalOpen}
+         onClose={() => {
+           setVincularAreasModalOpen(false);
+           setFrutaSelecionada(null);
+         }}
+         fruta={frutaSelecionada}
+         onSave={handleSalvarAreas}
+         loading={false}
+       />
+
+       {/* Modal de Vincular Fitas */}
+       <VincularFitasModal
+         open={vincularFitasModalOpen}
+         onClose={() => {
+           setVincularFitasModalOpen(false);
+           setFrutaSelecionada(null);
+         }}
+         fruta={frutaSelecionada}
+         onSave={handleSalvarFitas}
+         loading={false}
+       />
      </Modal>
    );
  };

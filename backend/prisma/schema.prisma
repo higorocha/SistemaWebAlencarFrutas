@@ -21,6 +21,11 @@ model Usuario {
 
   // Relação com Notificacao
   notificacoes Notificacao[]
+  
+  // Relações com Sistema de Controle de Banana
+  fitasBanana      FitaBanana[]      // Fitas criadas pelo usuário
+  controlesBanana  ControleBanana[]  // Controles registrados pelo usuário  
+  historicosFitas  HistoricoFitas[]  // Histórico de ações do usuário
 
   @@map("usuarios")
 }
@@ -227,8 +232,9 @@ model AreaAgricola {
   updatedAt       DateTime         @updatedAt
 
   // Relações
-  lotesCulturas   LotesCulturas[]
-  frutasPedidos   FrutasPedidos[]  // NOVA: Relação com frutas dos pedidos
+  lotes           LotesCulturas[]
+  controlesBanana ControleBanana[] // Relação com controle de banana
+  frutasPedidosAreas FrutasPedidosAreas[] // NOVA: Relação com múltiplas áreas de pedidos
 
   @@map("areas_agricolas")
 }
@@ -397,7 +403,7 @@ model AreaFornecedor {
 
   // Relações
   fornecedor      Fornecedor       @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
-  frutasPedidos   FrutasPedidos[]  // NOVA: Relação com frutas dos pedidos
+  frutasPedidosAreas FrutasPedidosAreas[] // NOVA: Relação com múltiplas áreas de pedidos
   
   @@map("areas_fornecedores")
 }
@@ -454,17 +460,10 @@ model FrutasPedidos {
   pedidoId              Int              // Relação com o pedido
   frutaId               Int              // Relação com a fruta
   
-  // Área de origem (ou é própria ou é de terceiro)
-  areaPropriaId         Int?             // FK para areas (áreas próprias)
-  areaFornecedorId      Int?             // FK para areas_fornecedores (áreas de terceiros)
-  
   // Quantidades
   quantidadePrevista    Float
   quantidadeReal        Float?
   quantidadeReal2       Float?           // Segunda unidade
-  
-  // Colheita
-  fitaColheita          String?          // Cor da fita para identificação
   
   // Unidades de medida
   unidadeMedida1        UnidadeMedida    // Obrigatória
@@ -482,8 +481,10 @@ model FrutasPedidos {
   // Relações
   pedido                Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   fruta                 Fruta            @relation(fields: [frutaId], references: [id])
-  areaPropria           AreaAgricola?    @relation(fields: [areaPropriaId], references: [id])
-  areaFornecedor        AreaFornecedor?  @relation(fields: [areaFornecedorId], references: [id])
+  
+  // NOVAS: Relações com múltiplas áreas e fitas
+  areas                 FrutasPedidosAreas[]
+  fitas                 FrutasPedidosFitas[]
   
   @@unique([pedidoId, frutaId]) // Evita duplicatas
   @@map("frutas_pedidos")
@@ -513,4 +514,121 @@ model PagamentosPedidos {
   pedido                Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   
   @@map("pagamentos_pedidos")
+}
+
+// ========================================
+// NOVAS TABELAS PARA MÚLTIPLAS ÁREAS E FITAS POR FRUTA
+// ========================================
+
+// Tabela para múltiplas áreas por fruta em pedidos
+model FrutasPedidosAreas {
+  id                Int              @id @default(autoincrement())
+  frutaPedidoId     Int              // FK para frutas_pedidos
+  
+  // Área (exclusiva - ou própria OU fornecedor)
+  areaPropriaId     Int?             // FK para areas_agricolas
+  areaFornecedorId  Int?             // FK para areas_fornecedores
+  
+  // Observações opcionais
+  observacoes       String?          @db.Text
+  
+  // Metadados
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  // Relações
+  frutaPedido       FrutasPedidos    @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
+  areaPropria       AreaAgricola?    @relation(fields: [areaPropriaId], references: [id])
+  areaFornecedor    AreaFornecedor?  @relation(fields: [areaFornecedorId], references: [id])
+  
+  @@map("frutas_pedidos_areas")
+}
+
+// Tabela para múltiplas fitas por fruta em pedidos
+model FrutasPedidosFitas {
+  id                Int              @id @default(autoincrement())
+  frutaPedidoId     Int              // FK para frutas_pedidos
+  fitaBananaId      Int              // FK para fitas_banana (mantido para referência)
+  controleBananaId  Int              // FK para controle_banana (LOTE ESPECÍFICO)
+  
+  // Quantidade específica desta fita (opcional para flexibilidade)
+  quantidadeFita    Float?           // Quantidade desta fita (pode ser omitida)
+  
+  // Observações opcionais
+  observacoes       String?          @db.Text
+  
+  // Metadados
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  // Relações
+  frutaPedido       FrutasPedidos    @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
+  fitaBanana        FitaBanana       @relation(fields: [fitaBananaId], references: [id])
+  controleBanana    ControleBanana   @relation(fields: [controleBananaId], references: [id])
+  
+  @@unique([frutaPedidoId, controleBananaId]) // Evita lote duplicado na mesma fruta
+  @@map("frutas_pedidos_fitas")
+}
+
+// ========================================
+// SISTEMA DE CONTROLE DE BANANA
+// ========================================
+
+// Tabela de Fitas para identificação das bananas
+model FitaBanana {
+  id           Int      @id @default(autoincrement())
+  nome         String   @db.VarChar(100)  // Nome da fita (ex: "Fita Vermelha", "Fita Azul")
+  corHex       String   @db.VarChar(7)    // Cor em hexadecimal (#FF0000)
+  dataCriacao  DateTime @default(now())
+  usuarioId    Int      // Usuário que criou a fita
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relações
+  usuario      Usuario         @relation(fields: [usuarioId], references: [id])
+  controles    ControleBanana[] // Uma fita pode ter múltiplos registros de controle
+  frutasPedidos FrutasPedidosFitas[] // NOVA: Relação com pedidos
+
+  @@unique([nome]) // Nome único para fitas
+  @@map("fitas_banana")
+}
+
+// Tabela de Controle de Banana por Área
+model ControleBanana {
+  id                     Int           @id @default(autoincrement())
+  fitaBananaId           Int           // FK para fita utilizada
+  areaAgricolaId         Int           // FK para área agrícola
+  quantidadeFitas        Int           // Quantidade atual de fitas (estoque)
+  quantidadeInicialFitas Int           // Quantidade inicialmente cadastrada (histórico)
+  dataRegistro           DateTime      @default(now()) // Data do registro
+  usuarioId              Int           // Usuário que registrou
+  observacoes            String?       @db.Text // Observações opcionais
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  // Relações
+  fitaBanana       FitaBanana    @relation(fields: [fitaBananaId], references: [id])
+  areaAgricola     AreaAgricola  @relation(fields: [areaAgricolaId], references: [id])
+  usuario          Usuario       @relation(fields: [usuarioId], references: [id])
+  historicos       HistoricoFitas[] // Histórico de mudanças
+  frutasPedidosFitas FrutasPedidosFitas[] // Fitas usadas em pedidos
+
+  @@map("controle_banana")
+}
+
+// Tabela de Histórico para Auditoria
+model HistoricoFitas {
+  id                Int            @id @default(autoincrement())
+  controleBananaId  Int            // FK para controle de banana
+  usuarioId         Int            // Usuário que fez a ação
+  acao              String         @db.VarChar(50) // CRIADO, EDITADO, REMOVIDO
+  dadosAnteriores   Json?          // Dados antes da mudança (para edições)
+  dadosNovos        Json?          // Dados após a mudança
+  createdAt         DateTime       @default(now())
+
+  // Relações
+  controleBanana    ControleBanana @relation(fields: [controleBananaId], references: [id], onDelete: Cascade)
+  usuario           Usuario        @relation(fields: [usuarioId], references: [id])
+
+  @@map("historico_fitas")
 }

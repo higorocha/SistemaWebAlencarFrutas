@@ -1,10 +1,27 @@
 type StatusPedido = 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'AGUARDANDO_PRECIFICACAO' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
 type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
+export declare class UpdateCompletoAreaDto {
+    id?: number;
+    areaPropriaId?: number;
+    areaFornecedorId?: number;
+    observacoes?: string;
+}
+export declare class UpdateCompletoFitaDto {
+    id?: number;
+    fitaBananaId: number;
+    controleBananaId?: number;
+    quantidadeFita?: number;
+    observacoes?: string;
+    detalhesAreas?: Array<{
+        fitaBananaId: number;
+        areaId: number;
+        quantidade: number;
+        controleBananaId: number;
+    }>;
+}
 export declare class UpdateFrutaPedidoDto {
     frutaPedidoId?: number;
     frutaId?: number;
-    areaPropriaId?: number;
-    areaFornecedorId?: number;
     quantidadePrevista?: number;
     quantidadeReal?: number;
     quantidadeReal2?: number;
@@ -13,7 +30,8 @@ export declare class UpdateFrutaPedidoDto {
     valorUnitario?: number;
     unidadePrecificada?: UnidadeMedida;
     valorTotal?: number;
-    fitaColheita?: string;
+    areas?: UpdateCompletoAreaDto[];
+    fitas?: UpdateCompletoFitaDto[];
 }
 export declare class UpdatePedidoCompletoDto {
     clienteId?: number;

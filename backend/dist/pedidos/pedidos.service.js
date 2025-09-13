@@ -12,10 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PedidosService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const controle_banana_service_1 = require("../controle-banana/controle-banana.service");
 let PedidosService = class PedidosService {
     prisma;
-    constructor(prisma) {
+    controleBananaService;
+    constructor(prisma, controleBananaService) {
         this.prisma = prisma;
+        this.controleBananaService = controleBananaService;
     }
     async getDashboardStats(paginaFinalizados = 1, limitFinalizados = 10) {
         const pedidosAtivos = await this.prisma.pedido.findMany({
@@ -40,20 +43,32 @@ let PedidosService = class PedidosService {
                                 categoria: true
                             }
                         },
-                        areaPropria: {
-                            select: {
-                                id: true,
-                                nome: true
-                            }
-                        },
-                        areaFornecedor: {
-                            select: {
-                                id: true,
-                                nome: true,
-                                fornecedor: {
+                        areas: {
+                            include: {
+                                areaPropria: {
                                     select: {
                                         id: true,
                                         nome: true
+                                    }
+                                },
+                                areaFornecedor: {
+                                    select: {
+                                        id: true,
+                                        nome: true,
+                                        fornecedor: {
+                                            select: { id: true, nome: true }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        fitas: {
+                            include: {
+                                fitaBanana: {
+                                    select: {
+                                        id: true,
+                                        nome: true,
+                                        corHex: true
                                     }
                                 }
                             }
@@ -226,6 +241,92 @@ let PedidosService = class PedidosService {
         const sequencial = proximoNumero.toString().padStart(4, '0');
         return `${prefixo}${sequencial}`;
     }
+    async gerenciarAreasEFitas(prisma, frutaPedidoId, areas, fitas) {
+        if (areas && areas.length > 0) {
+            for (const area of areas) {
+                if (area.id) {
+                    await prisma.frutasPedidosAreas.update({
+                        where: { id: area.id },
+                        data: {
+                            areaPropriaId: area.areaPropriaId || null,
+                            areaFornecedorId: area.areaFornecedorId || null,
+                            observacoes: area.observacoes,
+                        },
+                    });
+                }
+                else {
+                    await prisma.frutasPedidosAreas.create({
+                        data: {
+                            frutaPedidoId,
+                            areaPropriaId: area.areaPropriaId || null,
+                            areaFornecedorId: area.areaFornecedorId || null,
+                            observacoes: area.observacoes,
+                        },
+                    });
+                }
+            }
+        }
+        if (fitas && fitas.length > 0) {
+            for (const fita of fitas) {
+                if (fita.id) {
+                    await prisma.frutasPedidosFitas.update({
+                        where: { id: fita.id },
+                        data: {
+                            fitaBananaId: fita.fitaBananaId,
+                            quantidadeFita: fita.quantidadeFita,
+                            observacoes: fita.observacoes,
+                        },
+                    });
+                }
+                else {
+                    const controle = await prisma.controleBanana.findFirst({
+                        where: {
+                            fitaBananaId: fita.fitaBananaId,
+                            quantidadeFitas: { gt: 0 }
+                        },
+                        orderBy: {
+                            quantidadeFitas: 'desc'
+                        }
+                    });
+                    if (controle) {
+                        await prisma.frutasPedidosFitas.create({
+                            data: {
+                                frutaPedidoId,
+                                fitaBananaId: fita.fitaBananaId,
+                                controleBananaId: controle.id,
+                                quantidadeFita: fita.quantidadeFita,
+                                observacoes: fita.observacoes,
+                            },
+                        });
+                    }
+                }
+            }
+        }
+    }
+    adaptPedidoResponse(pedido) {
+        if (!pedido)
+            return pedido;
+        const resultado = {
+            ...pedido,
+            frutasPedidos: pedido.frutasPedidos?.map(fp => {
+                const frutaAdaptada = {
+                    ...fp,
+                    areas: fp.areas || [],
+                    fitas: fp.fitas?.map(fita => ({
+                        ...fita,
+                        detalhesAreas: fita.controleBanana && fita.controleBanana.areaAgricola ? [{
+                                fitaBananaId: fita.fitaBananaId,
+                                areaId: fita.controleBanana.areaAgricola.id,
+                                quantidade: fita.quantidadeFita || 0,
+                                controleBananaId: fita.controleBananaId
+                            }] : []
+                    })) || []
+                };
+                return frutaAdaptada;
+            }) || []
+        };
+        return resultado;
+    }
     calcularValoresConsolidados(frutasPedidos, frete, icms, desconto, avaria) {
         const valorTotalFrutas = frutasPedidos.reduce((total, fruta) => {
             return total + (fruta.valorTotal || 0);
@@ -291,6 +392,38 @@ let PedidosService = class PedidosService {
             if (!frutaExiste) {
                 throw new common_1.NotFoundException(`Fruta com ID ${fruta.frutaId} não encontrada`);
             }
+            if (!fruta.areas || fruta.areas.length === 0) {
+                throw new common_1.BadRequestException(`Fruta ${fruta.frutaId} deve ter pelo menos uma área associada`);
+            }
+            for (const area of fruta.areas) {
+                const temAreaPropria = !!area.areaPropriaId;
+                const temAreaFornecedor = !!area.areaFornecedorId;
+                if (temAreaPropria && temAreaFornecedor) {
+                    throw new common_1.BadRequestException('Área não pode ser própria E de fornecedor simultaneamente');
+                }
+                if (!temAreaPropria && !temAreaFornecedor) {
+                    continue;
+                }
+                if (temAreaPropria) {
+                    const areaPropriaExiste = await this.prisma.areaAgricola.findUnique({
+                        where: { id: area.areaPropriaId },
+                    });
+                    if (!areaPropriaExiste) {
+                        throw new common_1.NotFoundException(`Área própria com ID ${area.areaPropriaId} não encontrada`);
+                    }
+                }
+                if (temAreaFornecedor) {
+                    const areaFornecedorExiste = await this.prisma.areaFornecedor.findUnique({
+                        where: { id: area.areaFornecedorId },
+                    });
+                    if (!areaFornecedorExiste) {
+                        throw new common_1.NotFoundException(`Área de fornecedor com ID ${area.areaFornecedorId} não encontrada`);
+                    }
+                }
+            }
+            if (fruta.fitas && fruta.fitas.length > 0) {
+                await this.validarEstoqueFitas(fruta.fitas, false);
+            }
         }
         const numeroPedido = await this.gerarNumeroPedido();
         const pedido = await this.prisma.$transaction(async (prisma) => {
@@ -302,19 +435,55 @@ let PedidosService = class PedidosService {
                     observacoes: createPedidoDto.observacoes,
                 },
             });
-            const frutasPedidos = await Promise.all(createPedidoDto.frutas.map(fruta => prisma.frutasPedidos.create({
-                data: {
-                    pedidoId: novoPedido.id,
-                    frutaId: fruta.frutaId,
-                    quantidadePrevista: fruta.quantidadePrevista,
-                    unidadeMedida1: fruta.unidadeMedida1,
-                    unidadeMedida2: fruta.unidadeMedida2,
-                },
-            })));
-            return { ...novoPedido, frutasPedidos };
+            for (const fruta of createPedidoDto.frutas) {
+                const frutaPedido = await prisma.frutasPedidos.create({
+                    data: {
+                        pedidoId: novoPedido.id,
+                        frutaId: fruta.frutaId,
+                        quantidadePrevista: fruta.quantidadePrevista,
+                        unidadeMedida1: fruta.unidadeMedida1,
+                        unidadeMedida2: fruta.unidadeMedida2,
+                    },
+                });
+                for (const area of fruta.areas) {
+                    await prisma.frutasPedidosAreas.create({
+                        data: {
+                            frutaPedidoId: frutaPedido.id,
+                            areaPropriaId: area.areaPropriaId || null,
+                            areaFornecedorId: area.areaFornecedorId || null,
+                            observacoes: area.observacoes,
+                        },
+                    });
+                }
+                if (fruta.fitas && fruta.fitas.length > 0) {
+                    for (const fita of fruta.fitas) {
+                        const controle = await prisma.controleBanana.findFirst({
+                            where: {
+                                fitaBananaId: fita.fitaBananaId,
+                                quantidadeFitas: { gt: 0 }
+                            },
+                            orderBy: {
+                                quantidadeFitas: 'desc'
+                            }
+                        });
+                        if (controle) {
+                            await prisma.frutasPedidosFitas.create({
+                                data: {
+                                    frutaPedidoId: frutaPedido.id,
+                                    fitaBananaId: fita.fitaBananaId,
+                                    controleBananaId: controle.id,
+                                    quantidadeFita: fita.quantidadeFita,
+                                    observacoes: fita.observacoes,
+                                },
+                            });
+                        }
+                    }
+                }
+            }
+            return novoPedido;
         });
         const pedidoCompleto = await this.findOne(pedido.id);
-        return pedidoCompleto;
+        return this.adaptPedidoResponse(pedidoCompleto);
     }
     async findAll(page, limit, search, status, clienteId, dataInicio, dataFim) {
         const skip = page && limit ? (page - 1) * limit : 0;
@@ -354,15 +523,41 @@ let PedidosService = class PedidosService {
                             fruta: {
                                 select: { id: true, nome: true }
                             },
-                            areaPropria: {
-                                select: { id: true, nome: true }
-                            },
-                            areaFornecedor: {
-                                select: {
-                                    id: true,
-                                    nome: true,
-                                    fornecedor: {
+                            areas: {
+                                include: {
+                                    areaPropria: {
                                         select: { id: true, nome: true }
+                                    },
+                                    areaFornecedor: {
+                                        select: {
+                                            id: true,
+                                            nome: true,
+                                            fornecedor: {
+                                                select: { id: true, nome: true }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            fitas: {
+                                include: {
+                                    fitaBanana: {
+                                        select: {
+                                            id: true,
+                                            nome: true,
+                                            corHex: true
+                                        }
+                                    },
+                                    controleBanana: {
+                                        select: {
+                                            id: true,
+                                            areaAgricola: {
+                                                select: {
+                                                    id: true,
+                                                    nome: true
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -374,7 +569,7 @@ let PedidosService = class PedidosService {
             this.prisma.pedido.count({ where }),
         ]);
         return {
-            data: pedidos.map(pedido => this.convertNullToUndefined(pedido)),
+            data: pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido))),
             total,
             page: page || 1,
             limit: take,
@@ -392,15 +587,41 @@ let PedidosService = class PedidosService {
                         fruta: {
                             select: { id: true, nome: true }
                         },
-                        areaPropria: {
-                            select: { id: true, nome: true }
-                        },
-                        areaFornecedor: {
-                            select: {
-                                id: true,
-                                nome: true,
-                                fornecedor: {
+                        areas: {
+                            include: {
+                                areaPropria: {
                                     select: { id: true, nome: true }
+                                },
+                                areaFornecedor: {
+                                    select: {
+                                        id: true,
+                                        nome: true,
+                                        fornecedor: {
+                                            select: { id: true, nome: true }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        fitas: {
+                            include: {
+                                fitaBanana: {
+                                    select: {
+                                        id: true,
+                                        nome: true,
+                                        corHex: true
+                                    }
+                                },
+                                controleBanana: {
+                                    select: {
+                                        id: true,
+                                        areaAgricola: {
+                                            select: {
+                                                id: true,
+                                                nome: true
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -412,7 +633,8 @@ let PedidosService = class PedidosService {
         if (!pedido) {
             throw new common_1.NotFoundException('Pedido não encontrado');
         }
-        return this.convertNullToUndefined(pedido);
+        const pedidoAdaptado = this.adaptPedidoResponse(pedido);
+        return this.convertNullToUndefined(pedidoAdaptado);
     }
     async update(id, updatePedidoDto) {
         const existingPedido = await this.prisma.pedido.findUnique({
@@ -436,15 +658,30 @@ let PedidosService = class PedidosService {
                         fruta: {
                             select: { id: true, nome: true }
                         },
-                        areaPropria: {
-                            select: { id: true, nome: true }
-                        },
-                        areaFornecedor: {
-                            select: {
-                                id: true,
-                                nome: true,
-                                fornecedor: {
+                        areas: {
+                            include: {
+                                areaPropria: {
                                     select: { id: true, nome: true }
+                                },
+                                areaFornecedor: {
+                                    select: {
+                                        id: true,
+                                        nome: true,
+                                        fornecedor: {
+                                            select: { id: true, nome: true }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        fitas: {
+                            include: {
+                                fitaBanana: {
+                                    select: {
+                                        id: true,
+                                        nome: true,
+                                        corHex: true
+                                    }
                                 }
                             }
                         }
@@ -455,7 +692,7 @@ let PedidosService = class PedidosService {
         });
         return this.convertNullToUndefined(pedido);
     }
-    async updateColheita(id, updateColheitaDto) {
+    async updateColheita(id, updateColheitaDto, usuarioId) {
         const existingPedido = await this.prisma.pedido.findUnique({
             where: { id },
         });
@@ -466,33 +703,41 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('Status do pedido não permite atualizar colheita');
         }
         for (const fruta of updateColheitaDto.frutas) {
-            const hasAreaPropria = fruta.areaPropriaId !== undefined && fruta.areaPropriaId !== null;
-            const hasAreaFornecedor = fruta.areaFornecedorId !== undefined && fruta.areaFornecedorId !== null;
-            if (!hasAreaPropria && !hasAreaFornecedor) {
-                throw new common_1.BadRequestException(`Fruta ${fruta.frutaPedidoId}: É obrigatório selecionar uma área de origem (própria ou fornecedor)`);
+            if (!fruta.areas || fruta.areas.length === 0) {
+                throw new common_1.BadRequestException(`Fruta ${fruta.frutaPedidoId} deve ter pelo menos uma área associada`);
             }
-            if (hasAreaPropria && hasAreaFornecedor) {
-                throw new common_1.BadRequestException(`Fruta ${fruta.frutaPedidoId}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
-            }
-            if (fruta.areaPropriaId) {
-                const areaPropria = await this.prisma.areaAgricola.findUnique({
-                    where: { id: fruta.areaPropriaId },
-                });
-                if (!areaPropria) {
-                    throw new common_1.NotFoundException(`Área própria ${fruta.areaPropriaId} não encontrada`);
+            for (const area of fruta.areas) {
+                const temAreaPropria = !!area.areaPropriaId;
+                const temAreaFornecedor = !!area.areaFornecedorId;
+                if (temAreaPropria && temAreaFornecedor) {
+                    throw new common_1.BadRequestException('Área não pode ser própria E de fornecedor simultaneamente');
+                }
+                if (!temAreaPropria && !temAreaFornecedor) {
+                    throw new common_1.BadRequestException('Área deve ser própria OU de fornecedor');
+                }
+                if (temAreaPropria) {
+                    const areaPropriaExiste = await this.prisma.areaAgricola.findUnique({
+                        where: { id: area.areaPropriaId },
+                    });
+                    if (!areaPropriaExiste) {
+                        throw new common_1.NotFoundException(`Área própria com ID ${area.areaPropriaId} não encontrada`);
+                    }
+                }
+                if (temAreaFornecedor) {
+                    const areaFornecedorExiste = await this.prisma.areaFornecedor.findUnique({
+                        where: { id: area.areaFornecedorId },
+                    });
+                    if (!areaFornecedorExiste) {
+                        throw new common_1.NotFoundException(`Área de fornecedor com ID ${area.areaFornecedorId} não encontrada`);
+                    }
                 }
             }
-            if (fruta.areaFornecedorId) {
-                const areaFornecedor = await this.prisma.areaFornecedor.findUnique({
-                    where: { id: fruta.areaFornecedorId },
-                });
-                if (!areaFornecedor) {
-                    throw new common_1.NotFoundException(`Área de fornecedor ${fruta.areaFornecedorId} não encontrada`);
-                }
+            if (fruta.fitas && fruta.fitas.length > 0) {
+                await this.validarEstoqueFitas(fruta.fitas, true);
             }
         }
-        const pedido = await this.prisma.$transaction(async (prisma) => {
-            const pedidoAtualizado = await prisma.pedido.update({
+        const pedidoAtualizado = await this.prisma.$transaction(async (prisma) => {
+            const pedidoUpdated = await prisma.pedido.update({
                 where: { id },
                 data: {
                     dataColheita: updateColheitaDto.dataColheita,
@@ -510,16 +755,84 @@ let PedidosService = class PedidosService {
                     data: {
                         quantidadeReal: fruta.quantidadeReal,
                         quantidadeReal2: fruta.quantidadeReal2,
-                        areaPropriaId: fruta.areaPropriaId,
-                        areaFornecedorId: fruta.areaFornecedorId,
-                        fitaColheita: fruta.fitaColheita,
                     },
                 });
+                await prisma.frutasPedidosAreas.deleteMany({
+                    where: { frutaPedidoId: fruta.frutaPedidoId },
+                });
+                for (const area of fruta.areas) {
+                    await prisma.frutasPedidosAreas.create({
+                        data: {
+                            frutaPedidoId: fruta.frutaPedidoId,
+                            areaPropriaId: area.areaPropriaId || null,
+                            areaFornecedorId: area.areaFornecedorId || null,
+                            observacoes: area.observacoes,
+                        },
+                    });
+                }
+                if (fruta.fitas && fruta.fitas.length > 0) {
+                    console.log(`🔍 Processando fitas para fruta ${fruta.frutaPedidoId}:`, JSON.stringify(fruta.fitas, null, 2));
+                    await prisma.frutasPedidosFitas.deleteMany({
+                        where: { frutaPedidoId: fruta.frutaPedidoId },
+                    });
+                    for (const fita of fruta.fitas) {
+                        console.log(`🔍 Processando fita ${fita.fitaBananaId} para fruta ${fruta.frutaPedidoId}:`, JSON.stringify(fita, null, 2));
+                        if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+                            console.log(`✅ Fita ${fita.fitaBananaId} tem detalhesAreas, criando registros...`);
+                            for (const detalhe of fita.detalhesAreas) {
+                                console.log(`🔍 Processando detalhe:`, JSON.stringify(detalhe, null, 2));
+                                let controleBananaId = fita.controleBananaId;
+                                if (!controleBananaId) {
+                                    const controle = await prisma.controleBanana.findFirst({
+                                        where: {
+                                            fitaBananaId: detalhe.fitaBananaId,
+                                            areaAgricolaId: detalhe.areaId,
+                                            quantidadeFitas: { gt: 0 }
+                                        },
+                                        orderBy: {
+                                            quantidadeFitas: 'desc'
+                                        }
+                                    });
+                                    if (controle) {
+                                        controleBananaId = controle.id;
+                                    }
+                                }
+                                console.log(`🔍 ControleBananaId a usar:`, controleBananaId || 'NENHUM');
+                                if (controleBananaId) {
+                                    const registroCriado = await prisma.frutasPedidosFitas.create({
+                                        data: {
+                                            frutaPedidoId: fruta.frutaPedidoId,
+                                            fitaBananaId: fita.fitaBananaId,
+                                            controleBananaId: controleBananaId,
+                                            quantidadeFita: detalhe.quantidade,
+                                            observacoes: fita.observacoes,
+                                        },
+                                    });
+                                    console.log(`✅ Registro criado:`, JSON.stringify(registroCriado, null, 2));
+                                }
+                                else {
+                                    console.warn(`❌ Nenhum controleBananaId disponível para fita ${detalhe.fitaBananaId} na área ${detalhe.areaId}`);
+                                }
+                            }
+                        }
+                        else {
+                            console.warn(`❌ Fita ${fita.fitaBananaId} sem detalhesAreas - não será processada`);
+                        }
+                    }
+                }
+                else {
+                    console.log(`ℹ️ Nenhuma fita informada para fruta ${fruta.frutaPedidoId}`);
+                }
             }
-            return pedidoAtualizado;
+            return pedidoUpdated;
         });
-        const pedidoCompleto = await this.findOne(id);
-        return pedidoCompleto;
+        for (const fruta of updateColheitaDto.frutas) {
+            if (fruta.fitas && fruta.fitas.length > 0) {
+                await this.processarFitasComAreas(fruta.fitas, usuarioId);
+            }
+        }
+        const pedidoCompleto = await this.findOne(pedidoAtualizado.id);
+        return this.adaptPedidoResponse(pedidoCompleto);
     }
     async updatePrecificacao(id, updatePrecificacaoDto) {
         const existingPedido = await this.prisma.pedido.findUnique({
@@ -826,7 +1139,7 @@ let PedidosService = class PedidosService {
         await this.createPagamento(createPagamentoDto);
         return this.findOne(id);
     }
-    async updateCompleto(id, updatePedidoCompletoDto) {
+    async updateCompleto(id, updatePedidoCompletoDto, usuarioId) {
         const existingPedido = await this.prisma.pedido.findUnique({
             where: { id },
         });
@@ -902,9 +1215,39 @@ let PedidosService = class PedidosService {
                                 valorUnitario: valorUnitarioEfetivo,
                                 unidadePrecificada: unidadeEfetiva,
                                 valorTotal: valorTotalCalculado,
-                                fitaColheita: fruta.fitaColheita,
                             },
                         });
+                        if (fruta.areas && fruta.areas.length > 0) {
+                            await prisma.frutasPedidosAreas.deleteMany({
+                                where: { frutaPedidoId: fruta.frutaPedidoId }
+                            });
+                            for (const area of fruta.areas) {
+                                if (area.areaPropriaId || area.areaFornecedorId) {
+                                    await prisma.frutasPedidosAreas.create({
+                                        data: {
+                                            frutaPedidoId: fruta.frutaPedidoId,
+                                            areaPropriaId: area.areaPropriaId || undefined,
+                                            areaFornecedorId: area.areaFornecedorId || undefined,
+                                            observacoes: area.observacoes || ''
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                        if (fruta.fitas && fruta.fitas.length > 0) {
+                            const fitasAntigas = await prisma.frutasPedidosFitas.findMany({
+                                where: { frutaPedidoId: fruta.frutaPedidoId },
+                                include: {
+                                    controleBanana: {
+                                        select: {
+                                            areaAgricolaId: true
+                                        }
+                                    }
+                                }
+                            });
+                            await this.validarEstoqueParaEdicao(fruta.fitas, id, prisma);
+                            await this.atualizarFitasInteligentemente(fruta.frutaPedidoId, fruta.fitas, fitasAntigas, usuarioId, prisma);
+                        }
                         houveAlteracaoFrutas = true;
                         continue;
                     }
@@ -922,7 +1265,6 @@ let PedidosService = class PedidosService {
                                 unidadeMedida2: fruta.unidadeMedida2,
                                 valorUnitario: fruta.valorUnitario,
                                 unidadePrecificada: fruta.unidadePrecificada,
-                                fitaColheita: fruta.fitaColheita,
                             },
                         });
                         const frutaPedidoAtual = await prisma.frutasPedidos.findFirst({ where: { pedidoId: id, frutaId: fruta.frutaId } });
@@ -1117,10 +1459,278 @@ let PedidosService = class PedidosService {
             });
         });
     }
+    async validarEstoqueFitas(fitas, isEdicao = false, pedidoId) {
+        if (isEdicao) {
+            return;
+        }
+        for (const fita of fitas) {
+            const fitaExiste = await this.prisma.fitaBanana.findUnique({
+                where: { id: fita.fitaBananaId },
+                select: { id: true, nome: true }
+            });
+            if (!fitaExiste) {
+                throw new common_1.NotFoundException(`Fita de banana com ID ${fita.fitaBananaId} não encontrada`);
+            }
+            const estoqueTotal = await this.prisma.controleBanana.aggregate({
+                where: { fitaBananaId: fita.fitaBananaId },
+                _sum: { quantidadeFitas: true }
+            });
+            const whereClause = { fitaBananaId: fita.fitaBananaId };
+            if (pedidoId) {
+                whereClause.frutaPedido = {
+                    pedidoId: { not: pedidoId }
+                };
+            }
+            const fitasUtilizadas = await this.prisma.frutasPedidosFitas.aggregate({
+                where: whereClause,
+                _sum: { quantidadeFita: true }
+            });
+            const estoqueDisponivel = (estoqueTotal._sum.quantidadeFitas || 0) -
+                (fitasUtilizadas._sum.quantidadeFita || 0);
+            if (fita.quantidadeFita > estoqueDisponivel) {
+                throw new common_1.BadRequestException(`Estoque insuficiente para fita "${fitaExiste.nome}". ` +
+                    `Disponível: ${estoqueDisponivel}, ` +
+                    `Solicitado: ${fita.quantidadeFita}`);
+            }
+        }
+    }
+    async validarEstoqueParaEdicao(fitas, pedidoId, prisma) {
+        for (const fita of fitas) {
+            if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+                for (const detalhe of fita.detalhesAreas) {
+                    let controle;
+                    if (detalhe.controleBananaId) {
+                        controle = await prisma.controleBanana.findUnique({
+                            where: { id: detalhe.controleBananaId }
+                        });
+                    }
+                    else {
+                        controle = await prisma.controleBanana.findFirst({
+                            where: {
+                                fitaBananaId: detalhe.fitaBananaId,
+                                areaAgricolaId: detalhe.areaId,
+                                quantidadeFitas: { gt: 0 }
+                            },
+                            orderBy: {
+                                quantidadeFitas: 'desc'
+                            }
+                        });
+                    }
+                    if (!controle) {
+                        const fitaBanana = await prisma.fitaBanana.findUnique({
+                            where: { id: detalhe.fitaBananaId },
+                            select: { nome: true }
+                        });
+                        const areaAgricola = await prisma.areaAgricola.findUnique({
+                            where: { id: detalhe.areaId },
+                            select: { nome: true }
+                        });
+                        const nomeFita = fitaBanana?.nome || `Fita ID ${detalhe.fitaBananaId}`;
+                        const nomeArea = areaAgricola?.nome || `Área ID ${detalhe.areaId}`;
+                        throw new common_1.BadRequestException(`Não há estoque suficiente da fita "${nomeFita}" na área "${nomeArea}"`);
+                    }
+                    const fitasJaVinculadas = await prisma.frutasPedidosFitas.findMany({
+                        where: {
+                            fitaBananaId: detalhe.fitaBananaId,
+                            frutaPedido: {
+                                pedidoId: pedidoId
+                            }
+                        },
+                        select: {
+                            quantidadeFita: true,
+                            controleBananaId: true
+                        }
+                    });
+                    const fitasDesteControle = fitasJaVinculadas.filter(fita => fita.controleBananaId === controle.id);
+                    const totalJaVinculado = fitasDesteControle.reduce((total, fita) => total + (fita.quantidadeFita || 0), 0);
+                    const estoqueDisponivel = controle.quantidadeFitas + totalJaVinculado;
+                    if (estoqueDisponivel < detalhe.quantidade) {
+                        const fitaBanana = await prisma.fitaBanana.findUnique({
+                            where: { id: detalhe.fitaBananaId },
+                            select: { nome: true }
+                        });
+                        const areaAgricola = await prisma.areaAgricola.findUnique({
+                            where: { id: detalhe.areaId },
+                            select: { nome: true }
+                        });
+                        const nomeFita = fitaBanana?.nome || `Fita ID ${detalhe.fitaBananaId}`;
+                        const nomeArea = areaAgricola?.nome || `Área ID ${detalhe.areaId}`;
+                        throw new common_1.BadRequestException(`Estoque insuficiente para edição da fita "${nomeFita}" na área "${nomeArea}". Estoque atual: ${controle.quantidadeFitas}, Já vinculado ao pedido: ${totalJaVinculado}, Total disponível: ${estoqueDisponivel}, Solicitado: ${detalhe.quantidade}`);
+                    }
+                }
+            }
+        }
+    }
+    async atualizarFitasInteligentemente(frutaPedidoId, fitasNovas, fitasAntigas, usuarioId, prisma) {
+        const fitasNovasPadronizadas = this.padronizarFitasParaComparacao(fitasNovas);
+        const fitasAntigasPadronizadas = fitasAntigas.map(fita => ({
+            id: fita.id,
+            fitaBananaId: fita.fitaBananaId,
+            controleBananaId: fita.controleBananaId,
+            quantidade: fita.quantidadeFita || 0,
+            areaId: fita.controleBanana.areaAgricolaId,
+            observacoes: fita.observacoes
+        }));
+        const operacoes = this.calcularOperacoesFitas(fitasAntigasPadronizadas, fitasNovasPadronizadas);
+        if (operacoes.paraLiberar.length > 0 || operacoes.paraSubtrair.length > 0) {
+            await this.controleBananaService.processarAjusteEstoqueParaEdicao(operacoes.paraLiberar, operacoes.paraSubtrair, usuarioId);
+        }
+        for (const atualizacao of operacoes.paraAtualizar) {
+            await prisma.frutasPedidosFitas.update({
+                where: { id: atualizacao.id },
+                data: {
+                    quantidadeFita: atualizacao.quantidade,
+                    observacoes: atualizacao.observacoes,
+                },
+            });
+        }
+        for (const novaFita of operacoes.paraAdicionar) {
+            await prisma.frutasPedidosFitas.create({
+                data: {
+                    frutaPedidoId,
+                    fitaBananaId: novaFita.fitaBananaId,
+                    controleBananaId: novaFita.controleBananaId,
+                    quantidadeFita: novaFita.quantidade,
+                    observacoes: novaFita.observacoes,
+                },
+            });
+        }
+        if (operacoes.paraRemover.length > 0) {
+            await prisma.frutasPedidosFitas.deleteMany({
+                where: {
+                    id: { in: operacoes.paraRemover.map(f => f.id) }
+                },
+            });
+        }
+    }
+    padronizarFitasParaComparacao(fitas) {
+        const padronizadas = [];
+        for (const fita of fitas) {
+            if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+                for (const detalhe of fita.detalhesAreas) {
+                    padronizadas.push({
+                        fitaBananaId: detalhe.fitaBananaId,
+                        controleBananaId: detalhe.controleBananaId,
+                        quantidade: detalhe.quantidade,
+                        areaId: detalhe.areaId,
+                        observacoes: fita.observacoes
+                    });
+                }
+            }
+        }
+        return padronizadas;
+    }
+    calcularOperacoesFitas(fitasAntigas, fitasNovas) {
+        const paraAtualizar = [];
+        const paraAdicionar = [];
+        const paraRemover = [];
+        const paraLiberar = [];
+        const paraSubtrair = [];
+        const mapaAntigas = new Map();
+        const mapaNovas = new Map();
+        fitasAntigas.forEach(fita => {
+            const chave = `${fita.fitaBananaId}-${fita.controleBananaId}`;
+            mapaAntigas.set(chave, fita);
+        });
+        fitasNovas.forEach(fita => {
+            const chave = `${fita.fitaBananaId}-${fita.controleBananaId}`;
+            mapaNovas.set(chave, fita);
+        });
+        for (const [chave, fitaAntiga] of mapaAntigas) {
+            const fitaNova = mapaNovas.get(chave);
+            if (fitaNova) {
+                if (fitaAntiga.quantidade !== fitaNova.quantidade || fitaAntiga.observacoes !== fitaNova.observacoes) {
+                    paraAtualizar.push({
+                        id: fitaAntiga.id,
+                        quantidade: fitaNova.quantidade,
+                        observacoes: fitaNova.observacoes
+                    });
+                }
+                if (fitaAntiga.quantidade !== fitaNova.quantidade) {
+                    const diferenca = fitaNova.quantidade - fitaAntiga.quantidade;
+                    if (diferenca > 0) {
+                        paraSubtrair.push({
+                            fitaBananaId: fitaAntiga.fitaBananaId,
+                            areaId: fitaAntiga.areaId,
+                            quantidade: diferenca,
+                            controleBananaId: fitaAntiga.controleBananaId
+                        });
+                    }
+                    else if (diferenca < 0) {
+                        paraLiberar.push({
+                            fitaBananaId: fitaAntiga.fitaBananaId,
+                            areaId: fitaAntiga.areaId,
+                            quantidade: Math.abs(diferenca),
+                            controleBananaId: fitaAntiga.controleBananaId
+                        });
+                    }
+                }
+            }
+            else {
+                paraRemover.push(fitaAntiga);
+                paraLiberar.push({
+                    fitaBananaId: fitaAntiga.fitaBananaId,
+                    areaId: fitaAntiga.areaId,
+                    quantidade: fitaAntiga.quantidade,
+                    controleBananaId: fitaAntiga.controleBananaId
+                });
+            }
+        }
+        for (const [chave, fitaNova] of mapaNovas) {
+            if (!mapaAntigas.has(chave)) {
+                paraAdicionar.push(fitaNova);
+                paraSubtrair.push({
+                    fitaBananaId: fitaNova.fitaBananaId,
+                    areaId: fitaNova.areaId,
+                    quantidade: fitaNova.quantidade,
+                    controleBananaId: fitaNova.controleBananaId
+                });
+            }
+        }
+        return {
+            paraAtualizar,
+            paraAdicionar,
+            paraRemover,
+            paraLiberar,
+            paraSubtrair
+        };
+    }
+    async validarEstoqueParaCriacao(fitas, prisma) {
+        for (const fita of fitas) {
+            if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+                for (const detalhe of fita.detalhesAreas) {
+                    const controle = await prisma.controleBanana.findFirst({
+                        where: {
+                            fitaBananaId: detalhe.fitaBananaId,
+                            areaAgricolaId: detalhe.areaId,
+                            quantidadeFitas: { gt: 0 }
+                        },
+                        orderBy: {
+                            quantidadeFitas: 'desc'
+                        }
+                    });
+                    if (!controle) {
+                        throw new common_1.BadRequestException(`Não há estoque suficiente da fita ${detalhe.fitaBananaId} na área ${detalhe.areaId}`);
+                    }
+                    if (controle.quantidadeFitas < detalhe.quantidade) {
+                        throw new common_1.BadRequestException(`Estoque insuficiente. Disponível: ${controle.quantidadeFitas}, Solicitado: ${detalhe.quantidade}`);
+                    }
+                }
+            }
+        }
+    }
+    async processarFitasComAreas(fitas, usuarioId) {
+        for (const fita of fitas) {
+            if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+                await this.controleBananaService.processarSubtracaoFitas(fita.detalhesAreas, usuarioId);
+            }
+        }
+    }
 };
 exports.PedidosService = PedidosService;
 exports.PedidosService = PedidosService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        controle_banana_service_1.ControleBananaService])
 ], PedidosService);
 //# sourceMappingURL=pedidos.service.js.map

@@ -41,6 +41,10 @@ const EditarPedidoDialog = ({
     placaSecundaria: "",
     nomeMotorista: ""
   });
+  // ✅ NOVO: Estado IMUTÁVEL para dados originais do banco (para validações)
+  const [dadosOriginaisBanco, setDadosOriginaisBanco] = useState({
+    frutas: [] // Contém as fitas originais do banco, nunca alterado
+  });
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -143,24 +147,47 @@ const EditarPedidoDialog = ({
       // Resetar sempre para a primeira aba quando abrir modal com novo pedido
       setActiveTab("1");
       
-      // Preparar dados das frutas para o formulário
-      const frutasForm = pedido.frutasPedidos?.map(fruta => ({
+      // Preparar dados das frutas para o formulário com nova estrutura de múltiplas áreas/fitas
+      const frutasForm = pedido.frutasPedidos?.map(fruta => {
+        
+        return {
         frutaPedidoId: fruta.id,
         frutaId: fruta.frutaId,
+        frutaNome: fruta.fruta?.nome, // ✅ ADICIONADO: Nome da fruta para VincularFitasModal
         quantidadePrevista: fruta.quantidadePrevista,
         unidadeMedida1: fruta.unidadeMedida1,
         unidadeMedida2: fruta.unidadeMedida2,
         // Dados de colheita
         quantidadeReal: fruta.quantidadeReal || null,
         quantidadeReal2: fruta.quantidadeReal2 || null,
-        areaPropriaId: fruta.areaPropriaId || undefined,
-        areaFornecedorId: fruta.areaFornecedorId || undefined,
-        fitaColheita: fruta.fitaColheita || undefined,
+        
+        // NOVA ESTRUTURA: Arrays de áreas e fitas
+        // Filtrar apenas áreas reais (com IDs), removendo placeholders
+        areas: fruta.areas?.length > 0 ? fruta.areas
+          .filter(area => area.areaPropriaId || area.areaFornecedorId) // Remove placeholders
+          .map(area => ({
+            id: area.id,
+            areaPropriaId: area.areaPropriaId || undefined,
+            areaFornecedorId: area.areaFornecedorId || undefined,
+            observacoes: area.observacoes || ''
+          })) : [], // Array vazio se não há áreas reais
+        
+        fitas: fruta.fitas?.length > 0 ? fruta.fitas.map(fita => ({
+          id: fita.id,
+          fitaBananaId: fita.fitaBananaId,
+          quantidadeFita: fita.quantidadeFita || undefined,
+          observacoes: fita.observacoes || '',
+          // ✅ MANTER detalhesAreas para reconstrução no VincularFitasModal
+          detalhesAreas: fita.detalhesAreas || []
+        })) : [],
+        
+        
         // Dados de precificação
         valorUnitario: fruta.valorUnitario || 0,
         unidadePrecificada: fruta.unidadePrecificada || fruta.unidadeMedida1,
         valorTotal: fruta.valorTotal || 0,
-      })) || [];
+      };
+    }) || [];
       
       const pedidoAtualData = {
         clienteId: pedido.clienteId || "",
@@ -182,6 +209,11 @@ const EditarPedidoDialog = ({
       };
       
       setPedidoAtual(pedidoAtualData);
+      
+      // ✅ CAPTURAR DADOS ORIGINAIS DO BANCO (IMUTÁVEIS) - apenas para validações
+      setDadosOriginaisBanco({
+        frutas: frutasForm // Cópia dos dados originais que nunca será alterada
+      });
       
       // Inicializar valores calculados garantindo tipos numéricos (backend pode retornar string)
       const valoresIniciais = {
@@ -362,6 +394,20 @@ const EditarPedidoDialog = ({
           if (!fruta.quantidadeReal || fruta.quantidadeReal <= 0) {
             novosErros[`colheita_fruta_${i}`] = `Informe a quantidade real colhida da fruta ${i + 1}`;
           }
+
+          // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
+          const nomeFruta = frutas.find(f => f.id === fruta.frutaId)?.nome || '';
+          const isFrutaBanana = nomeFruta.toLowerCase().includes('banana');
+          
+          if (isFrutaBanana) {
+            const fitasVinculadas = fruta.fitas?.filter(fita => 
+              fita.fitaBananaId && fita.quantidadeFita && fita.quantidadeFita > 0
+            ) || [];
+            
+            if (fitasVinculadas.length === 0) {
+              novosErros[`colheita_fruta_${i}_fitas`] = `A fruta "${nomeFruta}" é uma banana e deve ter pelo menos uma fita vinculada`;
+            }
+          }
         }
       }
     }
@@ -474,9 +520,25 @@ const EditarPedidoDialog = ({
             Object.assign(frutaData, {
               quantidadeReal: fruta.quantidadeReal,
               quantidadeReal2: fruta.quantidadeReal2,
-              areaPropriaId: fruta.areaPropriaId,
-              areaFornecedorId: fruta.areaFornecedorId,
-              fitaColheita: fruta.fitaColheita,
+              // NOVA ESTRUTURA: Arrays de áreas e fitas
+              areas: fruta.areas?.filter(area => 
+                area.areaPropriaId || area.areaFornecedorId
+              ).map(area => ({
+                id: area.id,
+                areaPropriaId: area.areaPropriaId || undefined,
+                areaFornecedorId: area.areaFornecedorId || undefined,
+                observacoes: area.observacoes || ''
+              })) || [],
+              fitas: fruta.fitas?.filter(fita => 
+                fita.fitaBananaId
+              ).map(fita => ({
+                id: fita.id,
+                fitaBananaId: fita.fitaBananaId,
+                quantidadeFita: fita.quantidadeFita || undefined,
+                observacoes: fita.observacoes || '',
+                // ✅ MANTER detalhesAreas para o backend processar
+                detalhesAreas: fita.detalhesAreas || []
+              })) || []
             });
           }
 
@@ -552,7 +614,7 @@ const EditarPedidoDialog = ({
       onCancel={handleCancelar}
       footer={null}
       width="95%"
-      style={{ maxWidth: 1200 }}
+      style={{ maxWidth: 1400 }}
       styles={{
         body: {
           minHeight: "830px",
@@ -636,6 +698,7 @@ const EditarPedidoDialog = ({
             onCancel={handleCancelar}
             loading={loading}
             isSaving={isSaving}
+            dadosOriginaisBanco={dadosOriginaisBanco}
           />
         </TabPane>
         

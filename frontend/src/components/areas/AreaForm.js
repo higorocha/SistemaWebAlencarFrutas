@@ -23,12 +23,13 @@ import {
   AimOutlined,
   FieldTimeOutlined,
   PlusOutlined,
+  PlusCircleOutlined,
   EditOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
 import { useTheme } from "@mui/material/styles";
 import VincularCulturasModal from "./VincularCulturasModal";
-import { HeaderButton } from "../common/buttons";
+import { PrimaryButton } from "../common/buttons";
 import { HectaresInput } from "../common/inputs";
 
 const { Option } = Select;
@@ -42,6 +43,7 @@ const AreaForm = ({
   erros,
   setErros,
   abrirMapa,
+  onCulturasReload,
 }) => {
   const [gerenciarCulturasOpen, setGerenciarCulturasOpen] = useState(false);
   const theme = useTheme();
@@ -255,7 +257,7 @@ const AreaForm = ({
             borderRadius: "8px 8px 0 0",
           }}
           extra={
-            <HeaderButton
+            <PrimaryButton
               icon={<AimOutlined />}
               onClick={() => {
                 // Se já tem coordenadas, sempre entrar em modo de edição
@@ -267,9 +269,10 @@ const AreaForm = ({
                   abrirMapa(areaAtual, "create");
                 }
               }}
+              size="middle"
             >
               {areaAtual.coordenadas && areaAtual.coordenadas.length > 0 ? "Editar Coordenadas" : "Capturar Coordenadas"}
-            </HeaderButton>
+            </PrimaryButton>
           }
         >
           <Row gutter={[16, 16]}>
@@ -330,12 +333,13 @@ const AreaForm = ({
             borderRadius: "8px 8px 0 0",
           }}
           extra={
-            <HeaderButton
-              icon={<PlusOutlined />}
+            <PrimaryButton
+              icon={<PlusCircleOutlined />}
               onClick={() => setGerenciarCulturasOpen(true)}
+              size="middle"
             >
               Gerenciar Culturas
-            </HeaderButton>
+            </PrimaryButton>
           }
         >
           <Row gutter={[16, 16]}>
@@ -435,6 +439,7 @@ const AreaForm = ({
         culturas={culturas}
         culturasArea={areaAtual.culturas || []}
         onUpdateCulturas={(novasCulturas) => handleChange("culturas", novasCulturas)}
+        onCulturasReload={onCulturasReload}
       />
     </div>
   );
@@ -448,6 +453,7 @@ AreaForm.propTypes = {
   erros: PropTypes.object.isRequired,
   setErros: PropTypes.func.isRequired,
   abrirMapa: PropTypes.func.isRequired,
+  onCulturasReload: PropTypes.func,
 };
 
 export default AreaForm; 

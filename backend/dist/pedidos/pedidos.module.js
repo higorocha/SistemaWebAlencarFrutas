@@ -11,12 +11,13 @@ const common_1 = require("@nestjs/common");
 const pedidos_service_1 = require("./pedidos.service");
 const pedidos_controller_1 = require("./pedidos.controller");
 const prisma_module_1 = require("../prisma/prisma.module");
+const controle_banana_module_1 = require("../controle-banana/controle-banana.module");
 let PedidosModule = class PedidosModule {
 };
 exports.PedidosModule = PedidosModule;
 exports.PedidosModule = PedidosModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule],
+        imports: [prisma_module_1.PrismaModule, controle_banana_module_1.ControleBananaModule],
         controllers: [pedidos_controller_1.PedidosController],
         providers: [pedidos_service_1.PedidosService],
         exports: [pedidos_service_1.PedidosService],

@@ -18,6 +18,9 @@ import { ClientesModule } from './clientes/clientes.module';
 import { PedidosModule } from './pedidos/pedidos.module';
 import { FornecedoresModule } from './fornecedores/fornecedores.module';
 import { AreasFornecedoresModule } from './areas-fornecedores/areas-fornecedores.module';
+import { FitasBananaModule } from './fitas-banana/fitas-banana.module';
+import { ControleBananaModule } from './controle-banana/controle-banana.module';
+import { HistoricoFitasModule } from './historico-fitas/historico-fitas.module';
 
 @Module({
   imports: [
@@ -47,6 +50,9 @@ import { AreasFornecedoresModule } from './areas-fornecedores/areas-fornecedores
     PedidosModule,
     FornecedoresModule,
     AreasFornecedoresModule,
+    FitasBananaModule,
+    ControleBananaModule,
+    HistoricoFitasModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

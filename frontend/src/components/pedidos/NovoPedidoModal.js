@@ -15,7 +15,7 @@ import {
   PlusOutlined,
   DeleteOutlined
 } from "@ant-design/icons";
-import { MaskedDecimalInput } from "../../components/common/inputs";
+import { MonetaryInput } from "../../components/common/inputs";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import moment from "moment";
@@ -89,7 +89,11 @@ const NovoPedidoModal = ({
       // Validar se todas as frutas têm dados obrigatórios
       for (let i = 0; i < values.frutas.length; i++) {
         const fruta = values.frutas[i];
-        if (!fruta.frutaId || !fruta.quantidadePrevista || !fruta.unidadeMedida1) {
+        
+        // Converter quantidade para número se necessário
+        const quantidadePrevista = typeof fruta.quantidadePrevista === 'string' ? parseFloat(fruta.quantidadePrevista) : fruta.quantidadePrevista;
+        
+        if (!fruta.frutaId || !quantidadePrevista || quantidadePrevista <= 0 || !fruta.unidadeMedida1) {
           showNotification("error", "Erro", `Complete todos os campos obrigatórios da fruta ${i + 1}`);
           return;
         }
@@ -106,6 +110,17 @@ const NovoPedidoModal = ({
         dataPrevistaColheita: values.dataPrevistaColheita 
           ? moment(values.dataPrevistaColheita).startOf('day').toISOString()
           : undefined,
+        // NOVA ESTRUTURA: Criar área placeholder para satisfazer validação do backend
+        frutas: values.frutas.map(fruta => ({
+          ...fruta,
+          // Garantir que quantidadePrevista seja número
+          quantidadePrevista: typeof fruta.quantidadePrevista === 'string' ? parseFloat(fruta.quantidadePrevista) : fruta.quantidadePrevista,
+          areas: [{
+            // Área placeholder - será substituída durante a colheita
+            observacoes: 'Área a ser definida durante a colheita'
+          }],
+          fitas: [] // Array vazio de fitas
+        }))
       };
 
       await onSave(formData);
@@ -376,15 +391,21 @@ const NovoPedidoModal = ({
                           name={[name, 'quantidadePrevista']}
                           rules={[
                             { required: true, message: "Quantidade prevista deve ser maior que 0" },
+                            {
+                              validator: (_, value) => {
+                                // Converter string para número se necessário
+                                const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                
+                                if (!numValue || numValue <= 0) {
+                                  return Promise.reject(new Error("Quantidade deve ser maior que zero"));
+                                }
+                                
+                                return Promise.resolve();
+                              }
+                            }
                           ]}
-                          // NORMALIZADOR: Converte o valor de texto para número puro
-                          normalize={(value) => {
-                            if (!value) return null;
-                            const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                            return isNaN(numero) ? null : numero;
-                          }}
                         >
-                          <MaskedDecimalInput
+                          <MonetaryInput
                             placeholder="Ex: 1.234,56"
                             size="large"
                             style={{ 

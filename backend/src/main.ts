@@ -4,6 +4,9 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import * as dotenv from 'dotenv';
 
+// Configurar fuso horário ANTES de tudo
+process.env.TZ = 'America/Sao_Paulo';
+
 // Carregar variáveis de ambiente
 dotenv.config();
 

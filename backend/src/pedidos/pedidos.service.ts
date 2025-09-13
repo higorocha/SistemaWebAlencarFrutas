@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ControleBananaService } from '../controle-banana/controle-banana.service';
 import { 
   CreatePedidoDto, 
   UpdatePedidoDto, 
@@ -13,7 +14,10 @@ import {
 
 @Injectable()
 export class PedidosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private controleBananaService: ControleBananaService
+  ) {}
 
   async getDashboardStats(paginaFinalizados: number = 1, limitFinalizados: number = 10): Promise<any> {
     // Buscar pedidos ativos (não finalizados) com dados completos para dashboard
@@ -39,20 +43,32 @@ export class PedidosService {
                 categoria: true
               }
             },
-            areaPropria: {
-              select: {
-                id: true,
-                nome: true
-              }
-            },
-            areaFornecedor: {
-              select: {
-                id: true,
-                nome: true,
-                fornecedor: {
+            areas: {
+              include: {
+                areaPropria: {
                   select: {
                     id: true,
                     nome: true
+                  }
+                },
+                areaFornecedor: {
+                  select: { 
+                    id: true, 
+                    nome: true,
+                    fornecedor: {
+                      select: { id: true, nome: true }
+                    }
+                  }
+                }
+              }
+            },
+            fitas: {
+              include: {
+                fitaBanana: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    corHex: true
                   }
                 }
               }
@@ -249,6 +265,112 @@ export class PedidosService {
     return `${prefixo}${sequencial}`;
   }
 
+  // Método auxiliar para gerenciar áreas e fitas de uma fruta
+  private async gerenciarAreasEFitas(
+    prisma: any,
+    frutaPedidoId: number,
+    areas?: any[],
+    fitas?: any[]
+  ) {
+    // Gerenciar áreas
+    if (areas && areas.length > 0) {
+      for (const area of areas) {
+        if (area.id) {
+          // Atualizar área existente
+          await prisma.frutasPedidosAreas.update({
+            where: { id: area.id },
+            data: {
+              areaPropriaId: area.areaPropriaId || null,
+              areaFornecedorId: area.areaFornecedorId || null,
+              observacoes: area.observacoes,
+            },
+          });
+        } else {
+          // Criar nova área
+          await prisma.frutasPedidosAreas.create({
+            data: {
+              frutaPedidoId,
+              areaPropriaId: area.areaPropriaId || null,
+              areaFornecedorId: area.areaFornecedorId || null,
+              observacoes: area.observacoes,
+            },
+          });
+        }
+      }
+    }
+
+    // Gerenciar fitas
+    if (fitas && fitas.length > 0) {
+      for (const fita of fitas) {
+        if (fita.id) {
+          // Atualizar fita existente
+          await prisma.frutasPedidosFitas.update({
+            where: { id: fita.id },
+            data: {
+              fitaBananaId: fita.fitaBananaId,
+              quantidadeFita: fita.quantidadeFita,
+              observacoes: fita.observacoes,
+            },
+          });
+        } else {
+          // Criar nova fita - buscar controle específico
+          const controle = await prisma.controleBanana.findFirst({
+            where: {
+              fitaBananaId: fita.fitaBananaId,
+              quantidadeFitas: { gt: 0 }
+            },
+            orderBy: {
+              quantidadeFitas: 'desc'
+            }
+          });
+
+          if (controle) {
+            await prisma.frutasPedidosFitas.create({
+              data: {
+                frutaPedidoId,
+                fitaBananaId: fita.fitaBananaId,
+                controleBananaId: controle.id,
+                quantidadeFita: fita.quantidadeFita,
+                observacoes: fita.observacoes,
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Adapter simplificado - apenas retorna os dados como estão
+  private adaptPedidoResponse(pedido: any): any {
+    if (!pedido) return pedido;
+
+    const resultado = {
+      ...pedido,
+      frutasPedidos: pedido.frutasPedidos?.map(fp => {
+
+        // Retornar dados com a nova estrutura (areas[] e fitas[])
+        const frutaAdaptada = {
+          ...fp,
+          areas: fp.areas || [],
+          fitas: fp.fitas?.map(fita => ({
+            ...fita,
+            // ✅ CONSTRUIR detalhesAreas a partir dos dados existentes
+            detalhesAreas: fita.controleBanana && fita.controleBanana.areaAgricola ? [{
+              fitaBananaId: fita.fitaBananaId,
+              areaId: fita.controleBanana.areaAgricola.id,
+              quantidade: fita.quantidadeFita || 0,
+              controleBananaId: fita.controleBananaId  // ✅ CORREÇÃO: Incluir controleBananaId
+            }] : []
+          })) || []
+        };
+
+        return frutaAdaptada;
+      }) || []
+    };
+
+    return resultado;
+  }
+
   // Função para calcular valores financeiros consolidados
   private calcularValoresConsolidados(frutasPedidos: any[], frete?: number, icms?: number, desconto?: number, avaria?: number) {
     const valorTotalFrutas = frutasPedidos.reduce((total, fruta) => {
@@ -333,12 +455,59 @@ export class PedidosService {
       if (!frutaExiste) {
         throw new NotFoundException(`Fruta com ID ${fruta.frutaId} não encontrada`);
       }
+
+      // Validar que cada fruta tem pelo menos uma área
+      if (!fruta.areas || fruta.areas.length === 0) {
+        throw new BadRequestException(`Fruta ${fruta.frutaId} deve ter pelo menos uma área associada`);
+      }
+
+      // Validar que cada área é ou própria OU de fornecedor OU placeholder (não ambas)
+      for (const area of fruta.areas) {
+        const temAreaPropria = !!area.areaPropriaId;
+        const temAreaFornecedor = !!area.areaFornecedorId;
+        
+        if (temAreaPropria && temAreaFornecedor) {
+          throw new BadRequestException('Área não pode ser própria E de fornecedor simultaneamente');
+        }
+        
+        // Permitir áreas placeholder durante criação (sem área definida)
+        // Serão preenchidas durante a colheita
+        if (!temAreaPropria && !temAreaFornecedor) {
+          // Área placeholder é permitida na criação - será definida na colheita
+          continue;
+        }
+
+        // Verificar se área própria existe
+        if (temAreaPropria) {
+          const areaPropriaExiste = await this.prisma.areaAgricola.findUnique({
+            where: { id: area.areaPropriaId },
+          });
+          if (!areaPropriaExiste) {
+            throw new NotFoundException(`Área própria com ID ${area.areaPropriaId} não encontrada`);
+          }
+        }
+
+        // Verificar se área de fornecedor existe
+        if (temAreaFornecedor) {
+          const areaFornecedorExiste = await this.prisma.areaFornecedor.findUnique({
+            where: { id: area.areaFornecedorId },
+          });
+          if (!areaFornecedorExiste) {
+            throw new NotFoundException(`Área de fornecedor com ID ${area.areaFornecedorId} não encontrada`);
+          }
+        }
+      }
+
+      // Verificar se fitas existem e validar estoque (quando informadas)
+      if (fruta.fitas && fruta.fitas.length > 0) {
+        await this.validarEstoqueFitas(fruta.fitas, false); // false = nova colheita
+      }
     }
 
     // Gerar número do pedido
     const numeroPedido = await this.gerarNumeroPedido();
 
-    // Criar pedido e frutas em uma transação
+    // Criar pedido, frutas, áreas e fitas em uma transação
     const pedido = await this.prisma.$transaction(async (prisma) => {
       // Criar o pedido
       const novoPedido = await prisma.pedido.create({
@@ -350,27 +519,66 @@ export class PedidosService {
         },
       });
 
-      // Criar as frutas do pedido
-      const frutasPedidos = await Promise.all(
-        createPedidoDto.frutas.map(fruta =>
-          prisma.frutasPedidos.create({
-            data: {
-              pedidoId: novoPedido.id,
-              frutaId: fruta.frutaId,
-              quantidadePrevista: fruta.quantidadePrevista,
-              unidadeMedida1: fruta.unidadeMedida1,
-              unidadeMedida2: fruta.unidadeMedida2,
-            },
-          })
-        )
-      );
+      // Criar as frutas do pedido com suas áreas e fitas
+      for (const fruta of createPedidoDto.frutas) {
+        // Criar a fruta do pedido
+        const frutaPedido = await prisma.frutasPedidos.create({
+          data: {
+            pedidoId: novoPedido.id,
+            frutaId: fruta.frutaId,
+            quantidadePrevista: fruta.quantidadePrevista,
+            unidadeMedida1: fruta.unidadeMedida1,
+            unidadeMedida2: fruta.unidadeMedida2,
+          },
+        });
 
-      return { ...novoPedido, frutasPedidos };
+        // Criar as áreas da fruta
+        for (const area of fruta.areas) {
+          await prisma.frutasPedidosAreas.create({
+            data: {
+              frutaPedidoId: frutaPedido.id,
+              areaPropriaId: area.areaPropriaId || null,
+              areaFornecedorId: area.areaFornecedorId || null,
+              observacoes: area.observacoes,
+            },
+          });
+        }
+
+        // Criar as fitas da fruta (se informadas)
+        if (fruta.fitas && fruta.fitas.length > 0) {
+          for (const fita of fruta.fitas) {
+            // Buscar controle específico para esta fita
+            const controle = await prisma.controleBanana.findFirst({
+              where: {
+                fitaBananaId: fita.fitaBananaId,
+                quantidadeFitas: { gt: 0 }
+              },
+              orderBy: {
+                quantidadeFitas: 'desc'
+              }
+            });
+
+            if (controle) {
+              await prisma.frutasPedidosFitas.create({
+                data: {
+                  frutaPedidoId: frutaPedido.id,
+                  fitaBananaId: fita.fitaBananaId,
+                  controleBananaId: controle.id,
+                  quantidadeFita: fita.quantidadeFita,
+                  observacoes: fita.observacoes,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      return novoPedido;
     });
 
     // Buscar dados completos para retorno
     const pedidoCompleto = await this.findOne(pedido.id);
-    return pedidoCompleto;
+    return this.adaptPedidoResponse(pedidoCompleto);
   }
 
   async findAll(
@@ -425,15 +633,41 @@ export class PedidosService {
               fruta: {
                 select: { id: true, nome: true }
               },
-              areaPropria: {
-                select: { id: true, nome: true }
-              },
-              areaFornecedor: {
-                select: { 
-                  id: true, 
-                  nome: true,
-                  fornecedor: {
+              areas: {
+                include: {
+                  areaPropria: {
                     select: { id: true, nome: true }
+                  },
+                  areaFornecedor: {
+                    select: { 
+                      id: true, 
+                      nome: true,
+                      fornecedor: {
+                        select: { id: true, nome: true }
+                      }
+                    }
+                  }
+                }
+              },
+              fitas: {
+                include: {
+                  fitaBanana: {
+                    select: {
+                      id: true,
+                      nome: true,
+                      corHex: true
+                    }
+                  },
+                  controleBanana: {
+                    select: {
+                      id: true,
+                      areaAgricola: {
+                        select: {
+                          id: true,
+                          nome: true
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -446,7 +680,7 @@ export class PedidosService {
     ]);
 
     return {
-      data: pedidos.map(pedido => this.convertNullToUndefined(pedido)),
+      data: pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido))),
       total,
       page: page || 1,
       limit: take,
@@ -465,15 +699,41 @@ export class PedidosService {
             fruta: {
               select: { id: true, nome: true }
             },
-            areaPropria: {
-              select: { id: true, nome: true }
-            },
-            areaFornecedor: {
-              select: { 
-                id: true, 
-                nome: true,
-                fornecedor: {
+            areas: {
+              include: {
+                areaPropria: {
                   select: { id: true, nome: true }
+                },
+                areaFornecedor: {
+                  select: { 
+                    id: true, 
+                    nome: true,
+                    fornecedor: {
+                      select: { id: true, nome: true }
+                    }
+                  }
+                }
+              }
+            },
+            fitas: {
+              include: {
+                fitaBanana: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    corHex: true
+                  }
+                },
+                controleBanana: {
+                  select: {
+                    id: true,
+                    areaAgricola: {
+                      select: {
+                        id: true,
+                        nome: true
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -487,7 +747,8 @@ export class PedidosService {
       throw new NotFoundException('Pedido não encontrado');
     }
 
-    return this.convertNullToUndefined(pedido);
+    const pedidoAdaptado = this.adaptPedidoResponse(pedido);
+    return this.convertNullToUndefined(pedidoAdaptado);
   }
 
   async update(id: number, updatePedidoDto: UpdatePedidoDto): Promise<PedidoResponseDto> {
@@ -517,15 +778,30 @@ export class PedidosService {
             fruta: {
               select: { id: true, nome: true }
             },
-            areaPropria: {
-              select: { id: true, nome: true }
-            },
-            areaFornecedor: {
-              select: { 
-                id: true, 
-                nome: true,
-                fornecedor: {
+            areas: {
+              include: {
+                areaPropria: {
                   select: { id: true, nome: true }
+                },
+                areaFornecedor: {
+                  select: { 
+                    id: true, 
+                    nome: true,
+                    fornecedor: {
+                      select: { id: true, nome: true }
+                    }
+                  }
+                }
+              }
+            },
+            fitas: {
+              include: {
+                fitaBanana: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    corHex: true
+                  }
                 }
               }
             }
@@ -538,7 +814,7 @@ export class PedidosService {
     return this.convertNullToUndefined(pedido);
   }
 
-  async updateColheita(id: number, updateColheitaDto: UpdateColheitaDto): Promise<PedidoResponseDto> {
+  async updateColheita(id: number, updateColheitaDto: UpdateColheitaDto, usuarioId: number): Promise<PedidoResponseDto> {
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -553,51 +829,62 @@ export class PedidosService {
       throw new BadRequestException('Status do pedido não permite atualizar colheita');
     }
 
-    // Verificar se as áreas das frutas existem e se são excludentes
+    // Validações das áreas e fitas
     for (const fruta of updateColheitaDto.frutas) {
-      // VALIDAÇÃO: Verificar se exatamente uma área foi selecionada
-      const hasAreaPropria = fruta.areaPropriaId !== undefined && fruta.areaPropriaId !== null;
-      const hasAreaFornecedor = fruta.areaFornecedorId !== undefined && fruta.areaFornecedorId !== null;
-      
-      if (!hasAreaPropria && !hasAreaFornecedor) {
-        throw new BadRequestException(`Fruta ${fruta.frutaPedidoId}: É obrigatório selecionar uma área de origem (própria ou fornecedor)`);
-      }
-      
-      if (hasAreaPropria && hasAreaFornecedor) {
-        throw new BadRequestException(`Fruta ${fruta.frutaPedidoId}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
+      // Validar que cada fruta tem pelo menos uma área
+      if (!fruta.areas || fruta.areas.length === 0) {
+        throw new BadRequestException(`Fruta ${fruta.frutaPedidoId} deve ter pelo menos uma área associada`);
       }
 
-      // Verificar se a área própria existe
-      if (fruta.areaPropriaId) {
-        const areaPropria = await this.prisma.areaAgricola.findUnique({
-          where: { id: fruta.areaPropriaId },
-        });
-        if (!areaPropria) {
-          throw new NotFoundException(`Área própria ${fruta.areaPropriaId} não encontrada`);
+      // Validar áreas e fitas
+      for (const area of fruta.areas) {
+        const temAreaPropria = !!area.areaPropriaId;
+        const temAreaFornecedor = !!area.areaFornecedorId;
+        
+        if (temAreaPropria && temAreaFornecedor) {
+          throw new BadRequestException('Área não pode ser própria E de fornecedor simultaneamente');
+        }
+        if (!temAreaPropria && !temAreaFornecedor) {
+          throw new BadRequestException('Área deve ser própria OU de fornecedor');
+        }
+
+        // Verificar se área própria existe
+        if (temAreaPropria) {
+          const areaPropriaExiste = await this.prisma.areaAgricola.findUnique({
+            where: { id: area.areaPropriaId },
+          });
+          if (!areaPropriaExiste) {
+            throw new NotFoundException(`Área própria com ID ${area.areaPropriaId} não encontrada`);
+          }
+        }
+
+        // Verificar se área de fornecedor existe
+        if (temAreaFornecedor) {
+          const areaFornecedorExiste = await this.prisma.areaFornecedor.findUnique({
+            where: { id: area.areaFornecedorId },
+          });
+          if (!areaFornecedorExiste) {
+            throw new NotFoundException(`Área de fornecedor com ID ${area.areaFornecedorId} não encontrada`);
+          }
         }
       }
-      
-      // Verificar se a área de fornecedor existe
-      if (fruta.areaFornecedorId) {
-        const areaFornecedor = await this.prisma.areaFornecedor.findUnique({
-          where: { id: fruta.areaFornecedorId },
-        });
-        if (!areaFornecedor) {
-          throw new NotFoundException(`Área de fornecedor ${fruta.areaFornecedorId} não encontrada`);
-        }
+
+      // Verificar se fitas existem e validar estoque (quando informadas)
+      if (fruta.fitas && fruta.fitas.length > 0) {
+        await this.validarEstoqueFitas(fruta.fitas, true); // true = edição de colheita existente
       }
     }
 
-    // Atualizar colheita em uma transação
-    const pedido = await this.prisma.$transaction(async (prisma) => {
-      // Atualizar dados básicos da colheita
-      const pedidoAtualizado = await prisma.pedido.update({
+    // Atualizar o pedido com informações da colheita em transação
+    const pedidoAtualizado = await this.prisma.$transaction(async (prisma) => {
+      // Atualizar dados do pedido
+      const pedidoUpdated = await prisma.pedido.update({
         where: { id },
         data: {
           dataColheita: updateColheitaDto.dataColheita,
           observacoesColheita: updateColheitaDto.observacoesColheita,
           status: 'COLHEITA_REALIZADA',
-          // NOVOS: Atualizar campos de frete durante a colheita
+          // Campos de frete
           pesagem: updateColheitaDto.pesagem,
           placaPrimaria: updateColheitaDto.placaPrimaria,
           placaSecundaria: updateColheitaDto.placaSecundaria,
@@ -605,26 +892,116 @@ export class PedidosService {
         },
       });
 
-      // Atualizar quantidades e áreas de cada fruta
+      // Atualizar frutas e suas áreas/fitas
       for (const fruta of updateColheitaDto.frutas) {
+        // Atualizar FrutasPedidos
         await prisma.frutasPedidos.update({
           where: { id: fruta.frutaPedidoId },
           data: {
             quantidadeReal: fruta.quantidadeReal,
             quantidadeReal2: fruta.quantidadeReal2,
-            areaPropriaId: fruta.areaPropriaId,
-            areaFornecedorId: fruta.areaFornecedorId,
-            fitaColheita: fruta.fitaColheita,
           },
         });
+
+        // Gerenciar áreas da fruta
+        // IMPORTANTE: Deletar todas as áreas antigas primeiro (incluindo placeholders)
+        await prisma.frutasPedidosAreas.deleteMany({
+          where: { frutaPedidoId: fruta.frutaPedidoId },
+        });
+
+        // Criar todas as novas áreas (substituindo completamente as antigas)
+        for (const area of fruta.areas) {
+          await prisma.frutasPedidosAreas.create({
+            data: {
+              frutaPedidoId: fruta.frutaPedidoId,
+              areaPropriaId: area.areaPropriaId || null,
+              areaFornecedorId: area.areaFornecedorId || null,
+              observacoes: area.observacoes,
+            },
+          });
+        }
+
+        // Gerenciar fitas da fruta (se informadas)
+        if (fruta.fitas && fruta.fitas.length > 0) {
+          console.log(`🔍 Processando fitas para fruta ${fruta.frutaPedidoId}:`, JSON.stringify(fruta.fitas, null, 2));
+          
+          // IMPORTANTE: Deletar todas as fitas antigas primeiro
+          await prisma.frutasPedidosFitas.deleteMany({
+            where: { frutaPedidoId: fruta.frutaPedidoId },
+          });
+
+          // Processar cada fita com seus detalhes de área
+          for (const fita of fruta.fitas) {
+            console.log(`🔍 Processando fita ${fita.fitaBananaId} para fruta ${fruta.frutaPedidoId}:`, JSON.stringify(fita, null, 2));
+            
+            if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+              console.log(`✅ Fita ${fita.fitaBananaId} tem detalhesAreas, criando registros...`);
+              
+              // Para cada área, criar um registro específico com controleBananaId
+              for (const detalhe of fita.detalhesAreas) {
+                console.log(`🔍 Processando detalhe:`, JSON.stringify(detalhe, null, 2));
+                
+                // NOVA LÓGICA: Usar controleBananaId diretamente se disponível
+                let controleBananaId = fita.controleBananaId;
+                
+                if (!controleBananaId) {
+                  // Fallback: Buscar o controle específico desta fita nesta área
+                  const controle = await prisma.controleBanana.findFirst({
+                    where: {
+                      fitaBananaId: detalhe.fitaBananaId,
+                      areaAgricolaId: detalhe.areaId,
+                      quantidadeFitas: { gt: 0 }
+                    },
+                    orderBy: {
+                      quantidadeFitas: 'desc'
+                    }
+                  });
+                  
+                  if (controle) {
+                    controleBananaId = controle.id;
+                  }
+                }
+
+                console.log(`🔍 ControleBananaId a usar:`, controleBananaId || 'NENHUM');
+
+                if (controleBananaId) {
+                  const registroCriado = await prisma.frutasPedidosFitas.create({
+                    data: {
+                      frutaPedidoId: fruta.frutaPedidoId,
+                      fitaBananaId: fita.fitaBananaId,
+                      controleBananaId: controleBananaId, // ✅ LOTE ESPECÍFICO
+                      quantidadeFita: detalhe.quantidade,
+                      observacoes: fita.observacoes,
+                    },
+                  });
+                  console.log(`✅ Registro criado:`, JSON.stringify(registroCriado, null, 2));
+                } else {
+                  console.warn(`❌ Nenhum controleBananaId disponível para fita ${detalhe.fitaBananaId} na área ${detalhe.areaId}`);
+                }
+              }
+            } else {
+              console.warn(`❌ Fita ${fita.fitaBananaId} sem detalhesAreas - não será processada`);
+            }
+          }
+        } else {
+          console.log(`ℹ️ Nenhuma fita informada para fruta ${fruta.frutaPedidoId}`);
+        }
       }
 
-      return pedidoAtualizado;
+      return pedidoUpdated;
     });
 
+    // Atualizar estoque das fitas utilizadas (edição = true)
+    for (const fruta of updateColheitaDto.frutas) {
+      if (fruta.fitas && fruta.fitas.length > 0) {
+        // NOVA LÓGICA: Usar subtração por área específica
+        await this.processarFitasComAreas(fruta.fitas, usuarioId);
+      }
+    }
+
     // Buscar dados completos para retorno
-    const pedidoCompleto = await this.findOne(id);
-    return pedidoCompleto;
+    const pedidoCompleto = await this.findOne(pedidoAtualizado.id);
+    return this.adaptPedidoResponse(pedidoCompleto);
   }
 
   async updatePrecificacao(id: number, updatePrecificacaoDto: UpdatePrecificacaoDto): Promise<PedidoResponseDto> {
@@ -1037,7 +1414,9 @@ export class PedidosService {
     return this.findOne(id);
   }
 
-  async updateCompleto(id: number, updatePedidoCompletoDto: UpdatePedidoCompletoDto): Promise<PedidoResponseDto> {
+  // TODO: Este método precisa ser atualizado para suportar múltiplas áreas e fitas
+  // Por ora, comentando funcionalidades que usam campos removidos
+  async updateCompleto(id: number, updatePedidoCompletoDto: UpdatePedidoCompletoDto, usuarioId: number): Promise<PedidoResponseDto> {
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -1133,9 +1512,53 @@ export class PedidosService {
                 valorUnitario: valorUnitarioEfetivo,
                 unidadePrecificada: unidadeEfetiva as any,
                 valorTotal: valorTotalCalculado,
-                fitaColheita: fruta.fitaColheita,
+                // fitaColheita removido - agora está em FrutasPedidosFitas
               },
             });
+
+            // Atualizar áreas vinculadas (se fornecidas)
+            if (fruta.areas && fruta.areas.length > 0) {
+              // Remover áreas existentes
+              await prisma.frutasPedidosAreas.deleteMany({
+                where: { frutaPedidoId: fruta.frutaPedidoId }
+              });
+
+              // Adicionar novas áreas
+              for (const area of fruta.areas) {
+                if (area.areaPropriaId || area.areaFornecedorId) {
+                  await prisma.frutasPedidosAreas.create({
+                    data: {
+                      frutaPedidoId: fruta.frutaPedidoId,
+                      areaPropriaId: area.areaPropriaId || undefined,
+                      areaFornecedorId: area.areaFornecedorId || undefined,
+                      observacoes: area.observacoes || ''
+                    }
+                  });
+                }
+              }
+            }
+
+            // Atualizar fitas vinculadas (se fornecidas) - NOVA LÓGICA com detalhesAreas
+            if (fruta.fitas && fruta.fitas.length > 0) {
+              // ✅ CAPTURAR FITAS ANTIGAS ANTES DE DELETAR (para liberar estoque depois)
+              const fitasAntigas = await prisma.frutasPedidosFitas.findMany({
+                where: { frutaPedidoId: fruta.frutaPedidoId },
+                include: {
+                  controleBanana: {
+                    select: {
+                      areaAgricolaId: true
+                    }
+                  }
+                }
+              });
+
+              // ✅ VALIDAÇÃO DE ESTOQUE PARA EDIÇÃO (considera fitas já vinculadas ao pedido atual)
+              await this.validarEstoqueParaEdicao(fruta.fitas, id, prisma);
+              
+              // ✅ NOVA LÓGICA: Atualização inteligente de fitas (sem deletar/recriar)
+              await this.atualizarFitasInteligentemente(fruta.frutaPedidoId, fruta.fitas, fitasAntigas, usuarioId, prisma);
+            }
+
             houveAlteracaoFrutas = true;
             continue;
           }
@@ -1155,7 +1578,7 @@ export class PedidosService {
                 unidadeMedida2: fruta.unidadeMedida2,
                 valorUnitario: fruta.valorUnitario,
                 unidadePrecificada: fruta.unidadePrecificada,
-                fitaColheita: fruta.fitaColheita,
+                // fitaColheita removido - agora está em FrutasPedidosFitas
               },
             });
 
@@ -1292,6 +1715,8 @@ export class PedidosService {
       return pedidoAtualizado;
     });
 
+    // ✅ REMOVIDO: Atualização do estoque agora acontece DENTRO da transação
+
     // Buscar dados completos para retorno
     const pedidoCompleto = await this.findOne(id);
     return pedidoCompleto;
@@ -1406,4 +1831,402 @@ export class PedidosService {
       });
     });
   }
+
+  /**
+   * Valida se há estoque suficiente para as fitas solicitadas
+   * @param fitas Array de fitas com quantidadeFita
+   * @param isEdicao Se true, não valida estoque (para edições de colheita existente)
+   * @param pedidoId ID do pedido (para excluir fitas já vinculadas ao pedido atual)
+   */
+  private async validarEstoqueFitas(fitas: any[], isEdicao: boolean = false, pedidoId?: number): Promise<void> {
+    // Se é edição de colheita existente, não validar estoque
+    if (isEdicao) {
+      return;
+    }
+
+    for (const fita of fitas) {
+      // Verificar se a fita existe
+      const fitaExiste = await this.prisma.fitaBanana.findUnique({
+        where: { id: fita.fitaBananaId },
+        select: { id: true, nome: true }
+      });
+
+      if (!fitaExiste) {
+        throw new NotFoundException(`Fita de banana com ID ${fita.fitaBananaId} não encontrada`);
+      }
+
+      // Calcular estoque disponível
+      const estoqueTotal = await this.prisma.controleBanana.aggregate({
+        where: { fitaBananaId: fita.fitaBananaId },
+        _sum: { quantidadeFitas: true }
+      });
+
+      // ✅ NOVA LÓGICA: Calcular fitas utilizadas EXCLUINDO as do pedido atual (se for edição)
+      const whereClause: any = { fitaBananaId: fita.fitaBananaId };
+      
+      // Se é uma edição de pedido, excluir as fitas já vinculadas ao pedido atual
+      if (pedidoId) {
+        whereClause.frutaPedido = {
+          pedidoId: { not: pedidoId }
+        };
+      }
+
+      const fitasUtilizadas = await this.prisma.frutasPedidosFitas.aggregate({
+        where: whereClause,
+        _sum: { quantidadeFita: true }
+      });
+
+      const estoqueDisponivel = (estoqueTotal._sum.quantidadeFitas || 0) - 
+                               (fitasUtilizadas._sum.quantidadeFita || 0);
+
+      // Validar se há estoque suficiente
+      if (fita.quantidadeFita > estoqueDisponivel) {
+        throw new BadRequestException(
+          `Estoque insuficiente para fita "${fitaExiste.nome}". ` +
+          `Disponível: ${estoqueDisponivel}, ` +
+          `Solicitado: ${fita.quantidadeFita}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Valida estoque para edição de pedidos (considera fitas já vinculadas ao pedido atual)
+   * @param fitas Array de fitas com detalhesAreas
+   * @param pedidoId ID do pedido sendo editado
+   * @param prisma Instância do Prisma para transação
+   */
+  private async validarEstoqueParaEdicao(fitas: any[], pedidoId: number, prisma: any): Promise<void> {
+    for (const fita of fitas) {
+      if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+        for (const detalhe of fita.detalhesAreas) {
+          // ✅ CORREÇÃO: Buscar controle específico pelo controleBananaId (não por estoque > 0)
+          let controle;
+          
+          if (detalhe.controleBananaId) {
+            // Buscar pelo controleBananaId específico (modo edição com lote selecionado)
+            controle = await prisma.controleBanana.findUnique({
+              where: { id: detalhe.controleBananaId }
+            });
+          } else {
+            // Fallback: buscar por fitaBananaId + areaId (modo criação)
+            controle = await prisma.controleBanana.findFirst({
+              where: {
+                fitaBananaId: detalhe.fitaBananaId,
+                areaAgricolaId: detalhe.areaId,
+                quantidadeFitas: { gt: 0 }
+              },
+              orderBy: {
+                quantidadeFitas: 'desc'
+              }
+            });
+          }
+
+          if (!controle) {
+            // ✅ MELHORIA: Buscar nome da fita para mensagem mais intuitiva
+            const fitaBanana = await prisma.fitaBanana.findUnique({
+              where: { id: detalhe.fitaBananaId },
+              select: { nome: true }
+            });
+            
+            const areaAgricola = await prisma.areaAgricola.findUnique({
+              where: { id: detalhe.areaId },
+              select: { nome: true }
+            });
+            
+            const nomeFita = fitaBanana?.nome || `Fita ID ${detalhe.fitaBananaId}`;
+            const nomeArea = areaAgricola?.nome || `Área ID ${detalhe.areaId}`;
+            
+            throw new BadRequestException(`Não há estoque suficiente da fita "${nomeFita}" na área "${nomeArea}"`);
+          }
+
+          // Calcular estoque disponível considerando fitas já vinculadas ao pedido atual
+          const fitasJaVinculadas = await prisma.frutasPedidosFitas.findMany({
+            where: {
+              fitaBananaId: detalhe.fitaBananaId,
+              frutaPedido: {
+                pedidoId: pedidoId
+              }
+            },
+            select: {
+              quantidadeFita: true,
+              controleBananaId: true
+            }
+          });
+          
+          // Filtrar apenas as fitas que pertencem ao mesmo controle (mesma área)
+          const fitasDesteControle = fitasJaVinculadas.filter(fita => fita.controleBananaId === controle.id);
+          
+          const totalJaVinculado = fitasDesteControle.reduce((total, fita) => total + (fita.quantidadeFita || 0), 0);
+          const estoqueDisponivel = controle.quantidadeFitas + totalJaVinculado;
+          
+          if (estoqueDisponivel < detalhe.quantidade) {
+            // ✅ MELHORIA: Buscar nomes para mensagem mais intuitiva
+            const fitaBanana = await prisma.fitaBanana.findUnique({
+              where: { id: detalhe.fitaBananaId },
+              select: { nome: true }
+            });
+            
+            const areaAgricola = await prisma.areaAgricola.findUnique({
+              where: { id: detalhe.areaId },
+              select: { nome: true }
+            });
+            
+            const nomeFita = fitaBanana?.nome || `Fita ID ${detalhe.fitaBananaId}`;
+            const nomeArea = areaAgricola?.nome || `Área ID ${detalhe.areaId}`;
+            
+            throw new BadRequestException(`Estoque insuficiente para edição da fita "${nomeFita}" na área "${nomeArea}". Estoque atual: ${controle.quantidadeFitas}, Já vinculado ao pedido: ${totalJaVinculado}, Total disponível: ${estoqueDisponivel}, Solicitado: ${detalhe.quantidade}`);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Atualização inteligente de fitas - compara fitas atuais vs novas e faz apenas as operações necessárias
+   * @param frutaPedidoId ID da fruta do pedido
+   * @param fitasNovas Array de fitas novas enviadas pelo frontend
+   * @param fitasAntigas Array de fitas atuais do banco
+   * @param usuarioId ID do usuário
+   * @param prisma Instância do Prisma para transação
+   */
+  private async atualizarFitasInteligentemente(
+    frutaPedidoId: number, 
+    fitasNovas: any[], 
+    fitasAntigas: any[], 
+    usuarioId: number, 
+    prisma: any
+  ): Promise<void> {
+    // 1. Converter fitas novas para formato padronizado
+    const fitasNovasPadronizadas = this.padronizarFitasParaComparacao(fitasNovas);
+    
+    // 2. Converter fitas antigas para formato padronizado
+    const fitasAntigasPadronizadas = fitasAntigas.map(fita => ({
+      id: fita.id,
+      fitaBananaId: fita.fitaBananaId,
+      controleBananaId: fita.controleBananaId,
+      quantidade: fita.quantidadeFita || 0,
+      areaId: fita.controleBanana.areaAgricolaId,
+      observacoes: fita.observacoes
+    }));
+
+    // 3. Identificar operações necessárias
+    const operacoes = this.calcularOperacoesFitas(fitasAntigasPadronizadas, fitasNovasPadronizadas);
+
+    // 4. Processar ajuste de estoque apenas para as mudanças reais
+    if (operacoes.paraLiberar.length > 0 || operacoes.paraSubtrair.length > 0) {
+      await this.controleBananaService.processarAjusteEstoqueParaEdicao(
+        operacoes.paraLiberar,
+        operacoes.paraSubtrair,
+        usuarioId
+      );
+    }
+
+    // 5. Executar operações no banco
+    // Atualizar quantidades existentes
+    for (const atualizacao of operacoes.paraAtualizar) {
+      await prisma.frutasPedidosFitas.update({
+        where: { id: atualizacao.id },
+        data: {
+          quantidadeFita: atualizacao.quantidade,
+          observacoes: atualizacao.observacoes,
+        },
+      });
+    }
+
+    // Adicionar novas fitas
+    for (const novaFita of operacoes.paraAdicionar) {
+      await prisma.frutasPedidosFitas.create({
+        data: {
+          frutaPedidoId,
+          fitaBananaId: novaFita.fitaBananaId,
+          controleBananaId: novaFita.controleBananaId,
+          quantidadeFita: novaFita.quantidade,
+          observacoes: novaFita.observacoes,
+        },
+      });
+    }
+
+    // Remover fitas que não existem mais
+    if (operacoes.paraRemover.length > 0) {
+      await prisma.frutasPedidosFitas.deleteMany({
+        where: {
+          id: { in: operacoes.paraRemover.map(f => f.id) }
+        },
+      });
+    }
+  }
+
+  /**
+   * Padroniza fitas para comparação (converte estrutura aninhada em array simples)
+   */
+  private padronizarFitasParaComparacao(fitas: any[]): any[] {
+    const padronizadas: any[] = [];
+    
+    for (const fita of fitas) {
+      if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+        for (const detalhe of fita.detalhesAreas) {
+          padronizadas.push({
+            fitaBananaId: detalhe.fitaBananaId,
+            controleBananaId: detalhe.controleBananaId,
+            quantidade: detalhe.quantidade,
+            areaId: detalhe.areaId,
+            observacoes: fita.observacoes
+          });
+        }
+      }
+    }
+    
+    return padronizadas;
+  }
+
+  /**
+   * Calcula operações necessárias comparando fitas antigas vs novas
+   */
+  private calcularOperacoesFitas(fitasAntigas: any[], fitasNovas: any[]): {
+    paraAtualizar: any[],
+    paraAdicionar: any[],
+    paraRemover: any[],
+    paraLiberar: any[],
+    paraSubtrair: any[]
+  } {
+    const paraAtualizar: any[] = [];
+    const paraAdicionar: any[] = [];
+    const paraRemover: any[] = [];
+    const paraLiberar: any[] = [];
+    const paraSubtrair: any[] = [];
+
+    // Criar mapas para comparação eficiente
+    const mapaAntigas = new Map();
+    const mapaNovas = new Map();
+
+    // Mapear fitas antigas por chave única (fitaBananaId + controleBananaId)
+    fitasAntigas.forEach(fita => {
+      const chave = `${fita.fitaBananaId}-${fita.controleBananaId}`;
+      mapaAntigas.set(chave, fita);
+    });
+
+    // Mapear fitas novas por chave única
+    fitasNovas.forEach(fita => {
+      const chave = `${fita.fitaBananaId}-${fita.controleBananaId}`;
+      mapaNovas.set(chave, fita);
+    });
+
+    // Processar fitas antigas
+    for (const [chave, fitaAntiga] of mapaAntigas) {
+      const fitaNova = mapaNovas.get(chave);
+      
+      if (fitaNova) {
+        // Fita existe em ambos - verificar se precisa atualizar
+        if (fitaAntiga.quantidade !== fitaNova.quantidade || fitaAntiga.observacoes !== fitaNova.observacoes) {
+          paraAtualizar.push({
+            id: fitaAntiga.id,
+            quantidade: fitaNova.quantidade,
+            observacoes: fitaNova.observacoes
+          });
+        }
+        
+        // Processar ajuste de estoque se quantidade mudou
+        if (fitaAntiga.quantidade !== fitaNova.quantidade) {
+          const diferenca = fitaNova.quantidade - fitaAntiga.quantidade;
+          
+          if (diferenca > 0) {
+            // Aumentou quantidade - subtrair do estoque
+            paraSubtrair.push({
+              fitaBananaId: fitaAntiga.fitaBananaId,
+              areaId: fitaAntiga.areaId,
+              quantidade: diferenca,
+              controleBananaId: fitaAntiga.controleBananaId
+            });
+          } else if (diferenca < 0) {
+            // Diminuiu quantidade - liberar estoque
+            paraLiberar.push({
+              fitaBananaId: fitaAntiga.fitaBananaId,
+              areaId: fitaAntiga.areaId,
+              quantidade: Math.abs(diferenca),
+              controleBananaId: fitaAntiga.controleBananaId
+            });
+          }
+        }
+      } else {
+        // Fita antiga não existe mais - remover e liberar estoque
+        paraRemover.push(fitaAntiga);
+        paraLiberar.push({
+          fitaBananaId: fitaAntiga.fitaBananaId,
+          areaId: fitaAntiga.areaId,
+          quantidade: fitaAntiga.quantidade,
+          controleBananaId: fitaAntiga.controleBananaId
+        });
+      }
+    }
+
+    // Processar fitas novas que não existiam antes
+    for (const [chave, fitaNova] of mapaNovas) {
+      if (!mapaAntigas.has(chave)) {
+        paraAdicionar.push(fitaNova);
+        paraSubtrair.push({
+          fitaBananaId: fitaNova.fitaBananaId,
+          areaId: fitaNova.areaId,
+          quantidade: fitaNova.quantidade,
+          controleBananaId: fitaNova.controleBananaId
+        });
+      }
+    }
+
+    return {
+      paraAtualizar,
+      paraAdicionar,
+      paraRemover,
+      paraLiberar,
+      paraSubtrair
+    };
+  }
+
+  /**
+   * Valida estoque para criação de pedidos (não considera fitas já vinculadas)
+   * @param fitas Array de fitas com detalhesAreas
+   * @param prisma Instância do Prisma para transação
+   */
+  private async validarEstoqueParaCriacao(fitas: any[], prisma: any): Promise<void> {
+    for (const fita of fitas) {
+      if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+        for (const detalhe of fita.detalhesAreas) {
+          // Buscar controle específico para validação
+          const controle = await prisma.controleBanana.findFirst({
+            where: {
+              fitaBananaId: detalhe.fitaBananaId,
+              areaAgricolaId: detalhe.areaId,
+              quantidadeFitas: { gt: 0 }
+            },
+            orderBy: {
+              quantidadeFitas: 'desc'
+            }
+          });
+
+          if (!controle) {
+            throw new BadRequestException(`Não há estoque suficiente da fita ${detalhe.fitaBananaId} na área ${detalhe.areaId}`);
+          }
+
+          if (controle.quantidadeFitas < detalhe.quantidade) {
+            throw new BadRequestException(`Estoque insuficiente. Disponível: ${controle.quantidadeFitas}, Solicitado: ${detalhe.quantidade}`);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Processa fitas usando subtração por área específica
+   * @param fitas Array de fitas com detalhesAreas
+   * @param usuarioId ID do usuário que está realizando a operação
+   */
+  private async processarFitasComAreas(fitas: any[], usuarioId: number): Promise<void> {
+    for (const fita of fitas) {
+      if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+        // Usar nova lógica por área específica
+        await this.controleBananaService.processarSubtracaoFitas(fita.detalhesAreas, usuarioId);
+      }
+    }
+  }
+
 }

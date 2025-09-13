@@ -1,5 +1,5 @@
 # Alias para facilitar o uso do Claude Code
-# Adicione este arquivo ao seu perfil do PowerShell para usar 'claude' como comando
+# Execute este script com: . .\claude-alias.ps1 (note o ponto antes do caminho)
 
 function claude {
     param(
@@ -18,8 +18,8 @@ function claude {
     }
 }
 
-# Exportar a função para uso global
-Export-ModuleMember -Function claude
+# Definir a função no escopo global (sem Export-ModuleMember)
+$global:claude = $function:claude
 
 Write-Host "Alias 'claude' configurado com sucesso!" -ForegroundColor Green
 Write-Host "Use: claude 'sua pergunta aqui'" -ForegroundColor Yellow

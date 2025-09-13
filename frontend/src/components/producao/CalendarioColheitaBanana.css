@@ -1,0 +1,205 @@
+.calendario-semanas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.semana-item {
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.2s ease;
+  position: relative;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.semana-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.semana-item.com-dados {
+  border-width: 2px !important;
+}
+
+.semana-item.sem-dados {
+  opacity: 0.6;
+}
+
+.semana-numero {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.semana-datas {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.semana-indicador {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.semana-indicador .ant-badge {
+  font-size: 10px;
+}
+
+.semana-indicador .ant-badge-count {
+  background-color: #059669;
+  border-color: #059669;
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0 4px;
+}
+
+/* Responsividade */
+@media (max-width: 1200px) {
+  .calendario-semanas {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .calendario-semanas {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 6px;
+  }
+  
+  .semana-item {
+    min-height: 70px;
+    padding: 8px;
+  }
+  
+  .semana-numero {
+    font-size: 12px;
+  }
+  
+  .semana-datas {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendario-semanas {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+  
+  .semana-item {
+    min-height: 60px;
+    padding: 6px;
+  }
+  
+  .semana-numero {
+    font-size: 11px;
+  }
+  
+  .semana-datas {
+    font-size: 9px;
+  }
+}
+
+/* Animações */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.semana-item {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Overlay de loading */
+.loading-overlay {
+  animation: fadeInOverlay 0.2s ease-in;
+}
+
+/* Tooltip customizado */
+.ant-tooltip-inner {
+  max-width: 320px;
+  font-size: 12px;
+  background-color: #ffffff !important;
+  color: #333333 !important;
+  border: 1px solid #e8e8e8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.ant-tooltip-inner-content {
+  padding: 0 !important;
+}
+
+.ant-tooltip-arrow::before {
+  background-color: #ffffff !important;
+  border: 1px solid #e8e8e8;
+}
+
+/* Estados especiais */
+.semana-item.com-dados:hover .semana-numero {
+  color: #059669;
+}
+
+.semana-item.com-dados:hover .semana-datas {
+  color: #333;
+}
+
+/* Melhorias visuais */
+.semana-item {
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+}
+
+.semana-item.com-dados {
+  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%);
+}
+
+/* Indicador de semana atual */
+.semana-atual {
+  position: relative;
+}
+
+.semana-atual::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid #059669;
+  border-radius: 10px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(5, 150, 105, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0);
+  }
+}

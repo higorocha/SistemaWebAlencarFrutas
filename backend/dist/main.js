@@ -5,6 +5,7 @@ const swagger_1 = require("@nestjs/swagger");
 const common_1 = require("@nestjs/common");
 const app_module_1 = require("./app.module");
 const dotenv = require("dotenv");
+process.env.TZ = 'America/Sao_Paulo';
 dotenv.config();
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);

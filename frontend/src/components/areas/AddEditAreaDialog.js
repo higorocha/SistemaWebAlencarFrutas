@@ -21,6 +21,7 @@ const AddEditAreaDialog = ({
   isSaving = false,
   handleSalvarArea,
   abrirMapa,
+  onCulturasReload,
 }) => {
   return (
     <Modal
@@ -67,6 +68,7 @@ const AddEditAreaDialog = ({
         erros={erros}
         setErros={setErros}
         abrirMapa={abrirMapa}
+        onCulturasReload={onCulturasReload}
       />
 
       <div
@@ -108,6 +110,7 @@ AddEditAreaDialog.propTypes = {
   isSaving: PropTypes.bool,
   handleSalvarArea: PropTypes.func.isRequired,
   abrirMapa: PropTypes.func.isRequired,
+  onCulturasReload: PropTypes.func,
 };
 
 export default AddEditAreaDialog; 

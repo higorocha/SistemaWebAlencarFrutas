@@ -13,7 +13,7 @@ export class AreasService {
       const area = await this.prisma.areaAgricola.create({
         data: {
           ...areaData,
-          lotesCulturas: {
+          lotes: {
             create: culturas.map(cultura => ({
               culturaId: cultura.culturaId,
               areaPlantada: cultura.areaPlantada,
@@ -22,7 +22,7 @@ export class AreasService {
           },
         },
         include: {
-          lotesCulturas: {
+          lotes: {
             include: {
               cultura: true,
             },
@@ -42,7 +42,7 @@ export class AreasService {
   async findAll(): Promise<AreaResponseDto[]> {
     const areas = await this.prisma.areaAgricola.findMany({
       include: {
-        lotesCulturas: {
+        lotes: {
           include: {
             cultura: true,
           },
@@ -60,7 +60,7 @@ export class AreasService {
     const area = await this.prisma.areaAgricola.findUnique({
       where: { id },
       include: {
-        lotesCulturas: {
+        lotes: {
           include: {
             cultura: true,
           },
@@ -100,7 +100,7 @@ export class AreasService {
         data: {
           ...areaData,
           ...(culturas && {
-            lotesCulturas: {
+            lotes: {
               create: culturas.map(cultura => ({
                 culturaId: cultura.culturaId,
                 areaPlantada: cultura.areaPlantada,
@@ -110,7 +110,7 @@ export class AreasService {
           }),
         },
         include: {
-          lotesCulturas: {
+          lotes: {
             include: {
               cultura: true,
             },
@@ -150,7 +150,7 @@ export class AreasService {
       categoria: area.categoria,
       areaTotal: area.areaTotal,
       coordenadas: area.coordenadas,
-      culturas: area.lotesCulturas.map(lc => ({
+      culturas: area.lotes.map(lc => ({
         culturaId: lc.culturaId,
         areaPlantada: lc.areaPlantada,
         areaProduzindo: lc.areaProduzindo,

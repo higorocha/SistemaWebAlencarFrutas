@@ -14,7 +14,7 @@ import {
   PlusOutlined,
   DeleteOutlined
 } from "@ant-design/icons";
-import { MaskedDecimalInput } from "../../../components/common/inputs";
+import { MonetaryInput } from "../../../components/common/inputs";
 import axiosInstance from "../../../api/axiosConfig";
 import { showNotification } from "../../../config/notificationConfig";
 import moment from "moment";
@@ -148,6 +148,15 @@ const DadosBasicosTab = ({
             processedValue = null;
           }
           
+          // Para campos numéricos, garantir que seja um número válido ou undefined
+          if (['quantidadePrevista', 'quantidadeReal', 'quantidadeReal2', 'valorUnitario', 'valorTotal'].includes(field)) {
+            if (value === null || value === '' || value === undefined) {
+              processedValue = undefined;
+            } else {
+              processedValue = Number(value);
+            }
+          }
+          
           const frutaAtualizada = { ...fruta, [field]: processedValue };
           
           // Ajustar unidadePrecificada quando há inconsistência
@@ -223,7 +232,7 @@ const DadosBasicosTab = ({
             color: #9ca3af !important;
           }
 
-          /* Estilo para MaskedDecimalInput */
+          /* Estilo para MonetaryInput */
           .ant-input-group .ant-input:not(.ant-input-disabled):hover {
             border-color: #95d5b2 !important;
           }
@@ -422,7 +431,7 @@ const DadosBasicosTab = ({
 
                 <Col xs={24} md={4}>
                   <Form.Item>
-                    <MaskedDecimalInput
+                    <MonetaryInput
                       placeholder="Ex: 1.234,56"
                       size="large"
                       style={{ 
@@ -431,11 +440,7 @@ const DadosBasicosTab = ({
                         borderColor: "#d9d9d9",
                       }}
                       value={fruta.quantidadePrevista}
-                      onChange={(e) => {
-                        const value = typeof e === 'object' && e.target ? e.target.value : e;
-                        const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                        handleFrutaChange(index, 'quantidadePrevista', isNaN(numero) ? null : numero);
-                      }}
+                      onChange={(value) => handleFrutaChange(index, 'quantidadePrevista', value)}
                       disabled={!canEditTab("1")}
                     />
                   </Form.Item>

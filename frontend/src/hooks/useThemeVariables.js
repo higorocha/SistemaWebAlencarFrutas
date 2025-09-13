@@ -20,5 +20,8 @@ export const useThemeVariables = () => {
     root.style.setProperty('--input-error-color', theme.palette.inputs?.errorTextColor || '#ff4d4f');
     root.style.setProperty('--input-error-hover-color', '#ff7875');
     
-  }, [theme.palette.inputs, theme.palette.mode]);
+    // Aplicar CSS Variables para Sidebar
+    root.style.setProperty('--sidebar-submenu-bg', theme.palette.sidebar?.submenuBackground || '#ededed');
+    
+  }, [theme.palette.inputs, theme.palette.sidebar, theme.palette.mode]);
 }; 

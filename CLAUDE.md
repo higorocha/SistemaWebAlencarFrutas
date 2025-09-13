@@ -1,400 +1,317 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Documentação técnica e guia para desenvolvimento do Sistema Web Alencar Frutas.
 
-## Sistema Web Alencar Frutas
-
-## ⚙️ Configuração Claude Code
+## ⚙️ Configuração
 - **Idioma:** Português do Brasil (PT-BR)
 - **Ambiente:** Windows 11 + IDE Cursor
-- **Terminal:** Integrado no Cursor
-- **Permissões de edição:** Arquivos .js, .css, .ts, .json
-- **Arquivos sensíveis:** .env, .gitignore, etc. (requerem autorização específica)
+- **Terminal:** `claude` (alias configurado)
 
-## 💬 Como Interagir com Claude Code
+## 📋 Sistema Web Alencar Frutas
 
-### Iniciando uma Nova Sessão
-1. **Abra o Cursor** no Windows 11
-2. **Navegue até o diretório do projeto:**
-   ```bash
-   cd C:\AlencarFrutas\SistemaWebAlencarFrutas
-   ```
-3. **Inicie o Claude Code no terminal:**
-   ```bash
-   # Se já configurado o alias
-   claude
-   
-   # Ou comando completo
-   npx @anthropics/claude-code
-   ```
+Sistema completo de gestão agrícola especializado em comercialização de frutas, com funcionalidades específicas para controle de áreas próprias e de fornecedores, pedidos, clientes e gestão financeira.
 
-### Histórico de Conversas
-- ❌ **Não há persistência automática** entre sessões
-- 🔄 **Cada reinicialização = nova conversa** 
-- 📝 **Este CLAUDE.md serve como memória persistente**
-- 💡 **Dica:** Sempre comece mencionando este arquivo para contexto
-
-### Configurações de Idioma
-- ✅ **Claude Code configurado para PT-BR** (via este arquivo)
-- ⚙️ **Configurações internas:** Claude Code não tem configurações de idioma persistentes
-- 📋 **Solução:** Use este CLAUDE.md para manter preferências de idioma
-
-### Comandos Úteis de Inicialização
-```bash
-# Verificar se está no diretório correto
-pwd
-
-# Listar arquivos do projeto  
-dir
-
-# Verificar se o Claude.md existe
-type CLAUDE.md
-
-# Iniciar Claude Code usando o alias configurado
-claude
-
-# Ou comando completo (se necessário)
-npx @anthropic-ai/claude-code --settings claude-config.json
-```
-
-### ⚙️ **Alias já Configurado**
-- ✅ **Arquivo:** `claude-alias.ps1` (configurado)
-- ✅ **Token:** Configurado no ambiente
-- ✅ **Settings:** `claude-config.json` (PT-BR configurado)
-- 🔧 **Como usar:** Simplesmente digite `claude` no terminal
-
-## 📋 Resumo do Projeto
-
-**Sistema Web Alencar Frutas** é um sistema completo de gestão agrícola especializado em comercialização de frutas, com funcionalidades específicas para controle de áreas próprias e de fornecedores, pedidos, clientes e gestão financeira.
-
-### 🏗️ Estrutura do Projeto
+### 🏗️ Arquitetura
 ```
 SistemaWebAlencarFrutas/
-├── frontend/                 # Aplicação React (porta 3002)
-│   ├── src/
-│   │   ├── pages/           # Páginas da aplicação
-│   │   ├── components/      # Componentes reutilizáveis
-│   │   ├── utils/           # Utilitários e helpers
-│   │   ├── styles/          # Estilos globais
-│   │   └── assets/          # Imagens e recursos
-│   └── public/              # Arquivos estáticos
-├── backend/                 # API NestJS
-│   ├── src/
-│   │   ├── auth/           # Sistema de autenticação
-│   │   ├── prisma/         # Configuração do Prisma ORM
-│   │   └── ...
-│   └── test/               # Testes
-└── CLAUDE.md               # Este arquivo
+├── frontend/          # React 18.2.0 (porta 3002)
+│   ├── src/pages/     # Páginas da aplicação
+│   ├── src/components/ # Componentes reutilizáveis
+│   └── src/utils/     # Utilitários e helpers
+├── backend/           # NestJS 11.0.1 API
+│   ├── src/auth/      # Sistema de autenticação
+│   ├── src/prisma/    # Configuração do Prisma ORM
+│   └── src/[módulos]/ # Módulos de negócio
+└── CLAUDE.md          # Este arquivo
 ```
 
 ### 🛠️ Stack Tecnológica
 
-#### Frontend (React 18.2.0)
-- **UI Framework:** Ant Design 5.22.4, Material-UI 5.16.14
-- **Styling:** Styled Components, Emotion
-- **Roteamento:** React Router DOM 6.28.0
-- **Formulários:** React Hook Form 7.54.0, Zod 3.24.1
-- **Gráficos:** ApexCharts, Chart.js, Recharts
-- **Mapas:** React Google Maps API, Leaflet
-- **Documentos:** jsPDF, ExcelJS, React PDF
-- **Comunicação:** Axios 1.6.2, Socket.io Client 4.8.1
-- **Utilitários:** Moment.js, QRCode, CPF/CNPJ Validator
+**Frontend:** React 18.2.0, Ant Design 5.22.4, Material-UI 5.16.14, React Router DOM, Axios, Socket.io Client
 
-#### Backend (NestJS 11.0.1)
-- **ORM:** Prisma 6.12.0
-- **Autenticação:** JWT, Passport
-- **Validação:** Class Validator, Zod 4.0.5
-- **WebSockets:** Socket.io 4.8.1
-- **Documentação:** Swagger
-- **Email:** Nodemailer
-- **Segurança:** bcryptjs, crypto-js
+**Backend:** NestJS 11.0.1, Prisma 6.12.0, JWT/Passport, Socket.io, Swagger
 
-### 🚀 Funcionalidades Implementadas
-- ✅ **Sistema de Autenticação JWT** completo
-- ✅ **Página de Login** moderna e responsiva
-- ✅ **Sistema de Notificações** (REST + WebSocket)
-- ✅ **Layout de Tabelas** com tema customizável
-- ✅ **Proteção de Rotas** e contexto global
-- ✅ **Tema Global** em `frontend/src/theme.js`
-- ✅ **Componentes Reutilizáveis** (MiniComponents)
-- ✅ **Utilitários** (formatters, Excel/PDF export, WhatsApp)
+**Database:** PostgreSQL com Prisma schema
 
-### 📁 Arquivos Importantes
-- `frontend/src/theme.js` - Configuração de cores e tema global
-- `frontend/src/pages/Hidrometros.js` - Exemplo de layout de tabela
-- `backend/src/auth/jwt.strategy.ts` - Estratégia de autenticação
-- `backend/src/prisma/prisma.service.ts` - Serviço do Prisma
+**Comunicação:** REST APIs + WebSocket para notificações em tempo real
 
-### 🎨 Sistema de Cores (Tema Global)
-O projeto usa um sistema de cores padronizado para tabelas:
-- Header: Verde (#059669)
-- Linhas alternadas: #fafafa / #fff
-- Hover: #e6f7ff
-- Seleção: #d1fae5
-- Foco: #10b981
+### 🎨 Sistema de Cores
+- Cor principal: Verde (#059669)
+- Header tabelas: Verde (#059669)
+- Tema global configurado em `frontend/src/theme.js`
 
-## 🛠️ Development Commands
+## 🚀 Comandos de Desenvolvimento
 
-### Frontend (React) - Port 3002
-```bash
-# Development
-cd frontend
-npm start                    # Start development server
+**Frontend (porta 3002):**
+- `cd frontend && npm start` - Servidor de desenvolvimento
+- `npm run build` - Build de produção
+- ⚠️ **IMPORTANTE:** Não executar builds automáticos - o usuário testa manualmente
 
-# Build and test
-npm run build               # Production build
-npm test                    # Run tests
-```
+**Backend:**
+- `cd backend && npm run start:dev` - API com watch mode  
+- `npm run build` - Build de produção (verificar erros)
+- `npm run lint` - ESLint check
 
-### Backend (NestJS)
-```bash
-# Development
-cd backend
-npm run start:dev           # Start with file watching
-npm run start:debug         # Start with debugger
-
-# Build and quality
-npm run build               # Compile TypeScript
-npm run lint                # Run ESLint
-npm run lint --fix          # Fix ESLint issues
-npm run test                # Run Jest tests
-npm run test:watch          # Run tests in watch mode
-npm run test:cov            # Run tests with coverage
-
-# Production
-npm run start:prod          # Start production server
-```
-
-### Database (Prisma)
-```bash
-# From backend directory
-npx prisma generate         # Generate Prisma client
-npx prisma db push          # Push schema to database
-npx prisma studio           # Open Prisma Studio
-npx prisma migrate dev      # Create and apply migration
-npx prisma migrate deploy   # Deploy migrations to production
-```
-
-## 🏗️ Architecture Overview
-
-### Monorepo Structure
-- **frontend/**: React 18.2.0 application (port 3002)
-- **backend/**: NestJS 11.0.1 API with Prisma ORM
-- **Shared configurations**: Claude Code setup in root
-
-### Data Flow Architecture
-1. **Frontend**: React SPA with Ant Design + Material-UI
-2. **API Layer**: NestJS controllers with JWT authentication  
-3. **Business Logic**: NestJS services with Prisma integration
-4. **Database**: PostgreSQL with Prisma schema
-5. **Real-time**: WebSocket notifications via Socket.io
-
-### Key Architectural Patterns
-- **Authentication**: JWT with Passport strategy
-- **State Management**: React Context API for auth + local state
-- **Forms**: React Hook Form + Zod validation
-- **API Communication**: Axios with interceptors
-- **Database**: Prisma ORM with complex relationships
-- **Real-time**: WebSocket gateway for notifications
-- **Styling**: Ant Design + Material-UI + Styled Components
+**Database (Prisma):**
+- `npx prisma generate` - Gerar cliente Prisma
+- `npx prisma studio` - Interface visual do banco
+- `npx prisma migrate dev` - Aplicar migrações
 
 ---
 
-## 🏢 Lógica de Negócio Específica - AlencarFrutas
+## 🏢 Lógica de Negócio - AlencarFrutas
 
-### 📊 Modelos de Dados Implementados
+### 📊 Domínios do Sistema
 
-#### 🌱 **Gestão Agrícola**
-- **Culturas:** Cadastro de culturas (perenes/temporárias) com possibilidade de consórcio
-- **Áreas Próprias:** Gestão de lotes agrícolas categorizados (COLONO, TECNICO, EMPRESARIAL, ADJACENTE)
-- **Fornecedores:** Cadastro de fornecedores com suas respectivas áreas
-- **Lotes-Culturas:** Relacionamento entre áreas e culturas plantadas
+**🌱 Gestão Agrícola:**
+- Culturas (perenes/temporárias)
+- Áreas próprias (COLONO, TECNICO, EMPRESARIAL, ADJACENTE)
+- Fornecedores com áreas vinculadas
+- Controle de produção (fitas de banana com cores)
 
-#### 🍎 **Frutas e Comercialização**
-- **Frutas:** Catálogo com categorias (CITRICOS, TROPICAIS, TEMPERADAS, etc.)
-- **Clientes:** Cadastro completo com dados fiscais e comunicação
-- **Pedidos:** Sistema completo de pedidos com múltiplas frutas e status detalhado
-- **Pagamentos:** Controle de múltiplos pagamentos por pedido (PIX, BOLETO, TRANSFERÊNCIA, etc.)
+**🍎 Comercialização:**
+- Frutas por categorias (CITRICOS, TROPICAIS, TEMPERADAS)
+- Clientes com dados fiscais
+- Pedidos com fluxo sequencial de 10 status
+- Múltiplos pagamentos (PIX, BOLETO, TRANSFERÊNCIA)
 
-#### ⚙️ **Configurações do Sistema**
-- **Dados da Empresa:** Configurações institucionais
-- **Contas Bancárias:** Gestão de contas correntes
-- **APIs Bancárias:** Credenciais para integração bancária
-- **Email/WhatsApp:** Configurações de comunicação
+**⚙️ Configurações:**
+- Dados da empresa e contas bancárias
+- Credenciais de APIs e comunicação (Email/WhatsApp)
+- Notificações em tempo real
 
-### 🔄 **Fluxo de Trabalho dos Pedidos**
+### 🔄 Fluxo de Pedidos (10 Status Sequenciais)
 
-1. **PEDIDO_CRIADO** → Pedido criado no sistema
-2. **AGUARDANDO_COLHEITA** → Aguardando data prevista de colheita
-3. **COLHEITA_REALIZADA** → Colheita concluída com quantidades reais
-4. **AGUARDANDO_PRECIFICACAO** → Aguardando definição de preços
-5. **PRECIFICACAO_REALIZADA** → Preços definidos, valor total calculado
-6. **AGUARDANDO_PAGAMENTO** → Aguardando pagamento do cliente
-7. **PAGAMENTO_PARCIAL** → Pagamento parcial recebido
-8. **PAGAMENTO_REALIZADO** → Pagamento completo
-9. **PEDIDO_FINALIZADO** → Pedido totalmente concluído
+**Ciclo de Vida do Pedido:**
+1. **PEDIDO_CRIADO** → dados básicos (cliente, frutas, quantidades previstas)
+2. **AGUARDANDO_COLHEITA** → aguarda data de colheita
+3. **COLHEITA_REALIZADA** → quantidades reais + áreas + fitas + frete
+4. **AGUARDANDO_PRECIFICACAO** → aguarda definição de preços
+5. **PRECIFICACAO_REALIZADA** → valores + frete + ICMS - descontos
+6. **AGUARDANDO_PAGAMENTO** → aguarda pagamento do cliente
+7. **PAGAMENTO_PARCIAL** → pagamento parcial recebido
+8. **PAGAMENTO_REALIZADO** → valor total recebido
+9. **PEDIDO_FINALIZADO** → processo completo (estado final)
+10. **CANCELADO** → cancelado em qualquer fase (estado final)
 
-### 🌐 **Rotas da API (Backend)**
+**Características:**
+- Transições automáticas entre status
+- Estados finais não editáveis (FINALIZADO/CANCELADO)
+- Sistema de múltiplas áreas e fitas por fruta
+- Dupla unidade de medida com precificação flexível
+- Múltiplos pagamentos por pedido
 
-#### Autenticação
-- `POST /auth/login` - Login de usuário
-- `GET /auth/profile` - Perfil do usuário autenticado
+### 🔧 Regras de Transição
 
-#### Módulos Principais
-- `/config` - Configurações da empresa
-- `/conta-corrente` - Gestão de contas bancárias
-- `/credenciais-api` - Credenciais bancárias
-- `/convenio-cobranca` - Convênios de cobrança
-- `/config-email` - Configurações de email
-- `/config-whatsapp` - Configurações do WhatsApp
-- `/notificacoes` - Sistema de notificações
-- `/culturas` - Gestão de culturas
-- `/areas` - Áreas agrícolas próprias
-- `/frutas` - Catálogo de frutas
-- `/clientes` - Gestão de clientes
-- `/fornecedores` - Cadastro de fornecedores
-- `/areas-fornecedores` - Áreas dos fornecedores
-- `/pedidos` - Sistema de pedidos
+**Estados Finais (Não Editáveis):**
+- PEDIDO_FINALIZADO e CANCELADO
 
-### 🖥️ **Páginas do Frontend**
+**Transições Automáticas:**
+- Criação → AGUARDANDO_COLHEITA (automático)
+- Colheita → COLHEITA_REALIZADA → AGUARDANDO_PRECIFICACAO (automático)
+- Precificação → PRECIFICACAO_REALIZADA → AGUARDANDO_PAGAMENTO (automático)
+- Pagamentos baseados em valor: PARCIAL (< total) ou REALIZADO (>= total)
 
-#### Páginas Implementadas
-- **Dashboard** (`/`) - Visão geral do sistema
-- **Áreas Agrícolas** (`/areas-agricolas`) - Gestão de áreas próprias
-- **Frutas** (`/frutas`) - Catálogo de frutas
-- **Clientes** (`/clientes`) - Gestão de clientes
-- **Pedidos** (`/pedidos`) - Sistema completo de pedidos
-- **Fornecedores** (`/fornecedores`) - Gestão de fornecedores
-- **Configurações** (`/configuracoes`) - Configurações do sistema
-- **Login** (`/login`) - Autenticação
+**Sistema de Tabs com Controle de Acesso:**
+- Aba 1 (Dados Básicos): sempre editável (exceto finalizados)
+- Aba 2 (Colheita): após colheita realizada
+- Aba 3 (Precificação): após precificação realizada
+- Aba 4 (Pagamentos): após pagamentos iniciados
 
-### 💾 **Características Técnicas Específicas**
+### 🌐 Estrutura da API
 
-#### Relacionamentos Complexos
-- **Pedidos ↔ Frutas:** Relacionamento N:N com tabela intermediária `FrutasPedidos`
-- **Áreas Duplas:** Frutas podem vir de áreas próprias OU de fornecedores
-- **Múltiplos Pagamentos:** Um pedido pode ter vários pagamentos parciais
-- **Dupla Unidade:** Produtos com duas unidades de medida (KG + CX)
+**Autenticação:** `/auth/login`, `/auth/profile`
 
-#### Campos Específicos do Agronegócio
-- **Fita de Colheita:** Identificação visual por cores
-- **Pesagem de Frete:** Controle logístico
-- **Múltiplas Placas:** Carro principal + reboque
-- **Conta Destino:** ALENCAR, FRANCIALDA, GAVETA
-- **Status Detalhado:** 10 status diferentes para pedidos
+**Módulos Principais:**
+- `/api/pedidos` - Sistema completo de pedidos + dashboard
+- `/api/frutas`, `/api/clientes`, `/api/areas-agricolas`  
+- `/api/fornecedores`, `/api/areas-fornecedores`
+- `/fitas-banana`, `/controle-banana` - Sistema de produção
+- `/config`, `/notificacoes` - Configurações e notificações
 
-### 🎯 **Status Atual de Implementação**
-- ✅ **Banco de Dados:** Schema Prisma completo e funcional
-- ✅ **Backend:** Todos os módulos implementados
-- ✅ **Frontend:** Páginas principais implementadas
-- ✅ **Autenticação:** Sistema JWT funcional
-- ✅ **Notificações:** Sistema real-time via WebSocket
-- ⚠️ **Em Desenvolvimento:** Ajustes finos nas regras de negócio
+### 🖥️ Páginas do Frontend
 
----
+- **Dashboard** (`/`) - Visão geral
+- **Pedidos** (`/pedidos`) - Gestão completa de pedidos
+- **Áreas Agrícolas** (`/areas-agricolas`) - Gestão de áreas próprias  
+- **Frutas, Clientes, Fornecedores** - CRUDs básicos
+- **Produção > Banana** (`/producao/banana`) - Controle de fitas
+- **Configurações** (`/configuracoes`) - Setup do sistema
 
-## 🔍 **Preferências de Desenvolvimento**
+### 💾 Características Técnicas
 
-### Verificação de Propriedades da API
-- ✅ **SEMPRE consultar a API correspondente** antes de usar propriedades de objetos
-- ✅ **NÃO assumir nomes de propriedades** sem verificar a estrutura real dos dados
-- ✅ **Exemplo:** Pedido usa `numeroPedido` (não `numero` ou `id` para exibição)
-- ⚠️ **Processo:** Ler DTOs, schemas ou fazer chamadas de teste para confirmar estrutura
+**Relacionamentos Complexos:**
+- Pedidos N:N Frutas (tabela `FrutasPedidos`)
+- Áreas exclusivas: próprias OU fornecedores
+- Múltiplos pagamentos por pedido
+- Dupla unidade de medida (ex: KG + CX)
 
-### Verificação de Relacionamentos Prisma
-- ✅ **SEMPRE consultar o schema.prisma** antes de usar relacionamentos
-- ✅ **NÃO supor nomes de relacionamentos** - verificar antes de usar
-- ✅ **Exemplo:** Relação é `frutasPedidos` (não `frutas`), relacionamento correto conforme schema
-- ⚠️ **Processo:** `grep "model Pedido" prisma/schema.prisma` para confirmar relacionamentos disponíveis
+**Específico do Agronegócio:**
+- Fitas de colheita com cores hexadecimais
+- Controle logístico (pesagem, placas)
+- Contas destino (ALENCAR, FRANCIALDA, GAVETA)
+- Thread-safety na geração de números
 
-### Sistema de Notificações
-- ✅ **SEMPRE usar showNotification** para alerts/mensagens no sistema
-- ✅ **Import:** `import { showNotification } from "../../config/notificationConfig";`
-- ✅ **Localização:** `frontend/src/config/notificationConfig.js`
-- ✅ **Tipos:** `"success"`, `"error"`, `"warning"`, `"info"`
-- ✅ **Padrão:** `showNotification("error", "Título", "Mensagem detalhada")`
-
-### Padrão de Paginação no Sistema
-- ✅ **Estados obrigatórios:**
-  - `const [currentPage, setCurrentPage] = useState(1);`
-  - `const [pageSize, setPageSize] = useState(20);` // Padrão: 20 itens
-  - `const [total, setTotal] = useState(0);` // Total de registros
-
-- ✅ **Componente Pagination padronizado:**
-  ```jsx
-  <Pagination
-    current={currentPage}
-    pageSize={pageSize}
-    total={total}
-    onChange={handlePageChange} // Função que atualiza página e size
-    onShowSizeChange={handlePageChange} // Mesma função para mudança de tamanho
-    showSizeChanger
-    showQuickJumper
-    showTotal={(total, range) => `${range[0]}-${range[1]} de ${total} [entidade]`}
-    pageSizeOptions={['10', '20', '50', '100']} // Opções padrão
-    style={{ justifyContent: "flex-end" }} // Alinhamento à direita
-  />
-  ```
-
-- ✅ **Função handlePageChange padrão:**
-  ```jsx
-  const handlePageChange = (page, size) => {
-    setCurrentPage(page);
-    setPageSize(size || pageSize);
-    // Chamar API com novos parâmetros
-  };
-  ```
-
-- ⚠️ **Processo:** Sempre seguir este padrão para consistência visual e funcional
+### 🎯 Status de Implementação
+✅ **Completos:** Schema Prisma, Backend NestJS, Frontend React, Auth JWT, WebSocket
+⚠️ **Em desenvolvimento:** Ajustes nas regras de negócio
 
 ---
 
-## 🔧 **Correções e Melhorias Implementadas**
+## 🛒 Sistema de Pedidos - Núcleo do Sistema
 
-### 📋 Dashboard de Pedidos (Implementado em 05/09/2025)
-- ✅ **Dashboard completa** com seções por status lado a lado
-- ✅ **Cards de estatísticas** com 6 indicadores em linha única
-- ✅ **Seções com scroll interno** e altura fixa (500px)
-- ✅ **Integração backend** com endpoint `/api/pedidos/dashboard`
-- ✅ **Modais funcionais** para todas as operações (colheita, precificação, pagamento)
-- ✅ **Padronização visual** entre dashboard e página principal
+Arquitetura complexa com 10 status sequenciais, relacionamentos N:N, dupla unidade de medida, múltiplas áreas/fitas por fruta, múltiplos pagamentos e thread-safety.
 
-### 🚨 Problemas Críticos Resolvidos
+### 🗄️ Modelos Principais do Schema
 
-#### Thread-Safety na Geração de Números
-- ❌ **Problema:** Duplicação de `numeroPedido` por lógica inadequada usando `count()`
-- ✅ **Solução:** Implementada busca por maior número existente + incremento
-- 📍 **Arquivo:** `backend/src/pedidos/pedidos.service.ts:83-108`
+**Pedido:** numeroPedido único, clienteId, datas, valores financeiros consolidados, status sequencial
 
-#### Validação de Unidades de Medida
-- ❌ **Problema:** Frontend permitia unidades iguais (unidadeMedida1 = unidadeMedida2)
-- ✅ **Solução:** Validação adicionada com notificação de "warning" em vez de "error"
-- 📍 **Arquivo:** `frontend/src/components/pedidos/NovoPedidoModal.js:98-101`
+**FrutasPedidos:** relacionamento N:N com dupla unidade de medida, precificação flexível, múltiplas áreas e fitas
 
-#### Gestão de Pagamentos na Dashboard
-- ❌ **Problema:** Props `onNovoPagamento` e `onRemoverPagamento` ausentes
-- ❌ **Problema:** Inconsistência HTTP (PUT vs PATCH)
-- ❌ **Problema:** UI "piscando" durante operações
-- ✅ **Soluções:** 
-  - Handlers implementados com carregamento otimizado
-  - Padronizado uso de PATCH para atualizações
-  - Loading separado (`operacaoLoading`) para evitar "flickering"
-- 📍 **Arquivos:** `frontend/src/pages/PedidosDashboard.js:168-248`
+**FrutasPedidosAreas:** áreas exclusivas (próprias OU fornecedores) por fruta
 
-#### Padronização Visual
-- ✅ **Ícones padronizados** entre Dashboard e PedidosTable:
-  - Colheita: `ShoppingOutlined` + azul (#1890ff)
-  - Precificação: `DollarOutlined` + roxo (#722ed1)
-  - Pagamento: `CreditCardOutlined` + amarelo (#faad14)
-- 📍 **Arquivos:** StatusSection.js, PedidoCard.js
+**FrutasPedidosFitas:** múltiplas fitas com cores por fruta (específico banana)
 
-### 🎯 Arquivos Principais Modificados
-- `frontend/src/pages/PedidosDashboard.js` - Dashboard principal
-- `frontend/src/components/pedidos/dashboard/StatusSection.js` - Seções por status
-- `frontend/src/components/pedidos/dashboard/PedidoCard.js` - Cards de pedidos
-- `frontend/src/components/pedidos/NovoPedidoModal.js` - Validação unidades
-- `backend/src/pedidos/pedidos.service.ts` - Geração thread-safe de números
+**PagamentosPedidos:** múltiplos pagamentos com diferentes métodos e contas destino
+
+### 🖥️ Componentes Frontend por Fase
+
+**1. NovoPedidoModal:** Cliente + múltiplas frutas + dupla unidade + validações
+
+**2. ColheitaModal:** Quantidades reais + áreas múltiplas + fitas + frete + validações exclusivas
+
+**3. PrecificacaoModal:** Valores unitários + unidade flexível + cálculos automáticos + resumo financeiro
+
+**4. PagamentoModal:** Múltiplos pagamentos + métodos + contas destino + status automático
+
+**5. EditarPedidoDialog:** 4 tabs com controle de acesso por status + validações dinâmicas
+
+### 🔧 Backend - Serviços Principais
+
+**PedidosService:**
+- `gerarNumeroPedido()` - Thread-safe, formato PED-YYYY-0001
+- `gerenciarAreasEFitas()` - CRUD granular de relacionamentos
+- `calcularValoresConsolidados()` - Soma frutas + frete + impostos - descontos
+- `atualizarStatusPagamento()` - Status automático baseado em valores
+
+**APIs Principais:**
+- CRUD pedidos `/api/pedidos` + dashboard
+- Operações por fase: colheita, precificação, pagamentos
+
+### 🎯 Inovações Técnicas
+
+1. **Thread-Safety:** Geração única de números por busca de máximo + incremento
+2. **Múltiplas Áreas:** Exclusividade (próprias OU fornecedores) + validações
+3. **Dupla Unidade:** KG+CX com precificação flexível em qualquer unidade
+4. **Fitas Coloridas:** Controle visual de produção com cores hex
+5. **Cálculos Automáticos:** Valores e status recalculados em tempo real
 
 ---
 
-> **Nota:** Este sistema passou da fase de template para implementação específica do negócio AlencarFrutas, com modelos e lógicas adaptadas para gestão agrícola e comercialização de frutas.
+## 🔍 Diretrizes de Desenvolvimento
+
+### ⚠️ Verificações Obrigatórias
+**Endpoints:** Consultar controllers `.controller.ts` antes de usar (alguns têm `/api/`, outros não)
+
+**Propriedades:** Verificar DTOs/schemas reais (ex: `numeroPedido`, não `numero`)
+
+**Relacionamentos:** Consultar `schema.prisma` (ex: `frutasPedidos`, não `frutas`)
+
+**Models:** Verificar nomes exatos (ex: `Usuario` não `User`, enum `NivelUsuario.ADMINISTRADOR`)
+
+### 🛠️ Ferramentas Padronizadas
+**Notificações:** `showNotification(tipo, título, mensagem)` de `notificationConfig.js`
+
+**HTTP:** `axiosInstance` (nunca axios direto) - JWT automático + baseURL
+
+**Paginação:** `currentPage`, `pageSize=20`, `total` com Pagination padrão
+
+**Inputs:** `MaskedDecimalInput`, `HectaresInput`, `FormButton` de `/common/`
+
+---
+
+## 🔧 Principais Implementações
+
+### ✅ Funcionalidades Completas
+- **Dashboard de Pedidos:** Seções por status + cards de estatísticas + modais funcionais
+- **Sistema de Produção:** Google Maps + controle de fitas com cores + contagem correta
+- **Thread-Safety:** Geração única de números de pedido por busca de máximo
+- **Validações:** Unidades de medida + áreas exclusivas + pagamentos automáticos
+- **UI Padronizada:** Ícones consistentes + loading otimizado + componentes reutilizáveis
+
+---
+
+## 🍌 Sistema de Controle de Banana
+
+Módulo específico para produção de bananas com controle visual por fitas coloridas.
+
+**Tabelas:** `fitas_banana`, `controle_banana`, `historico_fitas` com auditoria completa
+
+**APIs:** `/fitas-banana`, `/controle-banana`, `/historico-fitas` (CRUD + dashboard)
+
+**Frontend:** Página com Google Maps (70%) + listagem (30%) + modais + seletor de cores
+
+---
+
+## 🎨 Padrões de Interface
+
+### 🔘 Componentes de Botões
+**PrimaryButton:** Páginas principais (40px altura)
+**FormButton:** Formulários e modais (48px altura, alinhado com inputs)
+**Button padrão:** Footers de modais
+
+### 🪟 Estrutura de Modais
+- Header verde (#059669) com ícone e título
+- Cards internos com headers verdes para agrupamento
+- Labels com ícones coloridos
+- Footer com botões de ação alinhados à direita
+
+### 📋 Padrões de UI
+**Cores:** Verde primário (#059669), headers de tabela padronizados
+**Ícones:** Material-UI preferencial, consistência visual
+**Loading:** States otimizados, sem "flickering"
+**Notificações:** Sistema centralizado com tipos (success/error/warning/info)
+
+### 🔧 Componentes de Input
+**MaskedDecimalInput:** Valores decimais com padrão brasileiro (1.234,56)
+**HectaresInput:** Específico para áreas com sufixo "ha" automático  
+**FormButton:** Botões em formulários (48px altura)
+**Importação:** `from "../common/inputs"` ou `from "../common/buttons"`
+
+---
+
+## 🎯 Implementações Recentes
+
+### 🍌 Nova Lógica de Vinculação de Fitas (2024-12-15)
+
+**Mudança Principal:** Sistema agora permite seleção de **lotes individuais** em vez de agregação automática por área.
+
+**Antes:**
+- Fitas eram agrupadas por cor/área 
+- Sistema subtraía automaticamente do lote mais antigo
+- Usuário não tinha controle sobre qual lote específico usar
+
+**Depois:**
+- **Seleção por lote específico** da tabela `controle_banana`
+- Usuário vê todos os lotes disponíveis com:
+  - Data de marcação ("Marcado: DD/MM/YY") 
+  - Tempo decorrido (dias ou semanas arredondadas para cima)
+  - Quantidade disponível no lote
+  - Layout com cores da fita para melhor identificação
+
+**Arquivos Modificados:**
+- `frontend/src/components/pedidos/VincularFitasModal.js` - Nova interface por lotes
+- Backend mantido (endpoint `/controle-banana/fitas-com-areas` já retornava lotes individuais)
+
+**Vantagens:**
+✅ **Controle preciso** - usuário escolhe exatamente qual lote usar
+✅ **Transparência** - mostra data de colheita e idade de cada lote
+✅ **Flexibilidade** - não força ordem automática de consumo
+✅ **Rastreabilidade** - mantém histórico exato de qual lote foi usado
+✅ **UI melhorada** - cards compactos com cores das fitas
+
+**Compatibilidade:** Mantém integração com `ColheitaModal.js` e `ColheitaTab.js` sem alterações.
+
+---
+
+> **Sistema especializado em gestão agrícola para comercialização de frutas com foco em pedidos sequenciais, múltiplas áreas de produção e controle visual por fitas coloridas.**

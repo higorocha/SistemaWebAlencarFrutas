@@ -1,15 +1,28 @@
-export declare class AreasExcludentesConstraint {
-    validate(value: any, args: any): boolean;
-    defaultMessage(): string;
+export declare class UpdateColheitaAreaDto {
+    id?: number;
+    areaPropriaId?: number;
+    areaFornecedorId?: number;
+    observacoes?: string;
+}
+export declare class UpdateColheitaFitaDto {
+    id?: number;
+    fitaBananaId: number;
+    controleBananaId?: number;
+    quantidadeFita?: number;
+    observacoes?: string;
+    detalhesAreas?: Array<{
+        fitaBananaId: number;
+        areaId: number;
+        quantidade: number;
+        controleBananaId: number;
+    }>;
 }
 export declare class UpdateColheitaFrutaDto {
     frutaPedidoId: number;
-    areaPropriaId?: number;
-    areaFornecedorId?: number;
     quantidadeReal: number;
     quantidadeReal2?: number;
-    fitaColheita?: string;
-    areasValidation: any;
+    areas: UpdateColheitaAreaDto[];
+    fitas?: UpdateColheitaFitaDto[];
 }
 export declare class UpdateColheitaDto {
     dataColheita: Date;

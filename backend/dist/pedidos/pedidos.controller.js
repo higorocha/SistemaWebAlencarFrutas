@@ -52,8 +52,9 @@ let PedidosController = class PedidosController {
     update(id, updatePedidoDto) {
         return this.pedidosService.update(+id, updatePedidoDto);
     }
-    updateColheita(id, updateColheitaDto) {
-        return this.pedidosService.updateColheita(+id, updateColheitaDto);
+    updateColheita(id, updateColheitaDto, req) {
+        const usuarioId = req.user.id;
+        return this.pedidosService.updateColheita(+id, updateColheitaDto, usuarioId);
     }
     updatePrecificacao(id, updatePrecificacaoDto) {
         return this.pedidosService.updatePrecificacao(+id, updatePrecificacaoDto);
@@ -61,8 +62,9 @@ let PedidosController = class PedidosController {
     updatePagamento(id, updatePagamentoDto) {
         return this.pedidosService.updatePagamento(+id, updatePagamentoDto);
     }
-    updateCompleto(id, updatePedidoCompletoDto) {
-        return this.pedidosService.updateCompleto(+id, updatePedidoCompletoDto);
+    updateCompleto(id, updatePedidoCompletoDto, req) {
+        const usuarioId = req.user.id;
+        return this.pedidosService.updateCompleto(+id, updatePedidoCompletoDto, usuarioId);
     }
     finalizar(id) {
         return this.pedidosService.finalizar(+id);
@@ -279,8 +281,9 @@ __decorate([
     }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, dto_1.UpdateColheitaDto]),
+    __metadata("design:paramtypes", [String, dto_1.UpdateColheitaDto, Object]),
     __metadata("design:returntype", Promise)
 ], PedidosController.prototype, "updateColheita", null);
 __decorate([
@@ -345,8 +348,9 @@ __decorate([
     }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, dto_1.UpdatePedidoCompletoDto]),
+    __metadata("design:paramtypes", [String, dto_1.UpdatePedidoCompletoDto, Object]),
     __metadata("design:returntype", Promise)
 ], PedidosController.prototype, "updateCompleto", null);
 __decorate([

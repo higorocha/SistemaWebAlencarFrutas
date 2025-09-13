@@ -1,7 +1,7 @@
 // src/components/pedidos/tabs/PrecificacaoTab.js
 
-import React from "react";
-import { Button, Space, Form, Input, Row, Col, Typography, Card, Divider } from "antd";
+import React, { useState, useEffect } from "react";
+import { Button, Space, Form, Input, Row, Col, Typography, Card, Divider, Tag, Tooltip } from "antd";
 import PropTypes from "prop-types";
 import {
   SaveOutlined,
@@ -10,12 +10,17 @@ import {
   CalculatorOutlined,
   DollarOutlined,
   EnvironmentOutlined,
-  FileTextOutlined,
+  TagOutlined,
   CarOutlined,
-  PercentageOutlined
+  PercentageOutlined,
+  EyeOutlined,
+  TruckOutlined
 } from "@ant-design/icons";
-import { MaskedDecimalInput } from "../../../components/common/inputs";
+import { MonetaryInput } from "../../../components/common/inputs";
 import { formatarValorMonetario } from "../../../utils/formatters";
+import { FormButton } from "../../common/buttons";
+import VisualizarAreasFitasModal from "../VisualizarAreasFitasModal";
+import axiosInstance from "../../../api/axiosConfig";
 
 const { Text } = Typography;
 
@@ -36,11 +41,40 @@ const PrecificacaoTab = ({
   isSaving,
   calcularValores,
 }) => {
+  // Estados para dados e modais
+  const [fitasBanana, setFitasBanana] = useState([]);
+  const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
+  const [frutaSelecionada, setFrutaSelecionada] = useState(null);
+  const [tipoVisualizacao, setTipoVisualizacao] = useState('areas'); // 'areas' ou 'fitas'
+
+  // Carregar fitas de banana quando o componente montar
+  useEffect(() => {
+    const fetchFitasBanana = async () => {
+      try {
+        const response = await axiosInstance.get("/fitas-banana");
+        setFitasBanana(response.data || []);
+      } catch (error) {
+        console.error("Erro ao buscar fitas:", error);
+      }
+    };
+
+    fetchFitasBanana();
+  }, []);
 
   const handleChange = (field, value) => {
+    // Para campos numéricos, garantir que seja um número válido ou undefined
+    let processedValue = value;
+    if (['frete', 'icms', 'desconto', 'avaria'].includes(field)) {
+      if (value === null || value === '' || value === undefined) {
+        processedValue = undefined;
+      } else {
+        processedValue = Number(value);
+      }
+    }
+
     setPedidoAtual(prev => ({
       ...prev,
-      [field]: value,
+      [field]: processedValue,
     }));
 
     // Limpar erro do campo quando modificado
@@ -55,14 +89,14 @@ const PrecificacaoTab = ({
     if (['frete', 'icms', 'desconto', 'avaria'].includes(field)) {
       const novosValores = {
         ...valoresCalculados,
-        [field]: value || 0,
+        [field]: processedValue || 0,
       };
       setValoresCalculados(novosValores);
       calcularValores(
-        field === 'frete' ? (value || 0) : valoresCalculados.frete,
-        field === 'icms' ? (value || 0) : valoresCalculados.icms,
-        field === 'desconto' ? (value || 0) : valoresCalculados.desconto,
-        field === 'avaria' ? (value || 0) : valoresCalculados.avaria
+        field === 'frete' ? (processedValue || 0) : valoresCalculados.frete,
+        field === 'icms' ? (processedValue || 0) : valoresCalculados.icms,
+        field === 'desconto' ? (processedValue || 0) : valoresCalculados.desconto,
+        field === 'avaria' ? (processedValue || 0) : valoresCalculados.avaria
       );
     }
   };
@@ -72,7 +106,17 @@ const PrecificacaoTab = ({
     setPedidoAtual(prev => {
       const novasFrutas = prev.frutas.map((fruta, i) => {
         if (i === index) {
-          const frutaAtualizada = { ...fruta, [field]: value };
+          // Para campos numéricos, garantir que seja um número válido ou undefined
+          let processedValue = value;
+          if (['valorUnitario', 'valorTotal'].includes(field)) {
+            if (value === null || value === '' || value === undefined) {
+              processedValue = undefined;
+            } else {
+              processedValue = Number(value);
+            }
+          }
+          
+          const frutaAtualizada = { ...fruta, [field]: processedValue };
           
           // Se alterou o valor unitário, calcular o valor total da fruta
           if (field === 'valorUnitario') {
@@ -156,6 +200,70 @@ const PrecificacaoTab = ({
     }, 100);
   };
 
+  // Funções para abrir modais de visualização
+  const handleVisualizarAreas = (fruta, frutaIndex) => {
+    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+    setTipoVisualizacao('areas');
+    setVisualizarModalOpen(true);
+  };
+
+  const handleVisualizarFitas = (fruta, frutaIndex) => {
+    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+    setTipoVisualizacao('fitas');
+    setVisualizarModalOpen(true);
+  };
+
+  // Verificar se fruta tem áreas vinculadas (não placeholders)
+  const hasLinkedAreas = (fruta) => {
+    return fruta?.areas && fruta.areas.some(area => 
+      area.areaPropriaId || area.areaFornecedorId
+    );
+  };
+
+  // Verificar se fruta tem fitas vinculadas
+  const hasLinkedFitas = (fruta) => {
+    return fruta?.fitas && fruta.fitas.length > 0;
+  };
+
+  // Obter nomes das áreas vinculadas
+  const getLinkedAreasNames = (fruta) => {
+    if (!fruta?.areas) return [];
+    
+    const realAreas = fruta.areas.filter(area => 
+      area.areaPropriaId || area.areaFornecedorId
+    );
+
+    return realAreas.map(area => {
+      if (area.areaPropriaId) {
+        const areaPropria = areasProprias.find(a => a.id === area.areaPropriaId);
+        return {
+          nome: areaPropria?.nome?.toUpperCase() || `ÁREA ${area.areaPropriaId}`,
+          tipo: 'propria'
+        };
+      } else {
+        const areaFornecedor = areasFornecedores.find(a => a.id === area.areaFornecedorId);
+        return {
+          nome: areaFornecedor?.nome?.toUpperCase() || `ÁREA FORNECEDOR ${area.areaFornecedorId}`,
+          tipo: 'fornecedor'
+        };
+      }
+    });
+  };
+
+  // Obter nomes das fitas vinculadas
+  const getLinkedFitasNames = (fruta) => {
+    if (!fruta?.fitas) return [];
+    
+    return fruta.fitas.map(fita => {
+      const fitaBanana = fitasBanana.find(f => f.id === fita.fitaBananaId);
+      return {
+        nome: fitaBanana?.nome || `Fita ${fita.fitaBananaId}`,
+        cor: fitaBanana?.corHex || '#52c41a',
+        quantidade: fita.quantidadeFita
+      };
+    });
+  };
+
   return (
     <div style={{ minHeight: "830px", position: "relative", paddingBottom: "80px" }}>
       {/* Frutas da Precificação */}
@@ -201,16 +309,16 @@ const PrecificacaoTab = ({
               Und 2
             </span>
           </Col>
-          <Col xs={24} md={5}>
+          <Col xs={24} md={4}>
             <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
               <EnvironmentOutlined style={{ marginRight: 8 }} />
-              Área
+              Áreas
             </span>
           </Col>
           <Col xs={24} md={3}>
             <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-              <FileTextOutlined style={{ marginRight: 8 }} />
-              Fita
+              <TagOutlined style={{ marginRight: 8 }} />
+              Fitas
             </span>
           </Col>
           <Col xs={24} md={3}>
@@ -219,7 +327,7 @@ const PrecificacaoTab = ({
               Valor Unit.
             </span>
           </Col>
-          <Col xs={24} md={3}>
+          <Col xs={24} md={4}>
             <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
               <CalculatorOutlined style={{ marginRight: 8 }} />
               Total
@@ -232,13 +340,16 @@ const PrecificacaoTab = ({
             <Row gutter={[16, 16]} align="baseline">
               {/* Nome da Fruta */}
               <Col xs={24} md={4}>
-                <Input
-                  disabled
-                  value={frutas.find(f => f.id === fruta.frutaId)?.nome || ''}
-                  style={{
-                    borderRadius: "6px",
-                  }}
-                />
+                <Tooltip title={frutas.find(f => f.id === fruta.frutaId)?.nome || ''} placement="top">
+                  <Input
+                    disabled
+                    value={frutas.find(f => f.id === fruta.frutaId)?.nome || ''}
+                    style={{
+                      borderRadius: "6px",
+                      fontSize: "13px"
+                    }}
+                  />
+                </Tooltip>
               </Col>
 
               {/* Quantidade Real */}
@@ -248,6 +359,8 @@ const PrecificacaoTab = ({
                   value={`${fruta.quantidadeReal || '0'} ${fruta.unidadeMedida1 || ''}`.trim()}
                   style={{
                     borderRadius: "6px",
+                    fontSize: "13px",
+                    textAlign: "center"
                   }}
                 />
               </Col>
@@ -260,41 +373,120 @@ const PrecificacaoTab = ({
                   className={!fruta.unidadeMedida2 ? 'custom-disabled-visual' : ''}
                   style={{
                     borderRadius: "6px",
+                    fontSize: "13px",
+                    textAlign: "center"
                   }}
                 />
               </Col>
 
-              {/* Área de Origem */}
-              <Col xs={24} md={5}>
-                <Input
-                  disabled
-                  value={fruta.areaPropriaId 
-                    ? areasProprias.find(a => a.id === fruta.areaPropriaId)?.nome || '-'
-                    : fruta.areaFornecedorId
-                      ? `${areasFornecedores.find(a => a.id === fruta.areaFornecedorId)?.nome || ''} - ${areasFornecedores.find(a => a.id === fruta.areaFornecedorId)?.fornecedor?.nome || 'Fornecedor'}`
-                      : '-'
-                  }
-                  style={{
-                    borderRadius: "6px",
-                  }}
-                />
+              {/* Coluna de Áreas */}
+              <Col xs={24} md={4}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {hasLinkedAreas(fruta) ? (
+                    <>
+                      {/* Botão com apenas ícone */}
+                      <Tooltip title="Ver áreas">
+                        <FormButton
+                          icon={<EyeOutlined />}
+                          onClick={() => handleVisualizarAreas(fruta, index)}
+                          style={{ 
+                            minWidth: '32px',
+                            width: '32px',
+                            padding: '0'
+                          }}
+                        />
+                      </Tooltip>
+                      
+                      {/* Badges das áreas */}
+                      {getLinkedAreasNames(fruta).slice(0, 1).map((area, idx) => (
+                        <Tag 
+                          key={idx} 
+                          size="small" 
+                          color={area.tipo === 'propria' ? 'green' : 'blue'}
+                          style={{ 
+                            fontSize: '11px',
+                            maxWidth: '60px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {area.nome}
+                        </Tag>
+                      ))}
+                      
+                      {/* Badge "+X" se houver mais áreas */}
+                      {getLinkedAreasNames(fruta).length > 1 && (
+                        <Tag size="small" color="blue" style={{ fontSize: '11px' }}>
+                          +{getLinkedAreasNames(fruta).length - 1}
+                        </Tag>
+                      )}
+                    </>
+                  ) : (
+                    <Tag color="default" style={{ fontSize: '11px' }}>
+                      Sem áreas
+                    </Tag>
+                  )}
+                </div>
               </Col>
 
-              {/* Fita de Colheita */}
+              {/* Coluna de Fitas */}
               <Col xs={24} md={3}>
-                <Input
-                  disabled
-                  value={fruta.fitaColheita || '-'}
-                  style={{
-                    borderRadius: "6px",
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {hasLinkedFitas(fruta) ? (
+                    <>
+                      {/* Botão com apenas ícone */}
+                      <Tooltip title="Ver fitas">
+                        <FormButton
+                          icon={<EyeOutlined />}
+                          onClick={() => handleVisualizarFitas(fruta, index)}
+                          style={{ 
+                            minWidth: '32px',
+                            width: '32px',
+                            padding: '0'
+                          }}
+                        />
+                      </Tooltip>
+                      
+                      {/* Badges das fitas */}
+                      {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
+                        <Tag 
+                          key={idx} 
+                          size="small" 
+                          style={{ 
+                            fontSize: '11px',
+                            backgroundColor: fita.cor + '20',
+                            borderColor: fita.cor,
+                            color: '#333',
+                            maxWidth: '60px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {fita.nome}
+                        </Tag>
+                      ))}
+                      
+                      {/* Badge "+X" se houver mais fitas */}
+                      {getLinkedFitasNames(fruta).length > 1 && (
+                        <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
+                          +{getLinkedFitasNames(fruta).length - 1}
+                        </Tag>
+                      )}
+                    </>
+                  ) : (
+                    <Tag color="default" style={{ fontSize: '11px' }}>
+                      Sem fitas
+                    </Tag>
+                  )}
+                </div>
               </Col>
 
               {/* Valor Unitário */}
               <Col xs={24} md={3}>
-                <MaskedDecimalInput
-                  placeholder="Ex: 2,50"
+                <MonetaryInput
+                  placeholder="Ex: 12,50"
                   addonAfter={
                     <span
                       onClick={() => toggleUnidadeFruta(index)}
@@ -302,7 +494,11 @@ const PrecificacaoTab = ({
                         cursor: fruta.unidadeMedida2 ? 'pointer' : 'default',
                         userSelect: 'none', 
                         fontWeight: 600,
-                        color: fruta.unidadeMedida2 ? '#1890ff' : '#666'
+                        color: fruta.unidadeMedida2 ? '#1890ff' : '#666',
+                        fontSize: '12px',
+                        minWidth: '35px',
+                        display: 'block',
+                        textAlign: 'center'
                       }}
                       title={fruta.unidadeMedida2 ? 'Clique para alternar unidade' : undefined}
                     >
@@ -311,16 +507,17 @@ const PrecificacaoTab = ({
                   }
                   size="large"
                   value={fruta.valorUnitario}
-                  onChange={(value) => {
-                    const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                    handleFrutaChange(index, 'valorUnitario', isNaN(numero) ? null : numero);
-                  }}
+                  onChange={(value) => handleFrutaChange(index, 'valorUnitario', value)}
                   disabled={!canEditTab("3")}
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: "600"
+                  }}
                 />
               </Col>
 
               {/* Valor Total */}
-              <Col xs={24} md={3}>
+              <Col xs={24} md={4}>
                 <Input
                   disabled
                   value={formatarValorMonetario(fruta.valorTotal || 0)}
@@ -331,6 +528,7 @@ const PrecificacaoTab = ({
                     textAlign: "center",
                     fontWeight: "600",
                     color: "#15803d",
+                    fontSize: "13px"
                   }}
                 />
               </Col>
@@ -369,20 +567,17 @@ const PrecificacaoTab = ({
             <Form.Item
               label={
                 <Space>
-                  <CarOutlined style={{ color: "#059669" }} />
+                  <TruckOutlined style={{ color: "#059669" }} />
                   <span style={{ fontWeight: "700", color: "#333" }}>Frete</span>
                 </Space>
               }
             >
-              <MaskedDecimalInput
+              <MonetaryInput
                 placeholder="Ex: 150,00"
                 addonAfter="R$"
                 size="large"
                 value={valoresCalculados.frete}
-                onChange={(value) => {
-                  const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                  handleChange('frete', isNaN(numero) ? null : numero);
-                }}
+                onChange={(value) => handleChange('frete', value)}
                 disabled={!canEditTab("3")}
               />
             </Form.Item>
@@ -397,15 +592,12 @@ const PrecificacaoTab = ({
                 </Space>
               }
             >
-              <MaskedDecimalInput
+              <MonetaryInput
                 placeholder="Ex: 89,75"
                 addonAfter="R$"
                 size="large"
                 value={valoresCalculados.icms}
-                onChange={(value) => {
-                  const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                  handleChange('icms', isNaN(numero) ? null : numero);
-                }}
+                onChange={(value) => handleChange('icms', value)}
                 disabled={!canEditTab("3")}
               />
             </Form.Item>
@@ -420,15 +612,12 @@ const PrecificacaoTab = ({
                 </Space>
               }
             >
-              <MaskedDecimalInput
+              <MonetaryInput
                 placeholder="Ex: 50,00"
                 addonAfter="R$"
                 size="large"
                 value={valoresCalculados.desconto}
-                onChange={(value) => {
-                  const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                  handleChange('desconto', isNaN(numero) ? null : numero);
-                }}
+                onChange={(value) => handleChange('desconto', value)}
                 disabled={!canEditTab("3")}
               />
             </Form.Item>
@@ -443,15 +632,12 @@ const PrecificacaoTab = ({
                 </Space>
               }
             >
-              <MaskedDecimalInput
+              <MonetaryInput
                 placeholder="Ex: 25,00"
                 addonAfter="R$"
                 size="large"
                 value={valoresCalculados.avaria}
-                onChange={(value) => {
-                  const numero = parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
-                  handleChange('avaria', isNaN(numero) ? null : numero);
-                }}
+                onChange={(value) => handleChange('avaria', value)}
                 disabled={!canEditTab("3")}
               />
             </Form.Item>
@@ -587,6 +773,20 @@ const PrecificacaoTab = ({
           </Button>
         </div>
       )}
+
+      {/* Modal de Visualizar Áreas/Fitas */}
+      <VisualizarAreasFitasModal
+        open={visualizarModalOpen}
+        onClose={() => {
+          setVisualizarModalOpen(false);
+          setFrutaSelecionada(null);
+        }}
+        fruta={frutaSelecionada}
+        tipo={tipoVisualizacao}
+        areasProprias={areasProprias}
+        areasFornecedores={areasFornecedores}
+        fitasBanana={fitasBanana}
+      />
     </div>
   );
 };

@@ -43,7 +43,7 @@
 
 /* Submenus */
 .ps-submenu-content {
-  background-color: #f8f9fa !important;
+  background-color: var(--sidebar-submenu-bg, #ededed) !important;
   margin: 0 8px !important;
   border-radius: 8px !important;
   padding: 0 !important;

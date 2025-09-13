@@ -9,30 +9,143 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UpdateColheitaDto = exports.UpdateColheitaFrutaDto = exports.AreasExcludentesConstraint = void 0;
+exports.UpdateColheitaDto = exports.UpdateColheitaFrutaDto = exports.UpdateColheitaFitaDto = exports.UpdateColheitaAreaDto = void 0;
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 const class_transformer_1 = require("class-transformer");
-class AreasExcludentesConstraint {
-    validate(value, args) {
-        const fruta = args.object;
-        const hasAreaPropria = fruta.areaPropriaId !== undefined && fruta.areaPropriaId !== null;
-        const hasAreaFornecedor = fruta.areaFornecedorId !== undefined && fruta.areaFornecedorId !== null;
-        return (hasAreaPropria && !hasAreaFornecedor) || (!hasAreaPropria && hasAreaFornecedor);
-    }
-    defaultMessage() {
-        return 'Cada fruta deve ter exatamente uma área selecionada (própria OU fornecedor)';
-    }
-}
-exports.AreasExcludentesConstraint = AreasExcludentesConstraint;
-class UpdateColheitaFrutaDto {
-    frutaPedidoId;
+class UpdateColheitaAreaDto {
+    id;
     areaPropriaId;
     areaFornecedorId;
+    observacoes;
+}
+exports.UpdateColheitaAreaDto = UpdateColheitaAreaDto;
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID da área (para update de área existente)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateColheitaAreaDto.prototype, "id", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID da área própria (deixe null se for área de fornecedor)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateColheitaAreaDto.prototype, "areaPropriaId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID da área de fornecedor (deixe null se for área própria)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateColheitaAreaDto.prototype, "areaFornecedorId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Observações sobre esta área',
+        example: 'Área com boa colheita',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateColheitaAreaDto.prototype, "observacoes", void 0);
+class UpdateColheitaFitaDto {
+    id;
+    fitaBananaId;
+    controleBananaId;
+    quantidadeFita;
+    observacoes;
+    detalhesAreas;
+}
+exports.UpdateColheitaFitaDto = UpdateColheitaFitaDto;
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID da fita (para update de fita existente)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateColheitaFitaDto.prototype, "id", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'ID da fita de banana',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateColheitaFitaDto.prototype, "fitaBananaId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'ID do controle de banana (lote específico)',
+        example: 1,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateColheitaFitaDto.prototype, "controleBananaId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Quantidade desta fita',
+        example: 250.0,
+    }),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], UpdateColheitaFitaDto.prototype, "quantidadeFita", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Observações sobre esta fita',
+        example: 'Fita para banana premium',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateColheitaFitaDto.prototype, "observacoes", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Detalhes das áreas para subtração específica de estoque',
+        type: 'array',
+        items: {
+            type: 'object',
+            properties: {
+                fitaBananaId: { type: 'number', description: 'ID da fita' },
+                areaId: { type: 'number', description: 'ID da área' },
+                quantidade: { type: 'number', description: 'Quantidade desta área' }
+            }
+        }
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    __metadata("design:type", Array)
+], UpdateColheitaFitaDto.prototype, "detalhesAreas", void 0);
+class UpdateColheitaFrutaDto {
+    frutaPedidoId;
     quantidadeReal;
     quantidadeReal2;
-    fitaColheita;
-    areasValidation;
+    areas;
+    fitas;
 }
 exports.UpdateColheitaFrutaDto = UpdateColheitaFrutaDto;
 __decorate([
@@ -46,28 +159,6 @@ __decorate([
     __metadata("design:type", Number)
 ], UpdateColheitaFrutaDto.prototype, "frutaPedidoId", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({
-        description: 'ID da área própria (deixe null se for área de terceiro)',
-        example: 1,
-    }),
-    (0, class_transformer_1.Type)(() => Number),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.IsPositive)(),
-    __metadata("design:type", Number)
-], UpdateColheitaFrutaDto.prototype, "areaPropriaId", void 0);
-__decorate([
-    (0, swagger_1.ApiPropertyOptional)({
-        description: 'ID da área de fornecedor (deixe null se for área própria)',
-        example: 1,
-    }),
-    (0, class_transformer_1.Type)(() => Number),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.IsPositive)(),
-    __metadata("design:type", Number)
-], UpdateColheitaFrutaDto.prototype, "areaFornecedorId", void 0);
-__decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Quantidade real colhida',
         example: 985.5,
@@ -78,7 +169,10 @@ __decorate([
     __metadata("design:type", Number)
 ], UpdateColheitaFrutaDto.prototype, "quantidadeReal", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Quantidade real colhida na segunda unidade (quando houver)', example: 50.0 }),
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Quantidade real colhida na segunda unidade (quando houver)',
+        example: 50.0
+    }),
     (0, class_transformer_1.Transform)(({ value }) => (value === '' || value === null ? undefined : value)),
     (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsOptional)(),
@@ -87,15 +181,44 @@ __decorate([
     __metadata("design:type", Number)
 ], UpdateColheitaFrutaDto.prototype, "quantidadeReal2", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Cor da fita utilizada para esta fruta', example: 'Verde' }),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], UpdateColheitaFrutaDto.prototype, "fitaColheita", void 0);
+    (0, swagger_1.ApiProperty)({
+        description: 'Array de áreas para esta fruta (mínimo 1)',
+        type: [UpdateColheitaAreaDto],
+        example: [
+            {
+                areaPropriaId: 1,
+                observacoes: 'Área principal da colheita'
+            },
+            {
+                areaFornecedorId: 2,
+                observacoes: 'Área do fornecedor parceiro'
+            }
+        ],
+    }),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => UpdateColheitaAreaDto),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", Array)
+], UpdateColheitaFrutaDto.prototype, "areas", void 0);
 __decorate([
-    (0, class_validator_1.Validate)(AreasExcludentesConstraint),
-    __metadata("design:type", Object)
-], UpdateColheitaFrutaDto.prototype, "areasValidation", void 0);
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Array de fitas para esta fruta (apenas para bananas)',
+        type: [UpdateColheitaFitaDto],
+        example: [
+            {
+                fitaBananaId: 1,
+                quantidadeFita: 500.0,
+                observacoes: 'Fita vermelha premium'
+            }
+        ],
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => UpdateColheitaFitaDto),
+    __metadata("design:type", Array)
+], UpdateColheitaFrutaDto.prototype, "fitas", void 0);
 class UpdateColheitaDto {
     dataColheita;
     observacoesColheita;
@@ -124,10 +247,21 @@ __decorate([
         example: [
             {
                 frutaPedidoId: 1,
-                areaPropriaId: 1,
                 quantidadeReal: 985.5,
                 quantidadeReal2: 50.0,
-                fitaColheita: 'Verde'
+                areas: [
+                    {
+                        areaPropriaId: 1,
+                        observacoes: 'Área principal da colheita'
+                    }
+                ],
+                fitas: [
+                    {
+                        fitaBananaId: 1,
+                        quantidadeFita: 300.0,
+                        observacoes: 'Fita verde premium'
+                    }
+                ]
             }
         ],
     }),

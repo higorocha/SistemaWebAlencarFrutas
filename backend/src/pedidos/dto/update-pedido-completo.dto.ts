@@ -1,12 +1,124 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsNumber, IsString, IsDateString, IsEnum, IsArray, ValidateNested, IsPositive } from 'class-validator';
+import { IsOptional, IsNumber, IsString, IsDateString, IsEnum, IsArray, ValidateNested, IsPositive, IsNotEmpty } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 // Definindo os tipos dos enums
 type StatusPedido = 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'AGUARDANDO_PRECIFICACAO' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
 type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
 
-// DTO para atualizar fruta do pedido
+// DTO para área da fruta no update completo
+export class UpdateCompletoAreaDto {
+  @ApiPropertyOptional({
+    description: 'ID da área (para update de área existente)',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  id?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID da área própria (deixe null se for área de fornecedor)',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  areaPropriaId?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID da área de fornecedor (deixe null se for área própria)',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  areaFornecedorId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Observações sobre esta área',
+    example: 'Área atualizada',
+  })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+}
+
+// DTO para fita da fruta no update completo
+export class UpdateCompletoFitaDto {
+  @ApiPropertyOptional({
+    description: 'ID da fita (para update de fita existente)',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  id?: number;
+
+  @ApiProperty({
+    description: 'ID da fita de banana',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  fitaBananaId: number;
+
+  @ApiPropertyOptional({
+    description: 'ID do controle de banana (lote específico)',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  controleBananaId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade desta fita',
+    example: 250.0,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  quantidadeFita?: number;
+
+  @ApiPropertyOptional({
+    description: 'Observações sobre esta fita',
+    example: 'Fita atualizada',
+  })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Detalhes das áreas para subtração específica de estoque',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        fitaBananaId: { type: 'number', description: 'ID da fita' },
+        areaId: { type: 'number', description: 'ID da área' },
+        quantidade: { type: 'number', description: 'Quantidade desta área' }
+      }
+    }
+  })
+  @IsOptional()
+  @IsArray()
+  detalhesAreas?: Array<{
+    fitaBananaId: number;
+    areaId: number;
+    quantidade: number;
+    controleBananaId: number; // ID específico do lote de controle
+  }>;
+}
+
+// DTO para atualizar fruta do pedido (NOVA ESTRUTURA)
 export class UpdateFrutaPedidoDto {
   @ApiPropertyOptional({ description: 'ID da fruta do pedido' })
   @IsOptional()
@@ -17,18 +129,6 @@ export class UpdateFrutaPedidoDto {
   @IsOptional()
   @IsNumber({}, { message: 'ID da fruta deve ser um número' })
   frutaId?: number;
-
-  @ApiPropertyOptional({ description: 'ID da área própria (deixe null se for área de terceiro)' })
-  @IsOptional()
-  @IsNumber({}, { message: 'ID da área própria deve ser um número' })
-  @IsPositive({ message: 'ID da área própria deve ser positivo' })
-  areaPropriaId?: number;
-
-  @ApiPropertyOptional({ description: 'ID da área de fornecedor (deixe null se for área própria)' })
-  @IsOptional()
-  @IsNumber({}, { message: 'ID da área de fornecedor deve ser um número' })
-  @IsPositive({ message: 'ID da área de fornecedor deve ser positivo' })
-  areaFornecedorId?: number;
 
   @ApiPropertyOptional({ description: 'Quantidade prevista' })
   @IsOptional()
@@ -75,10 +175,38 @@ export class UpdateFrutaPedidoDto {
   @IsNumber({}, { message: 'Valor total deve ser um número' })
   valorTotal?: number;
 
-  @ApiPropertyOptional({ description: 'Cor da fita para identificação' })
+  @ApiPropertyOptional({
+    description: 'Array de áreas para esta fruta',
+    type: [UpdateCompletoAreaDto],
+    example: [
+      {
+        areaPropriaId: 1,
+        observacoes: 'Área atualizada'
+      }
+    ],
+  })
   @IsOptional()
-  @IsString({ message: 'Fita de colheita deve ser uma string' })
-  fitaColheita?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateCompletoAreaDto)
+  areas?: UpdateCompletoAreaDto[];
+
+  @ApiPropertyOptional({
+    description: 'Array de fitas para esta fruta (apenas para bananas)',
+    type: [UpdateCompletoFitaDto],
+    example: [
+      {
+        fitaBananaId: 1,
+        quantidadeFita: 300.0,
+        observacoes: 'Fita atualizada'
+      }
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateCompletoFitaDto)
+  fitas?: UpdateCompletoFitaDto[];
 }
 
 // DTO principal para atualização completa do pedido

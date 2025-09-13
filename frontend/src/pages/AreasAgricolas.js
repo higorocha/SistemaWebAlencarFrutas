@@ -802,6 +802,7 @@ const AreasAgricolas = () => {
            isSaving={isSaving}
            handleSalvarArea={handleSalvarArea}
            abrirMapa={abrirMapa}
+           onCulturasReload={buscarCulturas}
          />
        </Suspense>
       <Suspense fallback={<LoadingFallback />}>
