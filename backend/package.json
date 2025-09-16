@@ -13,7 +13,7 @@
     "start:debug": "npx nest start --debug --watch",
     "start:prod": "node dist/main",
     "seed": "node prisma/seed.js",
-    "build:prod": "npx nest build && npm run seed",
+    "build:prod": "npx nest build && npx prisma migrate deploy && npm run seed",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
