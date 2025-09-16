@@ -7,7 +7,7 @@ async function main() {
   console.log('🌱 Iniciando seed do banco de dados...');
 
   // Criar usuário administrador padrão
-  const hashedPassword = await bcrypt.hash('123456', 10); // Senha padrão: 123456
+  const hashedPassword = await bcrypt.hash('Jhlinha054!', 10); // Senha padrão: 123456
 
   const adminUser = await prisma.usuario.upsert({
     where: { email: 'admin@alencarfrutas.com.br' },
