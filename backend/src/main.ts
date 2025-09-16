@@ -21,12 +21,11 @@ async function bootstrap() {
   }));
   
   // Configurar CORS para permitir conexão com frontend
-  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3002';
-  console.log('🔧 CORS_ORIGIN:', corsOrigin);
-  console.log('🔧 CORS Config:', corsOrigin === '*' ? 'wildcard (*)' : corsOrigin.split(','));
+  console.log('🔧 CORS_ORIGIN from env:', process.env.CORS_ORIGIN);
+  console.log('🔧 CORS Config: FORCING WILDCARD (*)');
   
   app.enableCors({
-    origin: corsOrigin === '*' ? true : corsOrigin.split(','),
+    origin: true, // FORÇA aceitar qualquer origem
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
