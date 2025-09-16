@@ -8,7 +8,7 @@ import { createBrowserHistory } from 'history';
 // Criar um objeto com as configurações de ambiente
 const config = {
   development: 'http://localhost:5002',
-  production: 'https://sistema-irrigacao-backend.onrender.com', // URL do backend no Render
+  production: 'https://sistemawebalencarfrutas.onrender.com', // URL do backend no Render
   test: 'http://localhost:5002'
 };
 

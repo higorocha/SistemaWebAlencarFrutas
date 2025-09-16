@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 // Configuração de URLs igual ao axiosConfig
 const socketConfig = {
   development: 'http://localhost:5002',
-  production: 'https://sistema-irrigacao-backend.onrender.com',
+  production: 'https://sistemawebalencarfrutas.onrender.com',
   test: 'http://localhost:5002'
 };
 
