@@ -10,12 +10,12 @@ async function main() {
   const hashedPassword = await bcrypt.hash('Jhlinha054!', 10); // Senha padrão: 123456
 
   const adminUser = await prisma.usuario.upsert({
-    where: { email: 'admin@alencarfrutas.com.br' },
+    where: { email: 'higorocha@alencarfrutas.com.br' },
     update: {},
     create: {
       nome: 'Administrador',
       cpf: '000.000.000-00',
-      email: 'admin@alencarfrutas.com.br',
+      email: 'higorocha@alencarfrutas.com.br',
       senha: hashedPassword,
       nivel: 'ADMINISTRADOR',
     },
