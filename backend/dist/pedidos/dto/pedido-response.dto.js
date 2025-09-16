@@ -114,11 +114,11 @@ __decorate([
     __metadata("design:type", Number)
 ], FrutaPedidoResponseDto.prototype, "quantidadeReal2", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND'] }),
+    (0, swagger_1.ApiProperty)({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] }),
     __metadata("design:type", String)
 ], FrutaPedidoResponseDto.prototype, "unidadeMedida1", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND'] }),
+    (0, swagger_1.ApiProperty)({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] }),
     __metadata("design:type", String)
 ], FrutaPedidoResponseDto.prototype, "unidadeMedida2", void 0);
 __decorate([
@@ -130,7 +130,7 @@ __decorate([
     __metadata("design:type", Number)
 ], FrutaPedidoResponseDto.prototype, "valorTotal", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND'], required: false }),
+    (0, swagger_1.ApiProperty)({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], required: false }),
     __metadata("design:type", String)
 ], FrutaPedidoResponseDto.prototype, "unidadePrecificada", void 0);
 __decorate([
@@ -162,6 +162,11 @@ class PedidoResponseDto {
     placaPrimaria;
     placaSecundaria;
     nomeMotorista;
+    indDataEntrada;
+    indDataDescarga;
+    indPesoMedio;
+    indMediaMililitro;
+    indNumeroNf;
 }
 exports.PedidoResponseDto = PedidoResponseDto;
 __decorate([
@@ -260,4 +265,24 @@ __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Nome do motorista', required: false }),
     __metadata("design:type", String)
 ], PedidoResponseDto.prototype, "nomeMotorista", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Data de entrada (apenas para clientes indústria)', required: false }),
+    __metadata("design:type", Date)
+], PedidoResponseDto.prototype, "indDataEntrada", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Data de descarga (apenas para clientes indústria)', required: false }),
+    __metadata("design:type", Date)
+], PedidoResponseDto.prototype, "indDataDescarga", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Peso médio (apenas para clientes indústria)', required: false }),
+    __metadata("design:type", Number)
+], PedidoResponseDto.prototype, "indPesoMedio", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Média em mililitros (apenas para clientes indústria)', required: false }),
+    __metadata("design:type", Number)
+], PedidoResponseDto.prototype, "indMediaMililitro", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Número da nota fiscal (apenas para clientes indústria)', required: false }),
+    __metadata("design:type", Number)
+], PedidoResponseDto.prototype, "indNumeroNf", void 0);
 //# sourceMappingURL=pedido-response.dto.js.map

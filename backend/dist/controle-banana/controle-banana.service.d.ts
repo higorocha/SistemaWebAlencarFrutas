@@ -7,65 +7,65 @@ export declare class ControleBananaService {
     constructor(prisma: PrismaService, historicoFitasService: HistoricoFitasService);
     private calcularTempoDesdeData;
     create(createControleBananaDto: CreateControleBananaDto, usuarioId: number): Promise<{
-        fitaBanana: {
+        usuario: {
+            nome: string;
             id: number;
-            usuarioId: number;
+        };
+        areaAgricola: {
+            nome: string;
+            id: number;
+        };
+        fitaBanana: {
+            nome: string;
+            id: number;
             createdAt: Date;
             updatedAt: Date;
-            nome: string;
+            usuarioId: number;
             corHex: string;
             dataCriacao: Date;
         };
-        areaAgricola: {
-            id: number;
-            nome: string;
-        };
-        usuario: {
-            id: number;
-            nome: string;
-        };
     } & {
         id: number;
-        fitaBananaId: number;
-        areaAgricolaId: number;
-        quantidadeFitas: number;
-        quantidadeInicialFitas: number;
-        dataRegistro: Date;
-        usuarioId: number;
-        observacoes: string | null;
         createdAt: Date;
         updatedAt: Date;
+        usuarioId: number;
+        areaAgricolaId: number;
+        observacoes: string | null;
+        fitaBananaId: number;
+        quantidadeFitas: number;
+        dataRegistro: Date;
+        quantidadeInicialFitas: number;
     }>;
     findAll(page?: number, limit?: number): Promise<{
         data: ({
-            fitaBanana: {
+            usuario: {
+                nome: string;
                 id: number;
-                usuarioId: number;
+            };
+            areaAgricola: {
+                nome: string;
+                id: number;
+            };
+            fitaBanana: {
+                nome: string;
+                id: number;
                 createdAt: Date;
                 updatedAt: Date;
-                nome: string;
+                usuarioId: number;
                 corHex: string;
                 dataCriacao: Date;
             };
-            areaAgricola: {
-                id: number;
-                nome: string;
-            };
-            usuario: {
-                id: number;
-                nome: string;
-            };
         } & {
             id: number;
-            fitaBananaId: number;
-            areaAgricolaId: number;
-            quantidadeFitas: number;
-            quantidadeInicialFitas: number;
-            dataRegistro: Date;
-            usuarioId: number;
-            observacoes: string | null;
             createdAt: Date;
             updatedAt: Date;
+            usuarioId: number;
+            areaAgricolaId: number;
+            observacoes: string | null;
+            fitaBananaId: number;
+            quantidadeFitas: number;
+            dataRegistro: Date;
+            quantidadeInicialFitas: number;
         })[];
         total: number;
         page: number;
@@ -73,33 +73,33 @@ export declare class ControleBananaService {
         totalPages: number;
     }>;
     findOne(id: number): Promise<{
-        fitaBanana: {
+        usuario: {
+            nome: string;
             id: number;
-            usuarioId: number;
+        };
+        areaAgricola: {
+            nome: string;
+            id: number;
+            coordenadas: import("@prisma/client/runtime/library").JsonValue;
+        };
+        fitaBanana: {
+            nome: string;
+            id: number;
             createdAt: Date;
             updatedAt: Date;
-            nome: string;
+            usuarioId: number;
             corHex: string;
             dataCriacao: Date;
         };
-        areaAgricola: {
-            id: number;
-            nome: string;
-            coordenadas: import("@prisma/client/runtime/library").JsonValue;
-        };
-        usuario: {
-            id: number;
-            nome: string;
-        };
         historicos: ({
             usuario: {
-                id: number;
                 nome: string;
+                id: number;
             };
         } & {
             id: number;
-            usuarioId: number;
             createdAt: Date;
+            usuarioId: number;
             controleBananaId: number;
             acao: string;
             dadosAnteriores: import("@prisma/client/runtime/library").JsonValue | null;
@@ -107,74 +107,74 @@ export declare class ControleBananaService {
         })[];
     } & {
         id: number;
-        fitaBananaId: number;
-        areaAgricolaId: number;
-        quantidadeFitas: number;
-        quantidadeInicialFitas: number;
-        dataRegistro: Date;
-        usuarioId: number;
-        observacoes: string | null;
         createdAt: Date;
         updatedAt: Date;
+        usuarioId: number;
+        areaAgricolaId: number;
+        observacoes: string | null;
+        fitaBananaId: number;
+        quantidadeFitas: number;
+        dataRegistro: Date;
+        quantidadeInicialFitas: number;
     }>;
     update(id: number, updateControleBananaDto: UpdateControleBananaDto, usuarioId: number): Promise<{
-        fitaBanana: {
+        usuario: {
+            nome: string;
             id: number;
-            usuarioId: number;
+        };
+        areaAgricola: {
+            nome: string;
+            id: number;
+        };
+        fitaBanana: {
+            nome: string;
+            id: number;
             createdAt: Date;
             updatedAt: Date;
-            nome: string;
+            usuarioId: number;
             corHex: string;
             dataCriacao: Date;
         };
-        areaAgricola: {
-            id: number;
-            nome: string;
-        };
-        usuario: {
-            id: number;
-            nome: string;
-        };
     } & {
         id: number;
-        fitaBananaId: number;
-        areaAgricolaId: number;
-        quantidadeFitas: number;
-        quantidadeInicialFitas: number;
-        dataRegistro: Date;
-        usuarioId: number;
-        observacoes: string | null;
         createdAt: Date;
         updatedAt: Date;
+        usuarioId: number;
+        areaAgricolaId: number;
+        observacoes: string | null;
+        fitaBananaId: number;
+        quantidadeFitas: number;
+        dataRegistro: Date;
+        quantidadeInicialFitas: number;
     }>;
     remove(id: number, usuarioId: number): Promise<{
         message: string;
     }>;
     findByArea(areaId: number): Promise<({
-        fitaBanana: {
+        usuario: {
+            nome: string;
             id: number;
-            usuarioId: number;
+        };
+        fitaBanana: {
+            nome: string;
+            id: number;
             createdAt: Date;
             updatedAt: Date;
-            nome: string;
+            usuarioId: number;
             corHex: string;
             dataCriacao: Date;
         };
-        usuario: {
-            id: number;
-            nome: string;
-        };
     } & {
         id: number;
-        fitaBananaId: number;
-        areaAgricolaId: number;
-        quantidadeFitas: number;
-        quantidadeInicialFitas: number;
-        dataRegistro: Date;
-        usuarioId: number;
-        observacoes: string | null;
         createdAt: Date;
         updatedAt: Date;
+        usuarioId: number;
+        areaAgricolaId: number;
+        observacoes: string | null;
+        fitaBananaId: number;
+        quantidadeFitas: number;
+        dataRegistro: Date;
+        quantidadeInicialFitas: number;
     })[]>;
     getDashboardData(): Promise<{
         estatisticas: {
@@ -198,37 +198,37 @@ export declare class ControleBananaService {
                 };
             }[];
             controlesBanana: ({
-                fitaBanana: {
-                    id: number;
-                    usuarioId: number;
-                    createdAt: Date;
-                    updatedAt: Date;
-                    nome: string;
-                    corHex: string;
-                    dataCriacao: Date;
-                };
                 areaAgricola: {
-                    id: number;
                     nome: string;
+                    id: number;
                     categoria: import(".prisma/client").$Enums.CategoriaArea;
                     areaTotal: number;
                 };
+                fitaBanana: {
+                    nome: string;
+                    id: number;
+                    createdAt: Date;
+                    updatedAt: Date;
+                    usuarioId: number;
+                    corHex: string;
+                    dataCriacao: Date;
+                };
             } & {
                 id: number;
-                fitaBananaId: number;
-                areaAgricolaId: number;
-                quantidadeFitas: number;
-                quantidadeInicialFitas: number;
-                dataRegistro: Date;
-                usuarioId: number;
-                observacoes: string | null;
                 createdAt: Date;
                 updatedAt: Date;
+                usuarioId: number;
+                areaAgricolaId: number;
+                observacoes: string | null;
+                fitaBananaId: number;
+                quantidadeFitas: number;
+                dataRegistro: Date;
+                quantidadeInicialFitas: number;
             })[];
+            nome: string;
             id: number;
             createdAt: Date;
             updatedAt: Date;
-            nome: string;
             categoria: import(".prisma/client").$Enums.CategoriaArea;
             areaTotal: number;
             coordenadas: import("@prisma/client/runtime/library").JsonValue | null;
@@ -243,15 +243,15 @@ export declare class ControleBananaService {
         controles: {
             id: number;
             fita: {
-                id: number;
                 nome: string;
+                id: number;
                 corHex: string;
             };
             quantidadeFitas: number;
             dataRegistro: Date;
             usuario: {
-                id: number;
                 nome: string;
+                id: number;
             };
             observacoes: string | null;
             tempoDesdeData: {
@@ -269,8 +269,8 @@ export declare class ControleBananaService {
         controles: {
             id: number;
             area: {
-                id: number;
                 nome: string;
+                id: number;
                 categoria: import(".prisma/client").$Enums.CategoriaArea;
                 areaTotal: number;
                 coordenadas: import("@prisma/client/runtime/library").JsonValue;
@@ -278,8 +278,8 @@ export declare class ControleBananaService {
             quantidadeFitas: number;
             dataRegistro: Date;
             usuario: {
-                id: number;
                 nome: string;
+                id: number;
             };
             observacoes: string | null;
             tempoDesdeData: {

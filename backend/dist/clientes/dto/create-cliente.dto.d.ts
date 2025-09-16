@@ -18,5 +18,6 @@ export declare class CreateClienteDto {
     email2?: string;
     observacoes?: string;
     status?: StatusCliente;
+    industria?: boolean;
 }
 export {};

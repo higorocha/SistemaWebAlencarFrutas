@@ -112,20 +112,20 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Unidade de medida principal',
-        enum: ['KG', 'TON', 'CX', 'UND'],
+        enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'],
         example: 'KG',
     }),
-    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND']),
+    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND', 'ML', 'LT']),
     __metadata("design:type", String)
 ], FrutaPedidoDto.prototype, "unidadeMedida1", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({
         description: 'Unidade de medida secundária (opcional)',
-        enum: ['KG', 'TON', 'CX', 'UND'],
+        enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'],
         example: 'CX',
     }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND']),
+    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND', 'ML', 'LT']),
     __metadata("design:type", String)
 ], FrutaPedidoDto.prototype, "unidadeMedida2", void 0);
 __decorate([
@@ -177,6 +177,11 @@ class CreatePedidoDto {
     dataPrevistaColheita;
     frutas;
     observacoes;
+    indDataEntrada;
+    indDataDescarga;
+    indPesoMedio;
+    indMediaMililitro;
+    indNumeroNf;
 }
 exports.CreatePedidoDto = CreatePedidoDto;
 __decorate([
@@ -236,4 +241,52 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreatePedidoDto.prototype, "observacoes", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Data de entrada (apenas para clientes indústria)',
+        example: '2024-03-15',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreatePedidoDto.prototype, "indDataEntrada", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Data de descarga (apenas para clientes indústria)',
+        example: '2024-03-16',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreatePedidoDto.prototype, "indDataDescarga", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Peso médio (apenas para clientes indústria)',
+        example: 1250.75,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], CreatePedidoDto.prototype, "indPesoMedio", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Média em mililitros (apenas para clientes indústria)',
+        example: 500.25,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], CreatePedidoDto.prototype, "indMediaMililitro", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Número da nota fiscal (apenas para clientes indústria)',
+        example: 123456,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], CreatePedidoDto.prototype, "indNumeroNf", void 0);
 //# sourceMappingURL=create-pedido.dto.js.map

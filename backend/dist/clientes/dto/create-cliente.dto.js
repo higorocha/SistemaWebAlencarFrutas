@@ -31,6 +31,7 @@ class CreateClienteDto {
     email2;
     observacoes;
     status;
+    industria;
 }
 exports.CreateClienteDto = CreateClienteDto;
 __decorate([
@@ -211,4 +212,13 @@ __decorate([
     (0, class_validator_1.IsEnum)(['ATIVO', 'INATIVO']),
     __metadata("design:type", String)
 ], CreateClienteDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Se o cliente é uma indústria',
+        example: false,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateClienteDto.prototype, "industria", void 0);
 //# sourceMappingURL=create-cliente.dto.js.map

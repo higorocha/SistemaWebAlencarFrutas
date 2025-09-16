@@ -3,7 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 // Definindo os tipos dos enums
-type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
+type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 
 // DTO para área da fruta (pode ser própria ou de fornecedor)
 export class FrutaAreaDto {
@@ -82,19 +82,19 @@ export class FrutaPedidoDto {
 
   @ApiProperty({
     description: 'Unidade de medida principal',
-    enum: ['KG', 'TON', 'CX', 'UND'],
+    enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'],
     example: 'KG',
   })
-  @IsEnum(['KG', 'TON', 'CX', 'UND'])
+  @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'])
   unidadeMedida1: UnidadeMedida;
 
   @ApiPropertyOptional({
     description: 'Unidade de medida secundária (opcional)',
-    enum: ['KG', 'TON', 'CX', 'UND'],
+    enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'],
     example: 'CX',
   })
   @IsOptional()
-  @IsEnum(['KG', 'TON', 'CX', 'UND'])
+  @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'])
   unidadeMedida2?: UnidadeMedida;
 
   @ApiProperty({
@@ -193,4 +193,48 @@ export class CreatePedidoDto {
   @IsOptional()
   @IsString()
   observacoes?: string;
+
+  // Campos específicos para clientes indústria
+  @ApiPropertyOptional({
+    description: 'Data de entrada (apenas para clientes indústria)',
+    example: '2024-03-15',
+  })
+  @IsOptional()
+  @IsDateString()
+  indDataEntrada?: string;
+
+  @ApiPropertyOptional({
+    description: 'Data de descarga (apenas para clientes indústria)',
+    example: '2024-03-16',
+  })
+  @IsOptional()
+  @IsDateString()
+  indDataDescarga?: string;
+
+  @ApiPropertyOptional({
+    description: 'Peso médio (apenas para clientes indústria)',
+    example: 1250.75,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  indPesoMedio?: number;
+
+  @ApiPropertyOptional({
+    description: 'Média em mililitros (apenas para clientes indústria)',
+    example: 500.25,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  indMediaMililitro?: number;
+
+  @ApiPropertyOptional({
+    description: 'Número da nota fiscal (apenas para clientes indústria)',
+    example: 123456,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  indNumeroNf?: number;
 }

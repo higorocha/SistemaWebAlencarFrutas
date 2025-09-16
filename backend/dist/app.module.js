@@ -30,6 +30,7 @@ const areas_fornecedores_module_1 = require("./areas-fornecedores/areas-forneced
 const fitas_banana_module_1 = require("./fitas-banana/fitas-banana.module");
 const controle_banana_module_1 = require("./controle-banana/controle-banana.module");
 const historico_fitas_module_1 = require("./historico-fitas/historico-fitas.module");
+const turma_colheita_module_1 = require("./turma-colheita/turma-colheita.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -64,6 +65,7 @@ exports.AppModule = AppModule = __decorate([
             fitas_banana_module_1.FitasBananaModule,
             controle_banana_module_1.ControleBananaModule,
             historico_fitas_module_1.HistoricoFitasModule,
+            turma_colheita_module_1.TurmaColheitaModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService, prisma_service_1.PrismaService],

@@ -21,6 +21,7 @@ import { AreasFornecedoresModule } from './areas-fornecedores/areas-fornecedores
 import { FitasBananaModule } from './fitas-banana/fitas-banana.module';
 import { ControleBananaModule } from './controle-banana/controle-banana.module';
 import { HistoricoFitasModule } from './historico-fitas/historico-fitas.module';
+import { TurmaColheitaModule } from './turma-colheita/turma-colheita.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { HistoricoFitasModule } from './historico-fitas/historico-fitas.module';
     FitasBananaModule,
     ControleBananaModule,
     HistoricoFitasModule,
+    TurmaColheitaModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

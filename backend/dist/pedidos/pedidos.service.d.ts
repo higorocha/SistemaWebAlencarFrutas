@@ -15,12 +15,13 @@ export declare class PedidosService {
     private calcularValorRecebidoConsolidado;
     private atualizarStatusPagamento;
     create(createPedidoDto: CreatePedidoDto): Promise<PedidoResponseDto>;
-    findAll(page?: number, limit?: number, search?: string, status?: string, clienteId?: number, dataInicio?: Date, dataFim?: Date): Promise<{
+    findAll(page?: number, limit?: number, search?: string, searchType?: string, status?: string, clienteId?: number, dataInicio?: Date, dataFim?: Date): Promise<{
         data: PedidoResponseDto[];
         total: number;
         page: number;
         limit: number;
     }>;
+    findByCliente(clienteId: number): Promise<PedidoResponseDto[]>;
     findOne(id: number): Promise<PedidoResponseDto>;
     update(id: number, updatePedidoDto: UpdatePedidoDto): Promise<PedidoResponseDto>;
     updateColheita(id: number, updateColheitaDto: UpdateColheitaDto, usuarioId: number): Promise<PedidoResponseDto>;
@@ -41,4 +42,5 @@ export declare class PedidosService {
     private calcularOperacoesFitas;
     private validarEstoqueParaCriacao;
     private processarFitasComAreas;
+    buscaInteligente(term: string): Promise<any[]>;
 }

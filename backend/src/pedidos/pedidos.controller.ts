@@ -49,6 +49,48 @@ export class PedidosController {
     );
   }
 
+  @Get('busca-inteligente')
+  @ApiOperation({ summary: 'Busca inteligente de pedidos com sugestões categorizadas' })
+  @ApiQuery({
+    name: 'term',
+    required: true,
+    type: String,
+    description: 'Termo de busca (mínimo 2 caracteres)',
+    example: 'João'
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Sugestões encontradas com sucesso',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', example: 'cliente' },
+          label: { type: 'string', example: 'Cliente' },
+          value: { type: 'string', example: 'João Silva' },
+          icon: { type: 'string', example: '👤' },
+          color: { type: 'string', example: '#52c41a' },
+          description: { type: 'string', example: 'João Silva - CPF: 123.456.789-00' },
+          metadata: {
+            type: 'object',
+            example: { id: 1, documento: '12345678900' }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Termo de busca deve ter pelo menos 2 caracteres',
+  })
+  buscaInteligente(@Query('term') term: string) {
+    if (!term || term.length < 2) {
+      throw new Error('Termo de busca deve ter pelo menos 2 caracteres');
+    }
+    return this.pedidosService.buscaInteligente(term);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Criar um novo pedido' })
   @ApiResponse({
@@ -147,6 +189,7 @@ export class PedidosController {
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número da página' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Itens por página' })
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Termo de busca' })
+  @ApiQuery({ name: 'searchType', required: false, type: String, description: 'Tipo de busca (numero, cliente, motorista, placa, vale, etc.)' })
   @ApiQuery({ name: 'status', required: false, type: String, description: 'Filtrar por status' })
   @ApiQuery({ name: 'clienteId', required: false, type: Number, description: 'Filtrar por cliente' })
   @ApiQuery({ name: 'dataInicio', required: false, type: String, description: 'Data início (ISO 8601)' })
@@ -171,6 +214,7 @@ export class PedidosController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
+    @Query('searchType') searchType?: string,
     @Query('status') status?: string,
     @Query('clienteId') clienteId?: number,
     @Query('dataInicio') dataInicio?: string,
@@ -178,16 +222,35 @@ export class PedidosController {
   ) {
     const dataInicioDate = dataInicio ? new Date(dataInicio) : undefined;
     const dataFimDate = dataFim ? new Date(dataFim) : undefined;
-    
+
     return this.pedidosService.findAll(
       page,
       limit,
       search,
+      searchType,
       status,
       clienteId,
       dataInicioDate,
       dataFimDate
     );
+  }
+
+  @Get('cliente/:clienteId')
+  @ApiOperation({ summary: 'Buscar pedidos por cliente' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de pedidos do cliente retornada com sucesso',
+    schema: {
+      type: 'array',
+      items: { $ref: '#/components/schemas/PedidoResponseDto' },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Cliente não encontrado',
+  })
+  findByCliente(@Param('clienteId') clienteId: string) {
+    return this.pedidosService.findByCliente(+clienteId);
   }
 
   @Get(':id')

@@ -26,6 +26,12 @@ let PedidosController = class PedidosController {
     getDashboardStats(paginaFinalizados, limitFinalizados) {
         return this.pedidosService.getDashboardStats(paginaFinalizados ? parseInt(paginaFinalizados) : 1, limitFinalizados ? parseInt(limitFinalizados) : 10);
     }
+    buscaInteligente(term) {
+        if (!term || term.length < 2) {
+            throw new Error('Termo de busca deve ter pelo menos 2 caracteres');
+        }
+        return this.pedidosService.buscaInteligente(term);
+    }
     create(createPedidoDto) {
         return this.pedidosService.create(createPedidoDto);
     }
@@ -41,10 +47,13 @@ let PedidosController = class PedidosController {
     removePagamento(id) {
         return this.pedidosService.removePagamento(+id);
     }
-    findAll(page, limit, search, status, clienteId, dataInicio, dataFim) {
+    findAll(page, limit, search, searchType, status, clienteId, dataInicio, dataFim) {
         const dataInicioDate = dataInicio ? new Date(dataInicio) : undefined;
         const dataFimDate = dataFim ? new Date(dataFim) : undefined;
-        return this.pedidosService.findAll(page, limit, search, status, clienteId, dataInicioDate, dataFimDate);
+        return this.pedidosService.findAll(page, limit, search, searchType, status, clienteId, dataInicioDate, dataFimDate);
+    }
+    findByCliente(clienteId) {
+        return this.pedidosService.findByCliente(+clienteId);
     }
     findOne(id) {
         return this.pedidosService.findOne(+id);
@@ -90,6 +99,47 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "getDashboardStats", null);
+__decorate([
+    (0, common_1.Get)('busca-inteligente'),
+    (0, swagger_1.ApiOperation)({ summary: 'Busca inteligente de pedidos com sugestões categorizadas' }),
+    (0, swagger_1.ApiQuery)({
+        name: 'term',
+        required: true,
+        type: String,
+        description: 'Termo de busca (mínimo 2 caracteres)',
+        example: 'João'
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Sugestões encontradas com sucesso',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    type: { type: 'string', example: 'cliente' },
+                    label: { type: 'string', example: 'Cliente' },
+                    value: { type: 'string', example: 'João Silva' },
+                    icon: { type: 'string', example: '👤' },
+                    color: { type: 'string', example: '#52c41a' },
+                    description: { type: 'string', example: 'João Silva - CPF: 123.456.789-00' },
+                    metadata: {
+                        type: 'object',
+                        example: { id: 1, documento: '12345678900' }
+                    }
+                }
+            }
+        }
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.BAD_REQUEST,
+        description: 'Termo de busca deve ter pelo menos 2 caracteres',
+    }),
+    __param(0, (0, common_1.Query)('term')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "buscaInteligente", null);
 __decorate([
     (0, common_1.Post)(),
     (0, swagger_1.ApiOperation)({ summary: 'Criar um novo pedido' }),
@@ -193,6 +243,7 @@ __decorate([
     (0, swagger_1.ApiQuery)({ name: 'page', required: false, type: Number, description: 'Número da página' }),
     (0, swagger_1.ApiQuery)({ name: 'limit', required: false, type: Number, description: 'Itens por página' }),
     (0, swagger_1.ApiQuery)({ name: 'search', required: false, type: String, description: 'Termo de busca' }),
+    (0, swagger_1.ApiQuery)({ name: 'searchType', required: false, type: String, description: 'Tipo de busca (numero, cliente, motorista, placa, vale, etc.)' }),
     (0, swagger_1.ApiQuery)({ name: 'status', required: false, type: String, description: 'Filtrar por status' }),
     (0, swagger_1.ApiQuery)({ name: 'clienteId', required: false, type: Number, description: 'Filtrar por cliente' }),
     (0, swagger_1.ApiQuery)({ name: 'dataInicio', required: false, type: String, description: 'Data início (ISO 8601)' }),
@@ -216,14 +267,35 @@ __decorate([
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
     __param(2, (0, common_1.Query)('search')),
-    __param(3, (0, common_1.Query)('status')),
-    __param(4, (0, common_1.Query)('clienteId')),
-    __param(5, (0, common_1.Query)('dataInicio')),
-    __param(6, (0, common_1.Query)('dataFim')),
+    __param(3, (0, common_1.Query)('searchType')),
+    __param(4, (0, common_1.Query)('status')),
+    __param(5, (0, common_1.Query)('clienteId')),
+    __param(6, (0, common_1.Query)('dataInicio')),
+    __param(7, (0, common_1.Query)('dataFim')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, Number, String, String, Number, String, String]),
+    __metadata("design:paramtypes", [Number, Number, String, String, String, Number, String, String]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)('cliente/:clienteId'),
+    (0, swagger_1.ApiOperation)({ summary: 'Buscar pedidos por cliente' }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Lista de pedidos do cliente retornada com sucesso',
+        schema: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/PedidoResponseDto' },
+        },
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.NOT_FOUND,
+        description: 'Cliente não encontrado',
+    }),
+    __param(0, (0, common_1.Param)('clienteId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "findByCliente", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, swagger_1.ApiOperation)({ summary: 'Buscar um pedido por ID' }),

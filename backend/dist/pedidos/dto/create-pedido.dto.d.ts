@@ -1,4 +1,4 @@
-type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
+type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 export declare class FrutaAreaDto {
     areaPropriaId?: number;
     areaFornecedorId?: number;
@@ -22,5 +22,10 @@ export declare class CreatePedidoDto {
     dataPrevistaColheita: string;
     frutas: FrutaPedidoDto[];
     observacoes?: string;
+    indDataEntrada?: string;
+    indDataDescarga?: string;
+    indPesoMedio?: number;
+    indMediaMililitro?: number;
+    indNumeroNf?: number;
 }
 export {};

@@ -31,6 +31,7 @@ class ClienteResponseDto {
     email2;
     observacoes;
     status;
+    industria;
     createdAt;
     updatedAt;
 }
@@ -169,6 +170,13 @@ __decorate([
     }),
     __metadata("design:type", String)
 ], ClienteResponseDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Se o cliente é uma indústria',
+        example: false,
+    }),
+    __metadata("design:type", Boolean)
+], ClienteResponseDto.prototype, "industria", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Data de criação',

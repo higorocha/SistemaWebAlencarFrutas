@@ -41,11 +41,11 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({
         description: 'Unidade de medida que está sendo precificada (quando houver duas no pedido)',
-        enum: ['KG', 'TON', 'CX', 'UND'],
+        enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'],
         example: 'KG',
     }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND']),
+    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND', 'ML', 'LT']),
     __metadata("design:type", String)
 ], UpdatePrecificacaoFrutaDto.prototype, "unidadePrecificada", void 0);
 class UpdatePrecificacaoDto {
@@ -54,6 +54,11 @@ class UpdatePrecificacaoDto {
     icms;
     desconto;
     avaria;
+    indDataEntrada;
+    indDataDescarga;
+    indPesoMedio;
+    indMediaMililitro;
+    indNumeroNf;
 }
 exports.UpdatePrecificacaoDto = UpdatePrecificacaoDto;
 __decorate([
@@ -114,4 +119,52 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpdatePrecificacaoDto.prototype, "avaria", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Data de entrada (apenas para clientes indústria)',
+        example: '2024-03-15',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], UpdatePrecificacaoDto.prototype, "indDataEntrada", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Data de descarga (apenas para clientes indústria)',
+        example: '2024-03-16',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], UpdatePrecificacaoDto.prototype, "indDataDescarga", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Peso médio (apenas para clientes indústria)',
+        example: 1250.50,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0.01),
+    __metadata("design:type", Number)
+], UpdatePrecificacaoDto.prototype, "indPesoMedio", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Média em mililitros (apenas para clientes indústria)',
+        example: 500.75,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0.01),
+    __metadata("design:type", Number)
+], UpdatePrecificacaoDto.prototype, "indMediaMililitro", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Número da nota fiscal (apenas para clientes indústria)',
+        example: 123456,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], UpdatePrecificacaoDto.prototype, "indNumeroNf", void 0);
 //# sourceMappingURL=update-precificacao.dto.js.map

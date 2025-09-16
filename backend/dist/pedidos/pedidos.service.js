@@ -21,6 +21,8 @@ let PedidosService = class PedidosService {
         this.controleBananaService = controleBananaService;
     }
     async getDashboardStats(paginaFinalizados = 1, limitFinalizados = 10) {
+        const paginaValida = Math.max(1, Math.floor(paginaFinalizados) || 1);
+        const limitValido = Math.max(1, Math.floor(limitFinalizados) || 10);
         const pedidosAtivos = await this.prisma.pedido.findMany({
             where: {
                 status: {
@@ -119,7 +121,7 @@ let PedidosService = class PedidosService {
             if (valorRecebido)
                 stats.valorRecebido += valorRecebido;
         });
-        const skipFinalizados = (paginaFinalizados - 1) * limitFinalizados;
+        const skipFinalizados = Math.max(0, (paginaValida - 1) * limitValido);
         const [pedidosFinalizados, totalFinalizados] = await Promise.all([
             this.prisma.pedido.findMany({
                 where: {
@@ -159,7 +161,7 @@ let PedidosService = class PedidosService {
                     { id: 'desc' }
                 ],
                 skip: skipFinalizados,
-                take: limitFinalizados
+                take: limitValido
             }),
             this.prisma.pedido.count({
                 where: {
@@ -385,6 +387,28 @@ let PedidosService = class PedidosService {
         if (!cliente) {
             throw new common_1.NotFoundException('Cliente não encontrado');
         }
+        const frutaIds = createPedidoDto.frutas.map(f => f.frutaId);
+        const frutasUnicas = new Set(frutaIds);
+        if (frutaIds.length !== frutasUnicas.size) {
+            const frutasDuplicadas = [];
+            const contadorFrutas = {};
+            for (const frutaId of frutaIds) {
+                contadorFrutas[frutaId] = (contadorFrutas[frutaId] || 0) + 1;
+                if (contadorFrutas[frutaId] > 1 && !frutasDuplicadas.includes(frutaId)) {
+                    frutasDuplicadas.push(frutaId);
+                }
+            }
+            const nomesFrutasDuplicadas = [];
+            for (const frutaId of frutasDuplicadas) {
+                const fruta = await this.prisma.fruta.findUnique({
+                    where: { id: frutaId },
+                    select: { nome: true }
+                });
+                nomesFrutasDuplicadas.push(fruta?.nome || `ID ${frutaId}`);
+            }
+            throw new common_1.BadRequestException(`Frutas duplicadas detectadas no pedido: ${nomesFrutasDuplicadas.join(', ')}. ` +
+                `Cada fruta pode ser adicionada apenas uma vez por pedido.`);
+        }
         for (const fruta of createPedidoDto.frutas) {
             const frutaExiste = await this.prisma.fruta.findUnique({
                 where: { id: fruta.frutaId },
@@ -433,6 +457,11 @@ let PedidosService = class PedidosService {
                     clienteId: createPedidoDto.clienteId,
                     dataPrevistaColheita: createPedidoDto.dataPrevistaColheita,
                     observacoes: createPedidoDto.observacoes,
+                    indDataEntrada: createPedidoDto.indDataEntrada ? new Date(createPedidoDto.indDataEntrada) : null,
+                    indDataDescarga: createPedidoDto.indDataDescarga ? new Date(createPedidoDto.indDataDescarga) : null,
+                    indPesoMedio: createPedidoDto.indPesoMedio,
+                    indMediaMililitro: createPedidoDto.indMediaMililitro,
+                    indNumeroNf: createPedidoDto.indNumeroNf,
                 },
             });
             for (const fruta of createPedidoDto.frutas) {
@@ -485,27 +514,125 @@ let PedidosService = class PedidosService {
         const pedidoCompleto = await this.findOne(pedido.id);
         return this.adaptPedidoResponse(pedidoCompleto);
     }
-    async findAll(page, limit, search, status, clienteId, dataInicio, dataFim) {
+    async findAll(page, limit, search, searchType, status, clienteId, dataInicio, dataFim) {
         const skip = page && limit ? (page - 1) * limit : 0;
         const take = limit || 10;
         const where = {};
         if (search) {
-            where.OR = [
-                { numeroPedido: { contains: search, mode: 'insensitive' } },
-                { cliente: { nome: { contains: search, mode: 'insensitive' } } },
-                { frutasPedidos: { some: { fruta: { nome: { contains: search, mode: 'insensitive' } } } } },
-            ];
+            if (searchType) {
+                switch (searchType) {
+                    case 'numero':
+                        where.numeroPedido = { contains: search, mode: 'insensitive' };
+                        break;
+                    case 'cliente':
+                        where.cliente = { nome: { contains: search, mode: 'insensitive' } };
+                        break;
+                    case 'motorista':
+                        where.nomeMotorista = { contains: search, mode: 'insensitive' };
+                        break;
+                    case 'placa':
+                        where.OR = [
+                            { placaPrimaria: { contains: search, mode: 'insensitive' } },
+                            { placaSecundaria: { contains: search, mode: 'insensitive' } }
+                        ];
+                        break;
+                    case 'vale':
+                        where.pagamentosPedidos = {
+                            some: { referenciaExterna: { contains: search, mode: 'insensitive' } }
+                        };
+                        break;
+                    case 'fornecedor':
+                        where.frutasPedidos = {
+                            some: {
+                                areas: {
+                                    some: {
+                                        areaFornecedor: {
+                                            fornecedor: { nome: { contains: search, mode: 'insensitive' } }
+                                        }
+                                    }
+                                }
+                            }
+                        };
+                        break;
+                    case 'area':
+                        where.frutasPedidos = {
+                            some: {
+                                areas: {
+                                    some: {
+                                        OR: [
+                                            { areaPropria: { nome: { contains: search, mode: 'insensitive' } } },
+                                            { areaFornecedor: { nome: { contains: search, mode: 'insensitive' } } }
+                                        ]
+                                    }
+                                }
+                            }
+                        };
+                        break;
+                    case 'fruta':
+                        where.frutasPedidos = {
+                            some: { fruta: { nome: { contains: search, mode: 'insensitive' } } }
+                        };
+                        break;
+                    case 'pesagem':
+                        where.pesagem = { contains: search, mode: 'insensitive' };
+                        break;
+                    default:
+                        where.OR = [
+                            { numeroPedido: { contains: search, mode: 'insensitive' } },
+                            { cliente: { nome: { contains: search, mode: 'insensitive' } } },
+                            { frutasPedidos: { some: { fruta: { nome: { contains: search, mode: 'insensitive' } } } } },
+                        ];
+                }
+            }
+            else {
+                where.OR = [
+                    { numeroPedido: { contains: search, mode: 'insensitive' } },
+                    { cliente: { nome: { contains: search, mode: 'insensitive' } } },
+                    { frutasPedidos: { some: { fruta: { nome: { contains: search, mode: 'insensitive' } } } } },
+                ];
+            }
         }
         if (status) {
-            where.status = status;
+            let statusArray = [];
+            switch (status) {
+                case 'PEDIDO_CRIADO':
+                case 'AGUARDANDO_COLHEITA':
+                    statusArray = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA'];
+                    break;
+                case 'COLHEITA_REALIZADA':
+                case 'AGUARDANDO_PRECIFICACAO':
+                    statusArray = ['COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'];
+                    break;
+                case 'PRECIFICACAO_REALIZADA':
+                case 'AGUARDANDO_PAGAMENTO':
+                    statusArray = ['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO'];
+                    break;
+                case 'PAGAMENTO_PARCIAL':
+                    statusArray = ['PAGAMENTO_PARCIAL'];
+                    break;
+                case 'PAGAMENTO_REALIZADO':
+                case 'PEDIDO_FINALIZADO':
+                case 'CANCELADO':
+                    statusArray = [status];
+                    break;
+                default:
+                    statusArray = [status];
+            }
+            where.status = {
+                in: statusArray
+            };
         }
         if (clienteId) {
             where.clienteId = clienteId;
         }
         if (dataInicio && dataFim) {
-            where.dataPedido = {
-                gte: dataInicio,
-                lte: dataFim,
+            const startOfDay = new Date(dataInicio);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(dataFim);
+            endOfDay.setHours(23, 59, 59, 999);
+            where.createdAt = {
+                gte: startOfDay,
+                lte: endOfDay,
             };
         }
         const [pedidos, total] = await Promise.all([
@@ -516,7 +643,7 @@ let PedidosService = class PedidosService {
                 orderBy: { dataPedido: 'desc' },
                 include: {
                     cliente: {
-                        select: { id: true, nome: true }
+                        select: { id: true, nome: true, industria: true }
                     },
                     frutasPedidos: {
                         include: {
@@ -575,12 +702,65 @@ let PedidosService = class PedidosService {
             limit: take,
         };
     }
+    async findByCliente(clienteId) {
+        const cliente = await this.prisma.cliente.findUnique({
+            where: { id: clienteId },
+            select: { id: true, nome: true, industria: true }
+        });
+        if (!cliente) {
+            throw new common_1.NotFoundException(`Cliente com ID ${clienteId} não encontrado`);
+        }
+        const pedidos = await this.prisma.pedido.findMany({
+            where: { clienteId },
+            orderBy: { dataPedido: 'desc' },
+            include: {
+                cliente: {
+                    select: { id: true, nome: true, industria: true }
+                },
+                frutasPedidos: {
+                    include: {
+                        fruta: {
+                            select: { id: true, nome: true }
+                        },
+                        areas: {
+                            include: {
+                                areaPropria: {
+                                    select: { id: true, nome: true }
+                                },
+                                areaFornecedor: {
+                                    select: {
+                                        id: true,
+                                        nome: true,
+                                        fornecedor: {
+                                            select: { id: true, nome: true }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        fitas: {
+                            include: {
+                                fitaBanana: {
+                                    select: { id: true, corHex: true, nome: true }
+                                },
+                                controleBanana: {
+                                    select: { id: true, quantidadeFitas: true }
+                                }
+                            }
+                        }
+                    }
+                },
+                pagamentosPedidos: true
+            }
+        });
+        return pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido)));
+    }
     async findOne(id) {
         const pedido = await this.prisma.pedido.findUnique({
             where: { id },
             include: {
                 cliente: {
-                    select: { id: true, nome: true }
+                    select: { id: true, nome: true, industria: true }
                 },
                 frutasPedidos: {
                     include: {
@@ -651,7 +831,7 @@ let PedidosService = class PedidosService {
             data: updatePedidoDto,
             include: {
                 cliente: {
-                    select: { id: true, nome: true }
+                    select: { id: true, nome: true, industria: true }
                 },
                 frutasPedidos: {
                     include: {
@@ -853,6 +1033,11 @@ let PedidosService = class PedidosService {
                     desconto: updatePrecificacaoDto.desconto,
                     avaria: updatePrecificacaoDto.avaria,
                     status: 'PRECIFICACAO_REALIZADA',
+                    indDataEntrada: updatePrecificacaoDto.indDataEntrada ? new Date(updatePrecificacaoDto.indDataEntrada) : null,
+                    indDataDescarga: updatePrecificacaoDto.indDataDescarga ? new Date(updatePrecificacaoDto.indDataDescarga) : null,
+                    indPesoMedio: updatePrecificacaoDto.indPesoMedio,
+                    indMediaMililitro: updatePrecificacaoDto.indMediaMililitro,
+                    indNumeroNf: updatePrecificacaoDto.indNumeroNf,
                 },
             });
             for (const fruta of updatePrecificacaoDto.frutas) {
@@ -1168,6 +1353,11 @@ let PedidosService = class PedidosService {
                     placaPrimaria: updatePedidoCompletoDto.placaPrimaria,
                     placaSecundaria: updatePedidoCompletoDto.placaSecundaria,
                     nomeMotorista: updatePedidoCompletoDto.nomeMotorista,
+                    indDataEntrada: updatePedidoCompletoDto.indDataEntrada ? new Date(updatePedidoCompletoDto.indDataEntrada) : null,
+                    indDataDescarga: updatePedidoCompletoDto.indDataDescarga ? new Date(updatePedidoCompletoDto.indDataDescarga) : null,
+                    indPesoMedio: updatePedidoCompletoDto.indPesoMedio,
+                    indMediaMililitro: updatePedidoCompletoDto.indMediaMililitro,
+                    indNumeroNf: updatePedidoCompletoDto.indNumeroNf,
                 },
             });
             let houveAlteracaoFrutas = false;
@@ -1392,7 +1582,7 @@ let PedidosService = class PedidosService {
             },
             include: {
                 cliente: {
-                    select: { id: true, nome: true }
+                    select: { id: true, nome: true, industria: true }
                 },
                 frutasPedidos: {
                     include: {
@@ -1423,7 +1613,7 @@ let PedidosService = class PedidosService {
             },
             include: {
                 cliente: {
-                    select: { id: true, nome: true }
+                    select: { id: true, nome: true, industria: true }
                 },
                 frutasPedidos: {
                     include: {
@@ -1724,6 +1914,440 @@ let PedidosService = class PedidosService {
             if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
                 await this.controleBananaService.processarSubtracaoFitas(fita.detalhesAreas, usuarioId);
             }
+        }
+    }
+    async buscaInteligente(term) {
+        if (!term || term.length < 2) {
+            return [];
+        }
+        const suggestions = [];
+        const lowerTerm = term.toLowerCase();
+        try {
+            if (lowerTerm.includes('ped') || /^\d+/.test(term)) {
+                const pedidosNumero = await this.prisma.pedido.findMany({
+                    where: {
+                        numeroPedido: {
+                            contains: term,
+                            mode: 'insensitive'
+                        }
+                    },
+                    select: {
+                        id: true,
+                        numeroPedido: true,
+                        status: true,
+                        dataPrevistaColheita: true,
+                        cliente: {
+                            select: { nome: true }
+                        }
+                    },
+                    take: 3,
+                    orderBy: { createdAt: 'desc' }
+                });
+                pedidosNumero.forEach(pedido => {
+                    suggestions.push({
+                        type: 'numero',
+                        label: 'Nº Pedido',
+                        value: pedido.numeroPedido,
+                        icon: '📋',
+                        color: '#1890ff',
+                        description: `${pedido.numeroPedido} - ${pedido.cliente.nome} (${pedido.status.replace(/_/g, ' ')})`,
+                        metadata: {
+                            id: pedido.id,
+                            status: pedido.status,
+                            clienteNome: pedido.cliente.nome
+                        }
+                    });
+                });
+            }
+            const clientes = await this.prisma.cliente.findMany({
+                where: {
+                    OR: [
+                        { nome: { contains: term, mode: 'insensitive' } },
+                        { razaoSocial: { contains: term, mode: 'insensitive' } },
+                        { cnpj: { contains: term.replace(/[^0-9]/g, ''), mode: 'insensitive' } },
+                        { cpf: { contains: term.replace(/[^0-9]/g, ''), mode: 'insensitive' } }
+                    ]
+                },
+                select: {
+                    id: true,
+                    nome: true,
+                    razaoSocial: true,
+                    cnpj: true,
+                    cpf: true,
+                    email1: true,
+                    _count: {
+                        select: { pedidos: true }
+                    }
+                },
+                take: 3,
+                orderBy: { nome: 'asc' }
+            });
+            clientes.forEach(cliente => {
+                const documento = cliente.cnpj || cliente.cpf || 'N/A';
+                suggestions.push({
+                    type: 'cliente',
+                    label: 'Cliente',
+                    value: cliente.nome,
+                    icon: '👤',
+                    color: '#52c41a',
+                    description: `${cliente.nome}${cliente.razaoSocial && cliente.razaoSocial !== cliente.nome ? ` (${cliente.razaoSocial})` : ''} - ${cliente._count.pedidos} pedidos`,
+                    metadata: {
+                        id: cliente.id,
+                        documento: documento,
+                        email: cliente.email1,
+                        totalPedidos: cliente._count.pedidos
+                    }
+                });
+            });
+            if (term.length >= 3) {
+                const motoristasUnicos = await this.prisma.pedido.groupBy({
+                    by: ['nomeMotorista'],
+                    where: {
+                        AND: [
+                            { nomeMotorista: { not: null } },
+                            { nomeMotorista: { contains: term, mode: 'insensitive' } }
+                        ]
+                    },
+                    _count: { id: true },
+                    orderBy: { _count: { id: 'desc' } },
+                    take: 3
+                });
+                motoristasUnicos.forEach(motorista => {
+                    if (motorista.nomeMotorista) {
+                        suggestions.push({
+                            type: 'motorista',
+                            label: 'Motorista',
+                            value: motorista.nomeMotorista,
+                            icon: '🚛',
+                            color: '#fa8c16',
+                            description: `${motorista.nomeMotorista} - ${motorista._count.id} pedidos`,
+                            metadata: {
+                                nome: motorista.nomeMotorista,
+                                totalPedidos: motorista._count.id
+                            }
+                        });
+                    }
+                });
+            }
+            if (term.length >= 3) {
+                const placaTerm = term.toUpperCase().trim();
+                const placasPrimarias = await this.prisma.pedido.groupBy({
+                    by: ['placaPrimaria'],
+                    where: {
+                        AND: [
+                            { placaPrimaria: { not: null } },
+                            { placaPrimaria: { contains: placaTerm, mode: 'insensitive' } }
+                        ]
+                    },
+                    _count: { id: true },
+                    orderBy: { _count: { id: 'desc' } },
+                    take: 2
+                });
+                const placasSecundarias = await this.prisma.pedido.groupBy({
+                    by: ['placaSecundaria'],
+                    where: {
+                        AND: [
+                            { placaSecundaria: { not: null } },
+                            { placaSecundaria: { contains: placaTerm, mode: 'insensitive' } }
+                        ]
+                    },
+                    _count: { id: true },
+                    orderBy: { _count: { id: 'desc' } },
+                    take: 2
+                });
+                placasPrimarias.forEach(placa => {
+                    if (placa.placaPrimaria) {
+                        suggestions.push({
+                            type: 'placa',
+                            label: 'Placa Principal',
+                            value: placa.placaPrimaria,
+                            icon: '🚗',
+                            color: '#eb2f96',
+                            description: `Placa ${placa.placaPrimaria} - ${placa._count.id} pedidos`,
+                            metadata: {
+                                placa: placa.placaPrimaria,
+                                totalPedidos: placa._count.id,
+                                tipo: 'primaria'
+                            }
+                        });
+                    }
+                });
+                placasSecundarias.forEach(placa => {
+                    if (placa.placaSecundaria) {
+                        suggestions.push({
+                            type: 'placa',
+                            label: 'Placa Reboque',
+                            value: placa.placaSecundaria,
+                            icon: '🚛',
+                            color: '#eb2f96',
+                            description: `Placa ${placa.placaSecundaria} - ${placa._count.id} pedidos`,
+                            metadata: {
+                                placa: placa.placaSecundaria,
+                                totalPedidos: placa._count.id,
+                                tipo: 'secundaria'
+                            }
+                        });
+                    }
+                });
+            }
+            if (/^\d+/.test(term)) {
+                const vales = await this.prisma.pagamentosPedidos.findMany({
+                    where: {
+                        AND: [
+                            { referenciaExterna: { not: null } },
+                            { referenciaExterna: { contains: term, mode: 'insensitive' } }
+                        ]
+                    },
+                    select: {
+                        id: true,
+                        referenciaExterna: true,
+                        metodoPagamento: true,
+                        valorRecebido: true,
+                        pedido: {
+                            select: {
+                                id: true,
+                                numeroPedido: true,
+                                status: true,
+                                cliente: {
+                                    select: { nome: true }
+                                }
+                            }
+                        }
+                    },
+                    take: 3,
+                    orderBy: { createdAt: 'desc' }
+                });
+                vales.forEach(vale => {
+                    if (vale.referenciaExterna) {
+                        let metodoIcon = 'PIX_ICON';
+                        switch (vale.metodoPagamento) {
+                            case 'PIX':
+                                metodoIcon = 'PIX_ICON';
+                                break;
+                            case 'BOLETO':
+                                metodoIcon = 'BOLETO_ICON';
+                                break;
+                            case 'TRANSFERENCIA':
+                                metodoIcon = 'TRANSFERENCIA_ICON';
+                                break;
+                            case 'DINHEIRO':
+                                metodoIcon = 'DINHEIRO_ICON';
+                                break;
+                            case 'CHEQUE':
+                                metodoIcon = 'CHEQUE_ICON';
+                                break;
+                        }
+                        suggestions.push({
+                            type: 'vale',
+                            label: 'Referência/Vale',
+                            value: vale.referenciaExterna,
+                            icon: '💳',
+                            color: '#722ed1',
+                            description: `${metodoIcon} ${vale.metodoPagamento} 💰 R$ ${vale.valorRecebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} 👤 ${vale.pedido.cliente.nome} (${vale.pedido.numeroPedido})`,
+                            metadata: {
+                                id: vale.id,
+                                pedidoId: vale.pedido.id,
+                                numeroPedido: vale.pedido.numeroPedido,
+                                status: vale.pedido.status,
+                                metodoPagamento: vale.metodoPagamento,
+                                clienteNome: vale.pedido.cliente.nome,
+                                valor: vale.valorRecebido,
+                                metodoIcon: metodoIcon
+                            }
+                        });
+                    }
+                });
+            }
+            if (term.length >= 3) {
+                const fornecedores = await this.prisma.fornecedor.findMany({
+                    where: {
+                        nome: {
+                            contains: term,
+                            mode: 'insensitive'
+                        }
+                    },
+                    select: {
+                        id: true,
+                        nome: true,
+                        cnpj: true,
+                        cpf: true,
+                        _count: {
+                            select: { areas: true }
+                        }
+                    },
+                    take: 3,
+                    orderBy: { nome: 'asc' }
+                });
+                fornecedores.forEach(fornecedor => {
+                    const documento = fornecedor.cnpj || fornecedor.cpf || 'N/A';
+                    suggestions.push({
+                        type: 'fornecedor',
+                        label: 'Fornecedor',
+                        value: fornecedor.nome,
+                        icon: '🏭',
+                        color: '#722ed1',
+                        description: `${fornecedor.nome} - ${documento} (${fornecedor._count.areas} áreas)`,
+                        metadata: {
+                            id: fornecedor.id,
+                            documento: documento,
+                            totalAreas: fornecedor._count.areas
+                        }
+                    });
+                });
+            }
+            if (term.length >= 3) {
+                const areasAgricolas = await this.prisma.areaAgricola.findMany({
+                    where: {
+                        nome: {
+                            contains: term,
+                            mode: 'insensitive'
+                        }
+                    },
+                    select: {
+                        id: true,
+                        nome: true,
+                        categoria: true,
+                        areaTotal: true
+                    },
+                    take: 2,
+                    orderBy: { nome: 'asc' }
+                });
+                areasAgricolas.forEach(area => {
+                    suggestions.push({
+                        type: 'area',
+                        label: 'Área Própria',
+                        value: area.nome,
+                        icon: '🌾',
+                        color: '#52c41a',
+                        description: `${area.nome} (${area.categoria}) - ${area.areaTotal}ha`,
+                        metadata: {
+                            id: area.id,
+                            categoria: area.categoria,
+                            areaTotal: area.areaTotal,
+                            tipo: 'propria'
+                        }
+                    });
+                });
+                const areasFornecedores = await this.prisma.areaFornecedor.findMany({
+                    where: {
+                        nome: {
+                            contains: term,
+                            mode: 'insensitive'
+                        }
+                    },
+                    select: {
+                        id: true,
+                        nome: true,
+                        fornecedor: {
+                            select: {
+                                id: true,
+                                nome: true
+                            }
+                        }
+                    },
+                    take: 2,
+                    orderBy: { nome: 'asc' }
+                });
+                areasFornecedores.forEach(area => {
+                    suggestions.push({
+                        type: 'area',
+                        label: 'Área Fornecedor',
+                        value: area.nome,
+                        icon: '🏭',
+                        color: '#fa8c16',
+                        description: `${area.nome} - ${area.fornecedor.nome}`,
+                        metadata: {
+                            id: area.id,
+                            fornecedorId: area.fornecedor.id,
+                            fornecedorNome: area.fornecedor.nome,
+                            tipo: 'fornecedor'
+                        }
+                    });
+                });
+            }
+            if (term.length >= 3) {
+                const frutas = await this.prisma.fruta.findMany({
+                    where: {
+                        OR: [
+                            { nome: { contains: term, mode: 'insensitive' } },
+                            { codigo: { contains: term, mode: 'insensitive' } }
+                        ]
+                    },
+                    select: {
+                        id: true,
+                        nome: true,
+                        codigo: true,
+                        categoria: true,
+                        _count: {
+                            select: { frutasPedidos: true }
+                        }
+                    },
+                    take: 3,
+                    orderBy: { nome: 'asc' }
+                });
+                frutas.forEach(fruta => {
+                    suggestions.push({
+                        type: 'fruta',
+                        label: 'Fruta',
+                        value: fruta.nome,
+                        icon: '🍎',
+                        color: '#f5222d',
+                        description: `${fruta.nome}${fruta.categoria ? ` (${fruta.categoria})` : ''} - ${fruta._count.frutasPedidos} pedidos`,
+                        metadata: {
+                            id: fruta.id,
+                            codigo: fruta.codigo,
+                            categoria: fruta.categoria,
+                            totalPedidos: fruta._count.frutasPedidos
+                        }
+                    });
+                });
+            }
+            if (term.length >= 3) {
+                const pesagens = await this.prisma.pedido.findMany({
+                    where: {
+                        AND: [
+                            { pesagem: { not: null } },
+                            { pesagem: { contains: term, mode: 'insensitive' } }
+                        ]
+                    },
+                    select: {
+                        id: true,
+                        numeroPedido: true,
+                        pesagem: true,
+                        status: true,
+                        cliente: {
+                            select: { nome: true }
+                        }
+                    },
+                    take: 2,
+                    orderBy: { updatedAt: 'desc' }
+                });
+                pesagens.forEach(pesagem => {
+                    if (pesagem.pesagem) {
+                        suggestions.push({
+                            type: 'pesagem',
+                            label: 'Pesagem',
+                            value: pesagem.pesagem,
+                            icon: '⚖️',
+                            color: '#fa541c',
+                            description: `${pesagem.numeroPedido} - ${pesagem.cliente.nome}: ${pesagem.pesagem}`,
+                            metadata: {
+                                id: pesagem.id,
+                                numeroPedido: pesagem.numeroPedido,
+                                status: pesagem.status,
+                                clienteNome: pesagem.cliente.nome,
+                                pesagem: pesagem.pesagem
+                            }
+                        });
+                    }
+                });
+            }
+            const uniqueSuggestions = suggestions.filter((suggestion, index, self) => index === self.findIndex(s => s.type === suggestion.type && s.value === suggestion.value));
+            return uniqueSuggestions.slice(0, 10);
+        }
+        catch (error) {
+            console.error('Erro na busca inteligente:', error);
+            return [];
         }
     }
 };

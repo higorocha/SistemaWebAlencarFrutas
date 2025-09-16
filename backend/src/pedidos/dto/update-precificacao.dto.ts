@@ -1,8 +1,8 @@
-import { IsEnum, IsNumber, IsOptional, IsPositive, Min, IsArray, ValidateNested, IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsPositive, Min, IsArray, ValidateNested, IsNotEmpty, IsDateString, IsInt } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
-type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
+type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 
 // DTO para precificar cada fruta do pedido
 export class UpdatePrecificacaoFrutaDto {
@@ -25,11 +25,11 @@ export class UpdatePrecificacaoFrutaDto {
 
   @ApiPropertyOptional({
     description: 'Unidade de medida que está sendo precificada (quando houver duas no pedido)',
-    enum: ['KG', 'TON', 'CX', 'UND'],
+    enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'],
     example: 'KG',
   })
   @IsOptional()
-  @IsEnum(['KG', 'TON', 'CX', 'UND'])
+  @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'])
   unidadePrecificada?: UnidadeMedida;
 }
 
@@ -86,4 +86,48 @@ export class UpdatePrecificacaoDto {
   @IsNumber()
   @Min(0)
   avaria?: number;
+
+  // Campos específicos para clientes indústria
+  @ApiPropertyOptional({
+    description: 'Data de entrada (apenas para clientes indústria)',
+    example: '2024-03-15',
+  })
+  @IsOptional()
+  @IsDateString()
+  indDataEntrada?: string;
+
+  @ApiPropertyOptional({
+    description: 'Data de descarga (apenas para clientes indústria)',
+    example: '2024-03-16',
+  })
+  @IsOptional()
+  @IsDateString()
+  indDataDescarga?: string;
+
+  @ApiPropertyOptional({
+    description: 'Peso médio (apenas para clientes indústria)',
+    example: 1250.50,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  indPesoMedio?: number;
+
+  @ApiPropertyOptional({
+    description: 'Média em mililitros (apenas para clientes indústria)',
+    example: 500.75,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  indMediaMililitro?: number;
+
+  @ApiPropertyOptional({
+    description: 'Número da nota fiscal (apenas para clientes indústria)',
+    example: 123456,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  indNumeroNf?: number;
 }

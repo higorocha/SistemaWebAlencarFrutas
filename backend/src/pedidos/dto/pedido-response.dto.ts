@@ -72,11 +72,11 @@ export class FrutaPedidoResponseDto {
   @ApiProperty({ description: 'Quantidade real 2', required: false })
   quantidadeReal2?: number;
 
-  @ApiProperty({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND'] })
-  unidadeMedida1: 'KG' | 'TON' | 'CX' | 'UND';
+  @ApiProperty({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] })
+  unidadeMedida1: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 
-  @ApiProperty({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND'] })
-  unidadeMedida2: 'KG' | 'TON' | 'CX' | 'UND';
+  @ApiProperty({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] })
+  unidadeMedida2: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 
   @ApiProperty({ description: 'Valor unitário', required: false })
   valorUnitario?: number;
@@ -84,8 +84,8 @@ export class FrutaPedidoResponseDto {
   @ApiProperty({ description: 'Valor total', required: false })
   valorTotal?: number;
 
-  @ApiProperty({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND'], required: false })
-  unidadePrecificada?: 'KG' | 'TON' | 'CX' | 'UND';
+  @ApiProperty({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], required: false })
+  unidadePrecificada?: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 
   @ApiProperty({ description: 'Cor da fita para identificação', required: false })
   fitaColheita?: string;
@@ -106,6 +106,7 @@ export class PedidoResponseDto {
   cliente: {
     id: number;
     nome: string;
+    industria: boolean;
   };
 
   @ApiProperty({ description: 'Data prevista para colheita' })
@@ -172,4 +173,20 @@ export class PedidoResponseDto {
 
   @ApiProperty({ description: 'Nome do motorista', required: false })
   nomeMotorista?: string;
+
+  // Campos específicos para clientes indústria
+  @ApiProperty({ description: 'Data de entrada (apenas para clientes indústria)', required: false })
+  indDataEntrada?: Date;
+
+  @ApiProperty({ description: 'Data de descarga (apenas para clientes indústria)', required: false })
+  indDataDescarga?: Date;
+
+  @ApiProperty({ description: 'Peso médio (apenas para clientes indústria)', required: false })
+  indPesoMedio?: number;
+
+  @ApiProperty({ description: 'Média em mililitros (apenas para clientes indústria)', required: false })
+  indMediaMililitro?: number;
+
+  @ApiProperty({ description: 'Número da nota fiscal (apenas para clientes indústria)', required: false })
+  indNumeroNf?: number;
 }

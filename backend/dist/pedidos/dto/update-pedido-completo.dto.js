@@ -189,16 +189,16 @@ __decorate([
     __metadata("design:type", Number)
 ], UpdateFrutaPedidoDto.prototype, "quantidadeReal2", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND'] }),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade de medida 1 deve ser KG, TON, CX ou UND' }),
+    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], { message: 'Unidade de medida 1 deve ser KG, TON, CX, UND, ML ou LT' }),
     __metadata("design:type", String)
 ], UpdateFrutaPedidoDto.prototype, "unidadeMedida1", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND'] }),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] }),
     (0, class_transformer_1.Transform)(({ value }) => value === undefined || value === '' ? null : value),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade de medida 2 deve ser KG, TON, CX ou UND' }),
+    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], { message: 'Unidade de medida 2 deve ser KG, TON, CX, UND, ML ou LT' }),
     __metadata("design:type", Object)
 ], UpdateFrutaPedidoDto.prototype, "unidadeMedida2", void 0);
 __decorate([
@@ -209,9 +209,9 @@ __decorate([
     __metadata("design:type", Number)
 ], UpdateFrutaPedidoDto.prototype, "valorUnitario", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND'] }),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade precificada deve ser KG, TON, CX ou UND' }),
+    (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], { message: 'Unidade precificada deve ser KG, TON, CX, UND, ML ou LT' }),
     __metadata("design:type", String)
 ], UpdateFrutaPedidoDto.prototype, "unidadePrecificada", void 0);
 __decorate([
@@ -272,6 +272,11 @@ class UpdatePedidoCompletoDto {
     placaPrimaria;
     placaSecundaria;
     nomeMotorista;
+    indDataEntrada;
+    indDataDescarga;
+    indPesoMedio;
+    indMediaMililitro;
+    indNumeroNf;
 }
 exports.UpdatePedidoCompletoDto = UpdatePedidoCompletoDto;
 __decorate([
@@ -372,4 +377,52 @@ __decorate([
     (0, class_validator_1.IsString)({ message: 'Nome do motorista deve ser uma string' }),
     __metadata("design:type", String)
 ], UpdatePedidoCompletoDto.prototype, "nomeMotorista", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Data de entrada (apenas para clientes indústria)',
+        example: '2024-03-15',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)({}, { message: 'Data de entrada deve ser uma data válida' }),
+    __metadata("design:type", String)
+], UpdatePedidoCompletoDto.prototype, "indDataEntrada", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Data de descarga (apenas para clientes indústria)',
+        example: '2024-03-16',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)({}, { message: 'Data de descarga deve ser uma data válida' }),
+    __metadata("design:type", String)
+], UpdatePedidoCompletoDto.prototype, "indDataDescarga", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Peso médio (apenas para clientes indústria)',
+        example: 1250.75,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)({}, { message: 'Peso médio deve ser um número' }),
+    (0, class_validator_1.IsPositive)({ message: 'Peso médio deve ser positivo' }),
+    __metadata("design:type", Number)
+], UpdatePedidoCompletoDto.prototype, "indPesoMedio", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Média em mililitros (apenas para clientes indústria)',
+        example: 500.25,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)({}, { message: 'Média em mililitros deve ser um número' }),
+    (0, class_validator_1.IsPositive)({ message: 'Média em mililitros deve ser positiva' }),
+    __metadata("design:type", Number)
+], UpdatePedidoCompletoDto.prototype, "indMediaMililitro", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Número da nota fiscal (apenas para clientes indústria)',
+        example: 123456,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)({}, { message: 'Número da nota fiscal deve ser um número' }),
+    (0, class_validator_1.IsPositive)({ message: 'Número da nota fiscal deve ser positivo' }),
+    __metadata("design:type", Number)
+], UpdatePedidoCompletoDto.prototype, "indNumeroNf", void 0);
 //# sourceMappingURL=update-pedido-completo.dto.js.map

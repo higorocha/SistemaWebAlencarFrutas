@@ -1,5 +1,5 @@
 type StatusPedido = 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'AGUARDANDO_PRECIFICACAO' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
-type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
+type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 export declare class UpdateCompletoAreaDto {
     id?: number;
     areaPropriaId?: number;
@@ -50,5 +50,10 @@ export declare class UpdatePedidoCompletoDto {
     placaPrimaria?: string;
     placaSecundaria?: string;
     nomeMotorista?: string;
+    indDataEntrada?: string;
+    indDataDescarga?: string;
+    indPesoMedio?: number;
+    indMediaMililitro?: number;
+    indNumeroNf?: number;
 }
 export {};

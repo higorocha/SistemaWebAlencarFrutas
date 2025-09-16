@@ -294,7 +294,8 @@ model Fruta {
   
   // Relações
   frutasPedidos         FrutasPedidos[]  // Nova relação 1:N
-  
+  custosColheita        TurmaColheitaPedidoCusto[] // Custos de colheita por fruta
+
   @@map("frutas")
 }
 
@@ -327,6 +328,8 @@ enum UnidadeMedida {
   TON
   CX
   UND
+  ML
+  LT
 }
 
 enum MetodoPagamento {
@@ -345,7 +348,7 @@ model Cliente {
   cpf               String?  @db.VarChar(14)
   inscricaoEstadual String?  @db.VarChar(20)
   inscricaoMunicipal String? @db.VarChar(20)
-  
+
   // Endereço
   cep               String?  @db.VarChar(9)
   logradouro        String?  @db.VarChar(100)
@@ -354,16 +357,17 @@ model Cliente {
   bairro            String?  @db.VarChar(50)
   cidade            String?  @db.VarChar(50)
   estado            String?  @db.VarChar(2)
-  
+
   // Comunicação
   telefone1         String?  @db.VarChar(15)
   telefone2         String?  @db.VarChar(15)
   email1            String?  @db.VarChar(100)
   email2            String?  @db.VarChar(100)
-  
+
   // Informações adicionais
   observacoes       String?  @db.Text
   status            StatusCliente @default(ATIVO)
+  industria         Boolean?  @default(false) // Se é indústria
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -442,6 +446,13 @@ model Pedido {
   observacoes           String?          @db.Text
   observacoesColheita   String?          @db.Text
   
+  // Campos específicos para clientes indústria
+  indDataEntrada        DateTime?        @map("ind_data_entrada")        // Data de entrada (sem horário)
+  indDataDescarga       DateTime?        @map("ind_data_descarga")       // Data de descarga (sem horário)
+  indPesoMedio          Float?           @map("ind_peso_medio")          // Peso médio (decimal)
+  indMediaMililitro     Float?           @map("ind_media_mililitro")     // Média em mililitros (decimal)
+  indNumeroNf           Int?             @map("ind_numero_nf")           // Número da nota fiscal (inteiro)
+  
   // Metadados
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
@@ -450,7 +461,8 @@ model Pedido {
   cliente               Cliente          @relation(fields: [clienteId], references: [id])
   frutasPedidos         FrutasPedidos[]  // Relação 1:N com frutas
   pagamentosPedidos     PagamentosPedidos[] // NOVA: Relação 1:N com pagamentos
-  
+  custosColheita        TurmaColheitaPedidoCusto[] // Custos de colheita por turma
+
   @@map("pedidos")
 }
 
@@ -631,4 +643,59 @@ model HistoricoFitas {
   usuario           Usuario        @relation(fields: [usuarioId], references: [id])
 
   @@map("historico_fitas")
+}
+
+// ========================================
+// TURMA DE COLHEITA
+// ========================================
+
+model TurmaColheita {
+  id                Int              @id @default(autoincrement())
+  nomeColhedor      String           @db.VarChar(100) // Nome da pessoa que colhe
+  chavePix          String?          @db.VarChar(100) // Chave PIX do colhedor
+  dataCadastro      DateTime         @default(now()) // Data de cadastro da turma
+
+  // Observações opcionais
+  observacoes       String?          @db.Text
+
+  // Metadados
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relações
+  custosColheita    TurmaColheitaPedidoCusto[] // Custos de colheita por pedido
+
+  @@map("turma_colheita")
+}
+
+// ========================================
+// COLHEITA POR PEDIDO
+// ========================================
+
+model TurmaColheitaPedidoCusto {
+  id                Int              @id @default(autoincrement())
+  turmaColheitaId   Int              // FK para turma de colheita
+  pedidoId          Int              // FK para pedidos
+  frutaId           Int              // FK para frutas
+  quantidadeColhida Float            // Quantidade colhida
+  unidadeMedida     UnidadeMedida    // Unidade de medida da quantidade
+  valorColheita     Float?           // Valor pago pela colheita
+  dataColheita      DateTime?        // Data da colheita específica
+  pagamentoEfetuado Boolean          @default(false) // Se o pagamento foi efetuado
+
+  // Observações específicas da colheita
+  observacoes       String?          @db.Text
+
+  // Metadados
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relações
+  turmaColheita     TurmaColheita    @relation(fields: [turmaColheitaId], references: [id], onDelete: Cascade)
+  pedido            Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  fruta             Fruta            @relation(fields: [frutaId], references: [id])
+
+  // Índices únicos para evitar duplicação
+  @@unique([turmaColheitaId, pedidoId, frutaId])
+  @@map("turma_colheita_pedido_custo")
 }

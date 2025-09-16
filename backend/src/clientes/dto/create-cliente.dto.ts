@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // Definindo os tipos dos enums
@@ -164,4 +164,12 @@ export class CreateClienteDto {
   @IsOptional()
   @IsEnum(['ATIVO', 'INATIVO'])
   status?: StatusCliente;
+
+  @ApiPropertyOptional({
+    description: 'Se o cliente é uma indústria',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  industria?: boolean;
 } 

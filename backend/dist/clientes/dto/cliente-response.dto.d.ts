@@ -19,6 +19,7 @@ export declare class ClienteResponseDto {
     email2?: string;
     observacoes?: string;
     status: StatusCliente;
+    industria?: boolean;
     createdAt: Date;
     updatedAt: Date;
 }

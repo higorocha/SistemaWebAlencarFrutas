@@ -32,11 +32,11 @@ export declare class FrutaPedidoResponseDto {
     quantidadePrevista: number;
     quantidadeReal?: number;
     quantidadeReal2?: number;
-    unidadeMedida1: 'KG' | 'TON' | 'CX' | 'UND';
-    unidadeMedida2: 'KG' | 'TON' | 'CX' | 'UND';
+    unidadeMedida1: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
+    unidadeMedida2: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
     valorUnitario?: number;
     valorTotal?: number;
-    unidadePrecificada?: 'KG' | 'TON' | 'CX' | 'UND';
+    unidadePrecificada?: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
     fitaColheita?: string;
 }
 export declare class PedidoResponseDto {
@@ -46,6 +46,7 @@ export declare class PedidoResponseDto {
     cliente: {
         id: number;
         nome: string;
+        industria: boolean;
     };
     dataPrevistaColheita: Date;
     dataColheita?: Date;
@@ -67,4 +68,9 @@ export declare class PedidoResponseDto {
     placaPrimaria?: string;
     placaSecundaria?: string;
     nomeMotorista?: string;
+    indDataEntrada?: Date;
+    indDataDescarga?: Date;
+    indPesoMedio?: number;
+    indMediaMililitro?: number;
+    indNumeroNf?: number;
 }

@@ -1,4 +1,4 @@
-type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
+type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 export declare class UpdatePrecificacaoFrutaDto {
     frutaPedidoId: number;
     valorUnitario: number;
@@ -10,5 +10,10 @@ export declare class UpdatePrecificacaoDto {
     icms?: number;
     desconto?: number;
     avaria?: number;
+    indDataEntrada?: string;
+    indDataDescarga?: string;
+    indPesoMedio?: number;
+    indMediaMililitro?: number;
+    indNumeroNf?: number;
 }
 export {};

@@ -4,7 +4,7 @@ import { Type, Transform } from 'class-transformer';
 
 // Definindo os tipos dos enums
 type StatusPedido = 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'AGUARDANDO_PRECIFICACAO' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
-type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND';
+type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 
 // DTO para área da fruta no update completo
 export class UpdateCompletoAreaDto {
@@ -148,15 +148,15 @@ export class UpdateFrutaPedidoDto {
   @IsPositive({ message: 'Quantidade real 2 deve ser positiva' })
   quantidadeReal2?: number;
 
-  @ApiPropertyOptional({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND'] })
+  @ApiPropertyOptional({ description: 'Unidade de medida 1', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] })
   @IsOptional()
-  @IsEnum(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade de medida 1 deve ser KG, TON, CX ou UND' })
+  @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], { message: 'Unidade de medida 1 deve ser KG, TON, CX, UND, ML ou LT' })
   unidadeMedida1?: UnidadeMedida;
 
-  @ApiPropertyOptional({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND'] })
+  @ApiPropertyOptional({ description: 'Unidade de medida 2', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] })
   @Transform(({ value }) => value === undefined || value === '' ? null : value)
   @IsOptional()
-  @IsEnum(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade de medida 2 deve ser KG, TON, CX ou UND' })
+  @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], { message: 'Unidade de medida 2 deve ser KG, TON, CX, UND, ML ou LT' })
   unidadeMedida2?: UnidadeMedida | null;
 
   @ApiPropertyOptional({ description: 'Valor unitário' })
@@ -165,9 +165,9 @@ export class UpdateFrutaPedidoDto {
   @IsPositive({ message: 'Valor unitário deve ser positivo' })
   valorUnitario?: number;
 
-  @ApiPropertyOptional({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND'] })
+  @ApiPropertyOptional({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'] })
   @IsOptional()
-  @IsEnum(['KG', 'TON', 'CX', 'UND'], { message: 'Unidade precificada deve ser KG, TON, CX ou UND' })
+  @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], { message: 'Unidade precificada deve ser KG, TON, CX, UND, ML ou LT' })
   unidadePrecificada?: UnidadeMedida;
 
   @ApiPropertyOptional({ description: 'Valor total da fruta (quantidade * valor unitário)' })
@@ -295,6 +295,50 @@ export class UpdatePedidoCompletoDto {
   @IsOptional()
   @IsString({ message: 'Nome do motorista deve ser uma string' })
   nomeMotorista?: string;
+
+  // Campos específicos para clientes indústria
+  @ApiPropertyOptional({
+    description: 'Data de entrada (apenas para clientes indústria)',
+    example: '2024-03-15',
+  })
+  @IsOptional()
+  @IsDateString({}, { message: 'Data de entrada deve ser uma data válida' })
+  indDataEntrada?: string;
+
+  @ApiPropertyOptional({
+    description: 'Data de descarga (apenas para clientes indústria)',
+    example: '2024-03-16',
+  })
+  @IsOptional()
+  @IsDateString({}, { message: 'Data de descarga deve ser uma data válida' })
+  indDataDescarga?: string;
+
+  @ApiPropertyOptional({
+    description: 'Peso médio (apenas para clientes indústria)',
+    example: 1250.75,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'Peso médio deve ser um número' })
+  @IsPositive({ message: 'Peso médio deve ser positivo' })
+  indPesoMedio?: number;
+
+  @ApiPropertyOptional({
+    description: 'Média em mililitros (apenas para clientes indústria)',
+    example: 500.25,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'Média em mililitros deve ser um número' })
+  @IsPositive({ message: 'Média em mililitros deve ser positiva' })
+  indMediaMililitro?: number;
+
+  @ApiPropertyOptional({
+    description: 'Número da nota fiscal (apenas para clientes indústria)',
+    example: 123456,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'Número da nota fiscal deve ser um número' })
+  @IsPositive({ message: 'Número da nota fiscal deve ser positivo' })
+  indNumeroNf?: number;
 }
 
 
