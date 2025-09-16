@@ -21,8 +21,9 @@ async function bootstrap() {
   }));
   
   // Configurar CORS para permitir conexão com frontend
+  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3002';
   app.enableCors({
-    origin: ['http://localhost:3002'], // Frontend na porta 3002
+    origin: corsOrigin === '*' ? true : corsOrigin.split(','),
     credentials: true,
   });
   
