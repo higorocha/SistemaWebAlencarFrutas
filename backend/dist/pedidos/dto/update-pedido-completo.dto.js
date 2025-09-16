@@ -340,9 +340,9 @@ __decorate([
     __metadata("design:type", Number)
 ], UpdatePedidoCompletoDto.prototype, "valorRecebido", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO'] }),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PEDIDO_FINALIZADO', 'CANCELADO'] }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO'], { message: 'Status deve ser válido' }),
+    (0, class_validator_1.IsEnum)(['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PEDIDO_FINALIZADO', 'CANCELADO'], { message: 'Status deve ser válido' }),
     __metadata("design:type", String)
 ], UpdatePedidoCompletoDto.prototype, "status", void 0);
 __decorate([

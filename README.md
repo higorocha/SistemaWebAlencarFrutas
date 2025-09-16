@@ -242,6 +242,7 @@ SistemaWebAlencarFrutas/
 │   │   ├── hooks/                      # Custom hooks (NOVOS HOOKS OTIMIZADOS)
 │   │   │   ├── useClientesCache.js     # Cache otimizado de clientes
 │   │   │   ├── useDashboardOptimized.js # Dashboard com performance otimizada
+│   │   │   ├── useSmartDashboardReload.js # Sistema de reload inteligente por operação
 │   │   │   ├── useFormValidation.js    # Validação de formulários memoizada
 │   │   │   └── useDebounce.js          # Hook genérico de debounce
 │   │   ├── utils/                      # Utilitários (OTIMIZADOS)
@@ -532,15 +533,17 @@ GET    /api/config-whatsapp            # Configurações do WhatsApp
 **📊 Hooks Customizados para Performance:**
 - **useDashboardOptimized**: Hook com cache inteligente, debounce e cancelamento de requisições
 - **useClientesCache**: Cache de clientes com TTL de 5 minutos e invalidação automática
+- **useSmartDashboardReload**: Sistema de reload inteligente por tipo de operação
 - **useFormValidation**: Validação memoizada para formulários complexos
 - **useDebounce**: Hook genérico para debounce de valores e callbacks
 
 **🔧 Otimizações Técnicas:**
 - **Cache Inteligente**: TTL de 30 segundos para dados do dashboard
-- **Cancelamento de Requisições**: AbortController para evitar race conditions
+- **Cancelamento de Requisições**: AbortController para evitar race conditions com tratamento correto de CanceledError
 - **Validação Robusta**: Schema validation com tratamento de erros padronizado
 - **Estados Otimizados**: Redução de re-renderizações desnecessárias
 - **Cleanup Automático**: Limpeza de recursos ao desmontar componentes
+- **Reload Inteligente**: Atualização específica baseada no tipo de operação realizada
 
 ### **💡 Sistema de Validação Avançado**
 
@@ -564,6 +567,29 @@ GET    /api/config-whatsapp            # Configurações do WhatsApp
 - **Endpoints Atualizados**: Uso correto de filtros por status
 - **Performance**: Redução de cálculos desnecessários
 - **UX Melhorada**: Feedback visual mais responsivo
+- **Sistema de Reload Inteligente**: Atualização específica por tipo de operação
+
+### **🎯 Sistema de Reload Inteligente**
+
+**📋 Hook useSmartDashboardReload:**
+- **Reload Específico por Modal**: Cada operação atualiza apenas seções relevantes
+- **Mapeamento de Seções**: Novo pedido → AGUARDANDO_COLHEITA, Colheita → COLHEITA_REALIZADA + AGUARDANDO_PRECIFICACAO
+- **Otimização de Performance**: Evita reload completo desnecessário do dashboard
+- **Integração Transparente**: Funciona automaticamente com todos os modais existentes
+- **Tratamento de Erros**: Funciona mesmo quando `atualizarDadosOtimizado` não está disponível
+
+**🔄 Regras de Reload Inteligente:**
+- **NovoPedidoModal** → atualizar seção AGUARDANDO_COLHEITA
+- **ColheitaModal** → atualizar seções COLHEITA_REALIZADA e AGUARDANDO_PRECIFICACAO
+- **PrecificacaoModal** → atualizar seções PRECIFICACAO_REALIZADA e AGUARDANDO_PAGAMENTO
+- **PagamentoModal** → atualizar seções AGUARDANDO_PAGAMENTO, PAGAMENTO_PARCIAL e PEDIDO_FINALIZADO
+- **LancarPagamentosModal** → atualizar seções de pagamentos e finalizados
+
+**🛡️ Tratamento de Cancelamento de Requisições:**
+- **AbortController Otimizado**: Cancelamento correto de requisições anteriores
+- **Tratamento de CanceledError**: Supressão de logs de erro para cancelamentos normais
+- **Validação de Função**: Verificação de disponibilidade antes de executar reload
+- **Logging Inteligente**: Console logs informativos para debugging
 
 ---
 
@@ -901,6 +927,10 @@ npx prisma db seed           # Popular com dados
 - [x] Tratamento padronizado de erros com handlers centralizados
 - [x] Modal de pagamentos otimizado com validação em tempo real
 - [x] Endpoints atualizados com suporte a filtros avançados
+- [x] Sistema de reload inteligente com hook useSmartDashboardReload
+- [x] Tratamento correto de cancelamento de requisições (CanceledError)
+- [x] Otimização de performance com atualizações específicas por tipo de operação
+- [x] Integração transparente com todos os modais do sistema de pedidos
 
 ### **🔄 Em Desenvolvimento**
 - [ ] Relatórios avançados

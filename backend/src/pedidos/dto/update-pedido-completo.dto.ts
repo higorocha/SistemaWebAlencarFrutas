@@ -3,7 +3,7 @@ import { IsOptional, IsNumber, IsString, IsDateString, IsEnum, IsArray, Validate
 import { Type, Transform } from 'class-transformer';
 
 // Definindo os tipos dos enums
-type StatusPedido = 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'AGUARDANDO_PRECIFICACAO' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
+type StatusPedido = 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'AGUARDANDO_PRECIFICACAO' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
 type UnidadeMedida = 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 
 // DTO para área da fruta no update completo
@@ -263,9 +263,9 @@ export class UpdatePedidoCompletoDto {
   @IsNumber({}, { message: 'Valor recebido deve ser um número' })
   valorRecebido?: number;
 
-  @ApiPropertyOptional({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO'] })
+  @ApiPropertyOptional({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PEDIDO_FINALIZADO', 'CANCELADO'] })
   @IsOptional()
-  @IsEnum(['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO'], { message: 'Status deve ser válido' })
+  @IsEnum(['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PEDIDO_FINALIZADO', 'CANCELADO'], { message: 'Status deve ser válido' })
   status?: StatusPedido;
 
   @ApiPropertyOptional({ description: 'Frutas do pedido', type: [UpdateFrutaPedidoDto] })

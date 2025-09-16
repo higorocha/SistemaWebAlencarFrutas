@@ -28,7 +28,7 @@ export const useDashboardOptimized = () => {
   const [operacaoLoading, setOperacaoLoading] = useState(false);
 
   // Refs para controle de estado
-  const lastUpdateRef = useRef(Date.now());
+  const lastUpdateRef = useRef(0); // Inicializar com 0 para forçar primeira chamada
   const abortControllerRef = useRef(null);
 
   // Cache para evitar atualizações desnecessárias
@@ -105,7 +105,7 @@ export const useDashboardOptimized = () => {
       lastUpdateRef.current = Date.now();
 
     } catch (error) {
-      if (error.name !== 'AbortError') {
+      if (error.name !== 'AbortError' && error.name !== 'CanceledError') {
         console.error("Erro ao carregar dashboard:", error);
         showNotification("error", "Erro", "Erro ao carregar dashboard de pedidos");
       }
@@ -143,8 +143,10 @@ export const useDashboardOptimized = () => {
 
       return validatedData;
     } catch (error) {
-      console.error("Erro ao atualizar dados:", error);
-      showNotification("error", "Erro", "Erro ao atualizar dados");
+      if (error.name !== 'AbortError' && error.name !== 'CanceledError') {
+        console.error("Erro ao atualizar dados:", error);
+        showNotification("error", "Erro", "Erro ao atualizar dados");
+      }
       throw error;
     } finally {
       setOperacaoLoading(false);

@@ -3,8 +3,10 @@ export declare class PagamentoPedidoResponseDto {
     pedidoId: number;
     dataPagamento: Date;
     valorRecebido: number;
-    metodoPagamento: 'PIX' | 'BOLETO' | 'TRANSFERENCIA' | 'DINHEIRO';
+    metodoPagamento: 'PIX' | 'BOLETO' | 'TRANSFERENCIA' | 'DINHEIRO' | 'CHEQUE';
+    contaDestino: 'ALENCAR' | 'FRANCIALDA' | 'GAVETA';
     observacoesPagamento?: string;
+    referenciaExterna?: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -52,7 +54,7 @@ export declare class PedidoResponseDto {
     dataColheita?: Date;
     observacoes?: string;
     observacoesColheita?: string;
-    status: 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
+    status: 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
     frete?: number;
     icms?: number;
     desconto?: number;

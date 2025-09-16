@@ -136,6 +136,7 @@ const LancarPagamentosModal = ({
   open,
   onClose,
   onSave,
+  onSuccess,
   loading
 }) => {
   const [form] = Form.useForm();
@@ -190,6 +191,11 @@ const LancarPagamentosModal = ({
       });
 
       setPedidos(pedidosComSaldo);
+
+      // Mostrar notificação se não há mais pedidos pendentes após processamento
+      if (pedidosComSaldo.length === 0 && clienteSelecionado) {
+        showNotification("success", "Sucesso", "Este cliente não possui pedidos pendentes!");
+      }
     } catch (error) {
       console.error('Erro ao buscar pedidos:', error);
       showNotification("error", "Erro", "Erro ao buscar pedidos do cliente");
@@ -322,10 +328,22 @@ const LancarPagamentosModal = ({
 
       await onSave(pagamentos);
 
-      // Reset do formulário
-      form.resetFields();
-      setClienteSelecionado(null);
-      setPedidos([]);
+      // Chamar callback de sucesso para atualizar dashboard
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      // Atualizar lista de pedidos do cliente para refletir mudanças
+      if (clienteSelecionado?.id) {
+        await buscarPedidosCliente(clienteSelecionado.id);
+      }
+
+      // Reset apenas dos valores de pagamento, mantendo cliente e lista atualizada
+      form.setFieldsValue({
+        dataPagamento: moment(),
+        contaDestino: 'ALENCAR',
+        observacoesGlobal: ''
+      });
       setValoresPagamento({});
       setObservacoesIndividuais({});
       setValesIndividuais({});
@@ -687,6 +705,7 @@ const LancarPagamentosModal = ({
             {/* Resumo dos Pagamentos */}
             {clienteSelecionado && pedidos.length > 0 && (
               <Card
+                loading={loadingPedidos}
                 title={
                   <Space>
                     <DollarOutlined style={{ color: "#ffffff" }} />
@@ -773,26 +792,27 @@ const LancarPagamentosModal = ({
               </Card>
             )}
 
-            {/* Dados Comuns do Pagamento */}
-            <Card
-              title={
-                <Space>
-                  <CreditCardOutlined style={{ color: "#ffffff" }} />
-                  <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Comuns dos Pagamentos</span>
-                </Space>
-              }
-              style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-              styles={{
-                header: {
-                  backgroundColor: "#059669",
-                  borderBottom: "2px solid #047857",
-                  color: "#ffffff",
-                  borderRadius: "8px 8px 0 0",
-                  padding: "8px 16px"
-                },
-                body: { padding: "16px" }
-              }}
-            >
+            {/* Dados Comuns do Pagamento - Só exibe se houver pedidos */}
+            {pedidos.length > 0 && (
+              <Card
+                title={
+                  <Space>
+                    <CreditCardOutlined style={{ color: "#ffffff" }} />
+                    <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Comuns dos Pagamentos</span>
+                  </Space>
+                }
+                style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
+                styles={{
+                  header: {
+                    backgroundColor: "#059669",
+                    borderBottom: "2px solid #047857",
+                    color: "#ffffff",
+                    borderRadius: "8px 8px 0 0",
+                    padding: "8px 16px"
+                  },
+                  body: { padding: "16px" }
+                }}
+              >
               <Row gutter={[16, 16]}>
                 <Col span={8}>
                   <Form.Item
@@ -888,7 +908,8 @@ const LancarPagamentosModal = ({
                   </Form.Item>
                 </Col>
               </Row>
-            </Card>
+              </Card>
+            )}
 
             {/* Botões de Ação */}
             <div style={{
@@ -950,6 +971,7 @@ LancarPagamentosModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onSave: PropTypes.func.isRequired,
+  onSuccess: PropTypes.func,
   loading: PropTypes.bool,
 };
 

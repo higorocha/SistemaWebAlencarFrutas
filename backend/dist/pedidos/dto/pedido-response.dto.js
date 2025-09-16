@@ -17,7 +17,9 @@ class PagamentoPedidoResponseDto {
     dataPagamento;
     valorRecebido;
     metodoPagamento;
+    contaDestino;
     observacoesPagamento;
+    referenciaExterna;
     createdAt;
     updatedAt;
 }
@@ -39,13 +41,21 @@ __decorate([
     __metadata("design:type", Number)
 ], PagamentoPedidoResponseDto.prototype, "valorRecebido", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Método de pagamento', enum: ['PIX', 'BOLETO', 'TRANSFERENCIA', 'DINHEIRO'] }),
+    (0, swagger_1.ApiProperty)({ description: 'Método de pagamento', enum: ['PIX', 'BOLETO', 'TRANSFERENCIA', 'DINHEIRO', 'CHEQUE'] }),
     __metadata("design:type", String)
 ], PagamentoPedidoResponseDto.prototype, "metodoPagamento", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Conta destino', enum: ['ALENCAR', 'FRANCIALDA', 'GAVETA'] }),
+    __metadata("design:type", String)
+], PagamentoPedidoResponseDto.prototype, "contaDestino", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Observações do pagamento', required: false }),
     __metadata("design:type", String)
 ], PagamentoPedidoResponseDto.prototype, "observacoesPagamento", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Referência externa (vale)', required: false }),
+    __metadata("design:type", String)
+], PagamentoPedidoResponseDto.prototype, "referenciaExterna", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Data de criação' }),
     __metadata("design:type", Date)
@@ -202,7 +212,7 @@ __decorate([
     __metadata("design:type", String)
 ], PedidoResponseDto.prototype, "observacoesColheita", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO'] }),
+    (0, swagger_1.ApiProperty)({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PEDIDO_FINALIZADO', 'CANCELADO'] }),
     __metadata("design:type", String)
 ], PedidoResponseDto.prototype, "status", void 0);
 __decorate([

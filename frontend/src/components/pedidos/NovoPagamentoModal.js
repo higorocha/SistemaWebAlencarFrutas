@@ -81,7 +81,7 @@ const NovoPagamentoModal = ({
           contaDestino: 'ALENCAR', // Valor padrão
         });
       }
-    } else {
+    } else if (open) {
       // Garante que o formulário seja limpo se o modal for fechado sem pedido.
       form.resetFields();
     }
@@ -95,11 +95,19 @@ const NovoPagamentoModal = ({
       const valorRecebido = typeof values.valorRecebido === 'string' ? parseFloat(values.valorRecebido) : values.valorRecebido;
       
       // Validação adicional: verificar se o valor não excede o restante
-      if (valorRecebido > valorRestante) {
+      // No modo de edição, considerar o valor original do pagamento
+      let valorLimite = valorRestante;
+      if (pagamentoEditando) {
+        // Se está editando, somar o valor original do pagamento ao valor restante
+        const valorOriginalPagamento = pagamentoEditando.valorRecebido || 0;
+        valorLimite = valorRestante + valorOriginalPagamento;
+      }
+      
+      if (valorRecebido > valorLimite) {
         form.setFields([
           {
             name: 'valorRecebido',
-            errors: [`Valor não pode exceder R$ ${formatarValorMonetario(valorRestante)}`],
+            errors: [`Valor não pode exceder R$ ${formatarValorMonetario(valorLimite)}`],
           },
         ]);
         return;
@@ -308,7 +316,7 @@ const NovoPagamentoModal = ({
                 label={
                   <Space>
                     <DollarOutlined style={{ color: "#059669" }} />
-                    <Text strong style={{ color: "#333" }}>Valor Recebido</Text>
+                    <span style={{ fontWeight: "700", color: "#333" }}>Valor Recebido</span>
                   </Space>
                 }
                 name="valorRecebido"
@@ -323,8 +331,16 @@ const NovoPagamentoModal = ({
                         return Promise.reject(new Error("Valor deve ser maior que zero"));
                       }
                       
-                      if (numValue > valorRestante) {
-                        return Promise.reject(new Error(`Valor não pode exceder R$ ${formatarValorMonetario(valorRestante)}`));
+                      // No modo de edição, considerar o valor original do pagamento
+                      let valorLimite = valorRestante;
+                      if (pagamentoEditando) {
+                        // Se está editando, somar o valor original do pagamento ao valor restante
+                        const valorOriginalPagamento = pagamentoEditando.valorRecebido || 0;
+                        valorLimite = valorRestante + valorOriginalPagamento;
+                      }
+                      
+                      if (numValue > valorLimite) {
+                        return Promise.reject(new Error(`Valor não pode exceder R$ ${formatarValorMonetario(valorLimite)}`));
                       }
                       
                       return Promise.resolve();
@@ -345,7 +361,7 @@ const NovoPagamentoModal = ({
                 label={
                   <Space>
                     <CalendarOutlined style={{ color: "#059669" }} />
-                    <Text strong style={{ color: "#333" }}>Data do Pagamento</Text>
+                    <span style={{ fontWeight: "700", color: "#333" }}>Data do Pagamento</span>
                   </Space>
                 }
                 name="dataPagamento"
@@ -371,7 +387,7 @@ const NovoPagamentoModal = ({
                 label={
                   <Space>
                     <CreditCardOutlined style={{ color: "#059669" }} />
-                    <Text strong style={{ color: "#333" }}>Método de Pagamento</Text>
+                    <span style={{ fontWeight: "700", color: "#333" }}>Método de Pagamento</span>
                   </Space>
                 }
                 name="metodoPagamento"
@@ -401,7 +417,7 @@ const NovoPagamentoModal = ({
                 label={
                   <Space>
                     <BankOutlined style={{ color: "#059669" }} />
-                    <Text strong style={{ color: "#333" }}>Conta Destino</Text>
+                    <span style={{ fontWeight: "700", color: "#333" }}>Conta Destino</span>
                   </Space>
                 }
                 name="contaDestino"
@@ -424,7 +440,7 @@ const NovoPagamentoModal = ({
             label={
               <Space>
                 <FileTextOutlined style={{ color: "#059669" }} />
-                <Text strong style={{ color: "#333" }}>Observações do Pagamento</Text>
+                <span style={{ fontWeight: "700", color: "#333" }}>Observações do Pagamento</span>
               </Space>
             }
             name="observacoesPagamento"
@@ -440,7 +456,7 @@ const NovoPagamentoModal = ({
             label={
               <Space>
                 <FileTextOutlined style={{ color: "#059669" }} />
-                <Text strong style={{ color: "#333" }}>Referência Externa</Text>
+                <span style={{ fontWeight: "700", color: "#333" }}>Referência Externa(Vale)</span>
               </Space>
             }
             name="referenciaExterna"

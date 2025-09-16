@@ -459,7 +459,8 @@ const EditarPedidoDialog = ({
       for (let i = 0; i < pedidoAtual.frutas.length; i++) {
         const fruta = pedidoAtual.frutas[i];
         if (!fruta.frutaId || !fruta.quantidadePrevista || !fruta.unidadeMedida1) {
-          novosErros[`fruta_${i}`] = `Complete todos os campos obrigatórios da fruta ${i + 1}`;
+          const nomeFruta = frutas.find(f => f.id === fruta.frutaId)?.nome || `Fruta ${i + 1}`;
+          novosErros[`fruta_${i}`] = `Complete todos os campos obrigatórios de "${nomeFruta}"`;
         }
         
         // Validar se as unidades de medida não são iguais
@@ -489,7 +490,8 @@ const EditarPedidoDialog = ({
         for (let i = 0; i < pedidoAtual.frutas.length; i++) {
           const fruta = pedidoAtual.frutas[i];
           if (!fruta.quantidadeReal || fruta.quantidadeReal <= 0) {
-            novosErros[`colheita_fruta_${i}`] = `Informe a quantidade real colhida da fruta ${i + 1}`;
+            const nomeFruta = frutas.find(f => f.id === fruta.frutaId)?.nome || `Fruta ${i + 1}`;
+            novosErros[`colheita_fruta_${i}`] = `Informe a quantidade real colhida de "${nomeFruta}"`;
           }
 
           // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
@@ -502,7 +504,7 @@ const EditarPedidoDialog = ({
             ) || [];
             
             if (fitasVinculadas.length === 0) {
-              novosErros[`colheita_fruta_${i}_fitas`] = `A fruta "${nomeFruta}" é uma banana e deve ter pelo menos uma fita vinculada`;
+              novosErros[`colheita_fruta_${i}_fitas`] = `"${nomeFruta}" é uma banana e deve ter pelo menos uma fita vinculada`;
             }
           }
         }

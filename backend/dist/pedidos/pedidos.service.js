@@ -26,7 +26,7 @@ let PedidosService = class PedidosService {
         const pedidosAtivos = await this.prisma.pedido.findMany({
             where: {
                 status: {
-                    notIn: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+                    notIn: ['PEDIDO_FINALIZADO', 'CANCELADO']
                 }
             },
             include: {
@@ -82,7 +82,12 @@ let PedidosService = class PedidosService {
                         id: true,
                         valorRecebido: true,
                         dataPagamento: true,
-                        metodoPagamento: true
+                        metodoPagamento: true,
+                        contaDestino: true,
+                        observacoesPagamento: true,
+                        referenciaExterna: true,
+                        createdAt: true,
+                        updatedAt: true
                     }
                 }
             },
@@ -97,7 +102,8 @@ let PedidosService = class PedidosService {
                 status: true,
                 valorFinal: true,
                 valorRecebido: true,
-                dataPrevistaColheita: true
+                dataPrevistaColheita: true,
+                dataPedido: true
             }
         });
         const stats = {
@@ -108,25 +114,31 @@ let PedidosService = class PedidosService {
             valorRecebido: 0,
             pedidosVencidos: 0,
         };
+        const hoje = new Date();
+        const trintaDiasAtras = new Date(hoje.getTime() - (30 * 24 * 60 * 60 * 1000));
         todosPedidos.forEach(pedido => {
-            const { status, valorFinal, valorRecebido } = pedido;
+            const { status, valorFinal, valorRecebido, dataPedido } = pedido;
             if (!['PEDIDO_FINALIZADO', 'CANCELADO'].includes(status)) {
                 stats.pedidosAtivos++;
                 if (valorFinal)
                     stats.valorTotalAberto += valorFinal;
             }
-            if (['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO'].includes(status)) {
+            if (['PEDIDO_FINALIZADO'].includes(status)) {
                 stats.pedidosFinalizados++;
             }
             if (valorRecebido)
                 stats.valorRecebido += valorRecebido;
+            if (dataPedido && dataPedido < trintaDiasAtras &&
+                !['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'PEDIDO_FINALIZADO', 'CANCELADO', 'PAGAMENTO_REALIZADO'].includes(status)) {
+                stats.pedidosVencidos++;
+            }
         });
         const skipFinalizados = Math.max(0, (paginaValida - 1) * limitValido);
         const [pedidosFinalizados, totalFinalizados] = await Promise.all([
             this.prisma.pedido.findMany({
                 where: {
                     status: {
-                        in: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+                        in: ['PEDIDO_FINALIZADO', 'CANCELADO']
                     }
                 },
                 include: {
@@ -166,7 +178,7 @@ let PedidosService = class PedidosService {
             this.prisma.pedido.count({
                 where: {
                     status: {
-                        in: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+                        in: ['PEDIDO_FINALIZADO', 'CANCELADO']
                     }
                 }
             })
@@ -365,7 +377,7 @@ let PedidosService = class PedidosService {
         const valorRecebido = await this.calcularValorRecebidoConsolidado(pedidoId);
         let novoStatus;
         if (valorRecebido >= pedido.valorFinal) {
-            novoStatus = 'PAGAMENTO_REALIZADO';
+            novoStatus = 'PEDIDO_FINALIZADO';
         }
         else if (valorRecebido > 0) {
             novoStatus = 'PAGAMENTO_PARCIAL';
@@ -610,7 +622,6 @@ let PedidosService = class PedidosService {
                 case 'PAGAMENTO_PARCIAL':
                     statusArray = ['PAGAMENTO_PARCIAL'];
                     break;
-                case 'PAGAMENTO_REALIZADO':
                 case 'PEDIDO_FINALIZADO':
                 case 'CANCELADO':
                     statusArray = [status];
@@ -1181,7 +1192,7 @@ let PedidosService = class PedidosService {
             });
             let novoStatus;
             if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
-                novoStatus = 'PAGAMENTO_REALIZADO';
+                novoStatus = 'PEDIDO_FINALIZADO';
             }
             else if (valorRecebidoConsolidado > 0) {
                 novoStatus = 'PAGAMENTO_PARCIAL';
@@ -1262,7 +1273,7 @@ let PedidosService = class PedidosService {
             });
             let novoStatus;
             if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
-                novoStatus = 'PAGAMENTO_REALIZADO';
+                novoStatus = 'PEDIDO_FINALIZADO';
             }
             else if (valorRecebidoConsolidado > 0) {
                 novoStatus = 'PAGAMENTO_PARCIAL';
@@ -1303,7 +1314,7 @@ let PedidosService = class PedidosService {
             });
             let novoStatus;
             if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
-                novoStatus = 'PAGAMENTO_REALIZADO';
+                novoStatus = 'PEDIDO_FINALIZADO';
             }
             else if (valorRecebidoConsolidado > 0) {
                 novoStatus = 'PAGAMENTO_PARCIAL';

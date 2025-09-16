@@ -371,7 +371,8 @@ const ColheitaModal = ({
             const quantidadeReal = typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal;
             
             if (!quantidadeReal || quantidadeReal <= 0) {
-               showNotification("error", "Erro", `Informe a quantidade real colhida da fruta ${i + 1}`);
+               const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
+               showNotification("error", "Erro", `Informe a quantidade real colhida de "${nomeFruta}"`);
                return;
              }
            
@@ -381,7 +382,8 @@ const ColheitaModal = ({
              ) || [];
              
              if (areasReais.length === 0) {
-               showNotification("error", "Erro", `Adicione pelo menos uma área de origem para a fruta ${i + 1}`);
+               const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
+               showNotification("error", "Erro", `Adicione pelo menos uma área de origem para "${nomeFruta}"`);
                return;
              }
 
@@ -392,12 +394,14 @@ const ColheitaModal = ({
                const hasAreaFornecedor = area.areaFornecedorId !== undefined && area.areaFornecedorId !== null;
                
                if (!hasAreaPropria && !hasAreaFornecedor) {
-                 showNotification("error", "Erro", `Fruta ${i + 1}, área ${j + 1}: Selecione uma área válida`);
+                 const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
+                 showNotification("error", "Erro", `Fruta "${nomeFruta}", área ${j + 1}: Selecione uma área válida`);
                  return;
                }
                
                if (hasAreaPropria && hasAreaFornecedor) {
-                 showNotification("error", "Erro", `Fruta ${i + 1}, área ${j + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
+                 const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
+                 showNotification("error", "Erro", `Fruta "${nomeFruta}", área ${j + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
                  return;
                }
              }
@@ -1442,7 +1446,7 @@ const ColheitaModal = ({
          fruta={frutaSelecionada}
          onSave={handleSalvarFitas}
          loading={false}
-         todasFrutasPedido={form.getFieldValue('frutas') || []}
+         todasFrutasPedido={open ? (form.getFieldValue('frutas') || []) : []}
          fitasOriginaisTodasFrutas={[]} // ColheitaModal não tem dados originais
        />
 

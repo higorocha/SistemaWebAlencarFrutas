@@ -27,7 +27,7 @@ export class PedidosService {
     const pedidosAtivos = await this.prisma.pedido.findMany({
       where: {
         status: {
-          notIn: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+          notIn: ['PEDIDO_FINALIZADO', 'CANCELADO']
         }
       },
       include: {
@@ -83,7 +83,12 @@ export class PedidosService {
             id: true,
             valorRecebido: true,
             dataPagamento: true,
-            metodoPagamento: true
+            metodoPagamento: true,
+            contaDestino: true,
+            observacoesPagamento: true,
+            referenciaExterna: true,
+            createdAt: true,
+            updatedAt: true
           }
         }
       },
@@ -100,7 +105,8 @@ export class PedidosService {
         status: true,
         valorFinal: true,
         valorRecebido: true,
-        dataPrevistaColheita: true
+        dataPrevistaColheita: true,
+        dataPedido: true
       }
     });
 
@@ -110,11 +116,15 @@ export class PedidosService {
       pedidosFinalizados: 0,
       valorTotalAberto: 0,
       valorRecebido: 0,
-      pedidosVencidos: 0, // TODO: Em decisão com o cliente - não há campo de data de vencimento ou histórico de status no schema
+      pedidosVencidos: 0,
     };
 
+    // Data atual para cálculo de vencimento
+    const hoje = new Date();
+    const trintaDiasAtras = new Date(hoje.getTime() - (30 * 24 * 60 * 60 * 1000));
+
     todosPedidos.forEach(pedido => {
-      const { status, valorFinal, valorRecebido } = pedido;
+      const { status, valorFinal, valorRecebido, dataPedido } = pedido;
 
       // Calcular pedidos ativos (excluir finalizados e cancelados)
       if (!['PEDIDO_FINALIZADO', 'CANCELADO'].includes(status)) {
@@ -123,12 +133,19 @@ export class PedidosService {
       }
 
       // Calcular pedidos finalizados
-      if (['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO'].includes(status)) {
+      if (['PEDIDO_FINALIZADO'].includes(status)) {
         stats.pedidosFinalizados++;
       }
       
       // Somar valores recebidos
       if (valorRecebido) stats.valorRecebido += valorRecebido;
+
+      // Calcular pedidos vencidos: dataPedido > 30 dias atrás E 
+      // status de colheita/precificação/pagamento (exclui criados/aguardando colheita)
+      if (dataPedido && dataPedido < trintaDiasAtras && 
+          !['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'PEDIDO_FINALIZADO', 'CANCELADO', 'PAGAMENTO_REALIZADO'].includes(status)) {
+        stats.pedidosVencidos++;
+      }
     });
 
     // Buscar pedidos finalizados com paginação
@@ -137,7 +154,7 @@ export class PedidosService {
       this.prisma.pedido.findMany({
         where: {
           status: {
-            in: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+            in: ['PEDIDO_FINALIZADO', 'CANCELADO']
           }
         },
         include: {
@@ -177,7 +194,7 @@ export class PedidosService {
       this.prisma.pedido.count({
         where: {
           status: {
-            in: ['PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO']
+            in: ['PEDIDO_FINALIZADO', 'CANCELADO']
           }
         }
       })
@@ -422,10 +439,10 @@ export class PedidosService {
 
     const valorRecebido = await this.calcularValorRecebidoConsolidado(pedidoId);
     
-    let novoStatus: 'PAGAMENTO_REALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
-    
+    let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
+
     if (valorRecebido >= pedido.valorFinal) {
-      novoStatus = 'PAGAMENTO_REALIZADO';
+      novoStatus = 'PEDIDO_FINALIZADO';
     } else if (valorRecebido > 0) {
       novoStatus = 'PAGAMENTO_PARCIAL';
     } else {
@@ -735,7 +752,6 @@ export class PedidosService {
           // PAGAMENTO_PARCIAL é único, mas pode ser agrupado com AGUARDANDO_PAGAMENTO
           statusArray = ['PAGAMENTO_PARCIAL'];
           break;
-        case 'PAGAMENTO_REALIZADO':
         case 'PEDIDO_FINALIZADO':
         case 'CANCELADO':
           // Estes status são únicos
@@ -870,44 +886,45 @@ export class PedidosService {
       this.prisma.pedido.findMany({
         where,
         orderBy: { dataPedido: 'desc' },
-      include: {
-        cliente: {
-          select: { id: true, nome: true, industria: true }
-        },
-        frutasPedidos: {
-          include: {
-            fruta: {
-              select: { id: true, nome: true }
-            },
-            areas: {
-              include: {
-                areaPropria: {
-                  select: { id: true, nome: true }
-                },
-                areaFornecedor: {
-                  select: { 
-                    id: true, 
-                    nome: true,
-                    fornecedor: {
-                      select: { id: true, nome: true }
+        include: {
+          cliente: {
+            select: { id: true, nome: true, industria: true }
+          },
+          frutasPedidos: {
+            include: {
+              fruta: {
+                select: { id: true, nome: true }
+              },
+              areas: {
+                include: {
+                  areaPropria: {
+                    select: { id: true, nome: true }
+                  },
+                  areaFornecedor: {
+                    select: {
+                      id: true,
+                      nome: true,
+                      fornecedor: {
+                        select: { id: true, nome: true }
+                      }
                     }
                   }
                 }
-              }
-            },
-            fitas: {
-              include: {
-                fitaBanana: {
-                  select: { id: true, corHex: true, nome: true }
-                },
-                controleBanana: {
-                  select: { id: true, quantidadeFitas: true }
+              },
+              fitas: {
+                include: {
+                  fitaBanana: {
+                    select: { id: true, corHex: true, nome: true }
+                  },
+                  controleBanana: {
+                    select: { id: true, quantidadeFitas: true }
+                  }
                 }
               }
             }
-          }
-        },
-        pagamentosPedidos: true
+          },
+          pagamentosPedidos: true
+        }
       }),
       this.prisma.pedido.count({ where })
     ]);
@@ -1440,10 +1457,10 @@ export class PedidosService {
         select: { valorFinal: true, status: true }
       });
 
-      let novoStatus: 'PAGAMENTO_REALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
-      
+      let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
+
       if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
-        novoStatus = 'PAGAMENTO_REALIZADO';
+        novoStatus = 'PEDIDO_FINALIZADO';
       } else if (valorRecebidoConsolidado > 0) {
         novoStatus = 'PAGAMENTO_PARCIAL';
       } else {
@@ -1544,10 +1561,10 @@ export class PedidosService {
         select: { valorFinal: true, status: true }
       });
 
-      let novoStatus: 'PAGAMENTO_REALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
-      
+      let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
+
       if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
-        novoStatus = 'PAGAMENTO_REALIZADO';
+        novoStatus = 'PEDIDO_FINALIZADO';
       } else if (valorRecebidoConsolidado > 0) {
         novoStatus = 'PAGAMENTO_PARCIAL';
       } else {
@@ -1600,10 +1617,10 @@ export class PedidosService {
         select: { valorFinal: true, status: true }
       });
 
-      let novoStatus: 'PAGAMENTO_REALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
-      
+      let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
+
       if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
-        novoStatus = 'PAGAMENTO_REALIZADO';
+        novoStatus = 'PEDIDO_FINALIZADO';
       } else if (valorRecebidoConsolidado > 0) {
         novoStatus = 'PAGAMENTO_PARCIAL';
       } else {

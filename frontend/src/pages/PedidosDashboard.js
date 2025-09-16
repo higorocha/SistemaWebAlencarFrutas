@@ -8,6 +8,7 @@ import { showNotification } from "../config/notificationConfig";
 import { validatePedido } from "../utils/validation";
 import { useClientesCache } from "../hooks/useClientesCache";
 import { useDashboardOptimized } from "../hooks/useDashboardOptimized";
+import { useSmartDashboardReload } from "../hooks/useSmartDashboardReload";
 import moment from "moment";
 
 // Componentes da dashboard
@@ -49,6 +50,15 @@ const PedidosDashboard = () => {
     loading: clientesLoading
   } = useClientesCache();
 
+  // Hook para reload inteligente - declarado após atualizarDadosOtimizado estar disponível
+  const {
+    reloadAfterNovoPedido,
+    reloadAfterColheita,
+    reloadAfterPrecificacao,
+    reloadAfterPagamento,
+    reloadAfterLancarPagamentos,
+  } = useSmartDashboardReload(atualizarDadosOtimizado);
+
   // Estados para modais
   const [novoPedidoModalOpen, setNovoPedidoModalOpen] = useState(false);
   const [colheitaModalOpen, setColheitaModalOpen] = useState(false);
@@ -75,7 +85,9 @@ const PedidosDashboard = () => {
       setOperacaoLoading(true);
       await axiosInstance.post("/api/pedidos", pedidoData);
       showNotification("success", "Sucesso", "Pedido criado com sucesso!");
-      handleModalSuccess();
+      setNovoPedidoModalOpen(false);
+      setPedidoSelecionado(null);
+      await reloadAfterNovoPedido();
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);
       const message = error.response?.data?.message || "Erro ao salvar pedido";
@@ -83,7 +95,7 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  }, [setOperacaoLoading]);
+  }, [setOperacaoLoading, reloadAfterNovoPedido]);
 
   // Handlers para ações dos cards
   const handleColheita = (pedido) => {
@@ -120,8 +132,7 @@ const PedidosDashboard = () => {
       setColheitaModalOpen(false);
       setPedidoSelecionado(null);
 
-      // Usar método otimizado para atualizar dados
-      await atualizarDadosOtimizado();
+      await reloadAfterColheita();
 
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
@@ -131,7 +142,7 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  }, [pedidoSelecionado, setOperacaoLoading, atualizarDadosOtimizado]);
+  }, [pedidoSelecionado, setOperacaoLoading, reloadAfterColheita]);
 
   // Função para salvar precificação
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {
@@ -143,8 +154,7 @@ const PedidosDashboard = () => {
       setPrecificacaoModalOpen(false);
       setPedidoSelecionado(null);
 
-      // Usar método otimizado para atualizar dados
-      await atualizarDadosOtimizado();
+      await reloadAfterPrecificacao();
 
     } catch (error) {
       console.error("Erro ao definir precificação:", error);
@@ -154,7 +164,7 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  }, [pedidoSelecionado, setOperacaoLoading, atualizarDadosOtimizado]);
+  }, [pedidoSelecionado, setOperacaoLoading, reloadAfterPrecificacao]);
 
   const handleLancarPagamento = () => {
     setLancarPagamentosModalOpen(true);
@@ -175,8 +185,7 @@ const PedidosDashboard = () => {
         showNotification("success", "Sucesso", "Pagamento registrado com sucesso!");
       }
 
-      // Usar método otimizado para atualizar dados
-      await atualizarDadosOtimizado();
+      await reloadAfterPagamento();
 
       // Atualizar pedido selecionado se necessário
       if (pedidoSelecionado) {
@@ -193,7 +202,7 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  }, [setOperacaoLoading, atualizarDadosOtimizado, pedidoSelecionado, buscarPedidoAtualizado]);
+  }, [setOperacaoLoading, reloadAfterPagamento, pedidoSelecionado, buscarPedidoAtualizado]);
 
   // Handler para remover pagamento
   const handleRemoverPagamento = useCallback(async (pagamentoId) => {
@@ -202,8 +211,7 @@ const PedidosDashboard = () => {
       await axiosInstance.delete(`/api/pedidos/pagamentos/${pagamentoId}`);
       showNotification("success", "Sucesso", "Pagamento removido com sucesso!");
 
-      // Usar método otimizado para atualizar dados
-      await atualizarDadosOtimizado();
+      await reloadAfterPagamento();
 
       // Atualizar pedido selecionado se necessário
       if (pedidoSelecionado) {
@@ -220,7 +228,7 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  }, [setOperacaoLoading, atualizarDadosOtimizado, pedidoSelecionado, buscarPedidoAtualizado]);
+  }, [setOperacaoLoading, reloadAfterPagamento, pedidoSelecionado, buscarPedidoAtualizado]);
 
   // Handler para salvar pagamentos em lote
   const handleSalvarPagamentosLote = useCallback(async (pagamentos) => {
@@ -236,8 +244,7 @@ const PedidosDashboard = () => {
 
       setLancarPagamentosModalOpen(false);
 
-      // Usar método otimizado para atualizar dados
-      await atualizarDadosOtimizado();
+      await reloadAfterLancarPagamentos();
 
     } catch (error) {
       console.error("Erro ao processar pagamentos:", error);
@@ -247,7 +254,7 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  }, [setOperacaoLoading, atualizarDadosOtimizado]);
+  }, [setOperacaoLoading, reloadAfterLancarPagamentos]);
 
   // Handler para fechar modais e recarregar dados
   const handleModalClose = () => {
@@ -262,8 +269,8 @@ const PedidosDashboard = () => {
 
   const handleModalSuccess = useCallback(() => {
     handleModalClose();
-    atualizarDadosOtimizado(); // Usar método otimizado
-  }, [atualizarDadosOtimizado]);
+    // Não precisa mais chamar atualizarDadosOtimizado aqui - cada modal já gerencia seu reload específico
+  }, []);
 
   // Carregar dados ao montar o componente e cleanup ao desmontar
   useEffect(() => {
@@ -332,52 +339,65 @@ const PedidosDashboard = () => {
         onAction={handleVisualizar}
       />
 
-      {/* Modais */}
-      <NovoPedidoModal
-        open={novoPedidoModalOpen}
-        onClose={handleModalClose}
-        onSave={handleSalvarPedido}
-        loading={operacaoLoading || clientesLoading}
-        clientes={clientes}
-      />
+      {/* Modais - Renderização condicional para evitar erros de useForm */}
+      {novoPedidoModalOpen && (
+        <NovoPedidoModal
+          open={novoPedidoModalOpen}
+          onClose={handleModalClose}
+          onSave={handleSalvarPedido}
+          loading={operacaoLoading || clientesLoading}
+          clientes={clientes}
+        />
+      )}
 
-      <ColheitaModal
-        open={colheitaModalOpen}
-        onClose={handleModalClose}
-        onSave={handleSaveColheita}
-        pedido={pedidoSelecionado}
-        loading={operacaoLoading}
-      />
+      {colheitaModalOpen && (
+        <ColheitaModal
+          open={colheitaModalOpen}
+          onClose={handleModalClose}
+          onSave={handleSaveColheita}
+          pedido={pedidoSelecionado}
+          loading={operacaoLoading}
+        />
+      )}
 
-      <PrecificacaoModal
-        open={precificacaoModalOpen}
-        onClose={handleModalClose}
-        onSave={handleSavePrecificacao}
-        pedido={pedidoSelecionado}
-        loading={operacaoLoading}
-      />
+      {precificacaoModalOpen && (
+        <PrecificacaoModal
+          open={precificacaoModalOpen}
+          onClose={handleModalClose}
+          onSave={handleSavePrecificacao}
+          pedido={pedidoSelecionado}
+          loading={operacaoLoading}
+        />
+      )}
 
-      <PagamentoModal
-        open={pagamentoModalOpen}
-        onClose={handleModalClose}
-        onNovoPagamento={handleNovoPagamento}
-        onRemoverPagamento={handleRemoverPagamento}
-        pedido={pedidoSelecionado}
-        loading={operacaoLoading}
-      />
+      {pagamentoModalOpen && (
+        <PagamentoModal
+          open={pagamentoModalOpen}
+          onClose={handleModalClose}
+          onNovoPagamento={handleNovoPagamento}
+          onRemoverPagamento={handleRemoverPagamento}
+          pedido={pedidoSelecionado}
+          loading={operacaoLoading}
+        />
+      )}
 
-      <VisualizarPedidoModal
-        open={visualizarModalOpen}
-        onClose={handleModalClose}
-        pedido={pedidoSelecionado}
-      />
+      {visualizarModalOpen && (
+        <VisualizarPedidoModal
+          open={visualizarModalOpen}
+          onClose={handleModalClose}
+          pedido={pedidoSelecionado}
+        />
+      )}
 
-      <LancarPagamentosModal
-        open={lancarPagamentosModalOpen}
-        onClose={handleModalClose}
-        onSave={handleSalvarPagamentosLote}
-        loading={operacaoLoading}
-      />
+      {lancarPagamentosModalOpen && (
+        <LancarPagamentosModal
+          open={lancarPagamentosModalOpen}
+          onClose={handleModalClose}
+          onSave={handleSalvarPagamentosLote}
+          onSuccess={reloadAfterLancarPagamentos}
+          loading={operacaoLoading}
+        />
+      )}
     </div>
   );
 };

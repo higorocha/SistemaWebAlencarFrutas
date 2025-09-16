@@ -14,11 +14,17 @@ export class PagamentoPedidoResponseDto {
   @ApiProperty({ description: 'Valor recebido' })
   valorRecebido: number;
 
-  @ApiProperty({ description: 'Método de pagamento', enum: ['PIX', 'BOLETO', 'TRANSFERENCIA', 'DINHEIRO'] })
-  metodoPagamento: 'PIX' | 'BOLETO' | 'TRANSFERENCIA' | 'DINHEIRO';
+  @ApiProperty({ description: 'Método de pagamento', enum: ['PIX', 'BOLETO', 'TRANSFERENCIA', 'DINHEIRO', 'CHEQUE'] })
+  metodoPagamento: 'PIX' | 'BOLETO' | 'TRANSFERENCIA' | 'DINHEIRO' | 'CHEQUE';
+
+  @ApiProperty({ description: 'Conta destino', enum: ['ALENCAR', 'FRANCIALDA', 'GAVETA'] })
+  contaDestino: 'ALENCAR' | 'FRANCIALDA' | 'GAVETA';
 
   @ApiProperty({ description: 'Observações do pagamento', required: false })
   observacoesPagamento?: string;
+
+  @ApiProperty({ description: 'Referência externa (vale)', required: false })
+  referenciaExterna?: string;
 
   @ApiProperty({ description: 'Data de criação' })
   createdAt: Date;
@@ -125,8 +131,8 @@ export class PedidoResponseDto {
   @ApiProperty({ description: 'Observações da colheita', required: false })
   observacoesColheita?: string;
 
-  @ApiProperty({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO', 'CANCELADO'] })
-  status: 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PAGAMENTO_REALIZADO' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
+  @ApiProperty({ description: 'Status do pedido', enum: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PEDIDO_FINALIZADO', 'CANCELADO'] })
+  status: 'PEDIDO_CRIADO' | 'AGUARDANDO_COLHEITA' | 'COLHEITA_REALIZADA' | 'PRECIFICACAO_REALIZADA' | 'AGUARDANDO_PAGAMENTO' | 'PAGAMENTO_PARCIAL' | 'PEDIDO_FINALIZADO' | 'CANCELADO';
 
   @ApiProperty({ description: 'Frete', required: false })
   frete?: number;

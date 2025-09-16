@@ -54,7 +54,7 @@ const MonetaryInput = ({
 
 MonetaryInput.propTypes = {
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  onChange: PropTypes.func.isRequired,
+  onChange: PropTypes.func, // Removido isRequired para compatibilidade com Form.Item
   placeholder: PropTypes.string,
   addonAfter: PropTypes.string,
   size: PropTypes.oneOf(['small', 'default', 'large']),
