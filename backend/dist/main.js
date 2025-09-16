@@ -14,9 +14,15 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
         transform: true,
     }));
+    const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3002';
+    console.log('🔧 CORS_ORIGIN from env:', corsOrigin);
+    const allowedOrigins = corsOrigin === '*' ? true : corsOrigin.split(',').map(origin => origin.trim());
+    console.log('🔧 CORS Config:', allowedOrigins);
     app.enableCors({
-        origin: ['http://localhost:3002'],
+        origin: allowedOrigins,
         credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
     });
     const config = new swagger_1.DocumentBuilder()
         .setTitle('AlencarFrutas API')
