@@ -29,12 +29,14 @@ import {
   CalculatorOutlined,
   BankOutlined,
   InfoCircleOutlined,
-  TagOutlined
+  TagOutlined,
+  BuildOutlined
 } from "@ant-design/icons";
 import { formatarValorMonetario, numberFormatter } from "../../utils/formatters";
 import { PDFButton } from "../common/buttons";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
+import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -197,16 +199,33 @@ const VisualizarPedidoModal = ({
       width: 100,
       render: (metodo) => {
         const metodos = {
-          PIX: { color: "#52c41a", icon: "💳" },
-          BOLETO: { color: "#1890ff", icon: "🧾" },
-          TRANSFERENCIA: { color: "#722ed1", icon: "🏦" },
-          DINHEIRO: { color: "#faad14", icon: "💰" },
-          CHEQUE: { color: "#f5222d", icon: "📄" },
+          PIX: { icon: <PixIcon width={16} height={16} /> },
+          BOLETO: { icon: <BoletoIcon width={16} height={16} /> },
+          TRANSFERENCIA: { icon: <TransferenciaIcon width={16} height={16} /> },
+          DINHEIRO: { icon: "💰" },
+          CHEQUE: { icon: "📄" },
         };
-        const config = metodos[metodo] || { color: "#666", icon: "💳" };
+        const config = metodos[metodo] || { icon: <PixIcon width={16} height={16} /> };
         return (
-          <Tag color={config.color}>
-            <span style={{ marginRight: 4 }}>{config.icon}</span>
+          <Tag
+            style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e1e5e9',
+              color: '#333333',
+              fontWeight: 'bold',
+              fontSize: '13px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06)',
+              transition: 'all 0.2s ease',
+              cursor: 'default',
+              minHeight: '28px'
+            }}
+          >
+            {config.icon}
             {metodo}
           </Tag>
         );
@@ -944,7 +963,160 @@ const VisualizarPedidoModal = ({
         </Card>
       )}
 
-      {/* Seção 5: Informações do Sistema */}
+      {/* Seção 5: Dados Complementares (apenas para clientes indústria) */}
+      {pedido.cliente?.industria && (
+        <Card
+          title={
+            <Space>
+              <BuildOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Complementares</span>
+            </Space>
+          }
+          style={{ marginBottom: 16 }}
+          styles={{ 
+            header: { 
+              backgroundColor: "#059669", 
+              color: "#ffffff", 
+              borderRadius: "8px 8px 0 0" 
+            } 
+          }}
+        >
+          <Row gutter={[16, 16]}>
+            {/* Data de Entrada */}
+            <Col span={6}>
+              <div style={{
+                backgroundColor: "#f0f9ff",
+                border: "1px solid #bfdbfe",
+                borderRadius: "8px",
+                padding: "12px",
+                minHeight: "80px",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <CalendarOutlined style={{ fontSize: "24px", color: "#2563eb", flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>DATA ENTRADA</Text>
+                  <Text style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b", display: "block", marginTop: "2px" }}>
+                    {pedido.indDataEntrada ? moment(pedido.indDataEntrada).format('DD/MM/YYYY') : '-'}
+                  </Text>
+                </div>
+              </div>
+            </Col>
+
+            {/* Data de Descarga */}
+            <Col span={6}>
+              <div style={{
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: "8px",
+                padding: "12px",
+                minHeight: "80px",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <CalendarOutlined style={{ fontSize: "24px", color: "#16a34a", flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>DATA DESCARGA</Text>
+                  <Text style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b", display: "block", marginTop: "2px" }}>
+                    {pedido.indDataDescarga ? moment(pedido.indDataDescarga).format('DD/MM/YYYY') : '-'}
+                  </Text>
+                </div>
+              </div>
+            </Col>
+
+            {/* Peso Médio */}
+            <Col span={6}>
+              <div style={{
+                backgroundColor: "#fefbef",
+                border: "1px solid #fde68a",
+                borderRadius: "8px",
+                padding: "12px",
+                minHeight: "80px",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <CalculatorOutlined style={{ fontSize: "24px", color: "#d97706", flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>PESO MÉDIO</Text>
+                  <Text style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b", display: "block", marginTop: "2px" }}>
+                    {pedido.indPesoMedio ? `${formatarValorMonetario(pedido.indPesoMedio)} KG` : '-'}
+                  </Text>
+                </div>
+              </div>
+            </Col>
+
+            {/* Média em Mililitros */}
+            <Col span={6}>
+              <div style={{
+                backgroundColor: "#fdf2f8",
+                border: "1px solid #fbcfe8",
+                borderRadius: "8px",
+                padding: "12px",
+                minHeight: "80px",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <CalculatorOutlined style={{ fontSize: "24px", color: "#be185d", flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>MÉDIA ML</Text>
+                  <Text style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b", display: "block", marginTop: "2px" }}>
+                    {pedido.indMediaMililitro ? `${formatarValorMonetario(pedido.indMediaMililitro)} ML` : '-'}
+                  </Text>
+                </div>
+              </div>
+            </Col>
+          </Row>
+
+          {/* Número da Nota Fiscal - Card separado para ocupar toda a largura */}
+          <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
+            <Col span={24}>
+              <div style={{
+                backgroundColor: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                padding: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "16px"
+              }}>
+                <div style={{
+                  backgroundColor: "#059669",
+                  borderRadius: "50%",
+                  width: "48px",
+                  height: "48px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0
+                }}>
+                  <FileTextOutlined style={{ fontSize: "24px", color: "#ffffff" }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Text style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                    NÚMERO DA NOTA FISCAL
+                  </Text>
+                  <Text style={{ 
+                    fontSize: "18px", 
+                    fontWeight: "700", 
+                    color: "#059669", 
+                    display: "block", 
+                    marginTop: "4px",
+                    fontFamily: "monospace"
+                  }}>
+                    {pedido.indNumeroNf ? `#${pedido.indNumeroNf}` : 'Não informado'}
+                  </Text>
+                </div>
+              </div>
+            </Col>
+          </Row>
+        </Card>
+      )}
+
+      {/* Seção 6: Informações do Sistema */}
       <Card
         title={
           <Space>

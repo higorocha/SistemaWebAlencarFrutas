@@ -15,7 +15,10 @@ import {
   CarOutlined,
   UserOutlined,
   LinkOutlined,
-  TagOutlined
+  TagOutlined,
+  TeamOutlined,
+  PlusOutlined,
+  DeleteOutlined
 } from "@ant-design/icons";
 import { showNotification } from "../../config/notificationConfig";
 import moment from "moment";
@@ -24,6 +27,7 @@ import { MonetaryInput } from "../../components/common/inputs";
 import { FormButton } from "../common/buttons";
 import VincularAreasModal from "./VincularAreasModal";
 import VincularFitasModal from "./VincularFitasModal";
+import { validarFitasCompleto } from "../../utils/fitasValidation";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -50,7 +54,13 @@ const ColheitaModal = ({
   const [vincularAreasModalOpen, setVincularAreasModalOpen] = useState(false);
   const [vincularFitasModalOpen, setVincularFitasModalOpen] = useState(false);
   const [frutaSelecionada, setFrutaSelecionada] = useState(null);
-  
+
+  // ✅ NOVOS ESTADOS: Para validação global de fitas
+  const [fitasComAreasDisponiveis, setFitasComAreasDisponiveis] = useState([]);
+
+  // Estados para mão de obra
+  const [turmasColheita, setTurmasColheita] = useState([]);
+
   // Ref para controlar o valor original da data de colheita
   const dataColheitaOriginalRef = useRef(null);
 
@@ -69,6 +79,14 @@ const ColheitaModal = ({
          // Buscar fitas de banana
          const responseFitas = await axiosInstance.get("/fitas-banana");
          setFitasBanana(responseFitas.data || []);
+
+         // ✅ NOVO: Buscar fitas com áreas para validação global
+         const responseFitasComAreas = await axiosInstance.get("/controle-banana/fitas-com-areas");
+         setFitasComAreasDisponiveis(responseFitasComAreas.data || []);
+
+         // Buscar turmas de colheita
+         const responseTurmas = await axiosInstance.get("/api/turma-colheita");
+         setTurmasColheita(responseTurmas.data || []);
       } catch (error) {
         console.error("Erro ao buscar dados:", error);
         showNotification("error", "Erro", "Erro ao carregar dados necessários");
@@ -125,7 +143,15 @@ const ColheitaModal = ({
          pesagem: pedido.pesagem || '',
          placaPrimaria: pedido.placaPrimaria || '',
          placaSecundaria: pedido.placaSecundaria || '',
-         nomeMotorista: pedido.nomeMotorista || ''
+         nomeMotorista: pedido.nomeMotorista || '',
+         // Inicializar mão de obra com um item vazio
+         maoObra: pedido.maoObra || [{
+           turmaColheitaId: undefined,
+           quantidadeColhida: undefined,
+           unidadeMedida: undefined,
+           valorColheita: undefined,
+           observacoes: ''
+         }]
        });
     } else if (open) {
       form.resetFields();
@@ -161,6 +187,28 @@ const ColheitaModal = ({
   const handleVincularFitas = (fruta, frutaIndex) => {
     setFrutaSelecionada({ ...fruta, index: frutaIndex });
     setVincularFitasModalOpen(true);
+  };
+
+  // Funções para gerenciar mão de obra
+  const adicionarMaoObra = () => {
+    const maoObraAtual = form.getFieldValue('maoObra') || [];
+    form.setFieldsValue({
+      maoObra: [...maoObraAtual, {
+        turmaColheitaId: undefined,
+        quantidadeColhida: undefined,
+        unidadeMedida: undefined,
+        valorColheita: undefined,
+        observacoes: ''
+      }]
+    });
+  };
+
+  const removerMaoObra = (index) => {
+    const maoObraAtual = form.getFieldValue('maoObra') || [];
+    if (maoObraAtual.length > 1) {
+      const novaMaoObra = maoObraAtual.filter((_, i) => i !== index);
+      form.setFieldsValue({ maoObra: novaMaoObra });
+    }
   };
 
   // Verificar se fruta é banana para mostrar botão de fitas
@@ -277,6 +325,7 @@ const ColheitaModal = ({
     showNotification("success", "Sucesso", "Fitas vinculadas com sucesso!");
   };
 
+
   const handleSalvarColheita = async (values) => {
     try {
       setIsSaving(true);
@@ -285,6 +334,33 @@ const ColheitaModal = ({
       if (!values.frutas || values.frutas.length === 0) {
         showNotification("error", "Erro", "Nenhuma fruta encontrada para colheita");
         return;
+      }
+
+      // Validar dados de mão de obra se existirem
+      const maoObraValida = values.maoObra?.filter(item => 
+        item.turmaColheitaId || item.quantidadeColhida || item.unidadeMedida
+      ) || [];
+
+      for (let i = 0; i < maoObraValida.length; i++) {
+        const item = maoObraValida[i];
+        
+        // Se tem quantidade, deve ser maior que zero
+        if (item.quantidadeColhida && item.quantidadeColhida <= 0) {
+          showNotification("error", "Erro", `Mão de obra ${i + 1}: Quantidade deve ser maior que zero`);
+          return;
+        }
+        
+        // Se tem quantidade, deve ter unidade de medida
+        if (item.quantidadeColhida && !item.unidadeMedida) {
+          showNotification("error", "Erro", `Mão de obra ${i + 1}: Unidade de medida é obrigatória quando há quantidade`);
+          return;
+        }
+        
+        // Se tem unidade de medida, deve ter quantidade
+        if (item.unidadeMedida && !item.quantidadeColhida) {
+          showNotification("error", "Erro", `Mão de obra ${i + 1}: Quantidade é obrigatória quando há unidade de medida`);
+          return;
+        }
       }
 
                                // Validar se todas as frutas têm dados obrigatórios
@@ -342,6 +418,27 @@ const ColheitaModal = ({
              }
           }
 
+      // ✅ NOVA VALIDAÇÃO GLOBAL: Validar fitas considerando todas as frutas do pedido
+      try {
+        const resultadoValidacao = validarFitasCompleto(
+          values.frutas,
+          fitasComAreasDisponiveis,
+          [], // ColheitaModal não tem dados originais do banco
+          false // ColheitaModal sempre é modo criação
+        );
+
+        if (!resultadoValidacao.valido) {
+          // Mostrar primeira mensagem de erro
+          const primeiroErro = resultadoValidacao.mensagensErro?.[0] || "Conflito de estoque detectado";
+          showNotification("error", "Conflito de Estoque de Fitas", primeiroErro);
+          return;
+        }
+      } catch (error) {
+        console.error('Erro na validação global de fitas:', error);
+        showNotification("error", "Erro", "Erro interno na validação de estoque. Tente novamente.");
+        return;
+      }
+
       const formData = {
         dataColheita: values.dataColheita.toISOString(),
         observacoesColheita: values.observacoesColheita,
@@ -378,7 +475,41 @@ const ColheitaModal = ({
         nomeMotorista: values.nomeMotorista
       };
 
+      // 1️⃣ Primeiro: Salvar a colheita
       await onSave(formData);
+
+      // 2️⃣ Segundo: Salvar mão de obra se existir (não depende do retorno de onSave)
+      if (maoObraValida.length > 0 && pedido?.id) {
+        try {
+          // Usar o ID do pedido original (já existe)
+          const pedidoId = pedido.id;
+
+          // Salvar cada item de mão de obra individualmente
+          for (const item of maoObraValida) {
+            // Para cada fruta no pedido, criar um registro de mão de obra
+            for (const fruta of values.frutas) {
+              const custoData = {
+                turmaColheitaId: item.turmaColheitaId,
+                pedidoId: pedidoId,
+                frutaId: fruta.frutaId, // frutaId já está disponível na estrutura de frutas
+                quantidadeColhida: parseFloat(item.quantidadeColhida),
+                unidadeMedida: item.unidadeMedida,
+                valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
+                dataColheita: values.dataColheita.toISOString(),
+                pagamentoEfetuado: false,
+                observacoes: item.observacoes || ''
+              };
+
+              await axiosInstance.post('/api/turma-colheita/custo-colheita', custoData);
+            }
+          }
+
+        } catch (error) {
+          console.error('Erro ao salvar mão de obra:', error);
+          showNotification("warning", "Aviso", "Colheita salva, mas houve erro ao registrar mão de obra. Verifique na seção de Turmas de Colheita.");
+        }
+      }
+
       form.resetFields();
       onClose();
     } catch (error) {
@@ -1018,6 +1149,242 @@ const ColheitaModal = ({
            </Row>
         </Card>
 
+        {/* Seção 4: Mão de Obra */}
+        <Card
+          title={
+            <Space>
+              <TeamOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600" }}>Mão de Obra</span>
+            </Space>
+          }
+          style={{
+            marginBottom: 16,
+            border: "1px solid #e8e8e8",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9",
+          }}
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
+          }}
+        >
+          <Form.List name="maoObra">
+            {(fields, { add, remove }) => (
+              <>
+                {/* Cabeçalho das colunas */}
+                <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
+                  <Col xs={24} md={6}>
+                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                      <TeamOutlined style={{ marginRight: 8 }} />
+                      Turma de Colheita
+                    </span>
+                  </Col>
+                  <Col xs={24} md={4}>
+                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                      <CalculatorOutlined style={{ marginRight: 8 }} />
+                      Quantidade
+                    </span>
+                  </Col>
+                  <Col xs={24} md={3}>
+                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                      <CalculatorOutlined style={{ marginRight: 8 }} />
+                      Unidade
+                    </span>
+                  </Col>
+                  <Col xs={24} md={4}>
+                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                      <CalculatorOutlined style={{ marginRight: 8 }} />
+                      Valor (R$)
+                    </span>
+                  </Col>
+                  <Col xs={24} md={5}>
+                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                      <FileTextOutlined style={{ marginRight: 8 }} />
+                      Observações
+                    </span>
+                  </Col>
+                  <Col xs={24} md={2}>
+                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                      Ações
+                    </span>
+                  </Col>
+                </Row>
+
+                {fields.map(({ key, name, ...restField }, index) => (
+                  <div key={key}>
+                    <Row gutter={[16, 16]} align="baseline">
+                      <Col xs={24} md={6}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'turmaColheitaId']}
+                        >
+                          <Select
+                            placeholder="Selecione uma turma"
+                            showSearch
+                            optionFilterProp="children"
+                            filterOption={(input, option) =>
+                              option.children.toLowerCase().includes(input.toLowerCase())
+                            }
+                            style={{
+                              borderRadius: "6px",
+                              borderColor: "#d9d9d9",
+                            }}
+                          >
+                            {turmasColheita.map((turma) => (
+                              <Option key={turma.id} value={turma.id}>
+                                {turma.nomeColhedor}
+                              </Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={4}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'quantidadeColhida']}
+                          rules={[
+                            {
+                              validator: (_, value) => {
+                                // Se não tem valor, é válido (campo opcional)
+                                if (!value) return Promise.resolve();
+                                
+                                const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                if (numValue && numValue <= 0) {
+                                  return Promise.reject(new Error("Quantidade deve ser maior que zero"));
+                                }
+                                return Promise.resolve();
+                              }
+                            }
+                          ]}
+                        >
+                          <MonetaryInput
+                            placeholder="Ex: 1.234,56"
+                            size="large"
+                            style={{
+                              borderRadius: "6px",
+                              borderColor: "#d9d9d9",
+                            }}
+                          />
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={3}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'unidadeMedida']}
+                        >
+                          <Select
+                            placeholder="Unidade"
+                            style={{
+                              borderRadius: "6px",
+                              borderColor: "#d9d9d9",
+                            }}
+                          >
+                            {unidadesMedida.map((unidade) => (
+                              <Option key={unidade.value} value={unidade.value}>
+                                {unidade.value}
+                              </Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={4}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'valorColheita']}
+                        >
+                          <MonetaryInput
+                            placeholder="Ex: 150,00"
+                            addonBefore="R$"
+                            size="large"
+                            style={{
+                              borderRadius: "6px",
+                              borderColor: "#d9d9d9",
+                            }}
+                          />
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={5}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'observacoes']}
+                        >
+                          <Input
+                            placeholder="Observações (opcional)"
+                            style={{
+                              borderRadius: "6px",
+                              borderColor: "#d9d9d9",
+                            }}
+                          />
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={2}>
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                          {/* Botão de remover */}
+                          <Button
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => {
+                              remove(name);
+                              removerMaoObra(index);
+                            }}
+                            size="large"
+                            style={{
+                              borderRadius: "50px",
+                              height: "40px",
+                              width: "40px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 0,
+                              border: "2px solid #ff4d4f",
+                              color: "#ff4d4f",
+                              backgroundColor: "#ffffff",
+                            }}
+                          />
+
+                          {/* Botão de adicionar apenas no último item */}
+                          {index === fields.length - 1 && (
+                            <Button
+                              type="dashed"
+                              icon={<PlusOutlined />}
+                              onClick={adicionarMaoObra}
+                              size="large"
+                              style={{
+                                borderRadius: "50px",
+                                borderColor: "#10b981",
+                                color: "#10b981",
+                                borderWidth: "2px",
+                                height: "40px",
+                                width: "40px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: 0,
+                                backgroundColor: "#ffffff",
+                              }}
+                            />
+                          )}
+                        </div>
+                      </Col>
+                    </Row>
+                    {index < fields.length - 1 && <Divider style={{ margin: "16px 0" }} />}
+                  </div>
+                ))}
+              </>
+            )}
+          </Form.List>
+        </Card>
+
         {/* Botões de Ação */}
         <div
           style={{
@@ -1075,7 +1442,10 @@ const ColheitaModal = ({
          fruta={frutaSelecionada}
          onSave={handleSalvarFitas}
          loading={false}
+         todasFrutasPedido={form.getFieldValue('frutas') || []}
+         fitasOriginaisTodasFrutas={[]} // ColheitaModal não tem dados originais
        />
+
      </Modal>
    );
  };

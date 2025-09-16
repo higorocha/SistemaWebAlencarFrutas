@@ -837,7 +837,11 @@ export class PedidosService {
     };
   }
 
-  async findByCliente(clienteId: number): Promise<PedidoResponseDto[]> {
+  async findByCliente(clienteId: number, statusFilter?: string): Promise<{
+    data: PedidoResponseDto[];
+    total: number;
+    statusFiltrados?: string[];
+  }> {
     // Verificar se o cliente existe
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: clienteId },
@@ -848,10 +852,24 @@ export class PedidosService {
       throw new NotFoundException(`Cliente com ID ${clienteId} não encontrado`);
     }
 
-    // Buscar todos os pedidos do cliente
-    const pedidos = await this.prisma.pedido.findMany({
-      where: { clienteId },
-      orderBy: { dataPedido: 'desc' },
+    // Construir filtros
+    const where: any = { clienteId };
+    let statusFiltrados: string[] = [];
+
+    if (statusFilter) {
+      statusFiltrados = statusFilter.split(',').map(s => s.trim()).filter(Boolean);
+      if (statusFiltrados.length > 0) {
+        where.status = {
+          in: statusFiltrados
+        };
+      }
+    }
+
+    // Buscar pedidos do cliente com filtros
+    const [pedidos, total] = await Promise.all([
+      this.prisma.pedido.findMany({
+        where,
+        orderBy: { dataPedido: 'desc' },
       include: {
         cliente: {
           select: { id: true, nome: true, industria: true }
@@ -890,10 +908,15 @@ export class PedidosService {
           }
         },
         pagamentosPedidos: true
-      }
-    });
+      }),
+      this.prisma.pedido.count({ where })
+    ]);
 
-    return pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido)));
+    return {
+      data: pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido))),
+      total,
+      statusFiltrados: statusFiltrados.length > 0 ? statusFiltrados : undefined
+    };
   }
 
   async findOne(id: number): Promise<PedidoResponseDto> {

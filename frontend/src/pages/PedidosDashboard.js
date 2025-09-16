@@ -1,10 +1,13 @@
 // src/pages/PedidosDashboard.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Typography, Spin, message, Button } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import axiosInstance from "../api/axiosConfig";
 import { showNotification } from "../config/notificationConfig";
+import { validatePedido } from "../utils/validation";
+import { useClientesCache } from "../hooks/useClientesCache";
+import { useDashboardOptimized } from "../hooks/useDashboardOptimized";
 import moment from "moment";
 
 // Componentes da dashboard
@@ -22,28 +25,29 @@ import ColheitaModal from "../components/pedidos/ColheitaModal";
 import PrecificacaoModal from "../components/pedidos/PrecificacaoModal";
 import PagamentoModal from "../components/pedidos/PagamentoModal";
 import VisualizarPedidoModal from "../components/pedidos/VisualizarPedidoModal";
+import LancarPagamentosModal from "../components/pedidos/LancarPagamentosModal";
 
 const { Title } = Typography;
 
 const PedidosDashboard = () => {
-  // Estados principais
-  const [loading, setLoading] = useState(true);
-  const [operacaoLoading, setOperacaoLoading] = useState(false); // Novo loading para operações
-  const [dashboardData, setDashboardData] = useState({
-    stats: {},
-    aguardandoColheita: [],
-    aguardandoPrecificacao: [],
-    aguardandoPagamento: [],
-    finalizados: [],
-  });
+  // Hooks otimizados
+  const {
+    dashboardData,
+    paginacaoFinalizados,
+    loading,
+    operacaoLoading,
+    carregarDashboard,
+    atualizarDadosOtimizado,
+    handlePaginacaoFinalizados,
+    setOperacaoLoading,
+    cleanup
+  } = useDashboardOptimized();
 
-  // Estados para paginação dos pedidos finalizados
-  const [paginacaoFinalizados, setPaginacaoFinalizados] = useState({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0
-  });
+  const {
+    clientes,
+    carregarClientes,
+    loading: clientesLoading
+  } = useClientesCache();
 
   // Estados para modais
   const [novoPedidoModalOpen, setNovoPedidoModalOpen] = useState(false);
@@ -51,101 +55,24 @@ const PedidosDashboard = () => {
   const [precificacaoModalOpen, setPrecificacaoModalOpen] = useState(false);
   const [pagamentoModalOpen, setPagamentoModalOpen] = useState(false);
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
+  const [lancarPagamentosModalOpen, setLancarPagamentosModalOpen] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
-  
-  // Dados auxiliares
-  const [clientes, setClientes] = useState([]);
 
-  // Função para carregar dados da dashboard
-  const carregarDashboard = async (paginaFinalizadosParam = 1) => {
+  // Função para buscar pedido atualizado
+  const buscarPedidoAtualizado = useCallback(async (pedidoId) => {
     try {
-      setLoading(true);
-      
-      // Carregar dados do endpoint dashboard que retorna pedidos ativos e finalizados paginados
-      const dashboardResponse = await axiosInstance.get("/api/pedidos/dashboard", {
-        params: {
-          paginaFinalizados: paginaFinalizadosParam,
-          limitFinalizados: paginacaoFinalizados.limit
-        }
-      });
-      
-      const { stats, pedidos, finalizados } = dashboardResponse.data;
-
-      // Processar dados das seções por status
-      const processedSections = processarSecoesPorStatus(pedidos);
-      
-      setDashboardData({
-        stats,
-        ...processedSections,
-        finalizados: finalizados.data || []
-      });
-
-      // Atualizar estados de paginação
-      setPaginacaoFinalizados(prev => ({
-        ...prev,
-        page: finalizados.page || 1,
-        total: finalizados.total || 0,
-        totalPages: finalizados.totalPages || 0
-      }));
-
+      const response = await axiosInstance.get(`/api/pedidos/${pedidoId}`);
+      return validatePedido(response.data);
     } catch (error) {
-      console.error("Erro ao carregar dashboard:", error);
-      showNotification("error", "Erro", "Erro ao carregar dashboard de pedidos");
-    } finally {
-      setLoading(false);
+      console.error("Erro ao buscar pedido:", error);
+      return null;
     }
-  };
-
-  // Função para mudar página dos pedidos finalizados
-  const handlePaginacaoFinalizados = async (novaPagina, novoLimit) => {
-    setPaginacaoFinalizados(prev => ({ 
-      ...prev, 
-      page: novaPagina,
-      limit: novoLimit || prev.limit
-    }));
-    await carregarDashboard(novaPagina);
-  };
-
-  // Função para processar seções por status dos pedidos ativos
-  const processarSecoesPorStatus = (pedidos) => {
-    const aguardandoColheita = [];
-    const aguardandoPrecificacao = [];
-    const aguardandoPagamento = [];
-
-    pedidos.forEach(pedido => {
-      const { status } = pedido;
-
-      // Agrupar por seções - apenas pedidos ativos
-      if (["PEDIDO_CRIADO", "AGUARDANDO_COLHEITA"].includes(status)) {
-        aguardandoColheita.push(pedido);
-      } else if (["COLHEITA_REALIZADA", "AGUARDANDO_PRECIFICACAO"].includes(status)) {
-        aguardandoPrecificacao.push(pedido);
-      } else if (["PRECIFICACAO_REALIZADA", "AGUARDANDO_PAGAMENTO", "PAGAMENTO_PARCIAL"].includes(status)) {
-        aguardandoPagamento.push(pedido);
-      }
-    });
-
-    return {
-      aguardandoColheita,
-      aguardandoPrecificacao,
-      aguardandoPagamento,
-    };
-  };
-
-  // Função para carregar clientes ativos
-  const carregarClientes = async () => {
-    try {
-      const response = await axiosInstance.get("/api/clientes/ativos");
-      setClientes(response.data || []);
-    } catch (error) {
-      console.error("Erro ao carregar clientes:", error);
-    }
-  };
+  }, []);
 
   // Handler para salvar novo pedido
-  const handleSalvarPedido = async (pedidoData) => {
+  const handleSalvarPedido = useCallback(async (pedidoData) => {
     try {
-      setLoading(true);
+      setOperacaoLoading(true);
       await axiosInstance.post("/api/pedidos", pedidoData);
       showNotification("success", "Sucesso", "Pedido criado com sucesso!");
       handleModalSuccess();
@@ -154,9 +81,9 @@ const PedidosDashboard = () => {
       const message = error.response?.data?.message || "Erro ao salvar pedido";
       showNotification("error", "Erro", message);
     } finally {
-      setLoading(false);
+      setOperacaoLoading(false);
     }
-  };
+  }, [setOperacaoLoading]);
 
   // Handlers para ações dos cards
   const handleColheita = (pedido) => {
@@ -184,18 +111,18 @@ const PedidosDashboard = () => {
   };
 
   // Função para salvar colheita
-  const handleSaveColheita = async (colheitaData) => {
+  const handleSaveColheita = useCallback(async (colheitaData) => {
     try {
       setOperacaoLoading(true);
       await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/colheita`, colheitaData);
       showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
-      
+
       setColheitaModalOpen(false);
       setPedidoSelecionado(null);
-      
-      // Recarregar dados da dashboard
-      await carregarDashboard();
-      
+
+      // Usar método otimizado para atualizar dados
+      await atualizarDadosOtimizado();
+
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
       const message = error.response?.data?.message || "Erro ao registrar colheita";
@@ -204,21 +131,21 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  };
+  }, [pedidoSelecionado, setOperacaoLoading, atualizarDadosOtimizado]);
 
   // Função para salvar precificação
-  const handleSavePrecificacao = async (precificacaoData) => {
+  const handleSavePrecificacao = useCallback(async (precificacaoData) => {
     try {
       setOperacaoLoading(true);
       await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/precificacao`, precificacaoData);
       showNotification("success", "Sucesso", "Precificação realizada com sucesso!");
-      
+
       setPrecificacaoModalOpen(false);
       setPedidoSelecionado(null);
-      
-      // Recarregar dados da dashboard
-      await carregarDashboard();
-      
+
+      // Usar método otimizado para atualizar dados
+      await atualizarDadosOtimizado();
+
     } catch (error) {
       console.error("Erro ao definir precificação:", error);
       const message = error.response?.data?.message || "Erro ao definir precificação";
@@ -227,15 +154,14 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  };
+  }, [pedidoSelecionado, setOperacaoLoading, atualizarDadosOtimizado]);
 
   const handleLancarPagamento = () => {
-    // Por enquanto só mostra uma notificação, pode ser expandido futuramente
-    showNotification("info", "Em Desenvolvimento", "Funcionalidade de lançar pagamento será implementada em breve");
+    setLancarPagamentosModalOpen(true);
   };
 
   // Handler para novo/editar pagamento
-  const handleNovoPagamento = async (pagamentoData) => {
+  const handleNovoPagamento = useCallback(async (pagamentoData) => {
     try {
       setOperacaoLoading(true);
       if (pagamentoData.id) {
@@ -248,27 +174,16 @@ const PedidosDashboard = () => {
         await axiosInstance.post("/api/pedidos/pagamentos", pagamentoData);
         showNotification("success", "Sucesso", "Pagamento registrado com sucesso!");
       }
-      
-      // Atualizar apenas os dados necessários (otimizado - evita piscar)
-      const [statsResponse, pedidosResponse] = await Promise.all([
-        axiosInstance.get("/api/pedidos/dashboard"),
-        axiosInstance.get("/api/pedidos")
-      ]);
 
-      const stats = statsResponse.data;
-      const pedidos = pedidosResponse.data.data || pedidosResponse.data;
-      const processedSections = processarSecoesPorStatus(pedidos);
-      
-      // Atualizar estado sem recarregar loading
-      setDashboardData({
-        stats,
-        ...processedSections
-      });
-      
-      // Atualizar pedido selecionado com os dados mais recentes
+      // Usar método otimizado para atualizar dados
+      await atualizarDadosOtimizado();
+
+      // Atualizar pedido selecionado se necessário
       if (pedidoSelecionado) {
-        const response = await axiosInstance.get(`/api/pedidos/${pedidoSelecionado.id}`);
-        setPedidoSelecionado(response.data);
+        const pedidoAtualizado = await buscarPedidoAtualizado(pedidoSelecionado.id);
+        if (pedidoAtualizado) {
+          setPedidoSelecionado(pedidoAtualizado);
+        }
       }
     } catch (error) {
       console.error("Erro ao salvar pagamento:", error);
@@ -278,35 +193,24 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  };
+  }, [setOperacaoLoading, atualizarDadosOtimizado, pedidoSelecionado, buscarPedidoAtualizado]);
 
   // Handler para remover pagamento
-  const handleRemoverPagamento = async (pagamentoId) => {
+  const handleRemoverPagamento = useCallback(async (pagamentoId) => {
     try {
       setOperacaoLoading(true);
       await axiosInstance.delete(`/api/pedidos/pagamentos/${pagamentoId}`);
       showNotification("success", "Sucesso", "Pagamento removido com sucesso!");
-      
-      // Atualizar apenas os dados necessários (otimizado - evita piscar)
-      const [statsResponse, pedidosResponse] = await Promise.all([
-        axiosInstance.get("/api/pedidos/dashboard"),
-        axiosInstance.get("/api/pedidos")
-      ]);
 
-      const stats = statsResponse.data;
-      const pedidos = pedidosResponse.data.data || pedidosResponse.data;
-      const processedSections = processarSecoesPorStatus(pedidos);
-      
-      // Atualizar estado sem recarregar loading
-      setDashboardData({
-        stats,
-        ...processedSections
-      });
-      
-      // Atualizar pedido selecionado com os dados mais recentes
+      // Usar método otimizado para atualizar dados
+      await atualizarDadosOtimizado();
+
+      // Atualizar pedido selecionado se necessário
       if (pedidoSelecionado) {
-        const response = await axiosInstance.get(`/api/pedidos/${pedidoSelecionado.id}`);
-        setPedidoSelecionado(response.data);
+        const pedidoAtualizado = await buscarPedidoAtualizado(pedidoSelecionado.id);
+        if (pedidoAtualizado) {
+          setPedidoSelecionado(pedidoAtualizado);
+        }
       }
     } catch (error) {
       console.error("Erro ao remover pagamento:", error);
@@ -316,7 +220,34 @@ const PedidosDashboard = () => {
     } finally {
       setOperacaoLoading(false);
     }
-  };
+  }, [setOperacaoLoading, atualizarDadosOtimizado, pedidoSelecionado, buscarPedidoAtualizado]);
+
+  // Handler para salvar pagamentos em lote
+  const handleSalvarPagamentosLote = useCallback(async (pagamentos) => {
+    try {
+      setOperacaoLoading(true);
+
+      // Processar cada pagamento individualmente
+      for (const pagamento of pagamentos) {
+        await axiosInstance.post("/api/pedidos/pagamentos", pagamento);
+      }
+
+      showNotification("success", "Sucesso", `${pagamentos.length} pagamento${pagamentos.length !== 1 ? 's' : ''} registrado${pagamentos.length !== 1 ? 's' : ''} com sucesso!`);
+
+      setLancarPagamentosModalOpen(false);
+
+      // Usar método otimizado para atualizar dados
+      await atualizarDadosOtimizado();
+
+    } catch (error) {
+      console.error("Erro ao processar pagamentos:", error);
+      const message = error.response?.data?.message || "Erro ao processar pagamentos";
+      showNotification("error", "Erro", message);
+      throw error; // Re-throw para o modal tratar
+    } finally {
+      setOperacaoLoading(false);
+    }
+  }, [setOperacaoLoading, atualizarDadosOtimizado]);
 
   // Handler para fechar modais e recarregar dados
   const handleModalClose = () => {
@@ -325,19 +256,25 @@ const PedidosDashboard = () => {
     setPrecificacaoModalOpen(false);
     setPagamentoModalOpen(false);
     setVisualizarModalOpen(false);
+    setLancarPagamentosModalOpen(false);
     setPedidoSelecionado(null);
   };
 
-  const handleModalSuccess = () => {
+  const handleModalSuccess = useCallback(() => {
     handleModalClose();
-    carregarDashboard(); // Recarregar dados após ação
-  };
+    atualizarDadosOtimizado(); // Usar método otimizado
+  }, [atualizarDadosOtimizado]);
 
-  // Carregar dados ao montar o componente
+  // Carregar dados ao montar o componente e cleanup ao desmontar
   useEffect(() => {
     carregarDashboard();
     carregarClientes();
-  }, []);
+
+    // Cleanup ao desmontar
+    return () => {
+      cleanup();
+    };
+  }, [carregarDashboard, carregarClientes, cleanup]);
 
   if (loading) {
     return (
@@ -361,8 +298,8 @@ const PedidosDashboard = () => {
         </Title>
         <Button
           icon={<ReloadOutlined />}
-          onClick={carregarDashboard}
-          loading={loading}
+          onClick={() => carregarDashboard(paginacaoFinalizados.page, true)}
+          loading={loading || operacaoLoading}
           size="middle"
         >
           Atualizar
@@ -400,7 +337,7 @@ const PedidosDashboard = () => {
         open={novoPedidoModalOpen}
         onClose={handleModalClose}
         onSave={handleSalvarPedido}
-        loading={loading}
+        loading={operacaoLoading || clientesLoading}
         clientes={clientes}
       />
 
@@ -433,6 +370,13 @@ const PedidosDashboard = () => {
         open={visualizarModalOpen}
         onClose={handleModalClose}
         pedido={pedidoSelecionado}
+      />
+
+      <LancarPagamentosModal
+        open={lancarPagamentosModalOpen}
+        onClose={handleModalClose}
+        onSave={handleSalvarPagamentosLote}
+        loading={operacaoLoading}
       />
     </div>
   );

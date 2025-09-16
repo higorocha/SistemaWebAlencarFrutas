@@ -79,7 +79,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
           borderRadius: "8px 8px 0 0",
         }}>
           <TagOutlined style={{ marginRight: 8 }} />
-          Registrar Fita de Banana
+          Marcar Fita de Banana
         </span>
       }
       open={visible}
@@ -242,7 +242,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
                 label={
                   <Space>
                     <CalendarOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>Data do Registro</span>
+                    <span style={{ fontWeight: "700", color: "#333" }}>Data da Marcação</span>
                   </Space>
                 }
                 rules={[{ required: true, message: 'Data é obrigatória' }]}
@@ -302,7 +302,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
               borderColor: "#059669",
             }}
           >
-            {loading ? "Registrando..." : "Registrar Fita"}
+            {loading ? "Marcando..." : "Marcar Fita"}
           </Button>
         </div>
       </Form>

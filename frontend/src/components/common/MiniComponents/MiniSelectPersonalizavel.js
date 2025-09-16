@@ -73,7 +73,7 @@ const SelectDropdown = styled.div`
   background-color: white;
   border-radius: 6px;
   box-shadow: 0 3px 6px -4px rgba(0,0,0,0.12), 0 6px 16px 0 rgba(0,0,0,0.08), 0 9px 28px 8px rgba(0,0,0,0.05);
-  z-index: 1050;
+  z-index: 9999;
   display: ${props => props.isOpen ? 'block' : 'none'};
   padding: 4px 0;
 `;

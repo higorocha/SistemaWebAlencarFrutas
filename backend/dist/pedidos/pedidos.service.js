@@ -702,7 +702,7 @@ let PedidosService = class PedidosService {
             limit: take,
         };
     }
-    async findByCliente(clienteId) {
+    async findByCliente(clienteId, statusFilter) {
         const cliente = await this.prisma.cliente.findUnique({
             where: { id: clienteId },
             select: { id: true, nome: true, industria: true }
@@ -710,50 +710,67 @@ let PedidosService = class PedidosService {
         if (!cliente) {
             throw new common_1.NotFoundException(`Cliente com ID ${clienteId} não encontrado`);
         }
-        const pedidos = await this.prisma.pedido.findMany({
-            where: { clienteId },
-            orderBy: { dataPedido: 'desc' },
-            include: {
-                cliente: {
-                    select: { id: true, nome: true, industria: true }
-                },
-                frutasPedidos: {
-                    include: {
-                        fruta: {
-                            select: { id: true, nome: true }
-                        },
-                        areas: {
-                            include: {
-                                areaPropria: {
-                                    select: { id: true, nome: true }
-                                },
-                                areaFornecedor: {
-                                    select: {
-                                        id: true,
-                                        nome: true,
-                                        fornecedor: {
-                                            select: { id: true, nome: true }
+        const where = { clienteId };
+        let statusFiltrados = [];
+        if (statusFilter) {
+            statusFiltrados = statusFilter.split(',').map(s => s.trim()).filter(Boolean);
+            if (statusFiltrados.length > 0) {
+                where.status = {
+                    in: statusFiltrados
+                };
+            }
+        }
+        const [pedidos, total] = await Promise.all([
+            this.prisma.pedido.findMany({
+                where,
+                orderBy: { dataPedido: 'desc' },
+                include: {
+                    cliente: {
+                        select: { id: true, nome: true, industria: true }
+                    },
+                    frutasPedidos: {
+                        include: {
+                            fruta: {
+                                select: { id: true, nome: true }
+                            },
+                            areas: {
+                                include: {
+                                    areaPropria: {
+                                        select: { id: true, nome: true }
+                                    },
+                                    areaFornecedor: {
+                                        select: {
+                                            id: true,
+                                            nome: true,
+                                            fornecedor: {
+                                                select: { id: true, nome: true }
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        },
-                        fitas: {
-                            include: {
-                                fitaBanana: {
-                                    select: { id: true, corHex: true, nome: true }
-                                },
-                                controleBanana: {
-                                    select: { id: true, quantidadeFitas: true }
+                            },
+                            fitas: {
+                                include: {
+                                    fitaBanana: {
+                                        select: { id: true, corHex: true, nome: true }
+                                    },
+                                    controleBanana: {
+                                        select: { id: true, quantidadeFitas: true }
+                                    }
                                 }
                             }
                         }
-                    }
-                },
-                pagamentosPedidos: true
-            }
-        });
-        return pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido)));
+                    },
+                    pagamentosPedidos: true
+                }
+            }),
+            this.prisma.pedido.count({ where })
+        ]);
+        return {
+            data: pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido))),
+            total,
+            statusFiltrados: statusFiltrados.length > 0 ? statusFiltrados : undefined
+        };
     }
     async findOne(id) {
         const pedido = await this.prisma.pedido.findUnique({

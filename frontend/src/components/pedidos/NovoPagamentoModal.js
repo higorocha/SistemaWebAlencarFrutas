@@ -30,6 +30,7 @@ import {
 import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
 import { MonetaryInput } from "../../components/common/inputs";
+import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -158,33 +159,33 @@ const NovoPagamentoModal = ({
 
   // Opções de método de pagamento
   const metodosPagamento = [
-    { 
-      value: 'PIX', 
-      label: 'PIX', 
+    {
+      value: 'PIX',
+      label: 'PIX',
       color: '#52c41a',
-      icon: '💳'
+      icon: <PixIcon width={16} height={16} />
     },
-    { 
-      value: 'BOLETO', 
-      label: 'Boleto Bancário', 
+    {
+      value: 'BOLETO',
+      label: 'Boleto Bancário',
       color: '#1890ff',
-      icon: '🧾'
+      icon: <BoletoIcon width={16} height={16} />
     },
-    { 
-      value: 'TRANSFERENCIA', 
-      label: 'Transferência Bancária', 
+    {
+      value: 'TRANSFERENCIA',
+      label: 'Transferência Bancária',
       color: '#722ed1',
-      icon: '🏦'
+      icon: <TransferenciaIcon width={16} height={16} />
     },
-    { 
-      value: 'DINHEIRO', 
-      label: 'Dinheiro', 
+    {
+      value: 'DINHEIRO',
+      label: 'Dinheiro',
       color: '#faad14',
       icon: '💰'
     },
-    { 
-      value: 'CHEQUE', 
-      label: 'Cheque', 
+    {
+      value: 'CHEQUE',
+      label: 'Cheque',
       color: '#f5222d',
       icon: '📄'
     },
@@ -382,7 +383,11 @@ const NovoPagamentoModal = ({
                   {metodosPagamento.map((metodo) => (
                     <Option key={metodo.value} value={metodo.value}>
                       <Space>
-                        <span>{metodo.icon}</span>
+                        {typeof metodo.icon === 'string' ? (
+                          <span>{metodo.icon}</span>
+                        ) : (
+                          metodo.icon
+                        )}
                         <span>{metodo.label}</span>
                       </Space>
                     </Option>

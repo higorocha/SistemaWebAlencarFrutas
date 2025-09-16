@@ -10,6 +10,7 @@ import {
   PhoneOutlined,
   MailOutlined,
   EnvironmentOutlined,
+  ShoppingCartOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import styled from "styled-components";
@@ -344,6 +345,7 @@ const ClientesTable = React.memo(({
   loading = false,
   onEdit,
   onDelete,
+  onViewPedidos,
   currentPage = 1,
   pageSize = 20,
   onPageChange,
@@ -354,6 +356,16 @@ const ClientesTable = React.memo(({
   // Função para criar o menu de ações
   const getMenuContent = (record) => {
     const menuItems = [
+      {
+        key: "pedidos",
+        label: (
+          <Space>
+            <ShoppingCartOutlined style={{ color: "#059669" }} />
+            <span style={{ color: "#333" }}>Pedidos</span>
+          </Space>
+        ),
+        onClick: () => onViewPedidos(record),
+      },
       {
         key: "view",
         label: (
@@ -556,6 +568,7 @@ ClientesTable.propTypes = {
   loading: PropTypes.bool,
   onEdit: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
+  onViewPedidos: PropTypes.func.isRequired,
   currentPage: PropTypes.number,
   pageSize: PropTypes.number,
   onPageChange: PropTypes.func,

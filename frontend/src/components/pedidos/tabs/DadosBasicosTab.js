@@ -193,6 +193,8 @@ const DadosBasicosTab = ({
     { value: 'TON', label: 'Toneladas (TON)' },
     { value: 'CX', label: 'Caixas (CX)' },
     { value: 'UND', label: 'Unidades (UND)' },
+    { value: 'ML', label: 'Mililitros (ML)' },
+    { value: 'LT', label: 'Litros (LT)' },
   ];
 
   return (

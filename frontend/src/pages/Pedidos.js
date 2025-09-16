@@ -6,6 +6,12 @@ import {
   ShoppingCartOutlined,
   PlusCircleOutlined,
   FilterOutlined,
+  EyeOutlined,
+  ShoppingOutlined,
+  DollarOutlined,
+  CreditCardOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
@@ -13,7 +19,8 @@ import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
 import { PrimaryButton, SecondaryButton } from "components/common/buttons";
-import { SearchInput } from "components/common/search";
+import { SearchInput, SearchInputInteligente } from "components/common/search";
+import { PixIcon, BoletoIcon, TransferenciaIcon } from "../components/Icons/PaymentIcons";
 import moment from "moment";
 
 const PedidosTable = lazy(() => import("../components/pedidos/PedidosTable"));
@@ -43,6 +50,8 @@ const Pedidos = () => {
   
      // Estados para busca e filtros
    const [searchTerm, setSearchTerm] = useState("");
+   const [searchType, setSearchType] = useState(""); // Tipo de busca selecionado
+   const [appliedFilters, setAppliedFilters] = useState([]); // Filtros aplicados via sugestão
    const [statusFilter, setStatusFilter] = useState(""); // Valor vazio = "Todos"
    const [dateRange, setDateRange] = useState([]);
 
@@ -60,7 +69,7 @@ const Pedidos = () => {
   const [clientes, setClientes] = useState([]);
 
   // Função para buscar pedidos da API
-  const fetchPedidos = useCallback(async (page = 1, limit = 20, search = "", status = "", dataInicio = null, dataFim = null) => {
+  const fetchPedidos = useCallback(async (page = 1, limit = 20, search = "", searchType = "", status = "", dataInicio = null, dataFim = null) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -68,6 +77,7 @@ const Pedidos = () => {
       if (page) params.append('page', page.toString());
       if (limit) params.append('limit', limit.toString());
       if (search) params.append('search', search);
+      if (searchType) params.append('searchType', searchType);
       if (status) params.append('status', status);
       if (dataInicio) params.append('dataInicio', dataInicio);
       if (dataFim) params.append('dataFim', dataFim);
@@ -111,20 +121,62 @@ const Pedidos = () => {
   // useEffect para carregar dados na inicialização
   useEffect(() => {
     fetchClientes();
-  }, [fetchClientes]);
+    // Carregar todos os pedidos na inicialização
+    fetchPedidos(1, pageSize, "", "", "", null, null);
+  }, [fetchClientes, fetchPedidos, pageSize]);
 
   useEffect(() => {
     const dataInicio = dateRange[0] ? dateRange[0].toISOString() : null;
     const dataFim = dateRange[1] ? dateRange[1].toISOString() : null;
-    
-    fetchPedidos(currentPage, pageSize, searchTerm, statusFilter, dataInicio, dataFim);
-  }, [fetchPedidos, currentPage, pageSize, searchTerm, statusFilter, dateRange]);
+
+    // Para múltiplos filtros, usar o primeiro como principal
+    const primaryFilter = appliedFilters.length > 0 ? appliedFilters[0] : null;
+    const search = primaryFilter ? primaryFilter.value : "";
+    const type = primaryFilter ? primaryFilter.type : "";
+
+    fetchPedidos(currentPage, pageSize, search, type, statusFilter, dataInicio, dataFim);
+  }, [fetchPedidos, currentPage, pageSize, appliedFilters, statusFilter, dateRange]);
 
   // Funções de manipulação de filtros
   const handleSearch = useCallback((value) => {
     setSearchTerm(value);
-    setCurrentPage(1);
+    // Não aplicar filtro automaticamente - só atualizar o termo de busca
   }, []);
+
+  // Função para processar ícone correto para filtros de vale
+  const getFilterIcon = useCallback((suggestion) => {
+    if (suggestion.type === 'vale' && suggestion.metadata?.metodoPagamento) {
+      const metodo = suggestion.metadata.metodoPagamento;
+      switch (metodo) {
+        case 'PIX':
+          return <PixIcon width={14} height={14} style={{ marginRight: '2px' }} />;
+        case 'BOLETO':
+          return <BoletoIcon width={14} height={14} style={{ marginRight: '2px' }} />;
+        case 'TRANSFERENCIA':
+          return <TransferenciaIcon width={14} height={14} style={{ marginRight: '2px' }} />;
+        case 'DINHEIRO':
+          return '💰';
+        case 'CHEQUE':
+          return '📄';
+        default:
+          return suggestion.icon;
+      }
+    }
+    return suggestion.icon;
+  }, []);
+
+  // Função para lidar com seleção de sugestão
+  const handleSuggestionSelect = useCallback((suggestion) => {
+    // Processar sugestão para ter o ícone correto
+    const processedSuggestion = {
+      ...suggestion,
+      icon: getFilterIcon(suggestion)
+    };
+
+    setAppliedFilters(prev => [...prev, processedSuggestion]);
+    setSearchTerm(""); // Limpar input para permitir novo filtro
+    setCurrentPage(1);
+  }, [getFilterIcon]);
 
   const handleStatusFilter = useCallback((status) => {
     setStatusFilter(status);
@@ -139,6 +191,8 @@ const Pedidos = () => {
      // Função para limpar filtros
    const handleClearFilters = useCallback(() => {
      setSearchTerm("");
+     setSearchType("");
+     setAppliedFilters([]);
      setStatusFilter(""); // Reset para "Todos"
      setDateRange([]);
      setCurrentPage(1);
@@ -346,48 +400,81 @@ const Pedidos = () => {
               // alignItems removido para comportamento padrão (stretch)
             }}
           >
-          <Box sx={{ flex: { xs: "1 1 100%", md: "1 1 350px" } }}>
+          <Box sx={{ flex: { xs: "1 1 100%", md: "1 1 250px" } }}>
             <Text style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
-              Buscar por número, cliente ou fruta:
+              Buscar pedidos:
             </Text>
-                         <SearchInput
-               placeholder="Ex: João Silva, Maçã..."
-               onChange={handleSearch}
-               value={searchTerm}
-               style={{ 
-                 width: "100%", 
-                 height: "32px", 
-                 fontSize: "14px",
-                 marginBottom: "0" // <-- ADICIONADO PARA NEUTRALIZAR MARGEM INLINE
-               }}
-             />
+            <SearchInputInteligente
+              placeholder="Digite nome, número, vale, motorista ou placa..."
+              value={searchTerm}
+              onChange={handleSearch}
+              onSuggestionSelect={handleSuggestionSelect}
+              style={{
+                width: "100%",
+                marginBottom: "0"
+              }}
+            />
           </Box>
-          
-          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 200px" } }}>
+
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 220px" } }}>
             <Text style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
               Status:
             </Text>
-                                      <Select
-               value={statusFilter}
-               onChange={handleStatusFilter}
-               style={{ width: "100%", height: "32px", marginBottom: "0" }} // <-- ADICIONADO PARA NEUTRALIZAR MARGEM INLINE
-             >
-               <Option value="">📋 Todos</Option>
-               <Option value="PEDIDO_CRIADO">🆕 Pedido Criado</Option>
-               <Option value="AGUARDANDO_COLHEITA">⏳ Aguardando Colheita</Option>
-               <Option value="COLHEITA_REALIZADA">✅ Colheita Realizada</Option>
-               <Option value="AGUARDANDO_PRECIFICACAO">💰 Aguardando Precificação</Option>
-               <Option value="PRECIFICACAO_REALIZADA">💵 Precificação Realizada</Option>
-               <Option value="AGUARDANDO_PAGAMENTO">💳 Aguardando Pagamento</Option>
-               <Option value="PAGAMENTO_REALIZADO">✅ Pagamento Realizado</Option>
-               <Option value="PEDIDO_FINALIZADO">🎉 Pedido Finalizado</Option>
-               <Option value="CANCELADO">❌ Cancelado</Option>
-             </Select>
+            <Select
+              value={statusFilter}
+              onChange={handleStatusFilter}
+              style={{ width: "100%", height: "32px", marginBottom: "0" }}
+            >
+              <Option value="">
+                <EyeOutlined style={{ marginRight: 8, color: '#666' }} />
+                Todos
+              </Option>
+              <Option value="PEDIDO_CRIADO">
+                <ShoppingCartOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                Pedido Criado
+              </Option>
+              <Option value="AGUARDANDO_COLHEITA">
+                <ShoppingOutlined style={{ marginRight: 8, color: '#fa8c16' }} />
+                Aguardando Colheita
+              </Option>
+              <Option value="COLHEITA_REALIZADA">
+                <CheckCircleOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+                Colheita Realizada
+              </Option>
+              <Option value="AGUARDANDO_PRECIFICACAO">
+                <DollarOutlined style={{ marginRight: 8, color: '#722ed1' }} />
+                Aguardando Precificação
+              </Option>
+              <Option value="PRECIFICACAO_REALIZADA">
+                <CheckCircleOutlined style={{ marginRight: 8, color: '#13c2c2' }} />
+                Precificação Realizada
+              </Option>
+              <Option value="AGUARDANDO_PAGAMENTO">
+                <CreditCardOutlined style={{ marginRight: 8, color: '#faad14' }} />
+                Aguardando Pagamento
+              </Option>
+              <Option value="PAGAMENTO_PARCIAL">
+                <CreditCardOutlined style={{ marginRight: 8, color: '#fa8c16' }} />
+                Pagamento Parcial
+              </Option>
+              <Option value="PAGAMENTO_REALIZADO">
+                <CheckCircleOutlined style={{ marginRight: 8, color: '#a0d911' }} />
+                Pagamento Realizado
+              </Option>
+              <Option value="PEDIDO_FINALIZADO">
+                <CheckCircleOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+                Pedido Finalizado
+              </Option>
+              <Option value="CANCELADO">
+                <CloseCircleOutlined style={{ marginRight: 8, color: '#f5222d' }} />
+                Cancelado
+              </Option>
+            </Select>
           </Box>
 
-          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 200px" } }}>
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 240px" } }}>
             <Text style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
-              Período:
+              Data de Criação:
             </Text>
                          <RangePicker
                value={dateRange}
@@ -413,7 +500,7 @@ const Pedidos = () => {
         </Box>
 
         {/* Resumo dos filtros ativos */}
-        {(searchTerm || statusFilter || dateRange.length > 0) && (
+        {(appliedFilters.length > 0 || statusFilter || dateRange.length > 0) && (
           <Box 
             sx={{ 
               mt: 2, 
@@ -428,11 +515,27 @@ const Pedidos = () => {
             <Text strong style={{ fontSize: "12px", color: "#666" }}>
               Filtros ativos:
             </Text>
-            {searchTerm && (
-              <Tag color="blue" closable onClose={() => setSearchTerm("")}>
-                Busca: {searchTerm}
+            {appliedFilters.map((filter, index) => (
+              <Tag
+                key={`${filter.type}-${filter.value}-${index}`}
+                color="blue"
+                closable
+                onClose={() => {
+                  setAppliedFilters(prev => prev.filter((_, i) => i !== index));
+                  setCurrentPage(1);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  fontSize: "12px",
+                  fontWeight: "500"
+                }}
+              >
+                <span style={{ fontSize: "14px" }}>{filter.icon}</span>
+                {filter.label}: {filter.value}
               </Tag>
-            )}
+            ))}
             {statusFilter && (
               <Tag color="green" closable onClose={() => setStatusFilter("")}>
                 Status: {statusFilter.replace(/_/g, ' ')}

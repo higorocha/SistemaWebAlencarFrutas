@@ -19,6 +19,7 @@ import { formatarValorMonetario } from "../../../utils/formatters";
 import { showNotification } from "../../../config/notificationConfig";
 import { PrimaryButton } from "../../common/buttons";
 import NovoPagamentoModal from "../NovoPagamentoModal";
+import { PixIcon, BoletoIcon, TransferenciaIcon } from "../../Icons/PaymentIcons";
 
 const { Text } = Typography;
 
@@ -219,15 +220,33 @@ const PagamentosTab = ({
       width: 120,
       render: (metodo) => {
         const metodos = {
-          PIX: { color: "#52c41a", icon: "💳" },
-          BOLETO: { color: "#1890ff", icon: "🧾" },
-          TRANSFERENCIA: { color: "#722ed1", icon: "🏦" },
-          DINHEIRO: { color: "#faad14", icon: "💰" },
-          CHEQUE: { color: "#f5222d", icon: "📄" },
+          PIX: { icon: <PixIcon width={16} height={16} /> },
+          BOLETO: { icon: <BoletoIcon width={16} height={16} /> },
+          TRANSFERENCIA: { icon: <TransferenciaIcon width={16} height={16} /> },
+          DINHEIRO: { icon: "💰" },
+          CHEQUE: { icon: "📄" },
         };
-        const config = metodos[metodo] || { color: "#666", icon: "💳" };
+        const config = metodos[metodo] || { icon: <PixIcon width={16} height={16} /> };
         return (
-          <Tag color={config.color} icon={<span>{config.icon}</span>}>
+          <Tag
+            style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e1e5e9',
+              color: '#333333',
+              fontWeight: 'bold',
+              fontSize: '13px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06)',
+              transition: 'all 0.2s ease',
+              cursor: 'default',
+              minHeight: '28px'
+            }}
+          >
+            {config.icon}
             {metodo}
           </Tag>
         );
@@ -542,6 +561,7 @@ const PagamentosTab = ({
         }}
         onSave={handleNovoPagamento}
         pedido={pedido}
+        valorRestante={valorRestante}
         pagamentoEditando={pagamentoEditando}
       />
 

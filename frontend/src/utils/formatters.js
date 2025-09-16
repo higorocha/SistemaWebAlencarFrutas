@@ -166,3 +166,93 @@ export const converterPercentualParaValor = (percentual, valorTotal) => {
   if (!percentual || isNaN(percentual)) return 0;
   return (percentual / 100) * valorTotal;
 };
+
+// ===== FUNÇÕES DE FORMATAÇÃO PARA CHAVES PIX =====
+
+/**
+ * Formata um telefone para o padrão brasileiro (XX) XXXXX-XXXX
+ * @param {string} telefone - Telefone com apenas números
+ * @returns {string} - Telefone formatado
+ */
+export const formatarTelefone = (telefone) => {
+  if (!telefone) return '';
+  const numeros = telefone.replace(/\D/g, '');
+  
+  if (numeros.length === 11) {
+    return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`;
+  } else if (numeros.length === 10) {
+    return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 6)}-${numeros.slice(6)}`;
+  }
+  
+  return telefone; // Retorna original se não conseguir formatar
+};
+
+/**
+ * Formata um CPF para o padrão XXX.XXX.XXX-XX
+ * @param {string} cpf - CPF com apenas números
+ * @returns {string} - CPF formatado
+ */
+export const formatarCPF = (cpf) => {
+  if (!cpf) return '';
+  const numeros = cpf.replace(/\D/g, '');
+  
+  if (numeros.length === 11) {
+    return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9)}`;
+  }
+  
+  return cpf; // Retorna original se não conseguir formatar
+};
+
+/**
+ * Formata um CNPJ para o padrão XX.XXX.XXX/XXXX-XX
+ * @param {string} cnpj - CNPJ com apenas números
+ * @returns {string} - CNPJ formatado
+ */
+export const formatarCNPJ = (cnpj) => {
+  if (!cnpj) return '';
+  const numeros = cnpj.replace(/\D/g, '');
+  
+  if (numeros.length === 14) {
+    return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5, 8)}/${numeros.slice(8, 12)}-${numeros.slice(12)}`;
+  }
+  
+  return cnpj; // Retorna original se não conseguir formatar
+};
+
+/**
+ * Detecta o tipo de chave PIX e aplica a formatação apropriada
+ * @param {string} chavePix - Chave PIX a ser formatada
+ * @returns {string} - Chave PIX formatada
+ */
+export const formatarChavePix = (chavePix) => {
+  if (!chavePix) return 'Não informado';
+  
+  // Remove espaços e caracteres especiais para análise
+  const chaveLimpa = chavePix.replace(/\s/g, '');
+  
+  // Verifica se é e-mail
+  if (chaveLimpa.includes('@')) {
+    return chaveLimpa; // E-mail não precisa de formatação especial
+  }
+  
+  // Remove todos os caracteres não numéricos para verificar tamanho
+  const numeros = chaveLimpa.replace(/\D/g, '');
+  
+  // Verifica se é telefone (10 ou 11 dígitos)
+  if (numeros.length === 10 || numeros.length === 11) {
+    return formatarTelefone(numeros);
+  }
+  
+  // Verifica se é CPF (11 dígitos)
+  if (numeros.length === 11) {
+    return formatarCPF(numeros);
+  }
+  
+  // Verifica se é CNPJ (14 dígitos)
+  if (numeros.length === 14) {
+    return formatarCNPJ(numeros);
+  }
+  
+  // Se não conseguir identificar, retorna a chave original
+  return chavePix;
+};

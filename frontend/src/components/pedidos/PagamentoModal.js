@@ -32,8 +32,93 @@ import { PrimaryButton } from "../common/buttons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import NovoPagamentoModal from "./NovoPagamentoModal";
+import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
+import styled from "styled-components";
 
 const { Title, Text } = Typography;
+
+// Styled components para tabela com tema personalizado
+const StyledTable = styled(Table)`
+  .ant-table-thead > tr > th {
+    background-color: #059669 !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    padding: 16px;
+    font-size: 14px;
+  }
+
+  .ant-table-tbody > tr:nth-child(even) {
+    background-color: #fafafa;
+  }
+
+  .ant-table-tbody > tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+
+  .ant-table-tbody > tr:hover {
+    background-color: #e6f7ff !important;
+    cursor: pointer;
+  }
+
+  .ant-table-tbody > tr.ant-table-row-selected {
+    background-color: #d1fae5 !important;
+  }
+
+  .ant-table-tbody > tr > td {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  .ant-table-container {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .ant-table-cell-fix-left,
+  .ant-table-cell-fix-right {
+    background-color: inherit !important;
+  }
+
+  .ant-empty {
+    padding: 40px 20px;
+  }
+
+  .ant-empty-description {
+    color: #8c8c8c;
+    font-size: 14px;
+  }
+
+  /* LAYOUT FIXO PARA RESOLVER SCROLL HORIZONTAL */
+  .ant-table-wrapper {
+    width: 100%;
+  }
+
+  .ant-table {
+    width: 100% !important;
+    table-layout: fixed;
+  }
+
+  .ant-table-container {
+    width: 100% !important;
+  }
+
+  .ant-table-thead > tr > th {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ant-table-tbody > tr > td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* CORREÇÃO ESPECÍFICA: Esconder linha de medida */
+  .ant-table-measure-row {
+    display: none !important;
+  }
+`;
 
 const PagamentoModal = ({
   open,
@@ -195,15 +280,33 @@ const PagamentoModal = ({
       width: 120,
       render: (metodo) => {
         const metodos = {
-          PIX: { color: "#52c41a", icon: "💳" },
-          BOLETO: { color: "#1890ff", icon: "🧾" },
-          TRANSFERENCIA: { color: "#722ed1", icon: "🏦" },
-          DINHEIRO: { color: "#faad14", icon: "💰" },
-          CHEQUE: { color: "#f5222d", icon: "📄" },
+          PIX: { icon: <PixIcon width={16} height={16} /> },
+          BOLETO: { icon: <BoletoIcon width={16} height={16} /> },
+          TRANSFERENCIA: { icon: <TransferenciaIcon width={16} height={16} /> },
+          DINHEIRO: { icon: "💰" },
+          CHEQUE: { icon: "📄" },
         };
-        const config = metodos[metodo] || { color: "#666", icon: "💳" };
+        const config = metodos[metodo] || { icon: "💳" };
         return (
-          <Tag color={config.color} icon={<span>{config.icon}</span>}>
+          <Tag
+            style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e1e5e9',
+              color: '#333333',
+              fontWeight: 'bold',
+              fontSize: '13px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06)',
+              transition: 'all 0.2s ease',
+              cursor: 'default',
+              minHeight: '28px'
+            }}
+          >
+            {typeof config.icon === 'string' ? <span>{config.icon}</span> : config.icon}
             {metodo}
           </Tag>
         );
@@ -527,34 +630,18 @@ const PagamentoModal = ({
               }
             >
               {pagamentos.length > 0 ? (
-                <Table
+                <StyledTable
                   columns={columns}
                   dataSource={pagamentos}
                   rowKey="id"
                   pagination={false}
                   loading={loadingPagamentos}
-                  size="small"
+                  size="middle"
+                  bordered={true}
                   style={{
-                    border: "1px solid #e8e8e8",
+                    backgroundColor: "#ffffff",
                     borderRadius: "8px",
-                  }}
-                  components={{
-                    header: {
-                      cell: (props) => (
-                        <th
-                          {...props}
-                          style={{
-                            ...props.style,
-                            backgroundColor: '#059669',
-                            color: '#ffffff',
-                            fontWeight: 600,
-                            padding: '8px 12px',
-                            fontSize: '14px',
-                            borderBottom: 'none',
-                          }}
-                        />
-                      ),
-                    },
+                    overflow: "hidden",
                   }}
                 />
               ) : (

@@ -19,6 +19,9 @@ const ClientesTable = lazy(() => import("../components/clientes/ClientesTable"))
 const AddEditClienteDialog = lazy(() =>
   import("../components/clientes/AddEditClienteDialog")
 );
+const PedidosClienteModal = lazy(() =>
+  import("../components/clientes/PedidosClienteModal")
+);
 
 const Clientes = () => {
   const [clientes, setClientes] = useState([]);
@@ -39,6 +42,10 @@ const Clientes = () => {
   // Estados do modal
   const [modalOpen, setModalOpen] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
+  
+  // Estados do modal de pedidos
+  const [pedidosModalOpen, setPedidosModalOpen] = useState(false);
+  const [clienteSelecionado, setClienteSelecionado] = useState(null);
 
   const { Title } = Typography;
 
@@ -110,6 +117,18 @@ const Clientes = () => {
   const handleCloseModal = useCallback(() => {
     setModalOpen(false);
     setClienteEditando(null);
+  }, []);
+
+  // Função para abrir modal de pedidos
+  const handleOpenPedidosModal = useCallback((cliente) => {
+    setClienteSelecionado(cliente);
+    setPedidosModalOpen(true);
+  }, []);
+
+  // Função para fechar modal de pedidos
+  const handleClosePedidosModal = useCallback(() => {
+    setPedidosModalOpen(false);
+    setClienteSelecionado(null);
   }, []);
 
   // Função para salvar cliente (criar ou editar)
@@ -190,6 +209,7 @@ const Clientes = () => {
            loading={loading}
            onEdit={handleOpenEditModal}
            onDelete={handleDeleteCliente}
+           onViewPedidos={handleOpenPedidosModal}
            onStatusFilter={handleStatusFilter}
            currentStatusFilter={statusFilter}
          />
@@ -221,6 +241,16 @@ const Clientes = () => {
            onClose={handleCloseModal}
            onSave={handleSaveCliente}
            cliente={clienteEditando}
+           loading={loading}
+         />
+       </Suspense>
+
+       {/* Modal de Pedidos do Cliente */}
+       <Suspense fallback={<Spin size="large" />}>
+         <PedidosClienteModal
+           open={pedidosModalOpen}
+           onClose={handleClosePedidosModal}
+           cliente={clienteSelecionado}
            loading={loading}
          />
        </Suspense>

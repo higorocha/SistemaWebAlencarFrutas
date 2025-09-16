@@ -465,6 +465,7 @@ const AreasTable = React.memo(({
       pagination={false}
       scroll={{ x: 1000 }}
       rowClassName={assignRowClassName}
+      bordered={true}
       locale={{
         emptyText: (
           <Empty

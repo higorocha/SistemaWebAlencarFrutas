@@ -17,6 +17,7 @@ import {
   Input,
   Tag,
   Tooltip,
+  DatePicker,
 } from "antd";
 import {
   SaveOutlined,
@@ -31,6 +32,9 @@ import {
   LinkOutlined,
   TagOutlined,
   EyeOutlined,
+  CalendarOutlined,
+  BuildOutlined,
+  NumberOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
@@ -120,6 +124,12 @@ const PrecificacaoModal = ({
         icms: pedido.icms || 0,
         desconto: pedido.desconto || 0,
         avaria: pedido.avaria || 0,
+        // Campos específicos para clientes indústria
+        indDataEntrada: pedido.indDataEntrada ? moment(pedido.indDataEntrada) : undefined,
+        indDataDescarga: pedido.indDataDescarga ? moment(pedido.indDataDescarga) : undefined,
+        indPesoMedio: pedido.indPesoMedio || undefined,
+        indMediaMililitro: pedido.indMediaMililitro || undefined,
+        indNumeroNf: pedido.indNumeroNf || undefined,
       });
       
       calcularValoresConsolidados(frutasForm, pedido.frete || 0, pedido.icms || 0, pedido.desconto || 0, pedido.avaria || 0);
@@ -254,6 +264,12 @@ const PrecificacaoModal = ({
     return fruta?.fitas && fruta.fitas.length > 0;
   };
 
+  // Verificar se o pedido tem alguma fruta com fitas vinculadas
+  const pedidoTemFitas = () => {
+    const frutas = form.getFieldValue('frutas') || [];
+    return frutas.some(fruta => hasLinkedFitas(fruta));
+  };
+
   // Obter nomes das áreas vinculadas
   const getLinkedAreasNames = (fruta) => {
     if (!fruta?.areas) return [];
@@ -315,6 +331,12 @@ const PrecificacaoModal = ({
         icms: values.icms ? (typeof values.icms === 'string' ? parseFloat(values.icms) : values.icms) : 0,
         desconto: values.desconto ? (typeof values.desconto === 'string' ? parseFloat(values.desconto) : values.desconto) : 0,
         avaria: values.avaria ? (typeof values.avaria === 'string' ? parseFloat(values.avaria) : values.avaria) : 0,
+        // Campos específicos para clientes indústria
+        indDataEntrada: values.indDataEntrada ? moment(values.indDataEntrada).format('YYYY-MM-DD') : undefined,
+        indDataDescarga: values.indDataDescarga ? moment(values.indDataDescarga).format('YYYY-MM-DD') : undefined,
+        indPesoMedio: values.indPesoMedio ? (typeof values.indPesoMedio === 'string' ? parseFloat(values.indPesoMedio) : values.indPesoMedio) : undefined,
+        indMediaMililitro: values.indMediaMililitro ? (typeof values.indMediaMililitro === 'string' ? parseFloat(values.indMediaMililitro) : values.indMediaMililitro) : undefined,
+        indNumeroNf: values.indNumeroNf ? (typeof values.indNumeroNf === 'string' ? parseInt(values.indNumeroNf) : values.indNumeroNf) : undefined,
       };
 
       await onSave(formData);
@@ -472,61 +494,70 @@ const PrecificacaoModal = ({
         >
           <Form.List name="frutas">
             {(fields) => (
-              <>
-                {/* Cabeçalho das colunas */}
-                <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-                  <Col xs={24} md={4}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <AppleOutlined style={{ marginRight: 8 }} />
-                      Fruta
-                    </span>
-                  </Col>
-                  <Col xs={24} md={3}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <CalculatorOutlined style={{ marginRight: 8 }} />
-                      Und 1
-                    </span>
-                  </Col>
-                  <Col xs={24} md={3}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <CalculatorOutlined style={{ marginRight: 8 }} />
-                      Und 2
-                    </span>
-                  </Col>
-                  <Col xs={24} md={4}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <EnvironmentOutlined style={{ marginRight: 8 }} />
-                      Áreas
-                    </span>
-                  </Col>
-                  <Col xs={24} md={3}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <TagOutlined style={{ marginRight: 8 }} />
-                      Fitas
-                    </span>
-                  </Col>
-                  <Col xs={24} md={3}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <DollarOutlined style={{ marginRight: 8 }} />
-                      Valor Unit.
-                    </span>
-                  </Col>
-                  <Col xs={24} md={4}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <CalculatorOutlined style={{ marginRight: 8 }} />
-                      Total
-                    </span>
-                  </Col>
-                </Row>
+                <>
+                  {/* Cabeçalho das colunas */}
+                  {(() => {
+                    const temFitas = pedidoTemFitas();
+                    
+                    return (
+                      <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
+                        <Col xs={24} md={temFitas ? 4 : 5}>
+                          <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                            <AppleOutlined style={{ marginRight: 8 }} />
+                            Fruta
+                          </span>
+                        </Col>
+                        <Col xs={24} md={temFitas ? 3 : 4}>
+                          <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                            <CalculatorOutlined style={{ marginRight: 8 }} />
+                            Und 1
+                          </span>
+                        </Col>
+                        <Col xs={24} md={temFitas ? 3 : 4}>
+                          <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                            <CalculatorOutlined style={{ marginRight: 8 }} />
+                            Und 2
+                          </span>
+                        </Col>
+                        <Col xs={24} md={temFitas ? 4 : 5}>
+                          <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                            <EnvironmentOutlined style={{ marginRight: 8 }} />
+                            Áreas
+                          </span>
+                        </Col>
+                        {temFitas && (
+                          <Col xs={24} md={3}>
+                            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                              <TagOutlined style={{ marginRight: 8 }} />
+                              Fitas
+                            </span>
+                          </Col>
+                        )}
+                        <Col xs={24} md={temFitas ? 3 : 3}>
+                          <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                            <DollarOutlined style={{ marginRight: 8 }} />
+                            Valor Unit.
+                          </span>
+                        </Col>
+                        <Col xs={24} md={temFitas ? 4 : 3}>
+                          <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                            <CalculatorOutlined style={{ marginRight: 8 }} />
+                            Total
+                          </span>
+                        </Col>
+                      </Row>
+                    );
+                  })()}
 
                 {fields.map(({ key, name, ...restField }, index) => {
                   const fruta = form.getFieldValue('frutas')?.[index];
+                  const temFitas = pedidoTemFitas();
                   
                   return (
                     <div key={key}>
                       <Row gutter={[16, 16]} align="baseline">
                         {/* Nome da Fruta */}
-                        <Col xs={24} md={4}>
+                        <Col xs={24} md={temFitas ? 4 : 5}>
                           <Form.Item
                             {...restField}
                             name={[name, 'frutaNome']}
@@ -544,7 +575,7 @@ const PrecificacaoModal = ({
                         </Col>
 
                         {/* Quantidade Real */}
-                        <Col xs={24} md={3}>
+                        <Col xs={24} md={temFitas ? 3 : 4}>
                           <Input
                             disabled
                             value={`${fruta?.quantidadeReal || '0'} ${fruta?.unidadeMedida1 || ''}`.trim()}
@@ -555,7 +586,7 @@ const PrecificacaoModal = ({
                         </Col>
 
                         {/* Quantidade Real 2 */}
-                        <Col xs={24} md={3}>
+                        <Col xs={24} md={temFitas ? 3 : 4}>
                           <Input
                             disabled
                             value={fruta?.unidadeMedida2 ? `${fruta?.quantidadeReal2 || '0'} ${fruta?.unidadeMedida2}`.trim() : ''}
@@ -567,7 +598,7 @@ const PrecificacaoModal = ({
                         </Col>
 
                         {/* Coluna de Áreas */}
-                        <Col xs={24} md={4}>
+                        <Col xs={24} md={temFitas ? 4 : 5}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             {hasLinkedAreas(fruta) ? (
                               <>
@@ -617,61 +648,63 @@ const PrecificacaoModal = ({
                           </div>
                         </Col>
 
-                        {/* Coluna de Fitas */}
-                        <Col xs={24} md={3}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            {hasLinkedFitas(fruta) ? (
-                              <>
-                                  {/* Botão com apenas ícone */}
-                                  <Tooltip title="Ver fitas">
-                                    <FormButton
-                                      icon={<EyeOutlined />}
-                                      onClick={() => handleVisualizarFitas(fruta, index)}
+                        {/* Coluna de Fitas - Só aparece se o pedido tem fitas */}
+                        {temFitas && (
+                          <Col xs={24} md={3}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              {hasLinkedFitas(fruta) ? (
+                                <>
+                                    {/* Botão com apenas ícone */}
+                                    <Tooltip title="Ver fitas">
+                                      <FormButton
+                                        icon={<EyeOutlined />}
+                                        onClick={() => handleVisualizarFitas(fruta, index)}
+                                        style={{ 
+                                          minWidth: '32px',
+                                          width: '32px',
+                                          padding: '0'
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  
+                                  {/* Badges das fitas */}
+                                  {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
+                                    <Tag 
+                                      key={idx} 
+                                      size="small" 
                                       style={{ 
-                                        minWidth: '32px',
-                                        width: '32px',
-                                        padding: '0'
+                                        fontSize: '11px',
+                                        backgroundColor: fita.cor + '20',
+                                        borderColor: fita.cor,
+                                        color: '#333',
+                                        maxWidth: '60px',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
                                       }}
-                                    />
-                                  </Tooltip>
-                                
-                                {/* Badges das fitas */}
-                                {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
-                                  <Tag 
-                                    key={idx} 
-                                    size="small" 
-                                    style={{ 
-                                      fontSize: '11px',
-                                      backgroundColor: fita.cor + '20',
-                                      borderColor: fita.cor,
-                                      color: '#333',
-                                      maxWidth: '60px',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                  >
-                                    {fita.nome}
-                                  </Tag>
-                                ))}
-                                
-                                {/* Badge "+X" se houver mais fitas */}
-                                {getLinkedFitasNames(fruta).length > 1 && (
-                                  <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
-                                    +{getLinkedFitasNames(fruta).length - 1}
-                                  </Tag>
-                                )}
-                              </>
-                            ) : (
-                              <Tag color="default" style={{ fontSize: '11px' }}>
-                                Sem fitas
-                              </Tag>
-                            )}
-                          </div>
-                        </Col>
+                                    >
+                                      {fita.nome}
+                                    </Tag>
+                                  ))}
+                                  
+                                  {/* Badge "+X" se houver mais fitas */}
+                                  {getLinkedFitasNames(fruta).length > 1 && (
+                                    <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
+                                      +{getLinkedFitasNames(fruta).length - 1}
+                                    </Tag>
+                                  )}
+                                </>
+                              ) : (
+                                <Tag color="default" style={{ fontSize: '11px' }}>
+                                  Sem fitas
+                                </Tag>
+                              )}
+                            </div>
+                          </Col>
+                        )}
 
                         {/* Valor Unitário */}
-                        <Col xs={24} md={3}>
+                        <Col xs={24} md={temFitas ? 3 : 3}>
                           <Form.Item
                             {...restField}
                             name={[name, 'valorUnitario']}
@@ -713,7 +746,7 @@ const PrecificacaoModal = ({
                         </Col>
 
                         {/* Valor Total */}
-                        <Col xs={24} md={4}>
+                        <Col xs={24} md={temFitas ? 4 : 3}>
                           <Input
                             disabled
                             value={formatarValorMonetario(fruta?.valorTotal || 0)}
@@ -902,7 +935,225 @@ const PrecificacaoModal = ({
           </Row>
         </Card>
 
-        {/* Seção 3: Resumo Financeiro */}
+        {/* Seção 3: Dados Complementares (apenas para clientes indústria) */}
+        {pedido?.cliente?.industria && (
+          <Card
+            title={
+              <Space>
+                <BuildOutlined style={{ color: "#ffffff" }} />
+                <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Complementares</span>
+              </Space>
+            }
+            style={{ 
+              marginBottom: 16,
+              border: "1px solid #e8e8e8",
+              borderRadius: "8px",
+              backgroundColor: "#f9f9f9",
+            }}
+            headStyle={{
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }}
+          >
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={5}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalendarOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Data Entrada</span>
+                    </Space>
+                  }
+                  name="indDataEntrada"
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        // Se não tem valor, é válido (campo opcional)
+                        if (!value) return Promise.resolve();
+                        
+                        // Validar se a data é válida
+                        if (!moment(value).isValid()) {
+                          return Promise.reject(new Error("Data inválida"));
+                        }
+                        
+                        return Promise.resolve();
+                      }
+                    }
+                  ]}
+                >
+                  <DatePicker
+                    style={{ 
+                      width: "100%",
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    format="DD/MM/YYYY"
+                    placeholder="Selecione a data"
+                    disabledDate={(current) => current && current > moment().endOf('day')}
+                    size="small"
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={5}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalendarOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Data Descarga</span>
+                    </Space>
+                  }
+                  name="indDataDescarga"
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        // Se não tem valor, é válido (campo opcional)
+                        if (!value) return Promise.resolve();
+                        
+                        // Validar se a data é válida
+                        if (!moment(value).isValid()) {
+                          return Promise.reject(new Error("Data inválida"));
+                        }
+                        
+                        return Promise.resolve();
+                      }
+                    }
+                  ]}
+                >
+                  <DatePicker
+                    style={{ 
+                      width: "100%",
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    format="DD/MM/YYYY"
+                    placeholder="Selecione a data"
+                    disabledDate={(current) => current && current > moment().endOf('day')}
+                    size="small"
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={4}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalculatorOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Peso Médio</span>
+                    </Space>
+                  }
+                  name="indPesoMedio"
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        // Se não tem valor, é válido (campo opcional)
+                        if (!value) return Promise.resolve();
+                        
+                        // Converter string para número se necessário
+                        const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                        
+                        if (numValue && numValue <= 0) {
+                          return Promise.reject(new Error("Peso deve ser maior que zero"));
+                        }
+                        
+                        return Promise.resolve();
+                      }
+                    }
+                  ]}
+                >
+                  <MonetaryInput
+                    placeholder="Ex: 1.250,50"
+                    addonAfter="KG"
+                    size="small"
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={4}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalculatorOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Média ML</span>
+                    </Space>
+                  }
+                  name="indMediaMililitro"
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        // Se não tem valor, é válido (campo opcional)
+                        if (!value) return Promise.resolve();
+                        
+                        // Converter string para número se necessário
+                        const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                        
+                        if (numValue && numValue <= 0) {
+                          return Promise.reject(new Error("Média deve ser maior que zero"));
+                        }
+                        
+                        return Promise.resolve();
+                      }
+                    }
+                  ]}
+                >
+                  <MonetaryInput
+                    placeholder="Ex: 500,75"
+                    addonAfter="ML"
+                    size="small"
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={6}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <NumberOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Número NF</span>
+                    </Space>
+                  }
+                  name="indNumeroNf"
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        // Se não tem valor, é válido (campo opcional)
+                        if (!value) return Promise.resolve();
+                        
+                        // Converter string para número se necessário
+                        const numValue = typeof value === 'string' ? parseInt(value) : value;
+                        
+                        if (numValue && numValue <= 0) {
+                          return Promise.reject(new Error("Número deve ser maior que zero"));
+                        }
+                        
+                        return Promise.resolve();
+                      }
+                    }
+                  ]}
+                >
+                  <InputNumber
+                    placeholder="Ex: 123456"
+                    style={{
+                      width: "100%",
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    min={1}
+                    max={999999999}
+                    controls={false}
+                    formatter={(value) => `${value}`.replace(/[^0-9]/g, '')}
+                    parser={(value) => value.replace(/[^0-9]/g, '')}
+                    size="small"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+        )}
+
+        {/* Seção 4: Resumo Financeiro */}
         <Card
           title={
             <Space>

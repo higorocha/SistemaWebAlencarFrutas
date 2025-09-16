@@ -1,6 +1,7 @@
 // src/components/pedidos/VincularFitasModal.js
 
 import React, { useState, useEffect } from "react";
+import PropTypes from "prop-types";
 import {
   Modal,
   Card,
@@ -16,6 +17,7 @@ import {
   Collapse,
   InputNumber,
   Form,
+  Alert,
 } from "antd";
 import {
   TagOutlined,
@@ -25,10 +27,17 @@ import {
   EnvironmentOutlined,
   EditOutlined,
   InfoCircleOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import moment from "moment";
+import { 
+  consolidarUsoFitas, 
+  calcularEstoqueRealDisponivel, 
+  validarFitasCompleto,
+  criarMapaEstoqueDisponivel 
+} from "../../utils/fitasValidation";
 
 const { Text } = Typography;
 const { Panel } = Collapse;
@@ -39,16 +48,24 @@ const VincularFitasModal = ({
   fruta,
   onSave,
   loading = false,
+  todasFrutasPedido = [], // ✅ NOVA PROP: Todas as frutas do pedido para validação global
+  fitasOriginaisTodasFrutas = [], // ✅ NOVA PROP: Fitas originais de todas as frutas (modo edição)
 }) => {
   const [fitasComAreas, setFitasComAreas] = useState([]);
   const [loadingDados, setLoadingDados] = useState(false);
   const [selecoesPorLote, setSelecoesPorLote] = useState({}); // {fitaId_controleBananaId: {fitaNome, areaNome, fitaCor, maxDisponivel, dataRegistro}}
   const [lotesSelecionados, setLotesSelecionados] = useState([]); // Array com seleções + quantidade/observação
   const [errosValidacao, setErrosValidacao] = useState({});
+  const [alertasEstoque, setAlertasEstoque] = useState([]); // ✅ NOVO: Alertas de validação global
+  
   // ✅ COMPATIBILIDADE: Dados originais do EditarPedidoDialog (quando disponível) ou fallback para dados atuais
   const fitasOriginaisBank = fruta?.fitasOriginaisBanco || fruta?.fitas || [];
   // ✅ DETECTAR MODO: Se há fitasOriginaisBanco, estamos no modo edição (ColheitaTab)
   const isModoEdicao = Boolean(fruta?.fitasOriginaisBanco);
+  
+  // ✅ NOVA LÓGICA: Estados para validação global
+  const [usoGlobalAtual, setUsoGlobalAtual] = useState({});
+  const [estoqueGlobalDisponivel, setEstoqueGlobalDisponivel] = useState({});
 
   // Buscar dados quando modal abrir
   useEffect(() => {
@@ -70,6 +87,9 @@ const VincularFitasModal = ({
     setSelecoesPorLote({});
     setLotesSelecionados([]);
     setErrosValidacao({});
+    setAlertasEstoque([]);
+    setUsoGlobalAtual({});
+    setEstoqueGlobalDisponivel({});
   };
 
   const fetchDados = async () => {
@@ -78,13 +98,41 @@ const VincularFitasModal = ({
       
       // Consultar o backend para obter endpoint correto
       const response = await axiosInstance.get("/controle-banana/fitas-com-areas");
-      setFitasComAreas(response.data || []);
+      const dadosFitas = response.data || [];
+      setFitasComAreas(dadosFitas);
+      
+      // ✅ NOVA LÓGICA: Inicializar validação global
+      inicializarValidacaoGlobal(dadosFitas);
       
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
       showNotification("error", "Erro", "Erro ao carregar fitas disponíveis");
     } finally {
       setLoadingDados(false);
+    }
+  };
+
+  // ✅ NOVA FUNÇÃO: Inicializar validação global
+  const inicializarValidacaoGlobal = (dadosFitas) => {
+    try {
+      // Criar mapa de estoque disponível
+      const mapaEstoque = criarMapaEstoqueDisponivel(dadosFitas);
+      setEstoqueGlobalDisponivel(mapaEstoque);
+      
+      // Consolidar uso atual de todas as frutas (exceto a fruta sendo editada)
+      const frutasParaConsolidar = todasFrutasPedido.filter((_, index) => index !== fruta?.index);
+      const usoConsolidado = consolidarUsoFitas(frutasParaConsolidar);
+      setUsoGlobalAtual(usoConsolidado);
+      
+      console.log('🔄 Validação global inicializada:', {
+        totalFrutasNoPedido: todasFrutasPedido.length,
+        frutaAtualIndex: fruta?.index,
+        frutasConsideradasParaConsolidacao: frutasParaConsolidar.length,
+        usoConsolidado,
+        mapaEstoque
+      });
+    } catch (error) {
+      console.error('Erro ao inicializar validação global:', error);
     }
   };
 
@@ -346,52 +394,109 @@ const VincularFitasModal = ({
     const lote = lotesSelecionados.find(f => f.chave === chave);
     if (!lote) return;
     
-    // ✅ NOVA LÓGICA: Usar dados ORIGINAIS quando disponíveis (EditarPedidoDialog) ou atuais (ColheitaModal)
-    const fitaExistente = fitasOriginaisBank.find(f => 
-      f.fitaBananaId === lote.fitaId && 
-      f.detalhesAreas?.some(d => d.controleBananaId === lote.controleBananaId)
+    // Atualizar quantidade primeiro
+    const lotesSelecionadosAtualizados = lotesSelecionados.map(item => 
+      item.chave === chave 
+        ? { ...item, quantidade: quantidade || 0 }
+        : item
     );
+    setLotesSelecionados(lotesSelecionadosAtualizados);
     
-    // ✅ Se não há dados originais (ColheitaModal), não somar quantidade já vinculada
-    const quantidadeJaVinculada = isModoEdicao 
-      ? (fitaExistente?.detalhesAreas?.find(d => d.controleBananaId === lote.controleBananaId)?.quantidade || 0)
-      : 0; // ColheitaModal não precisa considerar quantidade já vinculada
-    
-    const estoqueRealDisponivel = lote.maxDisponivel + quantidadeJaVinculada;
-    
-    // Validar contra estoque real (disponível + já vinculado ao pedido atual)
-    if (quantidade > estoqueRealDisponivel) {
-      if (isModoEdicao) {
-        setErrosValidacao(prev => ({
-          ...prev,
-          [chave]: `Máximo disponível: ${estoqueRealDisponivel} fitas (${lote.maxDisponivel} disponíveis + ${quantidadeJaVinculada} já vinculadas)`
-        }));
-        showNotification("warning", "Estoque Insuficiente", 
-          `Máximo ${estoqueRealDisponivel} fitas disponíveis neste lote (${lote.maxDisponivel} disponíveis + ${quantidadeJaVinculada} já vinculadas ao pedido)`);
+    // ✅ NOVA LÓGICA: Validação global em tempo real
+    validarEstoqueGlobalEmTempoReal(lotesSelecionadosAtualizados, chave);
+  };
+
+  // ✅ NOVA FUNÇÃO: Validação global em tempo real
+  const validarEstoqueGlobalEmTempoReal = (lotesSelecionadosAtuais, chaveAlterada = null) => {
+    try {
+      // Construir dados simulados da fruta atual para validação
+      const frutaAtualSimulada = {
+        ...fruta,
+        fitas: construirFitasParaValidacao(lotesSelecionadosAtuais)
+      };
+      
+      // Construir array com todas as frutas (outras frutas + fruta atual simulada)
+      const todasFrutasParaValidacao = [...todasFrutasPedido];
+      if (fruta?.index !== undefined && fruta.index >= 0) {
+        todasFrutasParaValidacao[fruta.index] = frutaAtualSimulada;
       } else {
-        // MODO CRIAÇÃO: Mensagem mais simples, sem notification
-        setErrosValidacao(prev => ({
-          ...prev,
-          [chave]: `Máximo disponível: ${lote.maxDisponivel} fitas neste lote`
-        }));
+        todasFrutasParaValidacao.push(frutaAtualSimulada);
       }
-    } else {
-      // Limpar erro
-      setErrosValidacao(prev => {
-        const novos = { ...prev };
-        delete novos[chave];
-        return novos;
+      
+      // Executar validação completa
+      const resultadoValidacao = validarFitasCompleto(
+        todasFrutasParaValidacao,
+        fitasComAreas,
+        fitasOriginaisTodasFrutas,
+        isModoEdicao
+      );
+      
+      // Atualizar alertas globais
+      setAlertasEstoque(resultadoValidacao.mensagensErro || []);
+      
+      // Atualizar erros específicos do lote alterado
+      if (chaveAlterada && resultadoValidacao.conflitos) {
+        const controleBananaId = chaveAlterada.split('_')[1];
+        const conflito = resultadoValidacao.conflitos[controleBananaId];
+        
+        if (conflito) {
+          const loteAtual = lotesSelecionadosAtuais.find(l => l.chave === chaveAlterada);
+          if (loteAtual) {
+            setErrosValidacao(prev => ({
+              ...prev,
+              [chaveAlterada]: `Conflito de estoque: ${conflito.quantidadeUsada} fitas solicitadas > ${conflito.estoqueDisponivel} disponíveis (excesso: ${conflito.excesso})`
+            }));
+          }
+        } else {
+          // Limpar erro se não há conflito
+          setErrosValidacao(prev => {
+            const novos = { ...prev };
+            delete novos[chaveAlterada];
+            return novos;
+          });
+        }
+      }
+      
+      console.log('🔍 Validação em tempo real:', {
+        chaveAlterada,
+        resultadoValidacao: resultadoValidacao.valido,
+        conflitos: Object.keys(resultadoValidacao.conflitos || {}),
+        mensagensErro: resultadoValidacao.mensagensErro?.length || 0
       });
+      
+    } catch (error) {
+      console.error('Erro na validação em tempo real:', error);
     }
+  };
+
+  // ✅ NOVA FUNÇÃO: Construir dados de fitas para validação
+  const construirFitasParaValidacao = (lotesSelecionadosAtuais) => {
+    const fitasPorFitaBananaId = {};
     
-    // Atualizar quantidade
-    setLotesSelecionados(prev => 
-      prev.map(item => 
-        item.chave === chave 
-          ? { ...item, quantidade: quantidade || 0 }
-          : item
-      )
-    );
+    lotesSelecionadosAtuais.forEach(selecao => {
+      const fitaId = selecao.fitaId;
+      
+      if (!fitasPorFitaBananaId[fitaId]) {
+        fitasPorFitaBananaId[fitaId] = {
+          fitaBananaId: fitaId,
+          quantidadeFita: 0,
+          observacoes: selecao.observacoes || '',
+          detalhesAreas: [],
+          _fitaNome: selecao.fitaNome,
+          _fitaCor: selecao.fitaCor
+        };
+      }
+      
+      fitasPorFitaBananaId[fitaId].quantidadeFita += selecao.quantidade;
+      fitasPorFitaBananaId[fitaId].detalhesAreas.push({
+        fitaBananaId: fitaId,
+        areaId: selecao.areaId,
+        quantidade: selecao.quantidade,
+        controleBananaId: selecao.controleBananaId
+      });
+    });
+    
+    return Object.values(fitasPorFitaBananaId);
   };
 
   const handleObservacoesChange = (chave, observacoes) => {
@@ -418,44 +523,55 @@ const VincularFitasModal = ({
       return;
     }
 
-    // ✅ NOVA VALIDAÇÃO: Usar dados ORIGINAIS quando disponíveis ou atuais quando no ColheitaModal
-    const errosEstoque = {};
-    let temErroEstoque = false;
-
-    lotesSelecionados.forEach(selecao => {
-      // Calcular estoque real considerando a origem dos dados
-      const fitaExistente = fitasOriginaisBank.find(f => 
-        f.fitaBananaId === selecao.fitaId && 
-        f.detalhesAreas?.some(d => d.controleBananaId === selecao.controleBananaId)
+    // ✅ NOVA VALIDAÇÃO GLOBAL: Validar considerando todas as frutas do pedido
+    try {
+      // Construir dados simulados da fruta atual
+      const frutaAtualSimulada = {
+        ...fruta,
+        fitas: construirFitasParaValidacao(lotesSelecionados)
+      };
+      
+      // Construir array com todas as frutas (outras frutas + fruta atual simulada)
+      const todasFrutasParaValidacao = [...todasFrutasPedido];
+      if (fruta?.index !== undefined && fruta.index >= 0) {
+        todasFrutasParaValidacao[fruta.index] = frutaAtualSimulada;
+      } else {
+        todasFrutasParaValidacao.push(frutaAtualSimulada);
+      }
+      
+      // Executar validação completa
+      const resultadoValidacao = validarFitasCompleto(
+        todasFrutasParaValidacao,
+        fitasComAreas,
+        fitasOriginaisTodasFrutas,
+        isModoEdicao
       );
       
-      // ✅ Se há dados originais (EditarPedidoDialog), considerar quantidade já vinculada
-      const quantidadeJaVinculada = isModoEdicao 
-        ? (fitaExistente?.detalhesAreas?.find(d => d.controleBananaId === selecao.controleBananaId)?.quantidade || 0)
-        : 0; // ColheitaModal não precisa considerar
+      console.log('🔍 Validação final antes do save:', {
+        valido: resultadoValidacao.valido,
+        conflitos: resultadoValidacao.conflitos,
+        mensagensErro: resultadoValidacao.mensagensErro
+      });
       
-      const estoqueRealDisponivel = selecao.maxDisponivel + quantidadeJaVinculada;
-      
-      if (selecao.quantidade > estoqueRealDisponivel) {
-        if (isModoEdicao) {
-          errosEstoque[selecao.chave] = `Máximo disponível: ${estoqueRealDisponivel} fitas (${selecao.maxDisponivel} disponíveis + ${quantidadeJaVinculada} já vinculadas)`;
-        } else {
-          errosEstoque[selecao.chave] = `Máximo disponível: ${selecao.maxDisponivel} fitas neste lote`;
-        }
-        temErroEstoque = true;
+      // Se há conflitos, não permitir salvar
+      if (!resultadoValidacao.valido) {
+        setAlertasEstoque(resultadoValidacao.mensagensErro || []);
+        
+        showNotification(
+          "error", 
+          "Conflito de Estoque Detectado", 
+          `${resultadoValidacao.mensagensErro?.length || 0} conflito(s) encontrado(s). Verifique os alertas e ajuste as quantidades.`
+        );
+        return;
       }
-    });
-
-    // Atualizar erros de validação
-    setErrosValidacao(errosEstoque);
-
-    // Se há erros de estoque, não permitir salvar
-    if (temErroEstoque) {
-      showNotification("error", "Erro de Validação", "Corrija as quantidades com erro de estoque antes de continuar");
+      
+    } catch (error) {
+      console.error('Erro na validação final:', error);
+      showNotification("error", "Erro", "Erro interno na validação. Tente novamente.");
       return;
     }
 
-    // Validar erros de validação existentes
+    // Validar erros de validação locais existentes
     if (Object.keys(errosValidacao).length > 0) {
       showNotification("error", "Erro de Validação", "Corrija as quantidades com erro antes de continuar");
       return;
@@ -565,6 +681,36 @@ const VincularFitasModal = ({
           </Col>
         </Row>
       </Card>
+
+      {/* ✅ NOVA SEÇÃO: Alertas de Validação Global */}
+      {alertasEstoque.length > 0 && (
+        <Alert
+          message="⚠️ Conflitos de Estoque Detectados"
+          description={
+            <div>
+              <Text strong style={{ color: '#d32f2f' }}>
+                As seleções atuais extrapolam o estoque disponível:
+              </Text>
+              <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
+                {alertasEstoque.map((alerta, index) => (
+                  <li key={index} style={{ marginBottom: 4, color: '#d32f2f' }}>
+                    {alerta}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          }
+          type="error"
+          showIcon
+          icon={<WarningOutlined />}
+          style={{ 
+            marginBottom: 16,
+            border: '2px solid #ff4d4f',
+            backgroundColor: '#fff2f0'
+          }}
+          closable={false}
+        />
+      )}
 
       {/* PRIMEIRA SEÇÃO: Seleção de Fitas por Área */}
       <Card
@@ -1050,6 +1196,16 @@ const VincularFitasModal = ({
       </div>
     </Modal>
   );
+};
+
+VincularFitasModal.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  fruta: PropTypes.object,
+  onSave: PropTypes.func.isRequired,
+  loading: PropTypes.bool,
+  todasFrutasPedido: PropTypes.array, // ✅ NOVA PROP
+  fitasOriginaisTodasFrutas: PropTypes.array, // ✅ NOVA PROP
 };
 
 export default VincularFitasModal;

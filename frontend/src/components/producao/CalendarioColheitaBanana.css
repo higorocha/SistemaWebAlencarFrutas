@@ -6,19 +6,25 @@
 }
 
 .semana-item {
-  border-radius: 8px;
-  padding: 12px;
-  transition: all 0.2s ease;
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.3s ease;
   position: relative;
-  min-height: 80px;
+  min-height: 100px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .semana-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.semana-item.com-dados:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
 }
 
 .semana-item.com-dados {
@@ -178,18 +184,21 @@
 /* Indicador de semana atual */
 .semana-atual {
   position: relative;
+  border-color: #059669 !important;
+  border-width: 3px !important;
 }
 
 .semana-atual::before {
   content: '';
   position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
   border: 2px solid #059669;
-  border-radius: 10px;
+  border-radius: 15px;
   animation: pulse 2s infinite;
+  opacity: 0.6;
 }
 
 @keyframes pulse {
@@ -201,5 +210,33 @@
   }
   100% {
     box-shadow: 0 0 0 0 rgba(5, 150, 105, 0);
+  }
+}
+
+/* Animações para status de colheita */
+@keyframes shimmer {
+  0% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-3px);
+  }
+  60% {
+    transform: translateY(-2px);
   }
 }

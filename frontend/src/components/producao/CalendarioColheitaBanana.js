@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Typography, Row, Col, Tooltip, Badge, Spin, Alert, Button, Modal } from 'antd';
+import { Card, Typography, Row, Col, Tooltip, Badge, Spin, Alert, Button } from 'antd';
 import { CalendarOutlined, LeftOutlined, RightOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useTheme } from '@mui/material/styles';
 import axiosInstance from '../../api/axiosConfig';
+import { obterNumeroSemana, formatarDataCurta, calcularStatusMaturacao } from '../../utils/dateUtils';
+import ModalDetalhesSemana from './ModalDetalhesSemana';
 import './CalendarioColheitaBanana.css';
 
 const { Text, Title } = Typography;
@@ -18,26 +20,28 @@ const CalendarioColheitaBanana = () => {
     semana: null
   });
 
-  // Cores melhoradas para os diferentes status
+
+
+  // Cores melhoradas para os diferentes status - mais visíveis e contrastantes
   const coresStatus = {
-    maturacao: '#f0f9ff', // Azul muito claro - ainda em maturação
-    colheita: '#f0fdf4', // Verde muito claro - período ideal de colheita
-    alerta: '#fefce8', // Amarelo claro - período de alerta
-    vencido: '#fef2f2' // Vermelho muito claro - fruta pode apodrecer
+    maturacao: '#dbeafe', // Azul mais saturado - ainda em maturação
+    colheita: '#dcfce7', // Verde mais saturado - período ideal de colheita
+    alerta: '#fef3c7', // Amarelo mais saturado - período de alerta
+    vencido: '#fecaca' // Vermelho mais saturado - fruta pode apodrecer
   };
 
   const coresBorda = {
-    maturacao: '#0ea5e9', // Azul mais vibrante
-    colheita: '#22c55e', // Verde mais vibrante
-    alerta: '#eab308', // Amarelo mais vibrante
-    vencido: '#ef4444' // Vermelho mais vibrante
+    maturacao: '#3b82f6', // Azul mais vibrante
+    colheita: '#16a34a', // Verde mais vibrante
+    alerta: '#d97706', // Amarelo mais vibrante
+    vencido: '#dc2626' // Vermelho mais vibrante
   };
 
   const coresTexto = {
-    maturacao: '#0369a1', // Azul escuro
-    colheita: '#15803d', // Verde escuro
-    alerta: '#a16207', // Amarelo escuro
-    vencido: '#dc2626' // Vermelho escuro
+    maturacao: '#1e40af', // Azul mais escuro
+    colheita: '#166534', // Verde mais escuro
+    alerta: '#92400e', // Amarelo mais escuro
+    vencido: '#991b1b' // Vermelho mais escuro
   };
 
   // Função para verificar se deve mostrar a previsão (filtro de 120 dias para datas futuras)
@@ -56,20 +60,6 @@ const CalendarioColheitaBanana = () => {
     return diasDesdeHoje <= 120;
   };
 
-  const calcularTempoDesdeCadastro = (dataRegistro, dataSemana) => {
-    const dataInicio = new Date(dataRegistro);
-    const dataFim = new Date(dataSemana);
-    
-    // Calcular diferença em dias
-    const diferencaMs = dataFim.getTime() - dataInicio.getTime();
-    const dias = Math.floor(diferencaMs / (1000 * 60 * 60 * 24));
-    const semanas = Math.floor(dias / 7);
-    
-    // Se dias for negativo, retornar 0 semanas
-    const semanasCorrigidas = Math.max(0, semanas);
-    
-    return { dias, semanas: semanasCorrigidas };
-  };
 
   useEffect(() => {
     carregarDadosColheita();
@@ -170,17 +160,7 @@ const CalendarioColheitaBanana = () => {
       }).map(previsao => {
         // Calcular status dinamicamente baseado na data da semana
         const diasDesdeRegistro = Math.floor((semana.fim.getTime() - previsao.dataRegistro.getTime()) / (1000 * 60 * 60 * 24));
-        
-        let status;
-        if (diasDesdeRegistro < 100) {
-          status = 'maturacao';
-        } else if (diasDesdeRegistro <= 115) {
-          status = 'colheita';
-        } else if (diasDesdeRegistro <= 120) {
-          status = 'alerta';
-        } else {
-          status = 'vencido';
-        }
+        const status = calcularStatusMaturacao(diasDesdeRegistro);
         
         return {
           ...previsao,
@@ -196,24 +176,56 @@ const CalendarioColheitaBanana = () => {
   }, [semanasDoAno, dadosColheita]);
 
   const obterCorSemana = (dados) => {
-    if (dados.length === 0) return { background: '#fafafa', border: '#d9d9d9' };
-    
+    if (dados.length === 0) return {
+      background: '#f8f9fa',
+      border: '#dee2e6',
+      status: 'vazio',
+      icon: '📅',
+      quantidadeColheita: 0
+    };
+
     const statusPrioridade = { vencido: 4, alerta: 3, colheita: 2, maturacao: 1 };
-    const statusSemana = dados.reduce((prev, atual) => 
+    const statusSemana = dados.reduce((prev, atual) =>
       statusPrioridade[atual.status] > statusPrioridade[prev.status] ? atual : prev
     );
-    
+
+    // Calcular quantidade total de fitas com status de colheita
+    const quantidadeColheita = dados
+      .filter(item => item.status === 'colheita')
+      .reduce((total, item) => total + item.quantidade, 0);
+
+    const iconesStatus = {
+      maturacao: '🌱',
+      colheita: '🍌',
+      alerta: '⚠️',
+      vencido: '🚨'
+    };
+
     return {
       background: coresStatus[statusSemana.status],
-      border: coresBorda[statusSemana.status]
+      border: coresBorda[statusSemana.status],
+      status: statusSemana.status,
+      icon: iconesStatus[statusSemana.status],
+      quantidadeColheita: quantidadeColheita
     };
   };
 
-  const formatarData = (data) => {
-    return data.toLocaleDateString('pt-BR', { 
-      day: '2-digit', 
-      month: '2-digit' 
-    });
+
+  // Função para verificar se é a semana atual
+  const isSemanaAtual = (semana) => {
+    const hoje = new Date();
+    const inicioSemana = new Date(semana.inicio);
+    const fimSemana = new Date(semana.fim);
+    
+    // Normalizar datas para comparar apenas o dia (ignorar horário)
+    const hojeNormalizado = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    const inicioNormalizado = new Date(inicioSemana.getFullYear(), inicioSemana.getMonth(), inicioSemana.getDate());
+    const fimNormalizado = new Date(fimSemana.getFullYear(), fimSemana.getMonth(), fimSemana.getDate());
+    
+    const ehAtual = hojeNormalizado >= inicioNormalizado && hojeNormalizado <= fimNormalizado;
+    
+    
+    return ehAtual;
   };
 
   const navegarAno = (direcao) => {
@@ -246,116 +258,138 @@ const CalendarioColheitaBanana = () => {
     });
   };
 
-  const formatarDataCadastro = (data) => {
-    return new Date(data).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
 
   const obterTooltipContent = (dados, dataSemana) => {
     if (dados.length === 0) return 'Sem previsões para esta semana';
+    
+    // Agrupar dados apenas por área
+    const dadosAgrupados = dados.reduce((acc, item) => {
+      if (!acc[item.areaNome]) {
+        acc[item.areaNome] = {
+          areaNome: item.areaNome,
+          fitas: []
+        };
+      }
+      acc[item.areaNome].fitas.push(item);
+      return acc;
+    }, {});
+    
+    const iconesStatus = {
+      maturacao: '🌱',
+      colheita: '🍌',
+      alerta: '⚠️',
+      vencido: '🚨'
+    };
+    
+    // Prioridade dos status (maior número = maior prioridade)
+    const prioridadeStatus = { vencido: 4, alerta: 3, colheita: 2, maturacao: 1 };
     
     return (
       <div style={{ 
         backgroundColor: '#ffffff', 
         color: '#333333',
-        padding: '8px',
-        borderRadius: '6px',
-        maxWidth: '280px'
+        padding: '10px',
+        borderRadius: '8px',
+        maxWidth: '300px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
       }}>
         <div style={{ 
-          fontWeight: '600', 
-          marginBottom: '8px', 
+          fontWeight: '700', 
+          marginBottom: '10px', 
           color: '#059669',
-          fontSize: '13px'
+          fontSize: '13px',
+          textAlign: 'center',
+          borderBottom: '1px solid #f0f0f0',
+          paddingBottom: '6px'
         }}>
-          Previsões da Semana
+          📅 Semana {dataSemana ? obterNumeroSemana(dataSemana) : ''}
         </div>
-        {dados.map((item, index) => {
-          const tempoDesdeCadastro = calcularTempoDesdeCadastro(item.dataRegistro, dataSemana);
-          const tempoTexto = tempoDesdeCadastro.semanas > 0 
-            ? `${tempoDesdeCadastro.semanas} semana${tempoDesdeCadastro.semanas !== 1 ? 's' : ''}`
-            : `${tempoDesdeCadastro.dias} dia${tempoDesdeCadastro.dias !== 1 ? 's' : ''}`;
+        
+        {Object.values(dadosAgrupados).map((grupo, index) => {
+          // Agrupar fitas por status dentro da área
+          const fitasPorStatus = grupo.fitas.reduce((acc, fita) => {
+            if (!acc[fita.status]) {
+              acc[fita.status] = [];
+            }
+            acc[fita.status].push(fita);
+            return acc;
+          }, {});
+          
+          // Determinar o status de maior prioridade para a cor de fundo
+          const statusPrincipal = grupo.fitas.reduce((prev, atual) => 
+            prioridadeStatus[atual.status] > prioridadeStatus[prev.status] ? atual : prev
+          );
+          
+          const totalFitas = grupo.fitas.reduce((sum, fita) => sum + fita.quantidade, 0);
           
           return (
             <div key={index} style={{ 
-              marginBottom: '6px', 
-              padding: '10px 12px',
-              backgroundColor: coresStatus[item.status],
-              border: `1px solid ${coresBorda[item.status]}`,
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              minHeight: '40px'
+              marginBottom: '10px', 
+              padding: '12px',
+              backgroundColor: coresStatus[statusPrincipal.status],
+              border: `2px solid ${coresBorda[statusPrincipal.status]}`,
+              borderRadius: '8px'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1' }}>
-                <div style={{ 
-                  display: 'inline-block', 
-                  width: '16px', 
-                  height: '16px', 
-                  backgroundColor: item.fitaCor, 
-                  borderRadius: '50%', 
-                  border: '2px solid #ffffff',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                  flexShrink: 0
-                }} />
-                <div>
-                  <div style={{ 
-                    fontWeight: '600', 
-                    fontSize: '13px',
-                    color: coresTexto[item.status],
-                    lineHeight: '1.2'
-                  }}>
-                    {item.fitaNome}
-                  </div>
-                  <div style={{ 
-                    fontSize: '10px',
-                    color: coresTexto[item.status],
-                    opacity: 0.8,
-                    marginTop: '2px'
-                  }}>
-                    {formatarDataCadastro(item.dataRegistro)}
-                  </div>
-                </div>
+              {/* Nome da área com ícone do status principal */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px'
+              }}>
+                <span style={{ fontSize: '18px' }}>
+                  {iconesStatus[statusPrincipal.status]}
+                </span>
+                <span style={{
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  color: coresTexto[statusPrincipal.status]
+                }}>
+                  {grupo.areaNome}
+                </span>
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  color: coresTexto[statusPrincipal.status],
+                  opacity: 0.8,
+                  marginLeft: 'auto'
+                }}>
+                  {totalFitas} fitas
+                </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ 
-                    fontWeight: '700',
-                    fontSize: '14px',
-                    color: coresTexto[item.status],
-                    lineHeight: '1.2'
-                  }}>
-                    {item.quantidade}
-                  </div>
-                  <div style={{ 
-                    fontSize: '10px',
-                    color: coresTexto[item.status],
-                    opacity: 0.8
-                  }}>
-                    fitas
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ 
-                    fontWeight: '600',
-                    fontSize: '12px',
-                    color: coresTexto[item.status],
-                    lineHeight: '1.2'
-                  }}>
-                    {tempoTexto}
-                  </div>
-                  <div style={{ 
-                    fontSize: '10px',
-                    color: coresTexto[item.status],
-                    opacity: 0.8
-                  }}>
-                    desde cadastro
-                  </div>
-                </div>
+              
+              {/* Lista de status com fitas */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '6px',
+                marginLeft: '26px'
+              }}>
+                {Object.entries(fitasPorStatus).map(([status, fitas]) => {
+                  const quantidadeStatus = fitas.reduce((sum, fita) => sum + fita.quantidade, 0);
+                  return (
+                    <div key={status} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      padding: '4px 8px',
+                      borderRadius: '12px',
+                      border: `1px solid ${coresBorda[status]}`,
+                      fontSize: '11px'
+                    }}>
+                      <span style={{ fontSize: '12px' }}>
+                        {iconesStatus[status]}
+                      </span>
+                      <span style={{
+                        fontWeight: '600',
+                        color: coresTexto[status]
+                      }}>
+                        {quantidadeStatus}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -459,7 +493,7 @@ const CalendarioColheitaBanana = () => {
                 borderRadius: '4px'
               }} />
               <Text style={{ color: coresTexto.alerta, fontWeight: '500' }}>
-                ⚠️ Alerta (116-120 dias)
+                ⚠️ Alerta (116-125 dias)
               </Text>
             </div>
           </Col>
@@ -473,7 +507,7 @@ const CalendarioColheitaBanana = () => {
                 borderRadius: '4px'
               }} />
               <Text style={{ color: coresTexto.vencido, fontWeight: '500' }}>
-                🚨 Risco (+120 dias)
+                🚨 Risco (+125 dias)
               </Text>
             </div>
           </Col>
@@ -526,6 +560,7 @@ const CalendarioColheitaBanana = () => {
           {semanasComDados.map((semana, index) => {
             const corSemana = obterCorSemana(semana.dados);
             const temDados = semana.dados.length > 0;
+            const ehSemanaAtual = isSemanaAtual(semana);
             
             return (
               <Tooltip
@@ -534,27 +569,200 @@ const CalendarioColheitaBanana = () => {
                 placement="top"
               >
                 <div
-                  className={`semana-item ${temDados ? 'com-dados' : 'sem-dados'}`}
+                  className={`semana-item ${temDados ? 'com-dados' : 'sem-dados'} ${ehSemanaAtual ? 'semana-atual' : ''}`}
                   style={{
-                    backgroundColor: corSemana.background,
-                    borderColor: corSemana.border,
-                    borderWidth: '2px',
+                    backgroundColor: ehSemanaAtual ? '#f0fdf4' : corSemana.background,
+                    borderColor: ehSemanaAtual ? '#059669' : corSemana.border,
+                    borderWidth: ehSemanaAtual ? '4px' : '2px',
                     borderStyle: 'solid',
                     cursor: temDados ? 'pointer' : 'default',
                     opacity: loading ? 0.6 : 1,
-                    transition: 'opacity 0.3s ease'
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    boxShadow: ehSemanaAtual ? '0 6px 20px rgba(5, 150, 105, 0.4)' : 'none',
+                    transform: ehSemanaAtual ? 'scale(1.02)' : 'scale(1)',
+                    zIndex: ehSemanaAtual ? 10 : 1
                   }}
                   onClick={() => temDados && abrirModalSemana(semana)}
                 >
-                  <div className="semana-numero">
-                    {semana.numero}
+                  {/* Indicador de semana atual */}
+                  {ehSemanaAtual && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      width: '16px',
+                      height: '16px',
+                      backgroundColor: '#059669',
+                      borderRadius: '50%',
+                      border: '3px solid #ffffff',
+                      animation: 'pulse 2s infinite',
+                      boxShadow: '0 2px 8px rgba(5, 150, 105, 0.5)',
+                      zIndex: 11
+                    }} />
+                  )}
+                  
+                  {/* Cabeçalho com ícone e número */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <span style={{ fontSize: '16px' }}>
+                        {corSemana.icon}
+                      </span>
+                      <span style={{
+                        fontWeight: '700',
+                        fontSize: '14px',
+                        color: corSemana.status !== 'vazio' ? coresTexto[corSemana.status] : '#6b7280'
+                      }}>
+                        Sem {semana.numero}
+                      </span>
+                    </div>
+                    {temDados && (
+                      <div className="semana-indicador">
+                        <Badge count={semana.dados.length} size="small" />
+                      </div>
+                    )}
                   </div>
-                  <div className="semana-datas">
-                    {formatarData(semana.inicio)} - {formatarData(semana.fim)}
+                  
+                  {/* Datas */}
+                  <div style={{
+                    fontSize: '11px',
+                    color: corSemana.status !== 'vazio' ? coresTexto[corSemana.status] : '#6b7280',
+                    marginBottom: '4px',
+                    opacity: 0.8
+                  }}>
+                    {formatarDataCurta(semana.inicio)} - {formatarDataCurta(semana.fim)}
                   </div>
-                  {temDados && (
-                    <div className="semana-indicador">
-                      <Badge count={semana.dados.length} size="small" />
+                  
+                  {/* Status da fase */}
+                  {corSemana.status !== 'vazio' && (
+                    <div style={{
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      color: coresTexto[corSemana.status],
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      marginTop: '4px'
+                    }}>
+                      {corSemana.status === 'maturacao' && 'Maturação'}
+                      {corSemana.status === 'colheita' && (
+                        <div style={{ 
+                          display: 'flex', 
+                          flexDirection: 'row', 
+                          alignItems: 'center', 
+                          gap: '6px',
+                          position: 'relative',
+                          justifyContent: 'center',
+                          flexWrap: 'wrap'
+                        }}>
+                          {/* Efeito de brilho animado */}
+                          <div style={{
+                            position: 'absolute',
+                            top: '-2px',
+                            left: '-2px',
+                            right: '-2px',
+                            bottom: '-2px',
+                            background: 'linear-gradient(45deg, #16a34a, #22c55e, #16a34a)',
+                            borderRadius: '8px',
+                            opacity: 0.3,
+                            animation: 'shimmer 2s ease-in-out infinite alternate'
+                          }} />
+                          
+                          {/* Container principal com efeito de sombra */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 8px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            borderRadius: '12px',
+                            border: '2px solid #16a34a',
+                            boxShadow: '0 2px 8px rgba(22, 163, 74, 0.3)',
+                            position: 'relative',
+                            zIndex: 1
+                          }}>
+                            {/* Ícone de banana com animação */}
+                            <span style={{ 
+                              fontSize: '12px',
+                              animation: 'bounce 1.5s ease-in-out infinite'
+                            }}>
+                              🍌
+                            </span>
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: '700',
+                              color: '#16a34a',
+                              textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
+                            }}>
+                              Colheita
+                            </span>
+                          </div>
+                          
+                          {/* Badge com quantidade de fitas */}
+                          {corSemana.quantidadeColheita > 0 && (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 6px',
+                              backgroundColor: 'linear-gradient(135deg, #dcfce7, #bbf7d0)',
+                              borderRadius: '10px',
+                              border: '1px solid #16a34a',
+                              boxShadow: '0 1px 4px rgba(22, 163, 74, 0.2)',
+                              position: 'relative',
+                              zIndex: 1
+                            }}>
+                              <span style={{
+                                fontSize: '8px',
+                                fontWeight: '600',
+                                color: '#166534'
+                              }}>
+                                {corSemana.quantidadeColheita}
+                              </span>
+                              <span style={{
+                                fontSize: '8px',
+                                fontWeight: '500',
+                                color: '#166534',
+                                opacity: 0.8
+                              }}>
+                                Fitas
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {corSemana.status === 'alerta' && 'Alerta'}
+                      {corSemana.status === 'vencido' && 'Risco'}
+                    </div>
+                  )}
+                  
+                  {/* Indicador de semana atual */}
+                  {ehSemanaAtual && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '4px',
+                      right: '4px',
+                      fontSize: '9px',
+                      fontWeight: '700',
+                      color: '#ffffff',
+                      backgroundColor: '#059669',
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      border: '2px solid #ffffff',
+                      boxShadow: '0 2px 6px rgba(5, 150, 105, 0.4)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      zIndex: 11
+                    }}>
+                      ⭐ ATUAL
                     </div>
                   )}
                 </div>
@@ -572,7 +780,7 @@ const CalendarioColheitaBanana = () => {
             <p>• Cada semana mostra as previsões de colheita baseadas nas fitas cadastradas</p>
             <p>• As cores indicam o status de maturação das bananas</p>
             <p>• Passe o mouse sobre as semanas para ver detalhes</p>
-            <p>• O cálculo é baseado em 100-115 dias após o cadastro da fita</p>
+            <p>• O cálculo é baseado em 100-125 dias após o cadastro da fita</p>
           </div>
         }
         type="info"
@@ -582,323 +790,12 @@ const CalendarioColheitaBanana = () => {
       </Card>
 
       {/* Modal de Detalhes da Semana */}
-      <Modal
-        title={
-          <span style={{ 
-            color: "#ffffff", 
-            fontWeight: "600", 
-            fontSize: "16px",
-            backgroundColor: "#059669",
-            padding: "12px 16px",
-            margin: "-20px -24px 0 -24px",
-            display: "block",
-            borderRadius: "8px 8px 0 0",
-          }}>
-            <CalendarOutlined style={{ marginRight: 8 }} />
-            Detalhes da Semana {modalSemana.semana?.numero}
-          </span>
-        }
-        open={modalSemana.visible}
-        onCancel={fecharModalSemana}
-        footer={null}
-        width="90%"
-        style={{ maxWidth: 1200 }}
-        styles={{
-          body: {
-            maxHeight: "calc(100vh - 200px)",
-            overflowY: "auto",
-            overflowX: "hidden",
-            padding: "20px",
-          },
-          header: {
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            padding: 0,
-          }
-        }}
-        centered
-        destroyOnClose
-      >
-        {modalSemana.semana && (
-          <div>
-            {/* Resumo da Semana */}
-            <Card
-              title={
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "12px",
-                  color: "#ffffff"
-                }}>
-                  <CalendarOutlined style={{ color: "#ffffff" }} />
-                  <span style={{ color: "#ffffff", fontWeight: "600" }}>Resumo da Semana</span>
-                </div>
-              }
-              style={{ 
-                marginBottom: 16,
-                border: "1px solid #e8e8e8",
-                borderRadius: "8px",
-                backgroundColor: "#f9f9f9",
-              }}
-              headStyle={{
-                backgroundColor: "#059669",
-                borderBottom: "2px solid #047857",
-                color: "#ffffff",
-                borderRadius: "8px 8px 0 0",
-              }}
-            >
-              <Row gutter={16}>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                    <Text strong style={{ color: '#059669', fontSize: '18px' }}>
-                      {formatarData(modalSemana.semana.inicio)}
-                    </Text>
-                    <br />
-                    <Text style={{ fontSize: '12px', color: '#666' }}>
-                      Data Início
-                    </Text>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                    <Text strong style={{ color: '#059669', fontSize: '18px' }}>
-                      {formatarData(modalSemana.semana.fim)}
-                    </Text>
-                    <br />
-                    <Text style={{ fontSize: '12px', color: '#666' }}>
-                      Data Fim
-                    </Text>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                    <div>
-                      <Text strong style={{ color: '#059669', fontSize: '18px' }}>
-                        {modalSemana.dados
-                          .filter(item => ['colheita', 'alerta', 'vencido'].includes(item.status))
-                          .reduce((total, item) => total + item.quantidade, 0)
-                        }
-                      </Text>
-                      <Text style={{ color: '#999', fontSize: '12px', fontWeight: '400', marginLeft: '4px' }}>
-                        Fitas
-                      </Text>
-                    </div>
-                    <Text style={{ fontSize: '12px', color: '#666' }}>
-                      Previsão de Colheita
-                    </Text>
-                  </div>
-                </Col>
-              </Row>
-            </Card>
-
-            {/* Lista de Fitas */}
-            <Card
-              title={
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "12px",
-                  width: "100%",
-                  padding: "0 4px"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#ffffff" }}>
-                    <InfoCircleOutlined style={{ color: "#ffffff" }} />
-                    <span style={{ color: "#ffffff", fontWeight: "600" }}>
-                      Fitas da Semana
-                    </span>
-                  </div>
-                  <Badge
-                    count={modalSemana.dados.length}
-                    style={{
-                      backgroundColor: "rgba(255,255,255,0.9)",
-                      color: "#059669",
-                      fontWeight: "600",
-                    }}
-                  />
-                </div>
-              }
-              headStyle={{
-                backgroundColor: "#059669",
-                borderBottom: "2px solid #047857",
-                color: "#ffffff",
-                borderRadius: "8px 8px 0 0",
-              }}
-              bodyStyle={{
-                padding: "16px",
-                height: "400px",
-                overflowY: "auto",
-                overflowX: "hidden",
-              }}
-            >
-              <div style={{ 
-                display: "flex", 
-                flexDirection: "column", 
-                gap: "8px",
-                width: "100%",
-                paddingRight: "4px"
-              }}>
-                {/* Cabeçalho da tabela */}
-                <div style={{
-                  padding: "8px 12px",
-                  backgroundColor: "#fafafa",
-                  border: "1px solid #f0f0f0",
-                  borderRadius: "4px",
-                  marginBottom: "4px",
-                  fontSize: "13px",
-                  fontWeight: "700",
-                  color: "#333",
-                  display: "flex",
-                  alignItems: "center"
-                }}>
-                  <div style={{ flex: "2 1 0", minWidth: "0", textAlign: "left" }}>
-                    <strong>Fita</strong>
-                  </div>
-                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Área</strong>
-                  </div>
-                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Quantidade</strong>
-                  </div>
-                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Status</strong>
-                  </div>
-                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Tempo</strong>
-                  </div>
-                </div>
-
-                {/* Lista de fitas */}
-                {modalSemana.dados.map((item, index) => {
-                  const tempoDesdeCadastro = calcularTempoDesdeCadastro(item.dataRegistro, modalSemana.semana.fim);
-                  const tempoTexto = tempoDesdeCadastro.semanas > 0 
-                    ? `${tempoDesdeCadastro.semanas} semana${tempoDesdeCadastro.semanas !== 1 ? 's' : ''}`
-                    : `${tempoDesdeCadastro.dias} dia${tempoDesdeCadastro.dias !== 1 ? 's' : ''}`;
-                  
-                  return (
-                    <div 
-                      key={index}
-                      style={{
-                        padding: "12px",
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #e8e8e8",
-                        borderRadius: "6px",
-                        marginBottom: "4px",
-                        transition: "all 0.2s ease",
-                        cursor: "default",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f9f9f9";
-                        e.currentTarget.style.borderColor = "#059669";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "#ffffff";
-                        e.currentTarget.style.borderColor = "#e8e8e8";
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center" }}>
-                        {/* Fita */}
-                        <div style={{ flex: "2 1 0", minWidth: "0", textAlign: "left" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <div 
-                              style={{ 
-                                width: '16px', 
-                                height: '16px', 
-                                backgroundColor: item.fitaCor,
-                                borderRadius: '50%',
-                                border: '2px solid #fff',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                flexShrink: 0
-                              }}
-                            />
-                            <div>
-                              <Text strong style={{ color: "#333", fontSize: "14px", display: "block" }}>
-                                {item.fitaNome}
-                              </Text>
-                              <Text style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                                📅 {formatarDataCadastro(item.dataRegistro)}
-                              </Text>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Área */}
-                        <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                          <Text style={{ fontSize: '12px', color: '#666' }}>
-                            {item.areaNome}
-                          </Text>
-                        </div>
-
-                        {/* Quantidade */}
-                        <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                          <Text strong style={{ 
-                            fontSize: '16px', 
-                            color: '#059669' 
-                          }}>
-                            {item.quantidade}
-                          </Text>
-                          <br />
-                          <Text style={{ fontSize: '11px', color: '#666' }}>
-                            fitas
-                          </Text>
-                        </div>
-
-                        {/* Status */}
-                        <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                          <div style={{
-                            padding: '4px 8px',
-                            backgroundColor: coresStatus[item.status],
-                            border: `1px solid ${coresBorda[item.status]}`,
-                            borderRadius: '4px',
-                            display: 'inline-block'
-                          }}>
-                            <Text style={{ 
-                              fontSize: '11px', 
-                              color: coresTexto[item.status],
-                              fontWeight: '500'
-                            }}>
-                              {item.status === 'maturacao' && '🌱 Maturação'}
-                              {item.status === 'colheita' && '🍌 Colheita'}
-                              {item.status === 'alerta' && '⚠️ Alerta'}
-                              {item.status === 'vencido' && '🚨 Risco'}
-                            </Text>
-                          </div>
-                        </div>
-
-                        {/* Tempo */}
-                        <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                          <Text style={{ fontSize: '12px', color: '#059669', fontWeight: '500' }}>
-                            {tempoTexto}
-                          </Text>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-
-            {/* Botões de Ação */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "12px",
-                marginTop: "24px",
-                paddingTop: "16px",
-                borderTop: "1px solid #e8e8e8",
-              }}
-            >
-              <Button
-                icon={<InfoCircleOutlined />}
-                onClick={fecharModalSemana}
-                size="large"
-              >
-                Fechar
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      <ModalDetalhesSemana
+        visible={modalSemana.visible}
+        onClose={fecharModalSemana}
+        semana={modalSemana.semana}
+        dados={modalSemana.dados}
+      />
     </>
   );
 };

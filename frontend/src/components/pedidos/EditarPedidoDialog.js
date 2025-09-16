@@ -11,6 +11,7 @@ import {
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import { validarFrutasDuplicadas } from "../../utils/pedidoValidation";
 import moment from "moment";
 
 // Importar as abas separadas
@@ -205,7 +206,15 @@ const EditarPedidoDialog = ({
         pesagem: pedido.pesagem || "",
         placaPrimaria: pedido.placaPrimaria || "",
         placaSecundaria: pedido.placaSecundaria || "",
-        nomeMotorista: pedido.nomeMotorista || ""
+        nomeMotorista: pedido.nomeMotorista || "",
+        // Campos específicos para clientes indústria
+        indDataEntrada: pedido.indDataEntrada || null,
+        indDataDescarga: pedido.indDataDescarga || null,
+        indPesoMedio: pedido.indPesoMedio || null,
+        indMediaMililitro: pedido.indMediaMililitro || null,
+        indNumeroNf: pedido.indNumeroNf || null,
+        // Inicializar mão de obra vazio (será carregado separadamente)
+        maoObra: []
       };
       
       setPedidoAtual(pedidoAtualData);
@@ -265,6 +274,75 @@ const EditarPedidoDialog = ({
       setEditando(false);
     }
     setErros({});
+  }, [open, pedido]);
+
+  // Carregar dados de mão de obra separadamente para pedidos em edição
+  useEffect(() => {
+    const carregarMaoObra = async () => {
+      // Verificar se pode editar colheita inline (sem usar canEditTab antes da definição)
+      const podeEditarColheita = pedido && (
+        pedido.status === 'COLHEITA_REALIZADA' ||
+        pedido.status === 'AGUARDANDO_PRECIFICACAO' ||
+        pedido.status === 'PRECIFICACAO_REALIZADA' ||
+        pedido.status === 'AGUARDANDO_PAGAMENTO' ||
+        pedido.status === 'PAGAMENTO_REALIZADO' ||
+        pedido.status === 'PAGAMENTO_PARCIAL'
+      ) && pedido.status !== 'PEDIDO_FINALIZADO' && pedido.status !== 'CANCELADO';
+
+      if (open && pedido && podeEditarColheita) {
+        try {
+          const response = await axiosInstance.get(`/api/turma-colheita/colheita-pedido/pedido/${pedido.id}`);
+          const maoObraExistente = response.data || [];
+
+          // Transformar dados da API para o formato do frontend
+          const maoObraFormatada = maoObraExistente.map(item => ({
+            id: item.id,
+            turmaColheitaId: item.turmaColheitaId,
+            quantidadeColhida: item.quantidadeColhida,
+            unidadeMedida: item.unidadeMedida,
+            valorColheita: item.valorColheita,
+            observacoes: item.observacoes || ''
+          }));
+
+          // Se não há dados, inicializar com um item vazio
+          const maoObraFinal = maoObraFormatada.length > 0
+            ? maoObraFormatada
+            : [{
+                turmaColheitaId: undefined,
+                quantidadeColhida: undefined,
+                unidadeMedida: undefined,
+                valorColheita: undefined,
+                observacoes: ''
+              }];
+
+          // Atualizar apenas o maoObra sem afetar outros campos
+          setPedidoAtual(prev => ({ ...prev, maoObra: maoObraFinal }));
+
+          console.log('📋 Dados de mão de obra carregados:', maoObraFinal);
+        } catch (error) {
+          console.error("Erro ao carregar mão de obra:", error);
+          // Em caso de erro, inicializar com item vazio
+          setPedidoAtual(prev => ({
+            ...prev,
+            maoObra: [{
+              turmaColheitaId: undefined,
+              quantidadeColhida: undefined,
+              unidadeMedida: undefined,
+              valorColheita: undefined,
+              observacoes: ''
+            }]
+          }));
+        }
+      } else if (open && pedido && !podeEditarColheita) {
+        // Para pedidos que não podem editar colheita, deixar vazio
+        setPedidoAtual(prev => ({ ...prev, maoObra: [] }));
+      }
+    };
+
+    // Delay para garantir que pedidoAtual já foi inicializado
+    if (open && pedido) {
+      setTimeout(carregarMaoObra, 200);
+    }
   }, [open, pedido]);
 
   /**
@@ -358,6 +436,25 @@ const EditarPedidoDialog = ({
     if (!pedidoAtual.frutas || pedidoAtual.frutas.length === 0) {
       novosErros.frutas = "Adicione pelo menos uma fruta ao pedido";
     } else {
+      // ✅ NOVA VALIDAÇÃO: Verificar frutas duplicadas
+      const validacaoFrutasDuplicadas = validarFrutasDuplicadas(pedidoAtual.frutas, frutas);
+      
+      if (!validacaoFrutasDuplicadas.valido) {
+        showNotification(
+          "error",
+          "Frutas Duplicadas Detectadas", 
+          validacaoFrutasDuplicadas.mensagemErro
+        );
+        
+        // Marcar erro para cada fruta duplicada
+        validacaoFrutasDuplicadas.frutasDuplicadas.forEach(frutaDuplicada => {
+          frutaDuplicada.indices.forEach(indice => {
+            novosErros[`fruta_duplicada_${indice}`] = `Fruta duplicada: ${frutaDuplicada.nome}`;
+          });
+        });
+        temInconsistenciaUnidades = true;
+      }
+
       // Validar cada fruta
       for (let i = 0; i < pedidoAtual.frutas.length; i++) {
         const fruta = pedidoAtual.frutas[i];
@@ -449,6 +546,77 @@ const EditarPedidoDialog = ({
     };
   };
 
+  // Função auxiliar para salvar mão de obra via API
+  const salvarMaoObraViaAPI = async () => {
+    if (!pedido?.id || !pedidoAtual.maoObra || !canEditTab("2")) return true;
+
+    try {
+      const maoObraValida = pedidoAtual.maoObra.filter(item => item.turmaColheitaId);
+
+      // Se não há mão de obra válida, não fazer nada
+      if (maoObraValida.length === 0) return true;
+
+      console.log('💼 Salvando mão de obra via API...', maoObraValida);
+
+      // Primeiro: Buscar dados existentes para comparar
+      const responseExistente = await axiosInstance.get(`/api/turma-colheita/colheita-pedido/pedido/${pedido.id}`);
+      const dadosExistentes = responseExistente.data || [];
+
+      // Deletar registros que não existem mais no frontend
+      for (const existente of dadosExistentes) {
+        const aindaExiste = maoObraValida.some(item => item.id === existente.id);
+        if (!aindaExiste) {
+          await axiosInstance.delete(`/api/turma-colheita/colheita-pedido/${existente.id}`);
+          console.log(`🗑️ Removido registro ${existente.id}`);
+        }
+      }
+
+      // Criar/atualizar registros
+      for (const item of maoObraValida) {
+        // Validar dados obrigatórios
+        if (!item.quantidadeColhida || item.quantidadeColhida <= 0) continue;
+        if (!item.unidadeMedida) continue;
+
+        // Para cada fruta do pedido, criar/atualizar registro
+        if (pedidoAtual.frutas && pedidoAtual.frutas.length > 0) {
+          for (const fruta of pedidoAtual.frutas) {
+            const custoData = {
+              turmaColheitaId: item.turmaColheitaId,
+              pedidoId: pedido.id,
+              frutaId: fruta.frutaId,
+              quantidadeColhida: parseFloat(item.quantidadeColhida),
+              unidadeMedida: item.unidadeMedida,
+              valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
+              dataColheita: pedidoAtual.dataColheita || new Date().toISOString(),
+              pagamentoEfetuado: false,
+              observacoes: item.observacoes || ''
+            };
+
+            if (item.id) {
+              // Atualizar existente
+              await axiosInstance.patch(`/api/turma-colheita/colheita-pedido/${item.id}`, custoData);
+              console.log(`✏️ Atualizado registro ${item.id}`);
+            } else {
+              // Criar novo
+              const response = await axiosInstance.post('/api/turma-colheita/custo-colheita', custoData);
+              console.log(`➕ Criado novo registro ${response.data.id}`);
+
+              // Atualizar o item com o ID retornado
+              item.id = response.data.id;
+            }
+          }
+        }
+      }
+
+      console.log('✅ Mão de obra salva via API com sucesso!');
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao salvar mão de obra via API:', error);
+      showNotification("error", "Erro", "Erro ao salvar dados de mão de obra");
+      return false;
+    }
+  };
+
   const handleSalvarPedido = async () => {
     const validacao = validarFormulario();
     if (!validacao.valido) {
@@ -500,6 +668,12 @@ const EditarPedidoDialog = ({
           icms: valoresCalculados.icms,
           desconto: valoresCalculados.desconto,
           avaria: valoresCalculados.avaria,
+          // Campos específicos para clientes indústria
+          indDataEntrada: pedidoAtual.indDataEntrada ? moment(pedidoAtual.indDataEntrada).format('YYYY-MM-DD') : undefined,
+          indDataDescarga: pedidoAtual.indDataDescarga ? moment(pedidoAtual.indDataDescarga).format('YYYY-MM-DD') : undefined,
+          indPesoMedio: pedidoAtual.indPesoMedio || undefined,
+          indMediaMililitro: pedidoAtual.indMediaMililitro || undefined,
+          indNumeroNf: pedidoAtual.indNumeroNf || undefined,
         });
       }
 
@@ -562,7 +736,30 @@ const EditarPedidoDialog = ({
         });
       }
 
+      // 1️⃣ Primeiro: Salvar dados principais do pedido
       await onSave(formData);
+
+      // 2️⃣ Segundo: Salvar mão de obra se estivermos na aba de colheita
+      if (activeTab === "2" && canEditTab("2")) {
+        console.log('🔍 DEBUG EditarPedidoDialog - Tentando salvar mão de obra...', {
+          activeTab,
+          canEdit: canEditTab("2"),
+          maoObra: pedidoAtual.maoObra
+        });
+
+        const maoObraSalva = await salvarMaoObraViaAPI();
+
+        if (!maoObraSalva) {
+          showNotification("warning", "Aviso", "Pedido salvo, mas houve erro ao salvar mão de obra. Verifique na seção de Turmas de Colheita.");
+        }
+      } else {
+        console.log('ℹ️ DEBUG EditarPedidoDialog - Não salvou mão de obra porque:', {
+          activeTab,
+          canEdit: canEditTab("2"),
+          condicao: activeTab === "2" && canEditTab("2")
+        });
+      }
+
       handleCancelar();
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);
@@ -699,6 +896,8 @@ const EditarPedidoDialog = ({
             loading={loading}
             isSaving={isSaving}
             dadosOriginaisBanco={dadosOriginaisBanco}
+            todasFrutasPedido={pedidoAtual.frutas || []}
+            fitasOriginaisTodasFrutas={dadosOriginaisBanco?.frutas || []}
           />
         </TabPane>
         
@@ -728,6 +927,8 @@ const EditarPedidoDialog = ({
             loading={loading}
             isSaving={isSaving}
             calcularValores={calcularValores}
+            pedido={pedido}
+            clientes={clientes}
           />
         </TabPane>
         

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Row, Col, Spin, message } from 'antd';
-import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { Card, Typography, Row, Col, Spin, message, Button } from 'antd';
+import { PlusOutlined, SettingOutlined, SwapOutlined } from '@ant-design/icons';
 import axiosInstance from '../../api/axiosConfig';
 import { showNotification } from '../../config/notificationConfig';
 import PrimaryButton from '../../components/common/buttons/PrimaryButton';
@@ -19,8 +19,10 @@ const ControleBanana = () => {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [listagemFitas, setListagemFitas] = useState([]);
+  const [listagemAreas, setListagemAreas] = useState([]);
   const [registrarModalVisible, setRegistrarModalVisible] = useState(false);
   const [gerenciarModalVisible, setGerenciarModalVisible] = useState(false);
+  const [modoExibicao, setModoExibicao] = useState('fitas'); // 'fitas' ou 'areas'
   
   // Estados para o modal de detalhamento
   const [modalDetalhamento, setModalDetalhamento] = useState({
@@ -67,6 +69,21 @@ const ControleBanana = () => {
       
       setListagemFitas(Array.from(fitasMap.values()));
       
+      // Processar áreas com fitas para o modo áreas
+      const areasComFitas = dashboardResponse.data.areasComFitas
+        .filter(area => area.totalFitas > 0)
+        .map(area => ({
+          id: area.id,
+          nome: area.nome,
+          totalFitas: area.totalFitas,
+          totalRegistros: area.totalRegistros,
+          areaTotal: area.areaTotal,
+          categoria: area.categoria,
+          fitas: area.fitas
+        }));
+      
+      setListagemAreas(areasComFitas);
+      
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       showNotification(
@@ -94,6 +111,10 @@ const ControleBanana = () => {
       itemId,
       itemNome
     });
+  };
+
+  const toggleModoExibicao = () => {
+    setModoExibicao(prev => prev === 'fitas' ? 'areas' : 'fitas');
   };
 
   const fecharModalDetalhamento = () => {
@@ -134,7 +155,7 @@ const ControleBanana = () => {
               onClick={handleRegistrarFita}
               style={{ marginRight: 8 }}
             >
-              Registrar Fita
+              Marcar Fita
             </PrimaryButton>
             <PrimaryButton
               icon={<SettingOutlined />}
@@ -165,72 +186,181 @@ const ControleBanana = () => {
         {/* Coluna da Listagem (30%) */}
         <Col span={7}>
           <Card 
-            title="Fitas Cadastradas" 
+            title={
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                width: '100%',
+                paddingRight: '8px' // Adicionar padding para dar espaço ao botão
+              }}>
+                <span>
+                  {modoExibicao === 'fitas' ? 'Fitas Cadastradas' : 'Áreas com Fitas'}
+                </span>
+                <Button
+                  type="text"
+                  icon={<SwapOutlined />}
+                  onClick={toggleModoExibicao}
+                  className="toggle-button"
+                  style={{
+                    color: '#059669',
+                    border: '1px solid #059669',
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    height: 'auto',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    marginLeft: '12px', // Adicionar margem à esquerda
+                    flexShrink: 0 // Evitar que o botão encolha
+                  }}
+                  title={`Alternar para ${modoExibicao === 'fitas' ? 'Áreas' : 'Fitas'}`}
+                >
+                  {modoExibicao === 'fitas' ? 'Ver Áreas' : 'Ver Fitas'}
+                </Button>
+              </div>
+            }
             className="listagem-card"
             style={{ height: '600px' }}
           >
             <div className="listagem-container">
-              {listagemFitas.length === 0 ? (
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: '40px 0',
-                  color: '#666'
-                }}>
-                  <div style={{ fontSize: '32px', marginBottom: '16px' }}>📝</div>
-                  <div>Nenhuma fita cadastrada</div>
-                </div>
-              ) : (
-                <div className="fitas-lista">
-                  {listagemFitas.map((fita) => (
-                    <div 
-                      key={fita.id} 
-                      className="fita-item"
-                      style={{ 
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        borderRadius: '8px',
-                        padding: '8px'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f5f5f5';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                      onClick={() => abrirModalDetalhamento('fita', fita.id, fita.nome)}
-                    >
-                      <div className="fita-info">
-                        <div 
-                          className="fita-cor"
-                          style={{ backgroundColor: fita.corHex }}
-                        />
-                        <div className="fita-detalhes">
-                          <div className="fita-nome">{fita.nome}</div>
-                          <div className="fita-stats">
-                            {fita.quantidadeFitas || 0} fitas totais
-                          </div>
-                          {fita.tempoDesdeData && (
-                            <div className="fita-tempo" style={{ 
-                              fontSize: '12px', 
-                              color: '#059669', 
-                              marginTop: '2px',
-                              fontWeight: '500'
-                            }}>
-                              {fita.tempoDesdeData.semanas > 0 
-                                ? `${fita.tempoDesdeData.semanas} semana${fita.tempoDesdeData.semanas !== 1 ? 's' : ''}`
-                                : `${fita.tempoDesdeData.dias} dia${fita.tempoDesdeData.dias !== 1 ? 's' : ''}`
-                              }
+              {modoExibicao === 'fitas' ? (
+                // Modo Fitas
+                listagemFitas.length === 0 ? (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '40px 0',
+                    color: '#666'
+                  }}>
+                    <div style={{ fontSize: '32px', marginBottom: '16px' }}>📝</div>
+                    <div>Nenhuma fita cadastrada</div>
+                  </div>
+                ) : (
+                  <div className="fitas-lista">
+                    {listagemFitas.map((fita) => (
+                      <div 
+                        key={fita.id} 
+                        className="fita-item"
+                        style={{ 
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          borderRadius: '8px',
+                          padding: '8px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#f5f5f5';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                        onClick={() => abrirModalDetalhamento('fita', fita.id, fita.nome)}
+                      >
+                        <div className="fita-info">
+                          <div 
+                            className="fita-cor"
+                            style={{ backgroundColor: fita.corHex }}
+                          />
+                          <div className="fita-detalhes">
+                            <div className="fita-nome">{fita.nome}</div>
+                            <div className="fita-stats">
+                              {fita.quantidadeFitas || 0} fitas totais
                             </div>
-                          )}
+                            {fita.tempoDesdeData && (
+                              <div className="fita-tempo" style={{ 
+                                fontSize: '12px', 
+                                color: '#059669', 
+                                marginTop: '2px',
+                                fontWeight: '500'
+                              }}>
+                                {fita.tempoDesdeData.semanas > 0 
+                                  ? `${fita.tempoDesdeData.semanas} semana${fita.tempoDesdeData.semanas !== 1 ? 's' : ''}`
+                                  : `${fita.tempoDesdeData.dias} dia${fita.tempoDesdeData.dias !== 1 ? 's' : ''}`
+                                }
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                // Modo Áreas
+                listagemAreas.length === 0 ? (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '40px 0',
+                    color: '#666'
+                  }}>
+                    <div style={{ fontSize: '32px', marginBottom: '16px' }}>🗺️</div>
+                    <div>Nenhuma área com fitas</div>
+                  </div>
+                ) : (
+                  <div className="fitas-lista">
+                    {listagemAreas.map((area) => (
+                      <div 
+                        key={area.id} 
+                        className="fita-item"
+                        style={{ 
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          borderRadius: '8px',
+                          padding: '8px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#f5f5f5';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                        onClick={() => abrirModalDetalhamento('area', area.id, area.nome)}
+                      >
+                        <div className="fita-info">
+                          <div 
+                            className="fita-cor"
+                            style={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '14px',
+                              color: 'white',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            <img 
+                              src="/icons/icon_maps.png" 
+                              alt="Área" 
+                              style={{ 
+                                width: '20px', 
+                                height: '20px'
+                              }}
+                            />
+                          </div>
+                          <div className="fita-detalhes">
+                            <div className="fita-nome">{area.nome}</div>
+                            <div className="fita-stats">
+                              {area.totalFitas || 0} fitas totais
+                            </div>
+                            <div style={{ 
+                              fontSize: '12px', 
+                              color: '#666', 
+                              marginTop: '2px'
+                            }}>
+                              {area.areaTotal} ha • {area.totalRegistros} registros
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
               )}
             </div>
           </Card>

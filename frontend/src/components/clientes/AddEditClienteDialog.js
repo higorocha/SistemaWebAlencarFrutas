@@ -33,6 +33,7 @@ const AddEditClienteDialog = ({
     email2: "",
     observacoes: "",
     status: "ATIVO",
+    industria: false,
   });
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
@@ -58,6 +59,7 @@ const AddEditClienteDialog = ({
         email2: cliente.email2 || "",
         observacoes: cliente.observacoes || "",
         status: cliente.status || "ATIVO",
+        industria: cliente.industria || false,
       });
       setEditando(true);
     } else if (open) {
@@ -78,6 +80,7 @@ const AddEditClienteDialog = ({
         email2: "",
         observacoes: "",
         status: "ATIVO",
+        industria: false,
       });
       setEditando(false);
     }

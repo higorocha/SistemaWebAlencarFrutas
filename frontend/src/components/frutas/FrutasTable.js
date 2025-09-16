@@ -360,6 +360,8 @@ const FrutasTable = ({
         pagination={false}
         rowClassName={assignRowClassName}
         scroll={{ x: 800 }}
+        size="middle"
+        bordered={true}
         locale={{
           emptyText: (
             <Empty

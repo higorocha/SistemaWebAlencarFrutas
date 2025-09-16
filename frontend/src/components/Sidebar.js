@@ -35,6 +35,7 @@ import {
   LocalAtm as LocalAtmIcon,
   Category as CategoryIcon,
   PostAdd as PostAddIcon,
+  Groups as GroupsIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -95,6 +96,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
     { text: "Frutas", icon: <Apple />, path: "/frutas" },
     { text: "Áreas Agrícolas", icon: <EnvironmentOutlined />, path: "/areas-agricolas" },
     { text: "Fornecedores", icon: <Store />, path: "/fornecedores" },
+    { text: "Turma de Colheita", icon: <GroupsIcon />, path: "/turma-colheita" },
   ];
 
   const producaoItems = [
@@ -119,9 +121,9 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
     if (location.pathname.startsWith("/pedidos")) {
       setOpenParents((prev) => ({ ...prev, PEDIDOS: true }));
     }
-    // se "/clientes", "/frutas", "/areas-agricolas", "/fornecedores" => abre CADASTRO
+    // se "/clientes", "/frutas", "/areas-agricolas", "/fornecedores", "/turma-colheita" => abre CADASTRO
     if (
-      ["/clientes", "/frutas", "/areas-agricolas", "/fornecedores"].some((p) =>
+      ["/clientes", "/frutas", "/areas-agricolas", "/fornecedores", "/turma-colheita"].some((p) =>
         location.pathname.startsWith(p)
       )
     ) {
@@ -415,6 +417,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
                   "/frutas",
                   "/areas-agricolas",
                   "/fornecedores",
+                  "/turma-colheita",
                 ])
                   ? "ps-active-parent"
                   : ""
@@ -441,6 +444,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
                   "/frutas",
                   "/areas-agricolas",
                   "/fornecedores",
+                  "/turma-colheita",
                 ])
                   ? "ps-active-parent"
                   : ""

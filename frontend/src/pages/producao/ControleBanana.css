@@ -157,3 +157,41 @@
 .listagem-container::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+/* Animações para toggle de modos */
+.listagem-container {
+  transition: all 0.3s ease-in-out;
+}
+
+.fitas-lista {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Botão toggle */
+.toggle-button {
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.toggle-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+  z-index: 10; /* Garantir que o hover fique acima de outros elementos */
+}
+
+/* Garantir que o container do título tenha espaço suficiente */
+.ant-card-head-title {
+  overflow: visible !important;
+}

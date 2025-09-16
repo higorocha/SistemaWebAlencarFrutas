@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Card, Typography, Row, Col, Spin, Empty, Tag, Space, Divider, Button, Badge, Select, Input, DatePicker, Popconfirm, Form } from 'antd';
+import { Modal, Card, Typography, Row, Col, Spin, Empty, Tag, Space, Divider, Button, Badge, Select, Input, DatePicker, Popconfirm, Form, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import { 
   EnvironmentOutlined, 
@@ -16,6 +16,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import axiosInstance from '../../api/axiosConfig';
 import { showNotification } from '../../config/notificationConfig';
+import { obterNumeroSemana, formatarData, calcularStatusMaturacao } from '../../utils/dateUtils';
 
 const { Title, Text } = Typography;
 
@@ -38,6 +39,10 @@ const DetalhamentoModal = ({
   useEffect(() => {
     if (visible && itemId) {
       carregarDetalhes();
+    } else if (!visible) {
+      // Limpar dados quando o modal for fechado
+      setDados(null);
+      setEditandoControle(null);
     }
   }, [visible, itemId, tipo]);
 
@@ -113,9 +118,6 @@ const DetalhamentoModal = ({
     }
   };
 
-  const formatarData = (data) => {
-    return new Date(data).toLocaleDateString('pt-BR');
-  };
 
   const formatarTempo = (tempoDesdeData) => {
     if (!tempoDesdeData) return '';
@@ -127,8 +129,63 @@ const DetalhamentoModal = ({
     }
   };
 
+
+  // Função para calcular previsões de colheita
+  const calcularPrevisoesColheita = () => {
+    if (!dados || !dados.controles) return [];
+
+    const previsoes = [];
+    const hoje = new Date();
+
+    dados.controles.forEach(controle => {
+      if (controle.quantidadeFitas > 0) {
+        const dataRegistro = new Date(controle.dataRegistro);
+        
+        // Calcular datas de colheita (100-115 dias)
+        const dataColheitaInicio = new Date(dataRegistro);
+        dataColheitaInicio.setDate(dataColheitaInicio.getDate() + 100);
+        
+        const dataColheitaFim = new Date(dataRegistro);
+        dataColheitaFim.setDate(dataColheitaFim.getDate() + 115);
+
+        // Calcular status baseado na data atual
+        const diasDesdeRegistro = Math.floor((hoje - dataRegistro) / (1000 * 60 * 60 * 24));
+        const status = calcularStatusMaturacao(diasDesdeRegistro);
+
+        // Só incluir se ainda não passou do período de colheita
+        if (dataColheitaFim >= hoje) {
+          previsoes.push({
+            id: controle.id,
+            fitaNome: tipo === 'area' ? controle.fita?.nome : dados.nome,
+            fitaCor: tipo === 'area' ? controle.fita?.corHex : dados.corHex,
+            quantidade: controle.quantidadeFitas,
+            dataRegistro: dataRegistro,
+            semanaRegistro: obterNumeroSemana(dataRegistro),
+            dataColheitaInicio: dataColheitaInicio,
+            dataColheitaFim: dataColheitaFim,
+            semanaColheitaInicio: obterNumeroSemana(dataColheitaInicio),
+            semanaColheitaFim: obterNumeroSemana(dataColheitaFim),
+            status: status,
+            areaNome: tipo === 'area' ? dados.nome : controle.area?.nome
+          });
+        }
+      }
+    });
+
+    // Ordenar por data de colheita (mais próximas primeiro)
+    return previsoes.sort((a, b) => a.dataColheitaInicio - b.dataColheitaInicio);
+  };
+
+  // Cores para os status de colheita
+  const coresStatusColheita = {
+    maturacao: { bg: '#f0f9ff', border: '#0ea5e9', text: '#0369a1' },
+    colheita: { bg: '#f0fdf4', border: '#22c55e', text: '#15803d' },
+    alerta: { bg: '#fefce8', border: '#eab308', text: '#a16207' },
+    vencido: { bg: '#fef2f2', border: '#ef4444', text: '#dc2626' }
+  };
+
   const renderControles = () => {
-    if (!dados || !dados.controles || dados.controles.length === 0) {
+    if (!dados || !dados.controles || !Array.isArray(dados.controles) || dados.controles.length === 0) {
       return (
         <div style={{
           display: "flex",
@@ -190,7 +247,7 @@ const DetalhamentoModal = ({
         </div>
 
         {/* Lista de controles */}
-        {dados.controles.map((controle, index) => (
+        {dados.controles.filter(controle => controle && controle.id).map((controle, index) => (
           <div 
             key={controle.id}
             style={{
@@ -331,7 +388,7 @@ const DetalhamentoModal = ({
                         style={{ 
                           width: '16px', 
                           height: '16px', 
-                          backgroundColor: controle.fita.corHex,
+                          backgroundColor: controle.fita?.corHex || '#059669',
                           borderRadius: '50%',
                           border: '2px solid #fff',
                           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -340,17 +397,17 @@ const DetalhamentoModal = ({
                       />
                       <div>
                         <Text strong style={{ color: "#333", fontSize: "14px", display: "block" }}>
-                          {controle.fita.nome}
+                          {controle.fita?.nome || 'Fita não encontrada'}
                         </Text>
                       </div>
                     </div>
                   ) : (
                     <div>
                       <Text strong style={{ color: "#333", fontSize: "14px", display: "block" }}>
-                        {controle.area.nome}
+                        {controle.area?.nome || 'Área não encontrada'}
                       </Text>
                       <Text style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                        {controle.area.areaTotal} ha
+                        {controle.area?.areaTotal || 0} ha
                       </Text>
                     </div>
                   )}
@@ -386,7 +443,7 @@ const DetalhamentoModal = ({
                 <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
                   <UserOutlined style={{ color: "#666", marginRight: '4px', fontSize: '12px' }} />
                   <Text style={{ fontSize: '12px', color: '#666' }}>
-                    {controle.usuario.nome}
+                    {controle.usuario?.nome || 'Usuário não encontrado'}
                   </Text>
                 </div>
 
@@ -437,7 +494,7 @@ const DetalhamentoModal = ({
   };
 
   const getModalTitle = () => {
-    if (!dados) return '';
+    if (!dados || !dados.nome) return '';
     
     if (tipo === 'area') {
       return `🗺️ Detalhes da Área: ${dados.nome}`;
@@ -447,7 +504,7 @@ const DetalhamentoModal = ({
   };
 
   const getResumo = () => {
-    if (!dados) return null;
+    if (!dados || !dados.controles) return null;
 
     if (tipo === 'area') {
       return (
@@ -681,13 +738,292 @@ const DetalhamentoModal = ({
             }}
             bodyStyle={{
               padding: "16px",
-              height: "400px",
+              maxHeight: "350px",
               overflowY: "auto",
               overflowX: "hidden",
             }}
           >
             {renderControles()}
           </Card>
+
+          {/* Previsão de Colheita */}
+          {calcularPrevisoesColheita().length > 0 && (
+            <Card
+              title={
+                <div style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "12px",
+                  width: "100%",
+                  padding: "0 4px"
+                }}>
+                  <Space>
+                    <CalendarOutlined style={{ color: "#ffffff" }} />
+                    <span style={{ color: "#ffffff", fontWeight: "600" }}>
+                      Previsão de Colheita
+                    </span>
+                  </Space>
+                  <Badge
+                    count={calcularPrevisoesColheita().length}
+                    style={{
+                      backgroundColor: "rgba(255,255,255,0.9)",
+                      color: "#059669",
+                      fontWeight: "600",
+                    }}
+                  />
+                </div>
+              }
+              headStyle={{
+                backgroundColor: "#059669",
+                borderBottom: "2px solid #047857",
+                color: "#ffffff",
+                borderRadius: "8px 8px 0 0",
+              }}
+              bodyStyle={{
+                padding: "16px",
+                maxHeight: "350px",
+                overflowY: "auto",
+                overflowX: "hidden",
+              }}
+            >
+              <div style={{ 
+                display: "flex", 
+                flexDirection: "column", 
+                gap: "8px",
+                width: "100%",
+                paddingRight: "4px"
+              }}>
+                {/* Cabeçalho da tabela */}
+                <div style={{
+                  padding: "8px 12px",
+                  backgroundColor: "#fafafa",
+                  border: "1px solid #f0f0f0",
+                  borderRadius: "4px",
+                  marginBottom: "4px",
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  color: "#333",
+                  display: "flex",
+                  alignItems: "center"
+                }}>
+                  <div style={{ flex: "1.5 1 0", minWidth: "0", textAlign: "left" }}>
+                    <strong>Fita</strong>
+                  </div>
+                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                    <strong>Quantidade</strong>
+                  </div>
+                  <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
+                    <strong>Data Marcação</strong>
+                  </div>
+                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                    <strong>Semana</strong>
+                  </div>
+                  <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
+                    <strong>Previsão Colheita</strong>
+                  </div>
+                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                    <strong>Período de Colheita</strong>
+                  </div>
+                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                    <strong>Status</strong>
+                  </div>
+                </div>
+
+                {/* Lista de previsões */}
+                {calcularPrevisoesColheita().map((previsao, index) => (
+                  <div 
+                    key={previsao.id}
+                    style={{
+                      padding: "12px",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e8e8e8",
+                      borderRadius: "6px",
+                      marginBottom: "4px",
+                      transition: "all 0.2s ease",
+                      cursor: "default",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f9f9f9";
+                      e.currentTarget.style.borderColor = "#059669";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#ffffff";
+                      e.currentTarget.style.borderColor = "#e8e8e8";
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      {/* Fita */}
+                      <div style={{ flex: "1.5 1 0", minWidth: "0", textAlign: "left" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div 
+                            style={{ 
+                              width: '16px', 
+                              height: '16px', 
+                              backgroundColor: previsao.fitaCor,
+                              borderRadius: '50%',
+                              border: '2px solid #fff',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                              flexShrink: 0
+                            }}
+                          />
+                          <div>
+                            <Text strong style={{ color: "#333", fontSize: "14px", display: "block" }}>
+                              {previsao.fitaNome}
+                            </Text>
+                            <Text style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                              {tipo === 'area' ? dados.nome : previsao.areaNome}
+                            </Text>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quantidade */}
+                      <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                        <Text strong style={{ 
+                          fontSize: '16px', 
+                          color: '#059669' 
+                        }}>
+                          {previsao.quantidade}
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: '11px', color: '#666' }}>
+                          fitas
+                        </Text>
+                      </div>
+
+                      {/* Data Marcação */}
+                      <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
+                        <CalendarOutlined style={{ color: "#666", marginRight: '4px', fontSize: '12px' }} />
+                        <Text style={{ fontSize: '12px', color: '#666' }}>
+                          {formatarData(previsao.dataRegistro)}
+                        </Text>
+                      </div>
+
+                      {/* Semana Marcação */}
+                      <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                        <Text style={{ fontSize: '12px', color: '#059669', fontWeight: '500' }}>
+                          Sem {previsao.semanaRegistro}
+                        </Text>
+                      </div>
+
+                      {/* Previsão Colheita */}
+                      <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
+                        <CalendarOutlined style={{ color: "#059669", marginRight: '4px', fontSize: '12px' }} />
+                        <Text style={{ fontSize: '12px', color: '#059669', fontWeight: '500' }}>
+                          {formatarData(previsao.dataColheitaInicio)}
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: '10px', color: '#666' }}>
+                          até {formatarData(previsao.dataColheitaFim)}
+                        </Text>
+                      </div>
+
+                      {/* Semana Colheita */}
+                      <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                        <Tooltip
+                          title={
+                            <div style={{ maxWidth: '300px' }}>
+                              <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1f2937' }}>
+                                📅 Período de Colheita
+                              </div>
+                              <div style={{ marginBottom: '6px' }}>
+                                <span style={{ color: '#22c55e', fontWeight: '500' }}>🟢 Início:</span> Semana {previsao.semanaColheitaInicio} ({formatarData(previsao.dataColheitaInicio)})
+                              </div>
+                              <div style={{ marginBottom: '6px' }}>
+                                <span style={{ color: '#ef4444', fontWeight: '500' }}>🔴 Fim:</span> Semana {previsao.semanaColheitaFim} ({formatarData(previsao.dataColheitaFim)})
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#1f2937', marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #d1d5db' }}>
+                                <strong style={{ color: '#1f2937' }}>💡 Dica:</strong> Este é o período ideal para colher as bananas. 
+                                {previsao.semanaColheitaInicio === previsao.semanaColheitaFim 
+                                  ? ' A colheita deve ser feita nesta semana específica.'
+                                  : ` Você tem ${previsao.semanaColheitaFim - previsao.semanaColheitaInicio + 1} semanas para realizar a colheita.`
+                                }
+                              </div>
+                            </div>
+                          }
+                          placement="top"
+                        >
+                          {previsao.semanaColheitaInicio === previsao.semanaColheitaFim ? (
+                            <div style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#f0fdf4',
+                              border: '1px solid #22c55e',
+                              borderRadius: '6px',
+                              display: 'inline-block',
+                              cursor: 'help'
+                            }}>
+                              <Text style={{ fontSize: '12px', color: '#15803d', fontWeight: '600' }}>
+                                Sem {previsao.semanaColheitaInicio}
+                              </Text>
+                            </div>
+                          ) : (
+                            <div style={{
+                              padding: '8px 12px',
+                              backgroundColor: '#f0fdf4',
+                              border: '1px solid #22c55e',
+                              borderRadius: '6px',
+                              display: 'inline-block',
+                              minWidth: '90px',
+                              cursor: 'help'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
+                                <div style={{
+                                  width: '8px',
+                                  height: '8px',
+                                  backgroundColor: '#22c55e',
+                                  borderRadius: '50%',
+                                  marginRight: '6px',
+                                  flexShrink: 0
+                                }} />
+                                <Text style={{ fontSize: '12px', color: '#15803d', fontWeight: '600' }}>
+                                  Sem {previsao.semanaColheitaInicio}
+                                </Text>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{
+                                  width: '8px',
+                                  height: '8px',
+                                  backgroundColor: '#ef4444',
+                                  borderRadius: '50%',
+                                  marginRight: '6px',
+                                  flexShrink: 0
+                                }} />
+                                <Text style={{ fontSize: '12px', color: '#15803d', fontWeight: '600' }}>
+                                  Sem {previsao.semanaColheitaFim}
+                                </Text>
+                              </div>
+                            </div>
+                          )}
+                        </Tooltip>
+                      </div>
+
+                      {/* Status */}
+                      <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                        <div style={{
+                          padding: '4px 8px',
+                          backgroundColor: coresStatusColheita[previsao.status].bg,
+                          border: `1px solid ${coresStatusColheita[previsao.status].border}`,
+                          borderRadius: '4px',
+                          display: 'inline-block'
+                        }}>
+                          <Text style={{ 
+                            fontSize: '11px', 
+                            color: coresStatusColheita[previsao.status].text,
+                            fontWeight: '500'
+                          }}>
+                            {previsao.status === 'maturacao' && '🌱 Maturação'}
+                            {previsao.status === 'colheita' && '🍌 Colheita'}
+                            {previsao.status === 'alerta' && '⚠️ Alerta'}
+                            {previsao.status === 'vencido' && '🚨 Risco'}
+                          </Text>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Botões de Ação */}
           <div

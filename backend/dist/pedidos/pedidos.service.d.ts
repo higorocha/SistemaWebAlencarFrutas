@@ -21,7 +21,11 @@ export declare class PedidosService {
         page: number;
         limit: number;
     }>;
-    findByCliente(clienteId: number): Promise<PedidoResponseDto[]>;
+    findByCliente(clienteId: number, statusFilter?: string): Promise<{
+        data: PedidoResponseDto[];
+        total: number;
+        statusFiltrados?: string[];
+    }>;
     findOne(id: number): Promise<PedidoResponseDto>;
     update(id: number, updatePedidoDto: UpdatePedidoDto): Promise<PedidoResponseDto>;
     updateColheita(id: number, updateColheitaDto: UpdateColheitaDto, usuarioId: number): Promise<PedidoResponseDto>;

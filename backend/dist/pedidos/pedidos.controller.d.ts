@@ -16,7 +16,11 @@ export declare class PedidosController {
         page: number;
         limit: number;
     }>;
-    findByCliente(clienteId: string): Promise<PedidoResponseDto[]>;
+    findByCliente(clienteId: string, status?: string): Promise<{
+        data: PedidoResponseDto[];
+        total: number;
+        statusFiltrados?: string[];
+    }>;
     findOne(id: string): Promise<PedidoResponseDto>;
     update(id: string, updatePedidoDto: UpdatePedidoDto): Promise<PedidoResponseDto>;
     updateColheita(id: string, updateColheitaDto: UpdateColheitaDto, req: any): Promise<PedidoResponseDto>;

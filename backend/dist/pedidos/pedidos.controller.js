@@ -52,8 +52,8 @@ let PedidosController = class PedidosController {
         const dataFimDate = dataFim ? new Date(dataFim) : undefined;
         return this.pedidosService.findAll(page, limit, search, searchType, status, clienteId, dataInicioDate, dataFimDate);
     }
-    findByCliente(clienteId) {
-        return this.pedidosService.findByCliente(+clienteId);
+    findByCliente(clienteId, status) {
+        return this.pedidosService.findByCliente(+clienteId, status);
     }
     findOne(id) {
         return this.pedidosService.findOne(+id);
@@ -279,12 +279,20 @@ __decorate([
 __decorate([
     (0, common_1.Get)('cliente/:clienteId'),
     (0, swagger_1.ApiOperation)({ summary: 'Buscar pedidos por cliente' }),
+    (0, swagger_1.ApiQuery)({ name: 'status', required: false, type: String, description: 'Filtrar por status (separados por vírgula)' }),
     (0, swagger_1.ApiResponse)({
         status: common_1.HttpStatus.OK,
         description: 'Lista de pedidos do cliente retornada com sucesso',
         schema: {
-            type: 'array',
-            items: { $ref: '#/components/schemas/PedidoResponseDto' },
+            type: 'object',
+            properties: {
+                data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/PedidoResponseDto' },
+                },
+                total: { type: 'number' },
+                statusFiltrados: { type: 'array', items: { type: 'string' } },
+            },
         },
     }),
     (0, swagger_1.ApiResponse)({
@@ -292,8 +300,9 @@ __decorate([
         description: 'Cliente não encontrado',
     }),
     __param(0, (0, common_1.Param)('clienteId')),
+    __param(1, (0, common_1.Query)('status')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "findByCliente", null);
 __decorate([

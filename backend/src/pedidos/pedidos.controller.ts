@@ -237,20 +237,31 @@ export class PedidosController {
 
   @Get('cliente/:clienteId')
   @ApiOperation({ summary: 'Buscar pedidos por cliente' })
+  @ApiQuery({ name: 'status', required: false, type: String, description: 'Filtrar por status (separados por vírgula)' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Lista de pedidos do cliente retornada com sucesso',
     schema: {
-      type: 'array',
-      items: { $ref: '#/components/schemas/PedidoResponseDto' },
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/PedidoResponseDto' },
+        },
+        total: { type: 'number' },
+        statusFiltrados: { type: 'array', items: { type: 'string' } },
+      },
     },
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Cliente não encontrado',
   })
-  findByCliente(@Param('clienteId') clienteId: string) {
-    return this.pedidosService.findByCliente(+clienteId);
+  findByCliente(
+    @Param('clienteId') clienteId: string,
+    @Query('status') status?: string,
+  ) {
+    return this.pedidosService.findByCliente(+clienteId, status);
   }
 
   @Get(':id')

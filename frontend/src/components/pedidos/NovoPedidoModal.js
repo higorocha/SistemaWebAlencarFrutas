@@ -18,6 +18,7 @@ import {
 import { MonetaryInput } from "../../components/common/inputs";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import { validarFrutasDuplicadas, validarPedidoCompleto } from "../../utils/pedidoValidation";
 import moment from "moment";
 
 const { Option } = Select;
@@ -74,36 +75,49 @@ const NovoPedidoModal = ({
     { value: 'TON', label: 'Toneladas (TON)' },
     { value: 'CX', label: 'Caixas (CX)' },
     { value: 'UND', label: 'Unidades (UND)' },
+    { value: 'ML', label: 'Mililitros (ML)' },
+    { value: 'LT', label: 'Litros (LT)' },
   ];
 
   const handleSalvarPedido = async (values) => {
     try {
       setIsSaving(true);
 
-      // Validar se pelo menos uma fruta foi selecionada
-      if (!values.frutas || values.frutas.length === 0) {
-        showNotification("error", "Erro", "Adicione pelo menos uma fruta ao pedido");
+      // ✅ NOVA VALIDAÇÃO: Usar validação completa do pedido
+      console.log('🔍 Validando pedido completo...', {
+        totalFrutas: values.frutas?.length || 0,
+        frutas: values.frutas?.map(f => ({ frutaId: f.frutaId, nome: frutas.find(fr => fr.id === f.frutaId)?.nome }))
+      });
+
+      const resultadoValidacao = validarPedidoCompleto(values, frutas);
+
+      if (!resultadoValidacao.valido) {
+        console.error('❌ Validação do pedido falhou:', {
+          erros: resultadoValidacao.erros,
+          avisos: resultadoValidacao.avisos
+        });
+
+        // Mostrar primeiro erro encontrado
+        const primeiroErro = resultadoValidacao.erros[0] || "Erro de validação";
+        showNotification("error", "Erro de Validação", primeiroErro);
+        
+        // Log todos os erros para debug
+        if (resultadoValidacao.erros.length > 1) {
+          console.warn('Erros adicionais encontrados:', resultadoValidacao.erros.slice(1));
+        }
+        
         return;
       }
 
-      // Validar se todas as frutas têm dados obrigatórios
-      for (let i = 0; i < values.frutas.length; i++) {
-        const fruta = values.frutas[i];
-        
-        // Converter quantidade para número se necessário
-        const quantidadePrevista = typeof fruta.quantidadePrevista === 'string' ? parseFloat(fruta.quantidadePrevista) : fruta.quantidadePrevista;
-        
-        if (!fruta.frutaId || !quantidadePrevista || quantidadePrevista <= 0 || !fruta.unidadeMedida1) {
-          showNotification("error", "Erro", `Complete todos os campos obrigatórios da fruta ${i + 1}`);
-          return;
-        }
-        
-        // Validar se as unidades são diferentes
-        if (fruta.unidadeMedida2 && fruta.unidadeMedida1 === fruta.unidadeMedida2) {
-          showNotification("warning", "Aviso", `As unidades de medida da fruta ${i + 1} devem ser diferentes`);
-          return;
-        }
+      // Mostrar avisos se existirem (mas não bloquear)
+      if (resultadoValidacao.avisos.length > 0) {
+        console.warn('⚠️ Avisos encontrados:', resultadoValidacao.avisos);
+        resultadoValidacao.avisos.forEach(aviso => {
+          showNotification("warning", "Aviso", aviso);
+        });
       }
+
+      console.log('✅ Validação do pedido passou!');
 
       const formData = {
         ...values,

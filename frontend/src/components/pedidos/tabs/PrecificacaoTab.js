@@ -1,7 +1,7 @@
 // src/components/pedidos/tabs/PrecificacaoTab.js
 
 import React, { useState, useEffect } from "react";
-import { Button, Space, Form, Input, Row, Col, Typography, Card, Divider, Tag, Tooltip } from "antd";
+import { Button, Space, Form, Input, Row, Col, Typography, Card, Divider, Tag, Tooltip, DatePicker, InputNumber } from "antd";
 import PropTypes from "prop-types";
 import {
   SaveOutlined,
@@ -14,13 +14,17 @@ import {
   CarOutlined,
   PercentageOutlined,
   EyeOutlined,
-  TruckOutlined
+  TruckOutlined,
+  CalendarOutlined,
+  BuildOutlined,
+  NumberOutlined
 } from "@ant-design/icons";
 import { MonetaryInput } from "../../../components/common/inputs";
 import { formatarValorMonetario } from "../../../utils/formatters";
 import { FormButton } from "../../common/buttons";
 import VisualizarAreasFitasModal from "../VisualizarAreasFitasModal";
 import axiosInstance from "../../../api/axiosConfig";
+import moment from "moment";
 
 const { Text } = Typography;
 
@@ -40,6 +44,8 @@ const PrecificacaoTab = ({
   loading,
   isSaving,
   calcularValores,
+  pedido,
+  clientes,
 }) => {
   // Estados para dados e modais
   const [fitasBanana, setFitasBanana] = useState([]);
@@ -225,6 +231,11 @@ const PrecificacaoTab = ({
     return fruta?.fitas && fruta.fitas.length > 0;
   };
 
+  // Verificar se o pedido tem alguma fruta com fitas vinculadas
+  const pedidoTemFitas = () => {
+    return pedidoAtual?.frutas?.some(fruta => hasLinkedFitas(fruta)) || false;
+  };
+
   // Obter nomes das áreas vinculadas
   const getLinkedAreasNames = (fruta) => {
     if (!fruta?.areas) return [];
@@ -290,56 +301,67 @@ const PrecificacaoTab = ({
         }}
       >
         {/* Cabeçalho das colunas */}
-        <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-          <Col xs={24} md={4}>
-            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-              <AppleOutlined style={{ marginRight: 8 }} />
-              Fruta
-            </span>
-          </Col>
-          <Col xs={24} md={3}>
-            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-              <CalculatorOutlined style={{ marginRight: 8 }} />
-              Und 1
-            </span>
-          </Col>
-          <Col xs={24} md={3}>
-            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-              <CalculatorOutlined style={{ marginRight: 8 }} />
-              Und 2
-            </span>
-          </Col>
-          <Col xs={24} md={4}>
-            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-              <EnvironmentOutlined style={{ marginRight: 8 }} />
-              Áreas
-            </span>
-          </Col>
-          <Col xs={24} md={3}>
-            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-              <TagOutlined style={{ marginRight: 8 }} />
-              Fitas
-            </span>
-          </Col>
-          <Col xs={24} md={3}>
-            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-              <DollarOutlined style={{ marginRight: 8 }} />
-              Valor Unit.
-            </span>
-          </Col>
-          <Col xs={24} md={4}>
-            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-              <CalculatorOutlined style={{ marginRight: 8 }} />
-              Total
-            </span>
-          </Col>
-        </Row>
+        {(() => {
+          const temFitas = pedidoTemFitas();
+          
+          return (
+            <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
+              <Col xs={24} md={temFitas ? 4 : 5}>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <AppleOutlined style={{ marginRight: 8 }} />
+                  Fruta
+                </span>
+              </Col>
+              <Col xs={24} md={temFitas ? 3 : 4}>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <CalculatorOutlined style={{ marginRight: 8 }} />
+                  Und 1
+                </span>
+              </Col>
+              <Col xs={24} md={temFitas ? 3 : 4}>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <CalculatorOutlined style={{ marginRight: 8 }} />
+                  Und 2
+                </span>
+              </Col>
+              <Col xs={24} md={temFitas ? 4 : 5}>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <EnvironmentOutlined style={{ marginRight: 8 }} />
+                  Áreas
+                </span>
+              </Col>
+              {temFitas && (
+                <Col xs={24} md={3}>
+                  <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                    <TagOutlined style={{ marginRight: 8 }} />
+                    Fitas
+                  </span>
+                </Col>
+              )}
+              <Col xs={24} md={temFitas ? 3 : 3}>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <DollarOutlined style={{ marginRight: 8 }} />
+                  Valor Unit.
+                </span>
+              </Col>
+              <Col xs={24} md={temFitas ? 4 : 3}>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <CalculatorOutlined style={{ marginRight: 8 }} />
+                  Total
+                </span>
+              </Col>
+            </Row>
+          );
+        })()}
 
-        {pedidoAtual.frutas.map((fruta, index) => (
-          <div key={index}>
-            <Row gutter={[16, 16]} align="baseline">
-              {/* Nome da Fruta */}
-              <Col xs={24} md={4}>
+        {pedidoAtual.frutas.map((fruta, index) => {
+          const temFitas = pedidoTemFitas();
+          
+          return (
+            <div key={index}>
+              <Row gutter={[16, 16]} align="baseline">
+                {/* Nome da Fruta */}
+                <Col xs={24} md={temFitas ? 4 : 5}>
                 <Tooltip title={frutas.find(f => f.id === fruta.frutaId)?.nome || ''} placement="top">
                   <Input
                     disabled
@@ -353,7 +375,7 @@ const PrecificacaoTab = ({
               </Col>
 
               {/* Quantidade Real */}
-              <Col xs={24} md={3}>
+              <Col xs={24} md={temFitas ? 3 : 4}>
                 <Input
                   disabled
                   value={`${fruta.quantidadeReal || '0'} ${fruta.unidadeMedida1 || ''}`.trim()}
@@ -366,7 +388,7 @@ const PrecificacaoTab = ({
               </Col>
 
               {/* Quantidade Real 2 */}
-              <Col xs={24} md={3}>
+              <Col xs={24} md={temFitas ? 3 : 4}>
                 <Input
                   disabled
                   value={fruta.unidadeMedida2 ? `${fruta.quantidadeReal2 || '0'} ${fruta.unidadeMedida2}`.trim() : ''}
@@ -380,7 +402,7 @@ const PrecificacaoTab = ({
               </Col>
 
               {/* Coluna de Áreas */}
-              <Col xs={24} md={4}>
+              <Col xs={24} md={temFitas ? 4 : 5}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   {hasLinkedAreas(fruta) ? (
                     <>
@@ -430,61 +452,63 @@ const PrecificacaoTab = ({
                 </div>
               </Col>
 
-              {/* Coluna de Fitas */}
-              <Col xs={24} md={3}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  {hasLinkedFitas(fruta) ? (
-                    <>
-                      {/* Botão com apenas ícone */}
-                      <Tooltip title="Ver fitas">
-                        <FormButton
-                          icon={<EyeOutlined />}
-                          onClick={() => handleVisualizarFitas(fruta, index)}
-                          style={{ 
-                            minWidth: '32px',
-                            width: '32px',
-                            padding: '0'
-                          }}
-                        />
-                      </Tooltip>
-                      
-                      {/* Badges das fitas */}
-                      {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
-                        <Tag 
-                          key={idx} 
-                          size="small" 
-                          style={{ 
-                            fontSize: '11px',
-                            backgroundColor: fita.cor + '20',
-                            borderColor: fita.cor,
-                            color: '#333',
-                            maxWidth: '60px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {fita.nome}
-                        </Tag>
-                      ))}
-                      
-                      {/* Badge "+X" se houver mais fitas */}
-                      {getLinkedFitasNames(fruta).length > 1 && (
-                        <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
-                          +{getLinkedFitasNames(fruta).length - 1}
-                        </Tag>
-                      )}
-                    </>
-                  ) : (
-                    <Tag color="default" style={{ fontSize: '11px' }}>
-                      Sem fitas
-                    </Tag>
-                  )}
-                </div>
-              </Col>
+              {/* Coluna de Fitas - Só aparece se o pedido tem fitas */}
+              {temFitas && (
+                <Col xs={24} md={3}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {hasLinkedFitas(fruta) ? (
+                      <>
+                        {/* Botão com apenas ícone */}
+                        <Tooltip title="Ver fitas">
+                          <FormButton
+                            icon={<EyeOutlined />}
+                            onClick={() => handleVisualizarFitas(fruta, index)}
+                            style={{ 
+                              minWidth: '32px',
+                              width: '32px',
+                              padding: '0'
+                            }}
+                          />
+                        </Tooltip>
+                        
+                        {/* Badges das fitas */}
+                        {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
+                          <Tag 
+                            key={idx} 
+                            size="small" 
+                            style={{ 
+                              fontSize: '11px',
+                              backgroundColor: fita.cor + '20',
+                              borderColor: fita.cor,
+                              color: '#333',
+                              maxWidth: '60px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {fita.nome}
+                          </Tag>
+                        ))}
+                        
+                        {/* Badge "+X" se houver mais fitas */}
+                        {getLinkedFitasNames(fruta).length > 1 && (
+                          <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
+                            +{getLinkedFitasNames(fruta).length - 1}
+                          </Tag>
+                        )}
+                      </>
+                    ) : (
+                      <Tag color="default" style={{ fontSize: '11px' }}>
+                        Sem fitas
+                      </Tag>
+                    )}
+                  </div>
+                </Col>
+              )}
 
               {/* Valor Unitário */}
-              <Col xs={24} md={3}>
+              <Col xs={24} md={temFitas ? 3 : 3}>
                 <MonetaryInput
                   placeholder="Ex: 12,50"
                   addonAfter={
@@ -517,7 +541,7 @@ const PrecificacaoTab = ({
               </Col>
 
               {/* Valor Total */}
-              <Col xs={24} md={4}>
+              <Col xs={24} md={temFitas ? 4 : 3}>
                 <Input
                   disabled
                   value={formatarValorMonetario(fruta.valorTotal || 0)}
@@ -536,7 +560,8 @@ const PrecificacaoTab = ({
 
             {index < pedidoAtual.frutas.length - 1 && <Divider style={{ margin: "8px 0" }} />}
           </div>
-        ))}
+        );
+        })}
       </Card>
 
       {/* Valores Consolidados */}
@@ -644,6 +669,183 @@ const PrecificacaoTab = ({
           </Col>
         </Row>
       </Card>
+
+      {/* Seção: Dados Complementares (apenas para clientes indústria) */}
+      {(() => {
+        const clienteAtual = clientes?.find(c => c.id === pedidoAtual.clienteId);
+        return clienteAtual?.industria && (
+          <Card
+            title={
+              <Space>
+                <BuildOutlined style={{ color: "#ffffff" }} />
+                <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Complementares</span>
+              </Space>
+            }
+            style={{ 
+              marginBottom: 16,
+              border: "1px solid #e8e8e8",
+              borderRadius: "8px",
+              backgroundColor: "#f9f9f9",
+            }}
+            styles={{
+              header: {
+                backgroundColor: "#059669",
+                borderBottom: "2px solid #047857",
+                color: "#ffffff",
+                borderRadius: "8px 8px 0 0",
+              }
+            }}
+          >
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={5}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalendarOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Data Entrada</span>
+                    </Space>
+                  }
+                >
+                  <DatePicker
+                    style={{ 
+                      width: "100%",
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    format="DD/MM/YYYY"
+                    placeholder="Selecione a data"
+                    disabledDate={(current) => current && current > moment().endOf('day')}
+                    size="small"
+                    value={pedidoAtual.indDataEntrada ? moment(pedidoAtual.indDataEntrada) : null}
+                    onChange={(date) => {
+                      setPedidoAtual(prev => ({
+                        ...prev,
+                        indDataEntrada: date ? date.toISOString() : null
+                      }));
+                    }}
+                    disabled={!canEditTab("3")}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={5}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalendarOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Data Descarga</span>
+                    </Space>
+                  }
+                >
+                  <DatePicker
+                    style={{ 
+                      width: "100%",
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    format="DD/MM/YYYY"
+                    placeholder="Selecione a data"
+                    disabledDate={(current) => current && current > moment().endOf('day')}
+                    size="small"
+                    value={pedidoAtual.indDataDescarga ? moment(pedidoAtual.indDataDescarga) : null}
+                    onChange={(date) => {
+                      setPedidoAtual(prev => ({
+                        ...prev,
+                        indDataDescarga: date ? date.toISOString() : null
+                      }));
+                    }}
+                    disabled={!canEditTab("3")}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={4}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalculatorOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Peso Médio</span>
+                    </Space>
+                  }
+                >
+                  <MonetaryInput
+                    placeholder="Ex: 1.250,50"
+                    addonAfter="KG"
+                    size="small"
+                    value={pedidoAtual.indPesoMedio}
+                    onChange={(value) => {
+                      setPedidoAtual(prev => ({
+                        ...prev,
+                        indPesoMedio: value
+                      }));
+                    }}
+                    disabled={!canEditTab("3")}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={4}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalculatorOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Média ML</span>
+                    </Space>
+                  }
+                >
+                  <MonetaryInput
+                    placeholder="Ex: 500,75"
+                    addonAfter="ML"
+                    size="small"
+                    value={pedidoAtual.indMediaMililitro}
+                    onChange={(value) => {
+                      setPedidoAtual(prev => ({
+                        ...prev,
+                        indMediaMililitro: value
+                      }));
+                    }}
+                    disabled={!canEditTab("3")}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={6}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <NumberOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Número NF</span>
+                    </Space>
+                  }
+                >
+                  <InputNumber
+                    placeholder="Ex: 123456"
+                    style={{
+                      width: "100%",
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    min={1}
+                    max={999999999}
+                    controls={false}
+                    formatter={(value) => `${value}`.replace(/[^0-9]/g, '')}
+                    parser={(value) => value.replace(/[^0-9]/g, '')}
+                    size="small"
+                    value={pedidoAtual.indNumeroNf}
+                    onChange={(value) => {
+                      setPedidoAtual(prev => ({
+                        ...prev,
+                        indNumeroNf: value
+                      }));
+                    }}
+                    disabled={!canEditTab("3")}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+        );
+      })()}
 
       {/* Resumo Financeiro */}
       <Card
@@ -807,6 +1009,8 @@ PrecificacaoTab.propTypes = {
   loading: PropTypes.bool,
   isSaving: PropTypes.bool,
   calcularValores: PropTypes.func.isRequired,
+  pedido: PropTypes.object,
+  clientes: PropTypes.array.isRequired,
 };
 
 export default PrecificacaoTab;

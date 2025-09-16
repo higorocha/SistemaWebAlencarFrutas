@@ -33,7 +33,7 @@ import {
   ShoppingOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
-import { formatarValorMonetario } from "../../utils/formatters";
+import { formatarValorMonetario, intFormatter, formatarNumero } from "../../utils/formatters";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 
@@ -209,10 +209,21 @@ const PedidosTable = ({
     return formatarValorMonetario(value);
   };
 
-  // Função para formatar quantidade
+  // Função para formatar quantidade com lógica inteligente
   const formatQuantity = (quantidade, unidade) => {
     if (!quantidade) return '-';
-    return `${quantidade.toFixed(2)} ${unidade}`;
+    
+    // Unidades que devem ser exibidas como inteiros
+    const unidadesInteiras = ['UND', 'CX'];
+    
+    // Verificar se a unidade deve ser formatada como inteiro
+    if (unidadesInteiras.includes(unidade)) {
+      const quantidadeInteira = Math.round(quantidade);
+      return `${intFormatter(quantidadeInteira)} ${unidade}`;
+    }
+    
+    // Para outras unidades (KG, TON, ML, LT), usar formatação decimal
+    return `${formatarNumero(quantidade)} ${unidade}`;
   };
 
   // Função para obter ações baseadas no status
@@ -423,14 +434,42 @@ const PedidosTable = ({
         const totalPrevisto = record.frutasPedidos.reduce((total, fp) => total + (fp.quantidadePrevista || 0), 0);
         const totalReal = record.frutasPedidos.reduce((total, fp) => total + (fp.quantidadeReal || 0), 0);
         
+        // Verificar se todas as frutas têm a mesma unidade de medida
+        const unidadesPrevistas = record.frutasPedidos.map(fp => fp.unidadeMedida1).filter(Boolean);
+        const unidadesReais = record.frutasPedidos.map(fp => fp.unidadeMedida1).filter(Boolean);
+        
+        // Verificar se todas as unidades previstas são iguais
+        const todasUnidadesPrevistasIguais = unidadesPrevistas.length > 0 && 
+          unidadesPrevistas.every(unidade => unidade === unidadesPrevistas[0]);
+        
+        // Verificar se todas as unidades reais são iguais (se houver)
+        const todasUnidadesReaisIguais = unidadesReais.length > 0 && 
+          unidadesReais.every(unidade => unidade === unidadesReais[0]);
+        
+        // Determinar a unidade a ser exibida
+        let unidadeExibir = null;
+        if (todasUnidadesPrevistasIguais) {
+          unidadeExibir = unidadesPrevistas[0];
+        } else if (todasUnidadesReaisIguais && unidadesReais.length > 0) {
+          unidadeExibir = unidadesReais[0];
+        }
+        
+        // Formatar as quantidades com a unidade se todas forem iguais
+        const formatarQuantidadeComUnidade = (quantidade, unidade) => {
+          if (unidade) {
+            return formatQuantity(quantidade, unidade);
+          }
+          return formatarNumero(quantidade);
+        };
+        
         return (
           <Space direction="vertical" size={0}>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Prev: {totalPrevisto.toFixed(2)}
+              Prev: {formatarQuantidadeComUnidade(totalPrevisto, unidadeExibir)}
             </Text>
             {totalReal > 0 && (
               <Text style={{ fontSize: 12, fontWeight: 500 }}>
-                Real: {totalReal.toFixed(2)}
+                Real: {formatarQuantidadeComUnidade(totalReal, unidadeExibir)}
               </Text>
             )}
           </Space>

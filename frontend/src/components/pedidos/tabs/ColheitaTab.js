@@ -1,7 +1,7 @@
 // src/components/pedidos/tabs/ColheitaTab.js
 
 import React, { useState, useEffect, useRef } from "react";
-import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag, Tooltip } from "antd";
+import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag, Tooltip, Modal } from "antd";
 import PropTypes from "prop-types";
 import {
   SaveOutlined,
@@ -14,7 +14,10 @@ import {
   CarOutlined,
   UserOutlined,
   LinkOutlined,
-  TagOutlined
+  TagOutlined,
+  TeamOutlined,
+  PlusOutlined,
+  DeleteOutlined
 } from "@ant-design/icons";
 import { MonetaryInput } from "../../../components/common/inputs";
 import { FormButton } from "../../common/buttons";
@@ -23,6 +26,7 @@ import { showNotification } from "../../../config/notificationConfig";
 import moment from "moment";
 import VincularAreasModal from "../VincularAreasModal";
 import VincularFitasModal from "../VincularFitasModal";
+import { validarFitasCompleto } from "../../../utils/fitasValidation";
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -49,12 +53,22 @@ const ColheitaTab = ({
   const [vincularFitasModalOpen, setVincularFitasModalOpen] = useState(false);
   const [frutaSelecionada, setFrutaSelecionada] = useState(null);
   const [fitasBanana, setFitasBanana] = useState([]);
+
+  // Estados para mão de obra
+  const [turmasColheita, setTurmasColheita] = useState([]);
+  
+  // ✅ NOVOS ESTADOS: Para validação global de fitas
+  const [fitasComAreasDisponiveis, setFitasComAreasDisponiveis] = useState([]);
   
   // Ref para controlar o valor original da data de colheita
   const dataColheitaOriginalRef = useRef(null);
 
-  // Garantir que todas as frutas tenham arrays de áreas e fitas inicializados
+  // Garantir que todas as frutas tenham arrays de áreas e fitas inicializados, e inicializar mão de obra
   useEffect(() => {
+    let needsUpdate = false;
+    let updatedPedido = { ...pedidoAtual };
+
+    // Inicializar arrays de frutas
     if (pedidoAtual?.frutas && pedidoAtual.frutas.length > 0) {
       const frutasInicializadas = pedidoAtual.frutas.map(fruta => ({
         ...fruta,
@@ -62,19 +76,32 @@ const ColheitaTab = ({
         fitas: fruta.fitas || []
       }));
 
-      // Atualizar apenas se alguma fruta não tinha arrays inicializados
-      const needsInitialization = pedidoAtual.frutas.some(fruta => 
+      const needsFrutasInit = pedidoAtual.frutas.some(fruta =>
         !fruta.areas || !fruta.fitas
       );
 
-      if (needsInitialization) {
-        setPedidoAtual(prev => ({
-          ...prev,
-          frutas: frutasInicializadas
-        }));
+      if (needsFrutasInit) {
+        updatedPedido.frutas = frutasInicializadas;
+        needsUpdate = true;
       }
     }
-  }, [pedidoAtual?.frutas, setPedidoAtual]);
+
+    // Inicializar mão de obra se não existir
+    if (!pedidoAtual?.maoObra || pedidoAtual.maoObra.length === 0) {
+      updatedPedido.maoObra = [{
+        turmaColheitaId: undefined,
+        quantidadeColhida: undefined,
+        unidadeMedida: undefined,
+        valorColheita: undefined,
+        observacoes: ''
+      }];
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      setPedidoAtual(updatedPedido);
+    }
+  }, [pedidoAtual?.frutas, pedidoAtual?.maoObra, setPedidoAtual]);
 
 
   // Inicializar data de colheita original
@@ -84,20 +111,30 @@ const ColheitaTab = ({
     }
   }, [pedidoAtual.dataColheita]);
 
-  // Carregar fitas de banana
+  // Carregar fitas de banana, turmas de colheita e dados para validação global
   useEffect(() => {
-    const fetchFitasBanana = async () => {
+    const fetchDados = async () => {
       try {
-        const response = await axiosInstance.get("/fitas-banana");
-        setFitasBanana(response.data || []);
+        // Buscar fitas de banana
+        const responseFitas = await axiosInstance.get("/fitas-banana");
+        setFitasBanana(responseFitas.data || []);
+
+        // ✅ NOVO: Buscar fitas com áreas para validação global
+        const responseFitasComAreas = await axiosInstance.get("/controle-banana/fitas-com-areas");
+        setFitasComAreasDisponiveis(responseFitasComAreas.data || []);
+
+        // Buscar turmas de colheita
+        const responseTurmas = await axiosInstance.get("/api/turma-colheita");
+        setTurmasColheita(responseTurmas.data || []);
       } catch (error) {
-        console.error("Erro ao buscar fitas de banana:", error);
-        showNotification("error", "Erro", "Erro ao carregar fitas de banana");
+        console.error("Erro ao buscar dados:", error);
+        showNotification("error", "Erro", "Erro ao carregar dados necessários");
       }
     };
 
-    fetchFitasBanana();
+    fetchDados();
   }, []);
+
 
   const handleChange = (field, value) => {
     setPedidoAtual(prev => ({
@@ -192,6 +229,56 @@ const ColheitaTab = ({
     setFrutaSelecionada(frutaProcessada);
     setVincularFitasModalOpen(true);
   };
+
+  // Funções para gerenciar mão de obra
+  const adicionarMaoObra = () => {
+    const maoObraAtual = pedidoAtual.maoObra || [];
+    setPedidoAtual(prev => ({
+      ...prev,
+      maoObra: [...maoObraAtual, {
+        turmaColheitaId: undefined,
+        quantidadeColhida: undefined,
+        unidadeMedida: undefined,
+        valorColheita: undefined,
+        observacoes: ''
+      }]
+    }));
+  };
+
+  const removerMaoObra = (index) => {
+    const maoObraAtual = pedidoAtual.maoObra || [];
+    if (maoObraAtual.length > 1) {
+      const novaMaoObra = maoObraAtual.filter((_, i) => i !== index);
+      setPedidoAtual(prev => ({ ...prev, maoObra: novaMaoObra }));
+    }
+  };
+
+  const handleMaoObraChange = (index, field, value) => {
+    const maoObraAtual = pedidoAtual.maoObra || [];
+    const novaMaoObra = maoObraAtual.map((item, i) => {
+      if (i === index) {
+        let processedValue = value;
+        if (['quantidadeColhida', 'valorColheita'].includes(field)) {
+          if (value === null || value === '' || value === undefined) {
+            processedValue = undefined;
+          } else {
+            processedValue = Number(value);
+          }
+        }
+        return { ...item, [field]: processedValue };
+      }
+      return item;
+    });
+    setPedidoAtual(prev => ({ ...prev, maoObra: novaMaoObra }));
+  };
+
+  const unidadesMedida = [
+    { value: 'KG', label: 'Quilogramas (KG)' },
+    { value: 'TON', label: 'Toneladas (TON)' },
+    { value: 'CX', label: 'Caixas (CX)' },
+    { value: 'UND', label: 'Unidades (UND)' },
+  ];
+
 
   // Verificar se fruta é banana para mostrar botão de fitas
   const isBanana = (frutaNome) => {
@@ -306,6 +393,7 @@ const ColheitaTab = ({
     setPedidoAtual(prev => ({ ...prev, frutas: frutasAtualizadas }));
     showNotification("success", "Sucesso", "Fitas vinculadas com sucesso!");
   };
+
 
 
   return (
@@ -427,7 +515,7 @@ const ColheitaTab = ({
           });
           
           return (
-            <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
+            <Row gutter={[8, 8]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
               <Col xs={24} md={temBanana ? 5 : 6}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <AppleOutlined style={{ marginRight: 8 }} />
@@ -452,7 +540,7 @@ const ColheitaTab = ({
                   Real 2
                 </span>
               </Col>
-              <Col xs={24} md={temBanana ? 5 : 6}>
+              <Col xs={24} md={temBanana ? 5 : 4}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <EnvironmentOutlined style={{ marginRight: 8 }} />
                   Áreas
@@ -482,7 +570,7 @@ const ColheitaTab = ({
           
           return (
           <div key={index}>
-            <Row gutter={[16, 16]} align="baseline">
+            <Row gutter={[8, 8]} align="baseline">
               {/* Nome da Fruta */}
               <Col xs={24} md={temBanana ? 5 : 6}>
                 <Form.Item>
@@ -549,7 +637,7 @@ const ColheitaTab = ({
               </Col>
 
               {/* Coluna de Áreas */}
-              <Col xs={24} md={temBanana ? 5 : 6}>
+              <Col xs={24} md={temBanana ? 5 : 4}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   {hasLinkedAreas(fruta) ? (
                     <>
@@ -796,7 +884,222 @@ const ColheitaTab = ({
           </Col>
         </Row>
       </Card>
-      
+
+      {/* Seção: Mão de Obra */}
+      <Card
+        title={
+          <Space>
+            <TeamOutlined style={{ color: "#ffffff" }} />
+            <span style={{ color: "#ffffff", fontWeight: "600" }}>Mão de Obra</span>
+          </Space>
+        }
+        style={{
+          marginBottom: 16,
+          border: "1px solid #e8e8e8",
+          borderRadius: "8px",
+          backgroundColor: "#f9f9f9",
+        }}
+        styles={{
+          header: {
+            backgroundColor: "#059669",
+            borderBottom: "2px solid #047857",
+            color: "#ffffff",
+            borderRadius: "8px 8px 0 0",
+          }
+        }}
+      >
+        {/* Cabeçalho das colunas */}
+        <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
+          <Col xs={24} md={6}>
+            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+              <TeamOutlined style={{ marginRight: 8 }} />
+              Turma de Colheita
+            </span>
+          </Col>
+          <Col xs={24} md={4}>
+            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+              <CalculatorOutlined style={{ marginRight: 8 }} />
+              Quantidade
+            </span>
+          </Col>
+          <Col xs={24} md={3}>
+            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+              <CalculatorOutlined style={{ marginRight: 8 }} />
+              Unidade
+            </span>
+          </Col>
+          <Col xs={24} md={4}>
+            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+              <CalculatorOutlined style={{ marginRight: 8 }} />
+              Valor (R$)
+            </span>
+          </Col>
+          <Col xs={24} md={5}>
+            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+              <FileTextOutlined style={{ marginRight: 8 }} />
+              Observações
+            </span>
+          </Col>
+          <Col xs={24} md={2}>
+            <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+              Ações
+            </span>
+          </Col>
+        </Row>
+
+        {pedidoAtual.maoObra && pedidoAtual.maoObra.map((item, index) => (
+          <div key={index}>
+            <Row gutter={[16, 16]} align="baseline">
+              <Col xs={24} md={6}>
+                <Form.Item>
+                  <Select
+                    placeholder="Selecione uma turma"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      option.children.toLowerCase().includes(input.toLowerCase())
+                    }
+                    style={{
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    value={item.turmaColheitaId}
+                    onChange={(value) => handleMaoObraChange(index, 'turmaColheitaId', value)}
+                    disabled={!canEditTab("2")}
+                  >
+                    {turmasColheita.map((turma) => (
+                      <Option key={turma.id} value={turma.id}>
+                        {turma.nomeColhedor}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={4}>
+                <Form.Item>
+                  <MonetaryInput
+                    placeholder="Ex: 1.234,56"
+                    size="large"
+                    style={{
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    value={item.quantidadeColhida}
+                    onChange={(value) => handleMaoObraChange(index, 'quantidadeColhida', value)}
+                    disabled={!canEditTab("2")}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={3}>
+                <Form.Item>
+                  <Select
+                    placeholder="Unidade"
+                    style={{
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    value={item.unidadeMedida}
+                    onChange={(value) => handleMaoObraChange(index, 'unidadeMedida', value)}
+                    disabled={!canEditTab("2")}
+                  >
+                    {unidadesMedida.map((unidade) => (
+                      <Option key={unidade.value} value={unidade.value}>
+                        {unidade.value}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={4}>
+                <Form.Item>
+                  <MonetaryInput
+                    placeholder="Ex: 150,00"
+                    addonBefore="R$"
+                    size="large"
+                    style={{
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    value={item.valorColheita}
+                    onChange={(value) => handleMaoObraChange(index, 'valorColheita', value)}
+                    disabled={!canEditTab("2")}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={5}>
+                <Form.Item>
+                  <Input
+                    placeholder="Observações (opcional)"
+                    style={{
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    value={item.observacoes}
+                    onChange={(e) => handleMaoObraChange(index, 'observacoes', e.target.value)}
+                    disabled={!canEditTab("2")}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={2}>
+                <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                  {/* Botão de remover */}
+                  <Button
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => removerMaoObra(index)}
+                    size="large"
+                    disabled={!canEditTab("2") || (pedidoAtual.maoObra && pedidoAtual.maoObra.length <= 1)}
+                    style={{
+                      borderRadius: "50px",
+                      height: "40px",
+                      width: "40px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                      border: "2px solid #ff4d4f",
+                      color: "#ff4d4f",
+                      backgroundColor: "#ffffff",
+                    }}
+                  />
+
+                  {/* Botão de adicionar apenas no último item */}
+                  {index === (pedidoAtual.maoObra?.length - 1) && (
+                    <Button
+                      type="dashed"
+                      icon={<PlusOutlined />}
+                      onClick={adicionarMaoObra}
+                      size="large"
+                      disabled={!canEditTab("2")}
+                      style={{
+                        borderRadius: "50px",
+                        borderColor: "#10b981",
+                        color: "#10b981",
+                        borderWidth: "2px",
+                        height: "40px",
+                        width: "40px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 0,
+                        backgroundColor: "#ffffff",
+                      }}
+                    />
+                  )}
+                </div>
+              </Col>
+            </Row>
+            {index < (pedidoAtual.maoObra?.length - 1) && <Divider style={{ margin: "16px 0" }} />}
+          </div>
+        ))}
+      </Card>
+
       {canEditTab("2") && (
         <div style={{ 
           position: "absolute", 
@@ -822,7 +1125,30 @@ const ColheitaTab = ({
           <Button
             type="primary"
             icon={<SaveOutlined />}
-            onClick={onSave}
+            onClick={() => {
+              // ✅ NOVA VALIDAÇÃO GLOBAL antes de salvar
+              try {
+                const resultadoValidacao = validarFitasCompleto(
+                  pedidoAtual.frutas || [],
+                  fitasComAreasDisponiveis,
+                  dadosOriginaisBanco?.frutas || [], // Dados originais do banco para modo edição
+                  true // ColheitaTab sempre é modo edição
+                );
+
+                if (!resultadoValidacao.valido) {
+                  // Mostrar primeira mensagem de erro
+                  const primeiroErro = resultadoValidacao.mensagensErro?.[0] || "Conflito de estoque detectado";
+                  showNotification("error", "Conflito de Estoque de Fitas", primeiroErro);
+                  return;
+                }
+                
+                // Se passou na validação, chamar o onSave original
+                onSave();
+              } catch (error) {
+                console.error('Erro na validação global de fitas:', error);
+                showNotification("error", "Erro", "Erro interno na validação de estoque. Tente novamente.");
+              }
+            }}
             loading={isSaving}
             size="large"
             style={{ backgroundColor: '#059669', borderColor: '#059669' }}
@@ -855,7 +1181,10 @@ const ColheitaTab = ({
         fruta={frutaSelecionada}
         onSave={handleSalvarFitas}
         loading={false}
+        todasFrutasPedido={pedidoAtual.frutas || []}
+        fitasOriginaisTodasFrutas={dadosOriginaisBanco?.frutas || []}
       />
+
     </div>
   );
 };
@@ -874,6 +1203,8 @@ ColheitaTab.propTypes = {
   loading: PropTypes.bool,
   isSaving: PropTypes.bool,
   dadosOriginaisBanco: PropTypes.object, // ✅ NOVO: Dados originais imutáveis do banco
+  todasFrutasPedido: PropTypes.array, // ✅ NOVA PROP: Para validação global
+  fitasOriginaisTodasFrutas: PropTypes.array, // ✅ NOVA PROP: Para validação global
 };
 
 export default ColheitaTab;

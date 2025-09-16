@@ -12,6 +12,7 @@ import {
   Card,
   Space,
   Tag,
+  Switch,
 } from "antd";
 import {
   UserOutlined,
@@ -21,6 +22,7 @@ import {
   MailOutlined,
   FileTextOutlined,
   InfoCircleOutlined,
+  BuildOutlined,
 } from "@ant-design/icons";
 import { IMaskInput } from "react-imask";
 import { validarDocumento } from "../../utils/documentValidation";
@@ -549,6 +551,36 @@ const ClienteForm = ({
                     borderColor: "#d9d9d9",
                   }}
                 />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24}>
+              <Form.Item
+                label={
+                  <Space>
+                    <BuildOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Tipo de Cliente</span>
+                  </Space>
+                }
+                help="Marque se o cliente é uma indústria"
+              >
+                <Space>
+                  <Switch
+                    checked={clienteAtual.industria || false}
+                    onChange={(checked) => handleChange("industria", checked)}
+                    style={{
+                      backgroundColor: clienteAtual.industria ? "#059669" : "#d9d9d9",
+                    }}
+                  />
+                  <Text style={{ 
+                    color: clienteAtual.industria ? "#059669" : "#666",
+                    fontWeight: clienteAtual.industria ? "600" : "400"
+                  }}>
+                    {clienteAtual.industria ? "Indústria" : "Cliente Comum"}
+                  </Text>
+                </Space>
               </Form.Item>
             </Col>
           </Row>
