@@ -303,6 +303,7 @@ const Usuarios = () => {
 
   const onFinishSenha = async (values) => {
     try {
+      setLoading(true);
       await axiosInstance.post(API_URL.updatePassword, {
         email: selectedUsuario.email,
         novaSenha: values.novaSenha,
@@ -316,11 +317,14 @@ const Usuarios = () => {
         error.response?.data?.mensagem || 
         "Erro ao alterar senha.";
       showNotification("error", "Erro", msg);
+    } finally {
+      setLoading(false);
     }
   };
 
   const onFinishEdit = async (values) => {
     try {
+      setLoading(true);
       console.log("Valores do formulário:", values);
       console.log("ID do usuário:", editingUsuario.id);
       
@@ -346,6 +350,8 @@ const Usuarios = () => {
         error.response?.data?.mensagem || 
         "Erro ao atualizar usuário.";
       showNotification("error", "Erro", msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -483,7 +489,7 @@ const Usuarios = () => {
                 <PrimaryButton onClick={() => openAlterarSenhaModal(usuario)} icon={<LockOutlined />} size="small">
                   Alterar Senha
                 </PrimaryButton>,
-                <PrimaryButton onClick={() => handleDelete(usuario.id)} icon={<DeleteFilled />} size="small" style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f' }}>
+                <PrimaryButton onClick={() => handleDelete(usuario.id)} icon={<DeleteFilled />} size="small">
                   Excluir
                 </PrimaryButton>,
               ]}
@@ -620,7 +626,7 @@ const Usuarios = () => {
             loading={loading}
             size="large"
           >
-            {loading ? "Alterando..." : "Alterar Senha"}
+            Alterar Senha
           </PrimaryButton>
         </div>
       </Modal>
@@ -772,7 +778,7 @@ const Usuarios = () => {
             loading={loading}
             size="large"
           >
-            {loading ? "Salvando..." : "Salvar Alterações"}
+            Salvar Alterações
           </PrimaryButton>
         </div>
       </Modal>

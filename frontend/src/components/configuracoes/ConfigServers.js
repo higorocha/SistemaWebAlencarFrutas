@@ -685,7 +685,7 @@ const ConfigServers = () => {
     >
       <Typography>
         <Paragraph>
-          Configure as credenciais para envio automático de faturas via WhatsApp
+          Configure as credenciais para habilitar comunicação com WhatsApp
           Business Cloud API. Você precisará de uma conta no Meta Business e
           acesso ao WhatsApp Business API.
         </Paragraph>
