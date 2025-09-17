@@ -1,6 +1,6 @@
 // src/pages/Frutas.js
 
-import React, { useEffect, useState, useCallback, lazy } from "react";
+import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
 import { Typography, Button, Space, Modal, Spin } from "antd";
 import {
   OrderedListOutlined,
@@ -11,9 +11,10 @@ import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
-import { CentralizedLoader } from "../components/common/loaders";
-import { PrimaryButton } from "../components/common/buttons";
-import { SearchInput } from "../components/common/search";
+import { CentralizedLoader } from "components/common/loaders";
+import LoadingFallback from "components/common/loaders/LoadingFallback";
+import { PrimaryButton } from "components/common/buttons";
+import { SearchInput } from "components/common/search";
 
 const FrutasTable = lazy(() => import("../components/frutas/FrutasTable"));
 const AddEditFrutaDialog = lazy(() =>
@@ -328,16 +329,18 @@ const Frutas = () => {
           style={{ marginTop: "8px" }}
         />
       </div>
-      <FrutasTable
-        frutas={frutasFiltradas}
-        loading={false}
-        onEdit={handleEditarFruta}
-        onDelete={handleExcluirFruta}
-        currentPage={currentPage}
-        pageSize={pageSize}
-        onPageChange={handlePageChange}
-        onShowSizeChange={handleShowSizeChange}
-      />
+      <Suspense fallback={<LoadingFallback />}>
+        <FrutasTable
+          frutas={frutasFiltradas}
+          loading={false}
+          onEdit={handleEditarFruta}
+          onDelete={handleExcluirFruta}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onShowSizeChange={handleShowSizeChange}
+        />
+      </Suspense>
       {frutasFiltradas.length > 0 && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
           <Pagination
@@ -353,17 +356,19 @@ const Frutas = () => {
           />
         </div>
       )}
-      <AddEditFrutaDialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        frutaAtual={frutaAtual}
-        setFrutaAtual={setFrutaAtual}
-        editando={editando}
-        erros={erros}
-        setErros={setErros}
-        isSaving={isSaving}
-        handleSalvarFruta={handleSalvarFruta}
-      />
+      <Suspense fallback={<LoadingFallback />}>
+        <AddEditFrutaDialog
+          open={openDialog}
+          onClose={handleCloseDialog}
+          frutaAtual={frutaAtual}
+          setFrutaAtual={setFrutaAtual}
+          editando={editando}
+          erros={erros}
+          setErros={setErros}
+          isSaving={isSaving}
+          handleSalvarFruta={handleSalvarFruta}
+        />
+      </Suspense>
       
       {/* CentralizedLoader */}
       <CentralizedLoader

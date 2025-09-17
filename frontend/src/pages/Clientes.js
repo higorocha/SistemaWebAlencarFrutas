@@ -1,6 +1,6 @@
 // src/pages/Clientes.js
 
-import React, { useEffect, useState, useCallback, lazy } from "react";
+import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
 import { Typography, Button, Space, Modal } from "antd";
 import {
   OrderedListOutlined,
@@ -11,9 +11,10 @@ import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
-import { CentralizedLoader } from "../components/common/loaders";
-import { PrimaryButton } from "../components/common/buttons";
-import { SearchInput } from "../components/common/search";
+import { CentralizedLoader } from "components/common/loaders";
+import LoadingFallback from "components/common/loaders/LoadingFallback";
+import { PrimaryButton } from "components/common/buttons";
+import { SearchInput } from "components/common/search";
 
 const ClientesTable = lazy(() => import("../components/clientes/ClientesTable"));
 const AddEditClienteDialog = lazy(() =>
@@ -252,15 +253,17 @@ const Clientes = () => {
       </div>
 
              {/* Tabela */}
-         <ClientesTable
-           clientes={clientesFiltrados}
-           loading={false}
-           onEdit={handleOpenEditModal}
-           onDelete={handleDeleteCliente}
-           onViewPedidos={handleOpenPedidosModal}
-           onStatusFilter={handleStatusFilter}
-           currentStatusFilter={statusFilter}
-         />
+         <Suspense fallback={<LoadingFallback />}>
+           <ClientesTable
+             clientes={clientesFiltrados}
+             loading={false}
+             onEdit={handleOpenEditModal}
+             onDelete={handleDeleteCliente}
+             onViewPedidos={handleOpenPedidosModal}
+             onStatusFilter={handleStatusFilter}
+             currentStatusFilter={statusFilter}
+           />
+         </Suspense>
 
        {/* Paginação */}
        {totalClientes > 0 && (
@@ -282,21 +285,25 @@ const Clientes = () => {
        )}
 
              {/* Modal de Criação/Edição */}
-         <AddEditClienteDialog
-           open={modalOpen}
-           onClose={handleCloseModal}
-           onSave={handleSaveCliente}
-           cliente={clienteEditando}
-           loading={false}
-         />
+         <Suspense fallback={<LoadingFallback />}>
+           <AddEditClienteDialog
+             open={modalOpen}
+             onClose={handleCloseModal}
+             onSave={handleSaveCliente}
+             cliente={clienteEditando}
+             loading={false}
+           />
+         </Suspense>
 
        {/* Modal de Pedidos do Cliente */}
-         <PedidosClienteModal
-           open={pedidosModalOpen}
-           onClose={handleClosePedidosModal}
-           cliente={clienteSelecionado}
-           loading={false}
-         />
+         <Suspense fallback={<LoadingFallback />}>
+           <PedidosClienteModal
+             open={pedidosModalOpen}
+             onClose={handleClosePedidosModal}
+             cliente={clienteSelecionado}
+             loading={false}
+           />
+         </Suspense>
 
        {/* Loading Centralizado */}
        <CentralizedLoader
