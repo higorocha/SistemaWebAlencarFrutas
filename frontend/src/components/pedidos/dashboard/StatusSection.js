@@ -1,7 +1,7 @@
 // src/components/pedidos/dashboard/StatusSection.js
 
 import React from "react";
-import { Card, Typography, Row, Col, Empty, Badge } from "antd";
+import { Card, Typography, Row, Col, Empty, Badge, Progress } from "antd";
 import {
   ClockCircleOutlined,
   ShoppingOutlined,
@@ -22,10 +22,13 @@ const StatusSection = ({
   icon, 
   color = "#059669",
   description,
-  emptyText = "Nenhum pedido encontrado"
+  emptyText = "Nenhum pedido encontrado",
+  showProgress = false // Nova prop para controlar o progress circular
 }) => {
   const sectionStyle = {
     height: "100%", // Para ocupar toda a altura do container pai
+    display: "flex",
+    flexDirection: "column", // ✅ Layout flexível
   };
 
   const headerStyle = {
@@ -37,14 +40,15 @@ const StatusSection = ({
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    flexShrink: 0, // ✅ Não encolhe
   };
 
   const contentStyle = {
     padding: "16px",
-    maxHeight: "400px", // Altura máxima
-    overflowY: "auto", // Scroll vertical
+    maxHeight: "430px", // ✅ Altura máxima fixa
+    overflowY: "auto", // ✅ Scroll vertical apenas aqui
     overflowX: "hidden",
-    flex: 1, // Ocupar espaço disponível
+    flex: 1, // ✅ Ocupa espaço disponível
   };
 
   const EmptyState = () => (
@@ -70,8 +74,7 @@ const StatusSection = ({
           borderRadius: "8px",
           border: `1px solid ${color}`,
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-          height: "500px", // Altura fixa para garantir limite
-          maxHeight: "500px", // Altura máxima
+          height: "520px", // ✅ Altura fixa
           display: "flex",
           flexDirection: "column",
         }}
@@ -99,14 +102,48 @@ const StatusSection = ({
               )}
             </div>
           </div>
-          <Badge
-            count={pedidos.length}
-            style={{
-              backgroundColor: "rgba(255,255,255,0.9)",
-              color: color,
-              fontWeight: "600",
-            }}
-          />
+          {showProgress ? (
+            <div style={{ position: "relative", display: "inline-block" }}>
+              <Progress
+                type="circle"
+                percent={75}
+                size={32}
+                strokeColor="#ffffff"
+                trailColor="rgba(255,255,255,0.1)"
+                showInfo={false}
+                strokeWidth={6}
+                style={{
+                  position: "absolute",
+                  top: "-15%",
+                  left: "-30%",
+                  transform: "translate(-50%, -50%)",
+                  animation: "spin 1s linear infinite",
+                  filter: "drop-shadow(0 0 12px rgba(255, 255, 255, 0.9))"
+                }}
+              />
+              <Badge
+                count={pedidos.length}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.95)",
+                  color: color,
+                  fontWeight: "600",
+                  position: "relative",
+                  zIndex: 2,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  border: "1px solid rgba(255,255,255,0.8)"
+                }}
+              />
+            </div>
+          ) : (
+            <Badge
+              count={pedidos.length}
+              style={{
+                backgroundColor: "rgba(255,255,255,0.9)",
+                color: color,
+                fontWeight: "600",
+              }}
+            />
+          )}
         </div>
 
         {/* Conteúdo da seção */}
@@ -189,7 +226,7 @@ const StatusSection = ({
 };
 
 // Componentes pré-configurados para cada seção
-export const AguardandoColheitaSection = ({ pedidos, onAction, onVisualizar }) => (
+export const AguardandoColheitaSection = ({ pedidos, onAction, onVisualizar, showProgress = false }) => (
   <StatusSection
     title="Aguardando Colheita"
     description="Pedidos criados e aguardando colheita"
@@ -200,10 +237,11 @@ export const AguardandoColheitaSection = ({ pedidos, onAction, onVisualizar }) =
     icon={<ShoppingOutlined style={{ fontSize: "24px" }} />}
     color="#1890ff"
     emptyText="Nenhum pedido aguardando colheita"
+    showProgress={showProgress}
   />
 );
 
-export const AguardandoPrecificacaoSection = ({ pedidos, onAction, onVisualizar }) => (
+export const AguardandoPrecificacaoSection = ({ pedidos, onAction, onVisualizar, showProgress = false }) => (
   <StatusSection
     title="Aguardando Precificação"
     description="Colheitas realizadas aguardando precificação"
@@ -214,10 +252,11 @@ export const AguardandoPrecificacaoSection = ({ pedidos, onAction, onVisualizar 
     icon={<DollarOutlined style={{ fontSize: "24px" }} />}
     color="#722ed1"
     emptyText="Nenhum pedido aguardando precificação"
+    showProgress={showProgress}
   />
 );
 
-export const AguardandoPagamentoSection = ({ pedidos, onAction, onVisualizar }) => (
+export const AguardandoPagamentoSection = ({ pedidos, onAction, onVisualizar, showProgress = false }) => (
   <StatusSection
     title="Aguardando Pagamento"
     description="Pedidos precificados aguardando pagamento"
@@ -228,6 +267,7 @@ export const AguardandoPagamentoSection = ({ pedidos, onAction, onVisualizar }) 
     icon={<CreditCardOutlined style={{ fontSize: "24px" }} />}
     color="#faad14"
     emptyText="Nenhum pedido aguardando pagamento"
+    showProgress={showProgress}
   />
 );
 

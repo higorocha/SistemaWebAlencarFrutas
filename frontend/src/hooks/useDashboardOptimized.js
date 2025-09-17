@@ -176,7 +176,10 @@ export const useDashboardOptimized = () => {
   }, []);
 
   return {
-    dashboardData,
+    dashboardData: {
+      ...dashboardData,
+      lastUpdate: lastUpdateRef.current
+    },
     paginacaoFinalizados,
     loading,
     operacaoLoading,

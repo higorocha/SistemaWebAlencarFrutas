@@ -13,7 +13,8 @@ const StatusSectionsContainer = ({
   onColheita, 
   onPrecificacao, 
   onPagamento,
-  onVisualizar
+  onVisualizar,
+  loadingType = null // null, 'novo-pedido', 'colheita', 'precificacao', 'pagamento'
 }) => {
   return (
     <div className="status-sections-container">
@@ -24,6 +25,7 @@ const StatusSectionsContainer = ({
             pedidos={dashboardData.aguardandoColheita}
             onAction={onColheita}
             onVisualizar={onVisualizar}
+            showProgress={loadingType === 'novo-pedido' || loadingType === 'colheita'}
           />
         </Col>
 
@@ -33,6 +35,7 @@ const StatusSectionsContainer = ({
             pedidos={dashboardData.aguardandoPrecificacao}
             onAction={onPrecificacao}
             onVisualizar={onVisualizar}
+            showProgress={loadingType === 'colheita' || loadingType === 'precificacao'}
           />
         </Col>
 
@@ -42,6 +45,7 @@ const StatusSectionsContainer = ({
             pedidos={dashboardData.aguardandoPagamento}
             onAction={onPagamento}
             onVisualizar={onVisualizar}
+            showProgress={loadingType === 'precificacao' || loadingType === 'pagamento'}
           />
         </Col>
       </Row>

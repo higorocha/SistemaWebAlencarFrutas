@@ -1,14 +1,17 @@
 // src/pages/PedidosDashboard.js
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Typography, Spin, message, Button } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import { Typography, message, Button, Tooltip, Space, Badge } from "antd";
+
+const { Title, Text: AntText } = Typography;
+import { ReloadOutlined, ClockCircleOutlined, CheckCircleOutlined, ShoppingCartOutlined } from "@ant-design/icons";
 import axiosInstance from "../api/axiosConfig";
 import { showNotification } from "../config/notificationConfig";
 import { validatePedido } from "../utils/validation";
 import { useClientesCache } from "../hooks/useClientesCache";
 import { useDashboardOptimized } from "../hooks/useDashboardOptimized";
 import { useSmartDashboardReload } from "../hooks/useSmartDashboardReload";
+import { CentralizedLoader } from "components/common/loaders";
 import moment from "moment";
 
 // Componentes da dashboard
@@ -28,9 +31,12 @@ import PagamentoModal from "../components/pedidos/PagamentoModal";
 import VisualizarPedidoModal from "../components/pedidos/VisualizarPedidoModal";
 import LancarPagamentosModal from "../components/pedidos/LancarPagamentosModal";
 
-const { Title } = Typography;
 
 const PedidosDashboard = () => {
+  // Estado para controlar loading inicial com delay
+  const [loadingInicial, setLoadingInicial] = useState(true);
+  const [loadingType, setLoadingType] = useState(null); // null, 'novo-pedido', 'colheita', 'precificacao', 'pagamento'
+
   // Hooks otimizados
   const {
     dashboardData,
@@ -59,6 +65,21 @@ const PedidosDashboard = () => {
     reloadAfterLancarPagamentos,
   } = useSmartDashboardReload(atualizarDadosOtimizado);
 
+  // Função para verificar status do cache
+  const getCacheStatus = useCallback(() => {
+    const now = Date.now();
+    const lastUpdate = dashboardData.lastUpdate || 0;
+    const CACHE_DURATION = 30 * 1000; // 30 segundos
+    const isCacheValid = (now - lastUpdate) < CACHE_DURATION;
+    const timeSinceUpdate = now - lastUpdate;
+    
+    return {
+      isCacheValid,
+      timeSinceUpdate,
+      lastUpdateTime: lastUpdate
+    };
+  }, [dashboardData.lastUpdate]);
+
   // Estados para modais
   const [novoPedidoModalOpen, setNovoPedidoModalOpen] = useState(false);
   const [colheitaModalOpen, setColheitaModalOpen] = useState(false);
@@ -83,10 +104,13 @@ const PedidosDashboard = () => {
   const handleSalvarPedido = useCallback(async (pedidoData) => {
     try {
       setOperacaoLoading(true);
+      setLoadingType('novo-pedido'); // ✅ Tipo específico para novo pedido
+      
       await axiosInstance.post("/api/pedidos", pedidoData);
       showNotification("success", "Sucesso", "Pedido criado com sucesso!");
       setNovoPedidoModalOpen(false);
       setPedidoSelecionado(null);
+      
       await reloadAfterNovoPedido();
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);
@@ -94,6 +118,7 @@ const PedidosDashboard = () => {
       showNotification("error", "Erro", message);
     } finally {
       setOperacaoLoading(false);
+      setLoadingType(null); // ✅ Limpar tipo
     }
   }, [setOperacaoLoading, reloadAfterNovoPedido]);
 
@@ -126,6 +151,8 @@ const PedidosDashboard = () => {
   const handleSaveColheita = useCallback(async (colheitaData) => {
     try {
       setOperacaoLoading(true);
+      setLoadingType('colheita'); // ✅ Tipo específico para colheita
+      
       await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/colheita`, colheitaData);
       showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
 
@@ -141,6 +168,7 @@ const PedidosDashboard = () => {
       throw error; // Re-throw para o modal tratar
     } finally {
       setOperacaoLoading(false);
+      setLoadingType(null); // ✅ Limpar tipo
     }
   }, [pedidoSelecionado, setOperacaoLoading, reloadAfterColheita]);
 
@@ -148,6 +176,8 @@ const PedidosDashboard = () => {
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {
     try {
       setOperacaoLoading(true);
+      setLoadingType('precificacao'); // ✅ Tipo específico para precificação
+      
       await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/precificacao`, precificacaoData);
       showNotification("success", "Sucesso", "Precificação realizada com sucesso!");
 
@@ -163,6 +193,7 @@ const PedidosDashboard = () => {
       throw error; // Re-throw para o modal tratar
     } finally {
       setOperacaoLoading(false);
+      setLoadingType(null); // ✅ Limpar tipo
     }
   }, [pedidoSelecionado, setOperacaoLoading, reloadAfterPrecificacao]);
 
@@ -174,6 +205,8 @@ const PedidosDashboard = () => {
   const handleNovoPagamento = useCallback(async (pagamentoData) => {
     try {
       setOperacaoLoading(true);
+      setLoadingType('pagamento'); // ✅ Tipo específico para pagamento
+      
       if (pagamentoData.id) {
         // Modo edição - usar PATCH
         const { id, ...dadosSemId } = pagamentoData;
@@ -201,6 +234,7 @@ const PedidosDashboard = () => {
       throw error; // Re-throw para o modal tratar
     } finally {
       setOperacaoLoading(false);
+      setLoadingType(null); // ✅ Limpar tipo
     }
   }, [setOperacaoLoading, reloadAfterPagamento, pedidoSelecionado, buscarPedidoAtualizado]);
 
@@ -276,6 +310,9 @@ const PedidosDashboard = () => {
   useEffect(() => {
     carregarDashboard();
     carregarClientes();
+    
+    // Desativar loading inicial após carregar
+    setLoadingInicial(false);
 
     // Cleanup ao desmontar
     return () => {
@@ -283,16 +320,13 @@ const PedidosDashboard = () => {
     };
   }, [carregarDashboard, carregarClientes, cleanup]);
 
-  if (loading) {
+  if (loadingInicial) {
     return (
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        height: "60vh" 
-      }}>
-        <Spin size="large" />
-      </div>
+      <CentralizedLoader
+        visible={true}
+        message="Carregando dashboard..."
+        subMessage="Buscando dados dos pedidos..."
+      />
     );
   }
 
@@ -300,17 +334,102 @@ const PedidosDashboard = () => {
     <div className="dashboard-container">
       {/* Header */}
       <div className="dashboard-header">
-        <Title level={2} style={{ margin: 0 }}>
-          Dashboard de Pedidos
-        </Title>
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() => carregarDashboard(paginacaoFinalizados.page, true)}
-          loading={loading || operacaoLoading}
-          size="middle"
-        >
-          Atualizar
-        </Button>
+        <div>
+          <Title level={2} style={{ margin: 0, color: "#2E7D32", marginBottom: 8 }}>
+            <ShoppingCartOutlined style={{ marginRight: 8 }} />
+            Dashboard de Pedidos
+          </Title>
+          <AntText type="secondary" style={{ fontSize: "14px" }}>
+            Acompanhe o fluxo dos pedidos em tempo real: colheita, precificação e pagamentos
+          </AntText>
+        </div>
+        
+        {/* Botão Atualizar com Indicador de Cache */}
+        <Space size="small" align="center">
+          {(() => {
+            const cacheStatus = getCacheStatus();
+            const formatTimeSinceUpdate = (timeSinceUpdate) => {
+              if (timeSinceUpdate < 60000) return 'agora';
+              const minutes = Math.floor(timeSinceUpdate / 60000);
+              return `${minutes}min atrás`;
+            };
+
+            return (
+              <Tooltip 
+                title={
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                      {cacheStatus.isCacheValid ? 'Dados Atualizados' : 'Dados Desatualizados'}
+                    </div>
+                    <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                      Última atualização: {formatTimeSinceUpdate(cacheStatus.timeSinceUpdate)}
+                    </div>
+                    <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '4px' }}>
+                      Clique para forçar atualização (ignora cache de 30s)
+                    </div>
+                  </div>
+                }
+                placement="bottomRight"
+              >
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => carregarDashboard(paginacaoFinalizados.page, true)}
+                  loading={loading || operacaoLoading}
+                  size="middle"
+                  style={{
+                    backgroundColor: cacheStatus.isCacheValid ? '#f6ffed' : '#fff2e8',
+                    borderColor: cacheStatus.isCacheValid ? '#b7eb8f' : '#ffbb96',
+                    color: cacheStatus.isCacheValid ? '#52c41a' : '#fa8c16',
+                    fontWeight: '500',
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    transition: 'all 0.3s ease',
+                    opacity: cacheStatus.isCacheValid ? 0.8 : 1,
+                    borderWidth: '2px',
+                    height: '40px',
+                    padding: '0 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading && !operacaoLoading) {
+                      e.target.style.transform = 'translateY(-1px)';
+                      e.target.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading && !operacaoLoading) {
+                      e.target.style.transform = 'translateY(0)';
+                      e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                    }
+                  }}
+                >
+                  Atualizar
+                </Button>
+              </Tooltip>
+            );
+          })()}
+          
+          {/* Indicador de Status do Cache */}
+          {(() => {
+            const cacheStatus = getCacheStatus();
+            return (
+              <Badge
+                status={cacheStatus.isCacheValid ? 'success' : 'warning'}
+                text={
+                  <AntText style={{ 
+                    fontSize: '12px', 
+                    color: cacheStatus.isCacheValid ? '#52c41a' : '#fa8c16',
+                    fontWeight: '500'
+                  }}>
+                    {cacheStatus.isCacheValid ? 'Atualizado' : 'Desatualizado'}
+                  </AntText>
+                }
+              />
+            );
+          })()}
+        </Space>
       </div>
 
       {/* Cards de Estatísticas */}
@@ -330,6 +449,7 @@ const PedidosDashboard = () => {
         onPrecificacao={handlePrecificacao}
         onPagamento={handlePagamento}
         onVisualizar={handleVisualizar}
+        loadingType={loadingType} // ✅ Novo prop com tipo de loading
       />
 
       <FinalizadosSection

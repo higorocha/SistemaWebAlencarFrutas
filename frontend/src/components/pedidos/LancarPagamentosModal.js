@@ -177,7 +177,7 @@ const LancarPagamentosModal = ({
 
       const response = await axiosInstance.get(`/api/pedidos/cliente/${clienteId}`, {
         params: {
-          status: 'AGUARDANDO_PAGAMENTO,PAGAMENTO_PARCIAL'
+          status: 'AGUARDANDO_PAGAMENTO,PAGAMENTO_PARCIAL,PRECIFICACAO_REALIZADA'
         }
       });
 

@@ -164,7 +164,12 @@ let PedidosService = class PedidosService {
                             id: true,
                             valorRecebido: true,
                             dataPagamento: true,
-                            metodoPagamento: true
+                            metodoPagamento: true,
+                            contaDestino: true,
+                            observacoesPagamento: true,
+                            referenciaExterna: true,
+                            createdAt: true,
+                            updatedAt: true
                         }
                     }
                 },
