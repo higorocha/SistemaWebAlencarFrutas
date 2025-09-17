@@ -33,9 +33,10 @@ import LancarPagamentosModal from "../components/pedidos/LancarPagamentosModal";
 
 
 const PedidosDashboard = () => {
-  // Estado para controlar loading inicial com delay
+  // Estado para controlar loading inicial - será controlado pelos hooks
   const [loadingInicial, setLoadingInicial] = useState(true);
   const [loadingType, setLoadingType] = useState(null); // null, 'novo-pedido', 'colheita', 'precificacao', 'pagamento'
+  const [carregamentoInicialCompleto, setCarregamentoInicialCompleto] = useState(false);
 
   // Hooks otimizados
   const {
@@ -306,26 +307,62 @@ const PedidosDashboard = () => {
     // Não precisa mais chamar atualizarDadosOtimizado aqui - cada modal já gerencia seu reload específico
   }, []);
 
+  // Função para carregar dados iniciais de forma assíncrona
+  const carregarDadosIniciais = useCallback(async () => {
+    try {
+      setLoadingInicial(true);
+      setCarregamentoInicialCompleto(false);
+      
+      // Aguardar ambos os carregamentos em paralelo
+      await Promise.all([
+        carregarDashboard(),
+        carregarClientes()
+      ]);
+      
+      setCarregamentoInicialCompleto(true);
+    } catch (error) {
+      console.error("Erro no carregamento inicial:", error);
+      // Mesmo com erro, marcar como completo para não travar a interface
+      setCarregamentoInicialCompleto(true);
+    } finally {
+      // Pequeno delay para suavizar a transição
+      setTimeout(() => {
+        setLoadingInicial(false);
+      }, 300);
+    }
+  }, [carregarDashboard, carregarClientes]);
+
   // Carregar dados ao montar o componente e cleanup ao desmontar
   useEffect(() => {
-    carregarDashboard();
-    carregarClientes();
-    
-    // Desativar loading inicial após carregar
-    setLoadingInicial(false);
+    carregarDadosIniciais();
 
     // Cleanup ao desmontar
     return () => {
       cleanup();
     };
-  }, [carregarDashboard, carregarClientes, cleanup]);
+  }, [carregarDadosIniciais, cleanup]);
 
-  if (loadingInicial) {
+  // Verificar se dados essenciais foram carregados
+  const dadosEssenciaisCarregados = dashboardData.lastUpdate > 0 && !loading;
+
+  if (loadingInicial || !dadosEssenciaisCarregados) {
     return (
       <CentralizedLoader
         visible={true}
-        message="Carregando dashboard..."
-        subMessage="Buscando dados dos pedidos..."
+        message={
+          carregamentoInicialCompleto 
+            ? "Finalizando carregamento..." 
+            : loading 
+              ? "Carregando dados..." 
+              : "Carregando dashboard..."
+        }
+        subMessage={
+          carregamentoInicialCompleto 
+            ? "Preparando interface..." 
+            : loading
+              ? "Processando informações dos pedidos..."
+              : "Buscando dados dos pedidos e clientes..."
+        }
       />
     );
   }

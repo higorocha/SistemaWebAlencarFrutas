@@ -3,3 +3,9 @@ node_modules
 .env
 
 /generated/prisma
+
+# Build outputs and cache files
+dist/
+*.tsbuildinfo
+tsconfig.build.tsbuildinfo
+.tsbuildinfo

@@ -35,8 +35,51 @@ import useNotificationWithContext from "../../hooks/useNotificationWithContext";
 import NovoPagamentoModal from "./NovoPagamentoModal";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import styled from "styled-components";
+import getTheme from "../../theme";
 
 const { Title, Text } = Typography;
+
+// Obter tema para cores
+const theme = getTheme('light');
+
+// Função para obter a cor do status baseada no tema
+const getStatusColor = (status) => {
+  return theme.palette.pedidoStatus[status] || theme.palette.pedidoStatus.DEFAULT;
+};
+
+// Função para calcular o status local baseado no valor restante
+const calcularStatusLocal = (pedido, valorRestante) => {
+  // Se não há valor restante, o pedido está finalizado
+  if (valorRestante <= 0) {
+    return 'PAGAMENTO_REALIZADO';
+  }
+  
+  // Se há valor recebido mas ainda resta algo, é pagamento parcial
+  if ((pedido?.valorRecebido || 0) > 0) {
+    return 'PAGAMENTO_PARCIAL';
+  }
+  
+  // Se não há valor recebido, está aguardando pagamento
+  return 'AGUARDANDO_PAGAMENTO';
+};
+
+// Função para obter o texto do status em português
+const getStatusText = (status) => {
+  const statusTexts = {
+    'PEDIDO_CRIADO': 'Pedido Criado',
+    'AGUARDANDO_COLHEITA': 'Aguardando Colheita',
+    'COLHEITA_REALIZADA': 'Colheita Realizada',
+    'AGUARDANDO_PRECIFICACAO': 'Aguardando Precificação',
+    'PRECIFICACAO_REALIZADA': 'Precificação Realizada',
+    'AGUARDANDO_PAGAMENTO': 'Aguardando Pagamento',
+    'PAGAMENTO_PARCIAL': 'Pagamento Parcial',
+    'PAGAMENTO_REALIZADO': 'Pagamento Realizado',
+    'PEDIDO_FINALIZADO': 'Pedido Finalizado',
+    'CANCELADO': 'Cancelado'
+  };
+  
+  return statusTexts[status] || status;
+};
 
 // Styled components para tabela com tema personalizado
 const StyledTable = styled(Table)`
@@ -231,6 +274,9 @@ const PagamentoModal = ({
   const valorTotalRecebido = pedido?.valorRecebido || 0;
   const valorRestante = (pedido?.valorFinal || 0) - valorTotalRecebido;
   const percentualPago = pedido?.valorFinal ? (valorTotalRecebido / pedido.valorFinal) * 100 : 0;
+  
+  // Calcular status local baseado no valor restante (mais preciso que o status do banco)
+  const statusLocal = pedido ? calcularStatusLocal(pedido, valorRestante) : pedido?.status;
   
 
   // Função para formatar datas de forma segura
@@ -523,8 +569,18 @@ const PagamentoModal = ({
                 <Col span={8}>
                   <Text strong>Status:</Text>
                   <br />
-                  <Tag color={pedido.status === 'PAGAMENTO_PARCIAL' ? 'orange' : 'purple'}>
-                    {pedido.status === 'PAGAMENTO_PARCIAL' ? 'Pagamento Parcial' : 'Aguardando Pagamento'}
+                  <Tag 
+                    color={getStatusColor(statusLocal)}
+                    style={{
+                      backgroundColor: getStatusColor(statusLocal),
+                      color: '#ffffff',
+                      fontWeight: '600',
+                      borderRadius: '6px',
+                      padding: '4px 12px',
+                      fontSize: '13px'
+                    }}
+                  >
+                    {getStatusText(statusLocal)}
                   </Tag>
                 </Col>
                 <Col span={8}>
