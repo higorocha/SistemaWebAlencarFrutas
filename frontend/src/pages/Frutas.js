@@ -11,9 +11,9 @@ import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
-import { CentralizedLoader } from "components/common/loaders";
-import { PrimaryButton } from "components/common/buttons";
-import { SearchInput } from "components/common/search";
+import { CentralizedLoader } from "../components/common/loaders";
+import { PrimaryButton } from "../components/common/buttons";
+import { SearchInput } from "../components/common/search";
 
 const FrutasTable = lazy(() => import("../components/frutas/FrutasTable"));
 const AddEditFrutaDialog = lazy(() =>

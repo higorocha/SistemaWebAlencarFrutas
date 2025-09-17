@@ -6,6 +6,7 @@ Documentação técnica e guia para desenvolvimento do Sistema Web Alencar Fruta
 - **Idioma:** Português do Brasil (PT-BR)
 - **Ambiente:** Windows 11 + IDE Cursor
 - **Terminal:** `claude` (alias configurado)
+- **MCP Render:** Configurado para deploy e gerenciamento de serviços
 
 ## 📋 Sistema Web Alencar Frutas
 
@@ -56,6 +57,11 @@ SistemaWebAlencarFrutas/
 - `npx prisma generate` - Gerar cliente Prisma
 - `npx prisma studio` - Interface visual do banco
 - `npx prisma migrate dev` - Aplicar migrações
+
+**Deploy & Infraestrutura:**
+- **MCP Render:** `claude mcp list` - Verificar status da conexão
+- **API Key:** Configurada para gerenciamento de serviços no Render
+- **Deploy:** Acesso direto aos serviços através do Claude Code
 
 ---
 

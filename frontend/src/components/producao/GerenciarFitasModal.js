@@ -73,8 +73,6 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess, onLoadingChange }) 
         onSuccess();
       }
 
-      // Aguarda um pouco para página pai terminar carregamento
-      await new Promise(resolve => setTimeout(resolve, 2500));
 
       // Notificação interna do modal (aparece sobre o modal)
       success('Sucesso', 'Fita criada com sucesso!');
@@ -164,8 +162,6 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess, onLoadingChange }) 
         onSuccess();
       }
 
-      // Aguarda um pouco para página pai terminar carregamento
-      await new Promise(resolve => setTimeout(resolve, 2500));
 
       // Notificação interna do modal (aparece sobre o modal)
       success('Sucesso', 'Fita atualizada com sucesso!');
@@ -209,8 +205,6 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess, onLoadingChange }) 
         onSuccess();
       }
 
-      // Aguarda um pouco para página pai terminar carregamento
-      await new Promise(resolve => setTimeout(resolve, 2500));
 
       // Notificação interna do modal (aparece sobre o modal)
       success('Sucesso', 'Fita excluída com sucesso!');
