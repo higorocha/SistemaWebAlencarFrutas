@@ -38,7 +38,19 @@ const App = () => {
   useThemeVariables();
 
   return (
-    <ConfigProvider locale={ptBR}>
+    <ConfigProvider
+      locale={ptBR}
+      theme={{
+        components: {
+          Message: {
+            zIndexPopupBase: 100001, // Maior que modal filho (100000)
+          },
+          Notification: {
+            zIndexPopupBase: 100001, // Maior que modal filho (100000)
+          },
+        },
+      }}
+    >
       <AuthProvider>
         <LoadingContext.Provider value={{ loading, setLoading }}>
           <CustomScrollbar>

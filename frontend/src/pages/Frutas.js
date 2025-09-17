@@ -1,6 +1,6 @@
 // src/pages/Frutas.js
 
-import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
+import React, { useEffect, useState, useCallback, lazy } from "react";
 import { Typography, Button, Space, Modal, Spin } from "antd";
 import {
   OrderedListOutlined,
@@ -11,7 +11,7 @@ import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
-import LoadingFallback from "components/common/loaders/LoadingFallback";
+import { CentralizedLoader } from "components/common/loaders";
 import { PrimaryButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
 
@@ -45,6 +45,10 @@ const Frutas = () => {
   const [erros, setErros] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Estados para CentralizedLoader
+  const [centralizedLoading, setCentralizedLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Carregando...");
 
   const API_URL = {
     frutas: "/api/frutas",
@@ -56,7 +60,10 @@ const Frutas = () => {
 
   const buscarFrutas = useCallback(async () => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Carregando frutas...");
       setIsLoading(true);
+      
       const response = await axiosInstance.get(API_URL.frutas);
       console.log("Dados recebidos da API:", response.data);
 
@@ -68,6 +75,7 @@ const Frutas = () => {
       showNotification("error", "Erro", "Erro ao buscar frutas.");
     } finally {
       setIsLoading(false);
+      setCentralizedLoading(false);
     }
   }, [API_URL.frutas]);
 
@@ -123,31 +131,36 @@ const Frutas = () => {
       return;
     }
 
-    setIsSaving(true);
-    
-    // Garantir que apenas as propriedades necessárias sejam enviadas
-    const dadosParaEnvio = {
-      nome: frutaAtual.nome,
-      codigo: frutaAtual.codigo || null,
-      categoria: frutaAtual.categoria || null,
-      descricao: frutaAtual.descricao || null,
-      status: frutaAtual.status || "ATIVA",
-      nomeCientifico: frutaAtual.nomeCientifico || null,
-      corPredominante: frutaAtual.corPredominante || null,
-      epocaColheita: frutaAtual.epocaColheita || null,
-      observacoes: frutaAtual.observacoes || null,
-    };
-    
-    // Remover propriedades undefined/null para evitar problemas de validação
-    Object.keys(dadosParaEnvio).forEach(key => {
-      if (dadosParaEnvio[key] === undefined || dadosParaEnvio[key] === null) {
-        delete dadosParaEnvio[key];
-      }
-    });
-    
-    console.log("DEBUG_SAVE: Dados enviados para o backend:", dadosParaEnvio);
+    // FECHAR MODAL IMEDIATAMENTE ao clicar em salvar
+    handleCloseDialog();
     
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage(editando ? "Atualizando fruta..." : "Criando fruta...");
+      setIsSaving(true);
+      
+      // Garantir que apenas as propriedades necessárias sejam enviadas
+      const dadosParaEnvio = {
+        nome: frutaAtual.nome,
+        codigo: frutaAtual.codigo || null,
+        categoria: frutaAtual.categoria || null,
+        descricao: frutaAtual.descricao || null,
+        status: frutaAtual.status || "ATIVA",
+        nomeCientifico: frutaAtual.nomeCientifico || null,
+        corPredominante: frutaAtual.corPredominante || null,
+        epocaColheita: frutaAtual.epocaColheita || null,
+        observacoes: frutaAtual.observacoes || null,
+      };
+      
+      // Remover propriedades undefined/null para evitar problemas de validação
+      Object.keys(dadosParaEnvio).forEach(key => {
+        if (dadosParaEnvio[key] === undefined || dadosParaEnvio[key] === null) {
+          delete dadosParaEnvio[key];
+        }
+      });
+      
+      console.log("DEBUG_SAVE: Dados enviados para o backend:", dadosParaEnvio);
+      
       if (editando) {
         // Para edição, remover o id do payload se existir
         const { id, ...dadosParaUpdate } = dadosParaEnvio;
@@ -157,14 +170,32 @@ const Frutas = () => {
         await axiosInstance.post(API_URL.frutas, dadosParaEnvio);
         showNotification("success", "Sucesso", "Fruta cadastrada com sucesso!");
       }
-      buscarFrutas();
-      handleCloseDialog();
+      
+      setLoadingMessage("Atualizando lista de frutas...");
+      await buscarFrutas();
     } catch (error) {
       console.error("Erro ao salvar fruta:", error.response?.data || error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || "Erro desconhecido ao salvar.";
       showNotification("error", "Erro", errorMessage);
+      
+      // REABRIR MODAL EM CASO DE ERRO
+      setFrutaAtual(editando ? frutaAtual : {
+        id: null,
+        nome: "",
+        codigo: "",
+        categoria: "",
+        descricao: "",
+        status: "ATIVA",
+        nomeCientifico: "",
+        corPredominante: "",
+        epocaColheita: "",
+        observacoes: "",
+      });
+      setEditando(editando);
+      setOpenDialog(true);
     } finally {
       setIsSaving(false);
+      setCentralizedLoading(false);
     }
   }, [frutaAtual, editando, isSaving, API_URL.frutas, buscarFrutas, handleCloseDialog]);
 
@@ -200,33 +231,49 @@ const Frutas = () => {
         okText: "Sim",
         okType: "danger",
         cancelText: "Não",
-        onOk: async () => {
-          try {
+        onOk: () => {
+          // Executar operação de exclusão de forma assíncrona
+          const executarExclusao = async () => {
+            try {
+            setCentralizedLoading(true);
+            setLoadingMessage("Removendo fruta...");
+            
             await axiosInstance.delete(`${API_URL.frutas}/${id}`);
-            showNotification(
-              "success",
-              "Sucesso",
-              "Fruta excluída com sucesso!"
-            );
-            buscarFrutas();
-          } catch (error) {
-            console.error("Erro ao excluir fruta:", error);
+              showNotification(
+                "success",
+                "Sucesso",
+                "Fruta excluída com sucesso!"
+              );
+              
+              setLoadingMessage("Atualizando lista de frutas...");
+              await buscarFrutas();
+            } catch (error) {
+              console.error("Erro ao excluir fruta:", error);
 
-            const errorMessage =
-              error.response?.data?.error ||
-              "Ocorreu um erro ao excluir a fruta.";
-            const errorDetails = error.response?.data?.detalhes || "";
+              const errorMessage =
+                error.response?.data?.error ||
+                "Ocorreu um erro ao excluir a fruta.";
+              const errorDetails = error.response?.data?.detalhes || "";
 
-            Modal.error({
-              title: "Não é possível excluir a fruta",
-              content: (
-                <>
-                  <p>{errorMessage}</p>
-                  {errorDetails && <p>{errorDetails}</p>}
-                </>
-              ),
-            });
-          }
+              Modal.error({
+                title: "Não é possível excluir a fruta",
+                content: (
+                  <>
+                    <p>{errorMessage}</p>
+                    {errorDetails && <p>{errorDetails}</p>}
+                  </>
+                ),
+              });
+            } finally {
+              setCentralizedLoading(false);
+            }
+          };
+          
+          // Executar operação
+          executarExclusao();
+          
+          // Retornar true para fechar o modal imediatamente
+          return true;
         },
       });
     },
@@ -274,27 +321,23 @@ const Frutas = () => {
         </PrimaryButton>
       </div>
       <div style={{ marginBottom: "24px" }}>
-        <Suspense fallback={<LoadingFallback />}>
-          <SearchInput
-            placeholder="Buscar frutas por nome, código ou categoria..."
-            value={searchQuery}
-            onChange={(value) => setSearchQuery(value)}
-            style={{ marginTop: "8px" }}
-          />
-        </Suspense>
-      </div>
-      <Suspense fallback={<LoadingFallback />}>
-        <FrutasTable
-          frutas={frutasFiltradas}
-          loading={isLoading}
-          onEdit={handleEditarFruta}
-          onDelete={handleExcluirFruta}
-          currentPage={currentPage}
-          pageSize={pageSize}
-          onPageChange={handlePageChange}
-          onShowSizeChange={handleShowSizeChange}
+        <SearchInput
+          placeholder="Buscar frutas por nome, código ou categoria..."
+          value={searchQuery}
+          onChange={(value) => setSearchQuery(value)}
+          style={{ marginTop: "8px" }}
         />
-      </Suspense>
+      </div>
+      <FrutasTable
+        frutas={frutasFiltradas}
+        loading={false}
+        onEdit={handleEditarFruta}
+        onDelete={handleExcluirFruta}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={handlePageChange}
+        onShowSizeChange={handleShowSizeChange}
+      />
       {frutasFiltradas.length > 0 && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
           <Pagination
@@ -310,19 +353,24 @@ const Frutas = () => {
           />
         </div>
       )}
-      <Suspense fallback={<LoadingFallback />}>
-        <AddEditFrutaDialog
-          open={openDialog}
-          onClose={handleCloseDialog}
-          frutaAtual={frutaAtual}
-          setFrutaAtual={setFrutaAtual}
-          editando={editando}
-          erros={erros}
-          setErros={setErros}
-          isSaving={isSaving}
-          handleSalvarFruta={handleSalvarFruta}
-        />
-      </Suspense>
+      <AddEditFrutaDialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        frutaAtual={frutaAtual}
+        setFrutaAtual={setFrutaAtual}
+        editando={editando}
+        erros={erros}
+        setErros={setErros}
+        isSaving={isSaving}
+        handleSalvarFruta={handleSalvarFruta}
+      />
+      
+      {/* CentralizedLoader */}
+      <CentralizedLoader
+        visible={centralizedLoading}
+        message={loadingMessage}
+        subMessage="Aguarde enquanto processamos sua solicitação..."
+      />
     </div>
   );
 };

@@ -3,13 +3,14 @@ import { Modal, Button, Popconfirm, Form, Input, Space, Tag, Card, Typography, R
 import { PlusOutlined, EditOutlined, DeleteOutlined, SettingOutlined, SaveOutlined, CloseOutlined, TagOutlined, BgColorsOutlined, PlusCircleOutlined } from '@ant-design/icons';
 import { SketchPicker } from 'react-color';
 import axiosInstance from '../../api/axiosConfig';
-import { showNotification } from '../../config/notificationConfig';
+import { CentralizedLoader } from '../common/loaders';
 import { PrimaryButton } from '../common/buttons';
+import useNotificationWithContext from '../../hooks/useNotificationWithContext';
 import './GerenciarFitasModal.css';
 
 const { Text, Title } = Typography;
 
-const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
+const GerenciarFitasModal = ({ visible, onCancel, onSuccess, onLoadingChange }) => {
   const [fitas, setFitas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [operacaoLoading, setOperacaoLoading] = useState(false);
@@ -19,6 +20,9 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
   const [corSelecionada, setCorSelecionada] = useState('#FF0000');
   const [mostrarSeletorCor, setMostrarSeletorCor] = useState(false);
   const [form] = Form.useForm();
+
+  // Hook personalizado para notificações com z-index correto
+  const { success, error, contextHolder } = useNotificationWithContext();
 
   useEffect(() => {
     if (visible) {
@@ -33,7 +37,7 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
       setFitas(response.data);
     } catch (error) {
       console.error('Erro ao carregar fitas:', error);
-      showNotification('error', 'Erro', 'Falha ao carregar fitas');
+      error('Erro', 'Falha ao carregar fitas');
     } finally {
       setLoading(false);
     }
@@ -42,36 +46,63 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
   const handleCriarFita = async (values) => {
     try {
       setOperacaoLoading(true);
+
+      // Notifica a página pai que loading começou
+      if (onLoadingChange) {
+        onLoadingChange(true, "Criando nova fita...");
+      }
+
       const novaFita = {
         nome: values.nome,
         corHex: corSelecionada
       };
 
       await axiosInstance.post('/fitas-banana', novaFita);
-      showNotification('success', 'Sucesso', 'Fita criada com sucesso!');
-      
+
+      // Fecha o modal filho primeiro
       setNovaFitaVisible(false);
       form.resetFields();
       setCorSelecionada('#FF0000');
       setMostrarSeletorCor(false);
-      
-      // Recarregar apenas a lista de fitas
+
+      // Recarrega as fitas
       await carregarFitas();
-      
-      // Não chamar onSuccess aqui para evitar reload da página pai
-      // O onSuccess será chamado apenas quando o modal for fechado
+
+      // Notifica página pai para atualizar dados (que tem delay de 2s)
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      // Aguarda um pouco para página pai terminar carregamento
+      await new Promise(resolve => setTimeout(resolve, 2500));
+
+      // Notificação interna do modal (aparece sobre o modal)
+      success('Sucesso', 'Fita criada com sucesso!');
     } catch (error) {
       console.error('Erro ao criar fita:', error);
       const mensagem = error.response?.data?.message || 'Falha ao criar fita';
-      showNotification('error', 'Erro', mensagem);
+
+      // Notificação de erro interna do modal
+      error('Erro', mensagem);
+
+      // Em caso de erro, termina loading imediatamente
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     } finally {
       setOperacaoLoading(false);
+
+      // Só termina loading se não foi erro (sucesso já aguardou)
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     }
   };
 
   const handleEditarFita = async (id, values) => {
     try {
       setOperacaoLoading(true);
+
       const fitaAtualizada = {
         nome: values.nome,
         corHex: values.corHex
@@ -79,11 +110,9 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
 
       await axiosInstance.patch(`/fitas-banana/${id}`, fitaAtualizada);
       showNotification('success', 'Sucesso', 'Fita atualizada com sucesso!');
-      
+
       setEditandoFita(null);
       await carregarFitas();
-      
-      // Não chamar onSuccess aqui para evitar reload da página pai
     } catch (error) {
       console.error('Erro ao editar fita:', error);
       const mensagem = error.response?.data?.message || 'Falha ao atualizar fita';
@@ -106,47 +135,103 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
   const handleSalvarEdicao = async (id) => {
     try {
       if (!nomeEditando.trim()) {
-        showNotification('error', 'Erro', 'Nome da fita não pode estar vazio');
+        error('Erro', 'Nome da fita não pode estar vazio');
         return;
       }
 
       setOperacaoLoading(true);
+
+      // Notifica a página pai que loading começou
+      if (onLoadingChange) {
+        onLoadingChange(true, "Atualizando fita...");
+      }
+
       const fitaAtualizada = {
         nome: nomeEditando.trim()
       };
 
       await axiosInstance.patch(`/fitas-banana/${id}`, fitaAtualizada);
-      showNotification('success', 'Sucesso', 'Fita atualizada com sucesso!');
-      
+
+      // Limpa o estado de edição primeiro
       setEditandoFita(null);
       setNomeEditando('');
+
+      // Recarrega as fitas
       await carregarFitas();
-      
-      // Não chamar onSuccess aqui para evitar reload da página pai
+
+      // Notifica página pai para atualizar dados (que tem delay de 2s)
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      // Aguarda um pouco para página pai terminar carregamento
+      await new Promise(resolve => setTimeout(resolve, 2500));
+
+      // Notificação interna do modal (aparece sobre o modal)
+      success('Sucesso', 'Fita atualizada com sucesso!');
     } catch (error) {
       console.error('Erro ao editar fita:', error);
       const mensagem = error.response?.data?.message || 'Falha ao atualizar fita';
-      showNotification('error', 'Erro', mensagem);
+
+      // Notificação de erro interna do modal
+      error('Erro', mensagem);
+
+      // Em caso de erro, termina loading imediatamente
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     } finally {
       setOperacaoLoading(false);
+
+      // Só termina loading se não foi erro (sucesso já aguardou)
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     }
   };
 
   const handleExcluirFita = async (id) => {
     try {
       setOperacaoLoading(true);
+
+      // Notifica a página pai que loading começou
+      if (onLoadingChange) {
+        onLoadingChange(true, "Excluindo fita...");
+      }
+
       await axiosInstance.delete(`/fitas-banana/${id}`);
-      showNotification('success', 'Sucesso', 'Fita excluída com sucesso!');
-      
+
+      // Recarrega as fitas primeiro
       await carregarFitas();
-      
-      // Não chamar onSuccess aqui para evitar reload da página pai
+
+      // Notifica página pai para atualizar dados (que tem delay de 2s)
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      // Aguarda um pouco para página pai terminar carregamento
+      await new Promise(resolve => setTimeout(resolve, 2500));
+
+      // Notificação interna do modal (aparece sobre o modal)
+      success('Sucesso', 'Fita excluída com sucesso!');
     } catch (error) {
       console.error('Erro ao excluir fita:', error);
       const mensagem = error.response?.data?.message || 'Falha ao excluir fita';
-      showNotification('error', 'Erro', mensagem);
+
+      // Notificação de erro interna do modal
+      error('Erro', mensagem);
+
+      // Em caso de erro, termina loading imediatamente
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     } finally {
       setOperacaoLoading(false);
+
+      // Só termina loading se não foi erro (sucesso já aguardou)
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     }
   };
 
@@ -155,29 +240,29 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
   };
 
   const handleCloseModal = () => {
-    // Chamar onSuccess apenas quando o modal for fechado
-    // Isso garante que a página pai seja atualizada apenas uma vez
     if (onSuccess) onSuccess();
     onCancel();
   };
 
   return (
-    <Modal
-      title={
-        <span style={{ 
-          color: "#ffffff", 
-          fontWeight: "600", 
-          fontSize: "16px",
-          backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
-          display: "block",
-          borderRadius: "8px 8px 0 0",
-        }}>
-          <SettingOutlined style={{ marginRight: 8 }} />
-          Gerenciar Fitas de Banana
-        </span>
-      }
+    <>
+      {contextHolder}
+      <Modal
+        title={
+          <span style={{
+            color: "#ffffff",
+            fontWeight: "600",
+            fontSize: "16px",
+            backgroundColor: "#059669",
+            padding: "12px 16px",
+            margin: "-20px -24px 0 -24px",
+            display: "block",
+            borderRadius: "8px 8px 0 0",
+          }}>
+            <SettingOutlined style={{ marginRight: 8 }} />
+            Gerenciar Fitas de Banana
+          </span>
+        }
       open={visible}
       onCancel={handleCloseModal}
       footer={null}
@@ -198,6 +283,7 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
       }}
       centered
       destroyOnClose
+      zIndex={99999}
     >
       <div className="gerenciar-fitas-container" style={{ position: 'relative' }}>
         {/* Overlay de Loading para Operações */}
@@ -506,6 +592,7 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
         }}
         centered
         destroyOnClose
+        zIndex={100000}
       >
         <Form
           form={form}
@@ -639,7 +726,9 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess }) => {
           </div>
         </Form>
       </Modal>
-    </Modal>
+
+      </Modal>
+    </>
   );
 };
 

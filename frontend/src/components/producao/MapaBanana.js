@@ -50,7 +50,6 @@ const OverlayBox = styled.div`
 
 const MapaBanana = ({ dashboardData }) => {
   const theme = useTheme();
-  const [loading, setLoading] = useState(true);
   const [areasComFitas, setAreasComFitas] = useState([]);
   
   // Estados para o modal de detalhamento
@@ -89,8 +88,6 @@ const MapaBanana = ({ dashboardData }) => {
 
   const carregarAreasComFitas = async () => {
     try {
-      setLoading(true);
-      
       // Buscar áreas que têm fitas vinculadas através da API do controle-banana
       const response = await axiosInstance.get('/controle-banana/areas-com-fitas');
       
@@ -130,8 +127,6 @@ const MapaBanana = ({ dashboardData }) => {
     } catch (error) {
       console.error('Erro ao carregar áreas com fitas:', error);
       showNotification('error', 'Erro', 'Falha ao carregar áreas no mapa');
-    } finally {
-      setLoading(false);
     }
   };
 

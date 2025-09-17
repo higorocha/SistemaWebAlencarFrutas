@@ -3,13 +3,14 @@ import { Modal, Form, Input, Select, InputNumber, DatePicker, Button, Row, Col, 
 import axiosInstance from '../../api/axiosConfig';
 import dayjs from 'dayjs';
 import { showNotification } from '../../config/notificationConfig';
+import { CentralizedLoader } from '../common/loaders';
 import { SaveOutlined, CloseOutlined, TagOutlined, CalendarOutlined, UserOutlined, EnvironmentOutlined, NumberOutlined, FileTextOutlined } from '@ant-design/icons';
 import './RegistrarFitaModal.css';
 
 const { TextArea } = Input;
 const { Option } = Select;
 
-const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
+const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onError }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [areas, setAreas] = useState([]);
@@ -38,10 +39,16 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
   };
 
   const handleSubmit = async (values) => {
+    // FECHAR MODAL IMEDIATAMENTE
+    onCancel();
+    
     try {
-      setLoading(true);
+      // Ativar loading na página pai
+      if (onLoadingChange) {
+        onLoadingChange(true, "Marcando fita...");
+      }
       
-      // Registrar controle com fita existente
+      // Marcar controle com fita existente
       const controleData = {
         fitaBananaId: values.fitaBananaId,
         areaAgricolaId: values.areaAgricolaId,
@@ -52,15 +59,23 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
       
       await axiosInstance.post('/controle-banana', controleData);
       
-      showNotification('success', 'Sucesso', 'Fita registrada com sucesso!');
       onSuccess();
-      onCancel();
+      
+      // Mostrar notificação após o loading
+      showNotification('success', 'Sucesso', 'Fita marcada com sucesso!');
     } catch (error) {
-      console.error('Erro ao registrar fita:', error);
-      const mensagem = error.response?.data?.message || 'Falha ao registrar fita';
+      console.error('Erro ao marcar fita:', error);
+      const mensagem = error.response?.data?.message || 'Falha ao marcar fita';
       showNotification('error', 'Erro', mensagem);
+      // REABRIR MODAL EM CASO DE ERRO
+      if (onError) {
+        onError();
+      }
     } finally {
-      setLoading(false);
+      // Desativar loading na página pai
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     }
   };
 
@@ -102,6 +117,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
       }}
       centered
       destroyOnClose
+      zIndex={99999}
     >
       <Form
         form={form}
@@ -295,17 +311,17 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
             type="primary"
             icon={<SaveOutlined />}
             htmlType="submit"
-            loading={loading}
             size="large"
             style={{
               backgroundColor: "#059669",
               borderColor: "#059669",
             }}
           >
-            {loading ? "Marcando..." : "Marcar Fita"}
+            Marcar Fita
           </Button>
         </div>
       </Form>
+
     </Modal>
   );
 };

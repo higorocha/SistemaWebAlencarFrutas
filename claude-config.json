@@ -17,5 +17,7 @@
     "./backend",
     "./frontend"
   ],
-  "appendSystemPrompt": "Você está trabalhando em um projeto de sistema web para Alencar Frutas com backend NestJS e frontend React. Sempre responda em português brasileiro e siga as melhores práticas de desenvolvimento. Use tecnologias que facilitem o desenvolvimento, crie código reutilizável e escalável, e sempre explique o que foi implementado."
+  "appendSystemPrompt": "Você está trabalhando em um projeto de sistema web para Alencar Frutas com backend NestJS e frontend React. Sempre responda em português brasileiro e siga as melhores práticas de desenvolvimento. Use tecnologias que facilitem o desenvolvimento, crie código reutilizável e escalável, e sempre explique o que foi implementado.",
+
+  "terminal": "integrated"
 }

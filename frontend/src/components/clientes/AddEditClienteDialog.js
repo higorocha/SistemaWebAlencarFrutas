@@ -37,7 +37,6 @@ const AddEditClienteDialog = ({
   });
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
-  const [isSaving, setIsSaving] = useState(false);
 
   // Preencher formulário quando cliente for selecionado para edição
   useEffect(() => {
@@ -123,15 +122,8 @@ const AddEditClienteDialog = ({
       return;
     }
 
-    try {
-      setIsSaving(true);
-      await onSave(clienteAtual);
-      handleCancelar();
-    } catch (error) {
-      console.error("Erro ao salvar cliente:", error);
-    } finally {
-      setIsSaving(false);
-    }
+    // Chamar onSave e deixar o componente pai controlar o fechamento
+    await onSave(clienteAtual);
   };
 
   const handleCancelar = () => {
@@ -216,7 +208,7 @@ const AddEditClienteDialog = ({
         <Button
           icon={<CloseOutlined />}
           onClick={handleCancelar}
-          disabled={loading || isSaving}
+          disabled={loading}
           size="large"
         >
           Cancelar
@@ -225,14 +217,14 @@ const AddEditClienteDialog = ({
           type="primary"
           icon={<SaveOutlined />}
           onClick={handleSalvarCliente}
-          loading={loading || isSaving}
+          disabled={loading}
           size="large"
           style={{
             backgroundColor: "#059669",
             borderColor: "#059669",
           }}
         >
-          {isSaving ? "Salvando..." : (editando ? "Atualizar" : "Criar")} Cliente
+          {editando ? "Atualizar" : "Criar"} Cliente
         </Button>
       </div>
     </Modal>

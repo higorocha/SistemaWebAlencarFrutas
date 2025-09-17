@@ -23,6 +23,7 @@ import VisualizarPedidoModal from "../pedidos/VisualizarPedidoModal";
 import Chart from "react-apexcharts";
 import { formatCurrency } from "../../utils/formatters";
 import MiniSelectPersonalizavel from "../common/MiniComponents/MiniSelectPersonalizavel";
+import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -107,7 +108,6 @@ const StyledTable = styled(Table)`
 const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
   const [pedidos, setPedidos] = useState([]);
   const [pedidosFiltrados, setPedidosFiltrados] = useState([]);
-  const [loadingPedidos, setLoadingPedidos] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dateRange, setDateRange] = useState(null);
@@ -130,9 +130,34 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
     if (!cliente?.id) return;
 
     try {
-      setLoadingPedidos(true);
       const response = await axiosInstance.get(`/api/pedidos/cliente/${cliente.id}`);
-      const pedidosData = response.data || [];
+      
+      // Garantir que sempre temos um array válido
+      let pedidosData = [];
+      
+      try {
+        if (response && response.data) {
+          if (Array.isArray(response.data)) {
+            pedidosData = response.data;
+          } else if (response.data.data && Array.isArray(response.data.data)) {
+            pedidosData = response.data.data;
+          } else if (response.data.pedidos && Array.isArray(response.data.pedidos)) {
+            pedidosData = response.data.pedidos;
+          } else {
+            // Se não conseguir extrair array, usar array vazio
+            pedidosData = [];
+          }
+        }
+      } catch (parseError) {
+        console.warn("Erro ao processar resposta da API:", parseError);
+        pedidosData = [];
+      }
+      
+      // Garantir que pedidosData é sempre um array
+      if (!Array.isArray(pedidosData)) {
+        console.warn("pedidosData não é um array, convertendo para array vazio:", pedidosData);
+        pedidosData = [];
+      }
       
       setPedidos(pedidosData);
       setPedidosFiltrados(pedidosData);
@@ -142,17 +167,40 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       setEstatisticas(stats);
       
     } catch (error) {
-      console.error("Erro ao buscar pedidos do cliente:", error);
-      showNotification("error", "Erro", "Erro ao carregar pedidos do cliente");
+      console.warn("Erro ao buscar pedidos do cliente (usando dados vazios):", error);
+      // Não mostrar notificação de erro para dados vazios
+      // showNotification("error", "Erro", "Erro ao carregar pedidos do cliente");
       setPedidos([]);
       setPedidosFiltrados([]);
-    } finally {
-      setLoadingPedidos(false);
+      setEstatisticas({
+        totalPedidos: 0,
+        pedidosAtivos: 0,
+        pedidosFinalizados: 0,
+        valorTotal: 0,
+        valorPendente: 0,
+      });
     }
   }, [cliente?.id]);
 
   // Calcular estatísticas dos pedidos
   const calcularEstatisticas = (pedidos) => {
+    // Garantir que pedidos é sempre um array válido
+    if (!Array.isArray(pedidos)) {
+      console.warn("calcularEstatisticas: pedidos não é um array, usando array vazio:", pedidos);
+      pedidos = [];
+    }
+    
+    // Verificar se pedidos está vazio
+    if (pedidos.length === 0) {
+      return {
+        totalPedidos: 0,
+        pedidosAtivos: 0,
+        pedidosFinalizados: 0,
+        valorTotal: 0,
+        valorPendente: 0,
+      };
+    }
+
     const totalPedidos = pedidos.length;
     const pedidosAtivos = pedidos.filter(p => 
       !['PEDIDO_FINALIZADO', 'CANCELADO'].includes(p.status)
@@ -177,6 +225,19 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
 
   // Filtrar pedidos
   const filtrarPedidos = useCallback(() => {
+    // Garantir que pedidos é sempre um array válido
+    if (!Array.isArray(pedidos)) {
+      console.warn("filtrarPedidos: pedidos não é um array, usando array vazio:", pedidos);
+      setPedidosFiltrados([]);
+      return;
+    }
+    
+    // Se pedidos está vazio, não há nada para filtrar
+    if (pedidos.length === 0) {
+      setPedidosFiltrados([]);
+      return;
+    }
+    
     let pedidosFiltrados = [...pedidos];
 
     // Aplicar filtro de busca
@@ -238,7 +299,11 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
 
   // Função para processar dados do gráfico
   const processarDadosGrafico = () => {
-    if (!pedidos || pedidos.length === 0) return;
+    // Garantir que pedidos é um array válido
+    if (!Array.isArray(pedidos) || pedidos.length === 0) {
+      console.warn("processarDadosGrafico: pedidos não é um array válido ou está vazio:", pedidos);
+      return;
+    }
 
     const dataAtual = new Date();
     const dataInicio = new Date();
@@ -246,8 +311,13 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
 
     // Filtrar pedidos do período selecionado
     const pedidosFiltrados = pedidos.filter(pedido => {
-      const dataPedido = new Date(pedido.dataPedido);
-      return dataPedido >= dataInicio && dataPedido <= dataAtual;
+      try {
+        const dataPedido = new Date(pedido.dataPedido);
+        return dataPedido >= dataInicio && dataPedido <= dataAtual;
+      } catch (error) {
+        console.warn("Erro ao processar data do pedido:", pedido.dataPedido, error);
+        return false;
+      }
     });
 
     // Agrupar por mês
@@ -321,27 +391,33 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
     }
   }, [pedidos, intervaloMeses]);
 
-  // Função para formatar status do pedido
-  const formatarStatusPedido = (status) => {
-    const statusConfig = {
-      PEDIDO_CRIADO: { texto: "Criado", cor: "#1890ff", icone: <ClockCircleOutlined /> },
-      AGUARDANDO_COLHEITA: { texto: "Aguardando Colheita", cor: "#fa8c16", icone: <ClockCircleOutlined /> },
-      COLHEITA_REALIZADA: { texto: "Colheita Realizada", cor: "#52c41a", icone: <CheckCircleOutlined /> },
-      AGUARDANDO_PRECIFICACAO: { texto: "Aguardando Precificação", cor: "#fa8c16", icone: <ClockCircleOutlined /> },
-      PRECIFICACAO_REALIZADA: { texto: "Precificação Realizada", cor: "#52c41a", icone: <CheckCircleOutlined /> },
-      AGUARDANDO_PAGAMENTO: { texto: "Aguardando Pagamento", cor: "#fa8c16", icone: <ClockCircleOutlined /> },
-      PAGAMENTO_PARCIAL: { texto: "Pagamento Parcial", cor: "#faad14", icone: <ExclamationCircleOutlined /> },
-      PAGAMENTO_REALIZADO: { texto: "Pagamento Realizado", cor: "#52c41a", icone: <CheckCircleOutlined /> },
-      PEDIDO_FINALIZADO: { texto: "Finalizado", cor: "#52c41a", icone: <CheckCircleOutlined /> },
-      CANCELADO: { texto: "Cancelado", cor: "#ff4d4f", icone: <MinusCircleOutlined /> },
-    };
+  // Hook para cores de status centralizadas
+  const { getStatusConfig } = usePedidoStatusColors();
 
-    const config = statusConfig[status] || { texto: status, cor: "#d9d9d9", icone: <ClockCircleOutlined /> };
+  // Função para formatar status do pedido (cores centralizadas do tema)
+  const formatarStatusPedido = (status) => {
+    const config = getStatusConfig(status);
+    
+    // Mapeamento de ícones para status
+    const statusIcons = {
+      PEDIDO_CRIADO: <ClockCircleOutlined />,
+      AGUARDANDO_COLHEITA: <ClockCircleOutlined />,
+      COLHEITA_REALIZADA: <CheckCircleOutlined />,
+      AGUARDANDO_PRECIFICACAO: <ClockCircleOutlined />,
+      PRECIFICACAO_REALIZADA: <CheckCircleOutlined />,
+      AGUARDANDO_PAGAMENTO: <ClockCircleOutlined />,
+      PAGAMENTO_PARCIAL: <ExclamationCircleOutlined />,
+      PAGAMENTO_REALIZADO: <CheckCircleOutlined />,
+      PEDIDO_FINALIZADO: <CheckCircleOutlined />,
+      CANCELADO: <MinusCircleOutlined />,
+    };
+    
+    const icon = statusIcons[status] || <ClockCircleOutlined />;
     
     return (
       <Tag 
-        color={config.cor} 
-        icon={config.icone}
+        color={config.color} 
+        icon={icon}
         style={{ 
           borderRadius: "4px", 
           fontWeight: "500",
@@ -352,7 +428,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           gap: "4px",
         }}
       >
-        {config.texto}
+        {config.text}
       </Tag>
     );
   };
@@ -858,7 +934,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         <StyledTable
           columns={columns}
           dataSource={pedidosFiltrados}
-          loading={loadingPedidos}
+          loading={loading}
           rowKey="id"
           onRow={(record) => ({
             onClick: () => handleOpenVisualizarModal(record),

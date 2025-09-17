@@ -1,7 +1,7 @@
 // src/pages/Clientes.js
 
-import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
-import { Typography, Button, Space, Modal, Spin } from "antd";
+import React, { useEffect, useState, useCallback, lazy } from "react";
+import { Typography, Button, Space, Modal } from "antd";
 import {
   OrderedListOutlined,
   PartitionOutlined,
@@ -11,7 +11,7 @@ import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
-import LoadingFallback from "components/common/loaders/LoadingFallback";
+import { CentralizedLoader } from "components/common/loaders";
 import { PrimaryButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
 
@@ -35,6 +35,10 @@ const Clientes = () => {
   const [loading, setLoading] = useState(false);
   const [totalClientes, setTotalClientes] = useState(0);
   
+  // Estado para loading centralizado
+  const [centralizedLoading, setCentralizedLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Carregando...");
+  
   // Estados para busca
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState(""); // Novo estado para filtro de status
@@ -52,7 +56,10 @@ const Clientes = () => {
   // Função para buscar clientes da API com parâmetros
   const fetchClientes = useCallback(async (page = 1, limit = 20, search = "", status = "") => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Carregando clientes...");
       setLoading(true);
+      
       const params = new URLSearchParams();
       
       if (page) params.append('page', page.toString());
@@ -75,6 +82,7 @@ const Clientes = () => {
       setTotalClientes(0);
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, []);
 
@@ -133,7 +141,12 @@ const Clientes = () => {
 
   // Função para salvar cliente (criar ou editar)
   const handleSaveCliente = useCallback(async (clienteData) => {
+    // FECHAR MODAL IMEDIATAMENTE ao clicar em salvar
+    handleCloseModal();
+    
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage(clienteEditando ? "Atualizando cliente..." : "Criando cliente...");
       setLoading(true);
       
       if (clienteEditando) {
@@ -146,32 +159,68 @@ const Clientes = () => {
         showNotification("success", "Sucesso", "Cliente criado com sucesso!");
       }
       
-      handleCloseModal();
-      // Recarregar lista de clientes
-      await fetchClientes(currentPage, pageSize, searchTerm, statusFilter);
+      // Atualizar mensagem para recarregamento
+      setLoadingMessage("Atualizando lista de clientes...");
+      
+      // Recarregar lista de clientes (sem delay adicional)
+      const params = new URLSearchParams();
+      if (currentPage) params.append('page', currentPage.toString());
+      if (pageSize) params.append('limit', pageSize.toString());
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter) params.append('status', statusFilter);
+
+      const response = await axiosInstance.get(`/api/clientes?${params.toString()}`);
+      setClientes(response.data.data || []);
+      setClientesFiltrados(response.data.data || []);
+      setTotalClientes(response.data.total || 0);
+      setCurrentPage(response.data.page || 1);
       
     } catch (error) {
       console.error("Erro ao salvar cliente:", error);
       const message = error.response?.data?.message || "Erro ao salvar cliente";
       showNotification("error", "Erro", message);
+      
+      // REABRIR MODAL EM CASO DE ERRO
+      setClienteEditando(clienteEditando ? clienteEditando : null);
+      setModalOpen(true);
+      
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, [clienteEditando, fetchClientes, currentPage, pageSize, searchTerm, statusFilter, handleCloseModal]);
 
   // Função para deletar cliente
   const handleDeleteCliente = useCallback(async (clienteId) => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Removendo cliente...");
+      
       await axiosInstance.delete(`/api/clientes/${clienteId}`);
       showNotification("success", "Sucesso", "Cliente removido com sucesso!");
       
-      // Recarregar lista de clientes
-      await fetchClientes(currentPage, pageSize, searchTerm, statusFilter);
+      // Atualizar mensagem para recarregamento
+      setLoadingMessage("Atualizando lista de clientes...");
+      
+      // Recarregar lista de clientes (sem delay adicional)
+      const params = new URLSearchParams();
+      if (currentPage) params.append('page', currentPage.toString());
+      if (pageSize) params.append('limit', pageSize.toString());
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter) params.append('status', statusFilter);
+
+      const response = await axiosInstance.get(`/api/clientes?${params.toString()}`);
+      setClientes(response.data.data || []);
+      setClientesFiltrados(response.data.data || []);
+      setTotalClientes(response.data.total || 0);
+      setCurrentPage(response.data.page || 1);
       
     } catch (error) {
       console.error("Erro ao deletar cliente:", error);
       const message = error.response?.data?.message || "Erro ao remover cliente";
       showNotification("error", "Erro", message);
+    } finally {
+      setCentralizedLoading(false);
     }
   }, [fetchClientes, currentPage, pageSize, searchTerm, statusFilter]);
 
@@ -203,17 +252,15 @@ const Clientes = () => {
       </div>
 
              {/* Tabela */}
-       <Suspense fallback={<LoadingFallback />}>
          <ClientesTable
            clientes={clientesFiltrados}
-           loading={loading}
+           loading={false}
            onEdit={handleOpenEditModal}
            onDelete={handleDeleteCliente}
            onViewPedidos={handleOpenPedidosModal}
            onStatusFilter={handleStatusFilter}
            currentStatusFilter={statusFilter}
          />
-       </Suspense>
 
        {/* Paginação */}
        {totalClientes > 0 && (
@@ -235,25 +282,28 @@ const Clientes = () => {
        )}
 
              {/* Modal de Criação/Edição */}
-       <Suspense fallback={<Spin size="large" />}>
          <AddEditClienteDialog
            open={modalOpen}
            onClose={handleCloseModal}
            onSave={handleSaveCliente}
            cliente={clienteEditando}
-           loading={loading}
+           loading={false}
          />
-       </Suspense>
 
        {/* Modal de Pedidos do Cliente */}
-       <Suspense fallback={<Spin size="large" />}>
          <PedidosClienteModal
            open={pedidosModalOpen}
            onClose={handleClosePedidosModal}
            cliente={clienteSelecionado}
-           loading={loading}
+           loading={false}
          />
-       </Suspense>
+
+       {/* Loading Centralizado */}
+       <CentralizedLoader
+         visible={centralizedLoading}
+         message={loadingMessage}
+         subMessage="Aguarde enquanto processamos sua solicitação..."
+       />
      </div>
    );
  };

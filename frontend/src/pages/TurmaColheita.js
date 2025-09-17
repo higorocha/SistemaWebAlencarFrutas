@@ -12,6 +12,7 @@ import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
+import { CentralizedLoader } from "components/common/loaders";
 import { PrimaryButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
 
@@ -31,6 +32,8 @@ const TurmaColheita = () => {
   // Estados da aplicação
   const [loading, setLoading] = useState(false);
   const [totalTurmas, setTotalTurmas] = useState(0);
+  const [centralizedLoading, setCentralizedLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Carregando...");
 
   // Estados para busca
   const [searchTerm, setSearchTerm] = useState("");
@@ -44,7 +47,10 @@ const TurmaColheita = () => {
   // Função para buscar turmas de colheita da API com parâmetros
   const fetchTurmasColheita = useCallback(async (page = 1, limit = 20, search = "") => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Carregando turmas de colheita...");
       setLoading(true);
+      
       const params = new URLSearchParams();
 
       if (page) params.append('page', page.toString());
@@ -84,6 +90,7 @@ const TurmaColheita = () => {
       setTotalTurmas(0);
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, []);
 
@@ -124,7 +131,12 @@ const TurmaColheita = () => {
 
   // Função para salvar turma (criar ou editar)
   const handleSaveTurma = useCallback(async (turmaData) => {
+    // FECHAR MODAL IMEDIATAMENTE ao clicar em salvar
+    handleCloseModal();
+    
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage(turmaEditando ? "Atualizando turma..." : "Criando turma...");
       setLoading(true);
 
       if (turmaEditando) {
@@ -137,7 +149,7 @@ const TurmaColheita = () => {
         showNotification("success", "Sucesso", "Turma de colheita criada com sucesso!");
       }
 
-      handleCloseModal();
+      setLoadingMessage("Atualizando lista de turmas...");
       // Recarregar lista de turmas
       await fetchTurmasColheita(currentPage, pageSize, searchTerm);
 
@@ -145,8 +157,12 @@ const TurmaColheita = () => {
       console.error("Erro ao salvar turma de colheita:", error);
       const message = error.response?.data?.message || "Erro ao salvar turma de colheita";
       showNotification("error", "Erro", message);
+      // REABRIR MODAL EM CASO DE ERRO
+      setTurmaEditando(turmaEditando);
+      setModalOpen(true);
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, [turmaEditando, fetchTurmasColheita, currentPage, pageSize, searchTerm, handleCloseModal]);
 
@@ -158,19 +174,34 @@ const TurmaColheita = () => {
       okText: "Sim, excluir",
       cancelText: "Cancelar",
       okType: "danger",
-      onOk: async () => {
-        try {
-          await axiosInstance.delete(`/api/turma-colheita/${turmaId}`);
-          showNotification("success", "Sucesso", "Turma de colheita removida com sucesso!");
+      okButtonProps: {
+        loading: false, // Desabilitar loading interno do modal
+      },
+      onOk: () => {
+        // Executar operação de exclusão de forma assíncrona
+        const executarExclusao = async () => {
+          try {
+            setCentralizedLoading(true);
+            setLoadingMessage("Removendo turma de colheita...");
+            
+            await axiosInstance.delete(`/api/turma-colheita/${turmaId}`);
+            showNotification("success", "Sucesso", "Turma de colheita removida com sucesso!");
 
-          // Recarregar lista de turmas
-          await fetchTurmasColheita(currentPage, pageSize, searchTerm);
+            setLoadingMessage("Atualizando lista de turmas...");
+            // Recarregar lista de turmas
+            await fetchTurmasColheita(currentPage, pageSize, searchTerm);
 
-        } catch (error) {
-          console.error("Erro ao deletar turma de colheita:", error);
-          const message = error.response?.data?.message || "Erro ao remover turma de colheita";
-          showNotification("error", "Erro", message);
-        }
+          } catch (error) {
+            console.error("Erro ao deletar turma de colheita:", error);
+            const message = error.response?.data?.message || "Erro ao remover turma de colheita";
+            showNotification("error", "Erro", message);
+          } finally {
+            setCentralizedLoading(false);
+          }
+        };
+        
+        executarExclusao();
+        return true; // Fecha modal imediatamente
       }
     });
   }, [fetchTurmasColheita, currentPage, pageSize, searchTerm]);
@@ -206,7 +237,7 @@ const TurmaColheita = () => {
       <Suspense fallback={<LoadingFallback />}>
         <TurmaColheitaTable
           turmasColheita={turmasColheitaFiltradas}
-          loading={loading}
+          loading={false}
           onEdit={handleOpenEditModal}
           onDelete={handleDeleteTurma}
         />
@@ -241,6 +272,13 @@ const TurmaColheita = () => {
           loading={loading}
         />
       </Suspense>
+
+      {/* CentralizedLoader */}
+      <CentralizedLoader
+        visible={centralizedLoading}
+        message={loadingMessage}
+        subMessage="Aguarde enquanto processamos sua solicitação..."
+      />
     </div>
   );
 };

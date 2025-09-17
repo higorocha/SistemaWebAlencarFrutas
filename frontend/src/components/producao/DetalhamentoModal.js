@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Card, Typography, Row, Col, Spin, Empty, Tag, Space, Divider, Button, Badge, Select, Input, DatePicker, Popconfirm, Form, Tooltip } from 'antd';
+import { Modal, Card, Typography, Row, Col, Spin, Empty, Tag, Space, Divider, Button, Badge, Select, Input, DatePicker, Form, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import { 
   EnvironmentOutlined, 
@@ -15,34 +15,41 @@ import {
 } from '@ant-design/icons';
 import { useTheme } from '@mui/material/styles';
 import axiosInstance from '../../api/axiosConfig';
-import { showNotification } from '../../config/notificationConfig';
+import useNotificationWithContext from '../../hooks/useNotificationWithContext';
+import { CentralizedLoader } from '../common/loaders';
 import { obterNumeroSemana, formatarData, calcularStatusMaturacao } from '../../utils/dateUtils';
 
 const { Title, Text } = Typography;
 
-const DetalhamentoModal = ({ 
-  visible, 
-  onClose, 
+const DetalhamentoModal = ({
+  visible,
+  onClose,
   tipo, // 'area' ou 'fita'
-  itemId, 
+  itemId,
   itemNome,
   areas = [], // Receber áreas como prop para evitar chamada desnecessária à API
   onSuccess // Callback para atualizar a UI do componente pai
 }) => {
   const theme = useTheme();
+  const { success, error, contextHolder } = useNotificationWithContext();
   const [loading, setLoading] = useState(false);
   const [dados, setDados] = useState(null);
   const [editandoControle, setEditandoControle] = useState(null);
-  const [salvando, setSalvando] = useState(false);
-  const [excluindo, setExcluindo] = useState(false);
+  const [fitas, setFitas] = useState([]);
+  const [operacaoLoading, setOperacaoLoading] = useState(false);
 
   useEffect(() => {
     if (visible && itemId) {
       carregarDetalhes();
+      // Carregar fitas quando estiver no modo 'area' (para o seletor de fitas)
+      if (tipo === 'area') {
+        carregarFitas();
+      }
     } else if (!visible) {
       // Limpar dados quando o modal for fechado
       setDados(null);
       setEditandoControle(null);
+      setFitas([]);
     }
   }, [visible, itemId, tipo]);
 
@@ -54,23 +61,60 @@ const DetalhamentoModal = ({
         : `/controle-banana/detalhes-fita/${itemId}`;
       
       const response = await axiosInstance.get(endpoint);
+      console.log('Dados carregados do DetalhamentoModal:', response.data);
       setDados(response.data);
     } catch (error) {
       console.error('Erro ao carregar detalhes:', error);
-      showNotification('error', 'Erro', 'Falha ao carregar detalhes');
+      error('Erro', 'Falha ao carregar detalhes');
     } finally {
       setLoading(false);
     }
   };
 
+  const carregarFitas = async () => {
+    try {
+      const response = await axiosInstance.get('/fitas-banana');
+      setFitas(response.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar fitas:', error);
+      error('Erro', 'Falha ao carregar lista de fitas');
+    }
+  };
 
   const iniciarEdicao = (controle) => {
-    setEditandoControle({
+    if (!controle || !controle.id) {
+      error('Erro', 'Dados do controle não encontrados');
+      return;
+    }
+
+    // Sempre editamos um lote de fitas (controleBanana)
+    // Independente do modo, precisa de areaId e fitaId para a atualização
+    let editData = {
       id: controle.id,
-      areaId: controle.area.id,
-      quantidade: controle.quantidadeFitas,
+      quantidade: controle.quantidadeFitas || 0,
       dataRegistro: dayjs(controle.dataRegistro)
-    });
+    };
+
+    if (tipo === 'area') {
+      // Modo área: controle tem fita, área é o itemId atual
+      if (!controle.fita || !controle.fita.id) {
+        error('Erro', 'Fita do controle não encontrada');
+        return;
+      }
+      editData.fitaId = controle.fita.id;
+      editData.areaId = itemId; // ID da área atual (fixa)
+    } else {
+      // Modo fita: controle tem área, fita é o itemId atual
+      if (!controle.area || !controle.area.id) {
+        error('Erro', 'Área do controle não encontrada');
+        return;
+      }
+      editData.areaId = controle.area.id;
+      editData.fitaId = itemId; // ID da fita atual (fixa)
+    }
+
+    console.log('Iniciando edição:', editData);
+    setEditandoControle(editData);
   };
 
   const cancelarEdicao = () => {
@@ -79,42 +123,67 @@ const DetalhamentoModal = ({
 
   const salvarEdicao = async () => {
     try {
-      setSalvando(true);
+      setOperacaoLoading(true);
       
       const dadosAtualizacao = {
         areaAgricolaId: editandoControle.areaId,
+        fitaBananaId: editandoControle.fitaId,
         quantidadeFitas: editandoControle.quantidade,
         dataRegistro: editandoControle.dataRegistro.toISOString()
       };
 
+      console.log('Dados para atualização:', dadosAtualizacao);
+
       await axiosInstance.patch(`/controle-banana/${editandoControle.id}`, dadosAtualizacao);
       
-      showNotification('success', 'Sucesso', 'Lote atualizado com sucesso!');
       setEditandoControle(null);
-      carregarDetalhes(); // Recarregar dados do modal
+      await carregarDetalhes(); // Recarregar dados do modal
       onSuccess && onSuccess(); // Atualizar UI do componente pai
+
+      // Mostrar notificação após o loading
+      success('Sucesso', 'Lote atualizado com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar edição:', error);
-      showNotification('error', 'Erro', 'Falha ao salvar alterações');
+      error('Erro', 'Falha ao salvar alterações');
     } finally {
-      setSalvando(false);
+      setOperacaoLoading(false);
     }
+  };
+
+  const confirmarExclusao = (controleId) => {
+    Modal.confirm({
+      title: 'Excluir lote',
+      content: 'Tem certeza que deseja excluir este lote de fitas?',
+      okText: 'Sim',
+      cancelText: 'Não',
+      onOk: () => {
+        // Executar exclusão após o modal fechar
+        setTimeout(() => excluirControle(controleId), 100);
+        // Não retornar Promise para evitar loading no botão
+      },
+      okButtonProps: {
+        danger: true
+      },
+      zIndex: 100100 // Maior que DetalhamentoModal (99999)
+    });
   };
 
   const excluirControle = async (controleId) => {
     try {
-      setExcluindo(true);
-      
+      setOperacaoLoading(true);
+
       await axiosInstance.delete(`/controle-banana/${controleId}`);
-      
-      showNotification('success', 'Sucesso', 'Lote excluído com sucesso!');
-      carregarDetalhes(); // Recarregar dados do modal
+
+      await carregarDetalhes(); // Recarregar dados do modal
       onSuccess && onSuccess(); // Atualizar UI do componente pai
+
+      // Mostrar notificação após o loading
+      success('Sucesso', 'Lote excluído com sucesso!');
     } catch (error) {
       console.error('Erro ao excluir controle:', error);
-      showNotification('error', 'Erro', 'Falha ao excluir lote');
+      error('Erro', 'Falha ao excluir lote');
     } finally {
-      setExcluindo(false);
+      setOperacaoLoading(false);
     }
   };
 
@@ -166,7 +235,7 @@ const DetalhamentoModal = ({
             semanaColheitaInicio: obterNumeroSemana(dataColheitaInicio),
             semanaColheitaFim: obterNumeroSemana(dataColheitaFim),
             status: status,
-            areaNome: tipo === 'area' ? dados.nome : controle.area?.nome
+            areaNome: tipo === 'area' ? dados?.nome : controle.area?.nome
           });
         }
       }
@@ -247,7 +316,9 @@ const DetalhamentoModal = ({
         </div>
 
         {/* Lista de controles */}
-        {dados.controles.filter(controle => controle && controle.id).map((controle, index) => (
+        {dados.controles
+          .filter(controle => controle && controle.id && controle.quantidadeFitas !== undefined)
+          .map((controle, index) => (
           <div 
             key={controle.id}
             style={{
@@ -273,33 +344,76 @@ const DetalhamentoModal = ({
               <div style={{ padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px", border: "1px solid #e9ecef" }}>
                 <Form layout="vertical" size="large">
                   <Row gutter={[16, 16]}>
-                    <Col xs={24} md={8}>
-                      <Form.Item
-                        label={
-                          <Space>
-                            <EnvironmentOutlined style={{ color: "#059669" }} />
-                            <span style={{ fontWeight: "600", color: "#333" }}>Área</span>
-                          </Space>
-                        }
-                        required
-                      >
-                        <Select
-                          value={editandoControle.areaId}
-                          onChange={(value) => setEditandoControle({...editandoControle, areaId: value})}
-                          placeholder="Selecione a área"
-                          style={{
-                            borderRadius: "6px",
-                            borderColor: "#d9d9d9",
-                          }}
+                    {tipo === 'fita' ? (
+                      // Modo fita: mostrar seletor de área (fita é fixa)
+                      <Col xs={24} md={8}>
+                        <Form.Item
+                          label={
+                            <Space>
+                              <EnvironmentOutlined style={{ color: "#059669" }} />
+                              <span style={{ fontWeight: "600", color: "#333" }}>Área</span>
+                            </Space>
+                          }
+                          required
                         >
-                          {areas.map(area => (
-                            <Select.Option key={area.id} value={area.id}>
-                              {area.nome}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                    </Col>
+                          <Select
+                            value={editandoControle.areaId}
+                            onChange={(value) => setEditandoControle({...editandoControle, areaId: value})}
+                            placeholder="Selecione a área"
+                            style={{
+                              borderRadius: "6px",
+                              borderColor: "#d9d9d9",
+                            }}
+                          >
+                            {areas.map(area => (
+                              <Select.Option key={area.id} value={area.id}>
+                                {area.nome}
+                              </Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    ) : (
+                      // Modo área: mostrar seletor de fita (área é fixa)
+                      <Col xs={24} md={8}>
+                        <Form.Item
+                          label={
+                            <Space>
+                              <TagOutlined style={{ color: "#059669" }} />
+                              <span style={{ fontWeight: "600", color: "#333" }}>Fita</span>
+                            </Space>
+                          }
+                          required
+                        >
+                          <Select
+                            value={editandoControle.fitaId}
+                            onChange={(value) => setEditandoControle({...editandoControle, fitaId: value})}
+                            placeholder="Selecione a fita"
+                            style={{
+                              borderRadius: "6px",
+                              borderColor: "#d9d9d9",
+                            }}
+                          >
+                            {fitas.map(fita => (
+                              <Select.Option key={fita.id} value={fita.id}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div
+                                    style={{
+                                      width: '12px',
+                                      height: '12px',
+                                      backgroundColor: fita.corHex,
+                                      borderRadius: '50%',
+                                      border: '1px solid #ddd'
+                                    }}
+                                  />
+                                  {fita.nome}
+                                </div>
+                              </Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    )}
 
                     <Col xs={24} md={8}>
                       <Form.Item
@@ -362,7 +476,6 @@ const DetalhamentoModal = ({
                         <Button
                           type="primary"
                           icon={<SaveOutlined />}
-                          loading={salvando}
                           onClick={salvarEdicao}
                           size="large"
                           style={{
@@ -457,22 +570,15 @@ const DetalhamentoModal = ({
                       onClick={() => iniciarEdicao(controle)}
                       title="Editar lote"
                     />
-                    <Popconfirm
+                    <Button
+                      type="default"
+                      danger
+                      icon={<DeleteOutlined />}
+                      size="small"
                       title="Excluir lote"
-                      description="Tem certeza que deseja excluir este lote de fitas?"
-                      onConfirm={() => excluirControle(controle.id)}
-                      okText="Sim"
-                      cancelText="Não"
-                    >
-                      <Button
-                        type="default"
-                        danger
-                        icon={<DeleteOutlined />}
-                        size="small"
-                        loading={excluindo}
-                        title="Excluir lote"
-                      />
-                    </Popconfirm>
+                      onClick={() => confirmarExclusao(controle.id)}
+                      disabled={operacaoLoading}
+                    />
                   </Space>
                 </div>
               </div>
@@ -646,7 +752,9 @@ const DetalhamentoModal = ({
   };
 
   return (
-    <Modal
+    <>
+      {contextHolder}
+      <Modal
       title={
         <span style={{ 
           color: "#ffffff", 
@@ -691,7 +799,49 @@ const DetalhamentoModal = ({
       }}
       centered
       destroyOnClose
+      zIndex={99999}
     >
+      <div style={{ position: 'relative' }}>
+        {/* Overlay de Loading para Operações */}
+        {operacaoLoading && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            borderRadius: '8px'
+          }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '16px'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: '4px solid #f3f3f3',
+                borderTop: '4px solid #059669',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <div style={{
+                color: '#059669',
+                fontSize: '16px',
+                fontWeight: '600'
+              }}>
+                Processando...
+              </div>
+            </div>
+          </div>
+        )}
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Spin size="large" />
@@ -1046,7 +1196,10 @@ const DetalhamentoModal = ({
           </div>
         </div>
       )}
+      </div>
+
     </Modal>
+    </>
   );
 };
 

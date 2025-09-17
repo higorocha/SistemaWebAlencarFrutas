@@ -12,7 +12,7 @@ import { useLoadScript } from "@react-google-maps/api";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
-import LoadingFallback from "components/common/loaders/LoadingFallback";
+import { CentralizedLoader } from "components/common/loaders";
 import { PrimaryButton } from "components/common/buttons";
 import { cpf } from "cpf-cnpj-validator";
 import { SearchInput } from "components/common/search";
@@ -120,6 +120,8 @@ const AreasAgricolas = () => {
   const [erros, setErros] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [centralizedLoading, setCentralizedLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Carregando...");
 
   const [openDetalhesDialog, setOpenDetalhesDialog] = useState(false);
   const [areaDetalhes, setAreaDetalhes] = useState(null);
@@ -244,7 +246,10 @@ const AreasAgricolas = () => {
 
   const buscarAreas = useCallback(async () => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Carregando áreas agrícolas...");
       setIsLoading(true);
+      
       const response = await axiosInstance.get(API_URL.areas);
       console.log("Dados recebidos da API:", response.data);
 
@@ -256,6 +261,7 @@ const AreasAgricolas = () => {
       showNotification("error", "Erro", "Erro ao buscar áreas agrícolas.");
     } finally {
       setIsLoading(false);
+      setCentralizedLoading(false);
     }
   }, [API_URL.areas]);
 
@@ -430,39 +436,44 @@ const AreasAgricolas = () => {
       return;
     }
 
-    setIsSaving(true);
-    
-    // As coordenadas já estão em areaAtual através do MapDialog
-    // Garantir que apenas as propriedades necessárias sejam enviadas
-    const dadosParaEnvio = {
-      nome: areaAtual.nome,
-      categoria: areaAtual.categoria,
-      areaTotal: areaTotalNum,
-      coordenadas: areaAtual.coordenadas && areaAtual.coordenadas.length >= 3 ? areaAtual.coordenadas : null,
-      culturas: (areaAtual.culturas || []).map(c => ({
-        culturaId: c.culturaId,
-        areaPlantada: parseFloat(c.areaPlantada || 0),
-        areaProduzindo: parseFloat(c.areaProduzindo || 0),
-      }))
-    };
-    
-    // Remover propriedades undefined/null para evitar problemas de validação
-    Object.keys(dadosParaEnvio).forEach(key => {
-      if (dadosParaEnvio[key] === undefined || dadosParaEnvio[key] === null) {
-        delete dadosParaEnvio[key];
-      }
-    });
-    
-    console.log("DEBUG_SAVE: Dados enviados para o backend:", {
-      nome: dadosParaEnvio.nome,
-      categoria: dadosParaEnvio.categoria,
-      areaTotal: dadosParaEnvio.areaTotal,
-      coordenadas: dadosParaEnvio.coordenadas ? `${dadosParaEnvio.coordenadas.length} pontos` : "sem coordenadas",
-      culturas: dadosParaEnvio.culturas ? `${dadosParaEnvio.culturas.length} culturas` : "sem culturas"
-    });
-    console.log("DEBUG_SAVE: Payload completo:", JSON.stringify(dadosParaEnvio, null, 2));
-    
+    // FECHAR MODAL IMEDIATAMENTE ao clicar em salvar
+    handleCloseDialog();
+
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage(editando ? "Atualizando área..." : "Criando área...");
+      setIsSaving(true);
+      
+      // As coordenadas já estão em areaAtual através do MapDialog
+      // Garantir que apenas as propriedades necessárias sejam enviadas
+      const dadosParaEnvio = {
+        nome: areaAtual.nome,
+        categoria: areaAtual.categoria,
+        areaTotal: areaTotalNum,
+        coordenadas: areaAtual.coordenadas && areaAtual.coordenadas.length >= 3 ? areaAtual.coordenadas : null,
+        culturas: (areaAtual.culturas || []).map(c => ({
+          culturaId: c.culturaId,
+          areaPlantada: parseFloat(c.areaPlantada || 0),
+          areaProduzindo: parseFloat(c.areaProduzindo || 0),
+        }))
+      };
+      
+      // Remover propriedades undefined/null para evitar problemas de validação
+      Object.keys(dadosParaEnvio).forEach(key => {
+        if (dadosParaEnvio[key] === undefined || dadosParaEnvio[key] === null) {
+          delete dadosParaEnvio[key];
+        }
+      });
+      
+      console.log("DEBUG_SAVE: Dados enviados para o backend:", {
+        nome: dadosParaEnvio.nome,
+        categoria: dadosParaEnvio.categoria,
+        areaTotal: dadosParaEnvio.areaTotal,
+        coordenadas: dadosParaEnvio.coordenadas ? `${dadosParaEnvio.coordenadas.length} pontos` : "sem coordenadas",
+        culturas: dadosParaEnvio.culturas ? `${dadosParaEnvio.culturas.length} culturas` : "sem culturas"
+      });
+      console.log("DEBUG_SAVE: Payload completo:", JSON.stringify(dadosParaEnvio, null, 2));
+      
       if (editando) {
         // Para edição, remover o id do payload se existir
         const { id, ...dadosParaUpdate } = dadosParaEnvio;
@@ -472,14 +483,28 @@ const AreasAgricolas = () => {
         await axiosInstance.post(API_URL.areas, dadosParaEnvio);
         showNotification("success", "Sucesso", "Área cadastrada com sucesso!");
       }
-      buscarAreas();
-      handleCloseDialog();
+      
+      setLoadingMessage("Atualizando lista de áreas...");
+      await buscarAreas();
     } catch (error) {
       console.error("Erro ao salvar área:", error.response?.data || error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || "Erro desconhecido ao salvar.";
       showNotification("error", "Erro", errorMessage);
+      
+      // REABRIR MODAL EM CASO DE ERRO
+      setAreaAtual(editando ? areaAtual : {
+        id: null,
+        nome: "",
+        categoria: "COLONO",
+        areaTotal: "0.00",
+        coordenadas: [],
+        culturas: [],
+      });
+      setEditando(editando);
+      setOpenDialog(true);
     } finally {
       setIsSaving(false);
+      setCentralizedLoading(false);
     }
   }, [areaAtual, editando, isSaving, API_URL.areas, buscarAreas, handleCloseDialog]);
 
@@ -524,33 +549,49 @@ const AreasAgricolas = () => {
         okText: "Sim",
         okType: "danger",
         cancelText: "Não",
-        onOk: async () => {
-          try {
-            await axiosInstance.delete(`${API_URL.areas}/${id}`);
-            showNotification(
-              "success",
-              "Sucesso",
-              "Área agrícola excluída com sucesso!"
-            );
-            buscarAreas();
-          } catch (error) {
-            console.error("Erro ao excluir área agrícola:", error);
+        okButtonProps: {
+          loading: false, // Desabilitar loading interno do modal
+        },
+        onOk: () => {
+          // Executar operação de exclusão de forma assíncrona
+          const executarExclusao = async () => {
+            try {
+              setCentralizedLoading(true);
+              setLoadingMessage("Removendo área...");
+              
+              await axiosInstance.delete(`${API_URL.areas}/${id}`);
+              showNotification(
+                "success",
+                "Sucesso",
+                "Área agrícola excluída com sucesso!"
+              );
+              
+              setLoadingMessage("Atualizando lista de áreas...");
+              await buscarAreas();
+            } catch (error) {
+              console.error("Erro ao excluir área agrícola:", error);
 
-            const errorMessage =
-              error.response?.data?.error ||
-              "Ocorreu um erro ao excluir a área agrícola.";
-            const errorDetails = error.response?.data?.detalhes || "";
+              const errorMessage =
+                error.response?.data?.error ||
+                "Ocorreu um erro ao excluir a área agrícola.";
+              const errorDetails = error.response?.data?.detalhes || "";
 
-            Modal.error({
-              title: "Não é possível excluir a área",
-              content: (
-                <>
-                  <p>{errorMessage}</p>
-                  {errorDetails && <p>{errorDetails}</p>}
-                </>
-              ),
-            });
-          }
+              Modal.error({
+                title: "Não é possível excluir a área",
+                content: (
+                  <>
+                    <p>{errorMessage}</p>
+                    {errorDetails && <p>{errorDetails}</p>}
+                  </>
+                ),
+              });
+            } finally {
+              setCentralizedLoading(false);
+            }
+          };
+          
+          executarExclusao();
+          return true; // Fecha modal imediatamente
         },
       });
     },
@@ -734,7 +775,18 @@ const AreasAgricolas = () => {
   }
 
   if (!isLoaded) {
-    return <LoadingFallback message="Carregando mapa." />;
+    return (
+      <div style={{ padding: 16 }}>
+        <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
+          Áreas Agrícolas
+        </Typography.Title>
+        <CentralizedLoader
+          visible={true}
+          message="Carregando mapa..."
+          subMessage="Aguarde enquanto carregamos o Google Maps..."
+        />
+      </div>
+    );
   }
 
   return (
@@ -752,28 +804,24 @@ const AreasAgricolas = () => {
         </PrimaryButton>
       </div>
       <div style={{ marginBottom: "24px" }}>
-        <Suspense fallback={<LoadingFallback />}>
-          <SearchInput
-            placeholder="Buscar áreas por nome..."
-            value={searchQuery}
-            onChange={(value) => setSearchQuery(value)}
-            style={{ marginTop: "8px" }}
-          />
-        </Suspense>
-      </div>
-      <Suspense fallback={<LoadingFallback />}>
-        <AreasTable
-          areas={areasFiltradas}
-          loading={isLoading}
-          onEdit={handleEditarArea}
-          onDelete={handleExcluirArea}
-          onOpenMap={abrirMapa}
-          currentPage={currentPage}
-          pageSize={pageSize}
-          onPageChange={handlePageChange}
-          onShowSizeChange={handleShowSizeChange}
+        <SearchInput
+          placeholder="Buscar áreas por nome..."
+          value={searchQuery}
+          onChange={(value) => setSearchQuery(value)}
+          style={{ marginTop: "8px" }}
         />
-      </Suspense>
+      </div>
+      <AreasTable
+        areas={areasFiltradas}
+        loading={false}
+        onEdit={handleEditarArea}
+        onDelete={handleExcluirArea}
+        onOpenMap={abrirMapa}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={handlePageChange}
+        onShowSizeChange={handleShowSizeChange}
+      />
       {areasFiltradas.length > 0 && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
           <Pagination
@@ -789,55 +837,58 @@ const AreasAgricolas = () => {
           />
         </div>
       )}
-             <Suspense fallback={<LoadingFallback />}>
-         <AddEditAreaDialog
-           open={openDialog}
-           onClose={handleCloseDialog}
-           areaAtual={areaAtual}
-           setAreaAtual={setAreaAtual}
-           editando={editando}
-           culturas={culturas}
-           erros={erros}
-           setErros={setErros}
-           isSaving={isSaving}
-           handleSalvarArea={handleSalvarArea}
-           abrirMapa={abrirMapa}
-           onCulturasReload={buscarCulturas}
-         />
-       </Suspense>
-      <Suspense fallback={<LoadingFallback />}>
-        <MapDialog
-          open={mapOpen}
-          onClose={handleCloseMapDialog}
-          mapMode={mapMode}
-          setMapMode={setMapModeHandler}
-          isDrawing={isDrawing}
-          setIsDrawing={setIsDrawing}
-          mapCenter={mapCenter}
-          setMapCenter={setMapCenter}
-          mapZoom={mapZoom}
-          setMapZoom={setMapZoom}
-          loteAtual={areaAtual}
-          setLoteAtual={setAreaAtual}
-          tempCoordinates={tempCoordinates}
-          setTempCoordinates={setTempCoordinates}
-          markers={markers}
-          setMarkers={setMarkers}
-          midpoints={midpoints}
-          setMidpoints={setMidpoints}
-          handlePolygonComplete={handlePolygonComplete}
-          handleMarkerDragEnd={handleMarkerDragEnd}
-          handleMarkerClick={handleMarkerClick}
-          handleMidpointDragEnd={handleMidpointDragEnd}
-          deleteMarker={deleteMarker}
-          selectedMarker={selectedMarker}
-          handleCloseInfoWindow={handleCloseInfoWindow}
-          calculateAreaPolygon={calcularAreaPolygon}
-          setAreaPoligono={setAreaPoligono}
-          areaPoligono={areaPoligono}
-          lotesExistentes={areas.filter((l) => l.id !== areaAtual?.id)}
-        />
-      </Suspense>
+      <AddEditAreaDialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        areaAtual={areaAtual}
+        setAreaAtual={setAreaAtual}
+        editando={editando}
+        culturas={culturas}
+        erros={erros}
+        setErros={setErros}
+        isSaving={isSaving}
+        handleSalvarArea={handleSalvarArea}
+        abrirMapa={abrirMapa}
+        onCulturasReload={buscarCulturas}
+      />
+      <MapDialog
+        open={mapOpen}
+        onClose={handleCloseMapDialog}
+        mapMode={mapMode}
+        setMapMode={setMapModeHandler}
+        isDrawing={isDrawing}
+        setIsDrawing={setIsDrawing}
+        mapCenter={mapCenter}
+        setMapCenter={setMapCenter}
+        mapZoom={mapZoom}
+        setMapZoom={setMapZoom}
+        loteAtual={areaAtual}
+        setLoteAtual={setAreaAtual}
+        tempCoordinates={tempCoordinates}
+        setTempCoordinates={setTempCoordinates}
+        markers={markers}
+        setMarkers={setMarkers}
+        midpoints={midpoints}
+        setMidpoints={setMidpoints}
+        handlePolygonComplete={handlePolygonComplete}
+        handleMarkerDragEnd={handleMarkerDragEnd}
+        handleMarkerClick={handleMarkerClick}
+        handleMidpointDragEnd={handleMidpointDragEnd}
+        deleteMarker={deleteMarker}
+        selectedMarker={selectedMarker}
+        handleCloseInfoWindow={handleCloseInfoWindow}
+        calculateAreaPolygon={calcularAreaPolygon}
+        setAreaPoligono={setAreaPoligono}
+        areaPoligono={areaPoligono}
+        lotesExistentes={areas.filter((l) => l.id !== areaAtual?.id)}
+      />
+      
+      {/* CentralizedLoader */}
+      <CentralizedLoader
+        visible={centralizedLoading}
+        message={loadingMessage}
+        subMessage="Aguarde enquanto processamos sua solicitação..."
+      />
     </div>
   );
 };

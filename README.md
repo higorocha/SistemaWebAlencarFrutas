@@ -35,6 +35,39 @@ Sistema de gestão agrícola completo que gerencia:
 9. **🎯 PEDIDO_FINALIZADO** → Processo completo (estado final)
 10. **❌ CANCELADO** → Cancelado em qualquer fase (estado final)
 
+**🎨 Sistema de Cores de Status Centralizado:**
+- **PEDIDO_CRIADO** → `#1890ff` (Azul) - Pedidos recém-criados
+- **AGUARDANDO_COLHEITA** → `#1890ff` (Azul) - Aguardando colheita
+- **COLHEITA_REALIZADA** → `#722ed1` (Roxo) - Colheita concluída
+- **AGUARDANDO_PRECIFICACAO** → `#722ed1` (Roxo) - Aguardando precificação
+- **PRECIFICACAO_REALIZADA** → `#722ed1` (Roxo) - Precificação concluída
+- **AGUARDANDO_PAGAMENTO** → `#faad14` (Amarelo) - Aguardando pagamento
+- **PAGAMENTO_PARCIAL** → `#faad14` (Amarelo) - Pagamento parcial
+- **PAGAMENTO_REALIZADO** → `#52c41a` (Verde) - Pagamento completo
+- **PEDIDO_FINALIZADO** → `#52c41a` (Verde) - Processo finalizado
+- **CANCELADO** → `#ff4d4f` (Vermelho) - Pedido cancelado
+
+**🎯 Implementação Centralizada:**
+- **Tema Global**: Cores definidas em `theme.js` para modo claro e escuro
+- **Hook Personalizado**: `usePedidoStatusColors` para acesso fácil às cores
+- **Consistência Total**: Mesmas cores em dashboard, tabelas, modais e relatórios
+- **Manutenção Simplificada**: Alteração centralizada reflete em toda a aplicação
+- **Suporte a Temas**: Cores adaptadas automaticamente para modo claro/escuro
+
+**📚 Como Usar:**
+```javascript
+import usePedidoStatusColors from '../../hooks/usePedidoStatusColors';
+
+const { getStatusColor, getStatusConfig } = usePedidoStatusColors();
+
+// Obter cor específica
+const cor = getStatusColor('PEDIDO_CRIADO'); // "#1890ff"
+
+// Obter configuração completa
+const config = getStatusConfig('AGUARDANDO_COLHEITA'); 
+// { color: "#1890ff", text: "Aguardando Colheita" }
+```
+
 **🎯 Características Avançadas:**
 - **Dupla Unidade de Medida**: Por fruta (ex: 1000 KG + 50 CX)
 - **Múltiplas Áreas de Origem**: Próprias + fornecedores por fruta
@@ -231,7 +264,9 @@ SistemaWebAlencarFrutas/
 │   │   │   ├── common/                 # Componentes reutilizáveis
 │   │   │   │   ├── buttons/            # Botões personalizados
 │   │   │   │   ├── inputs/             # Inputs especializados
-│   │   │   │   └── search/             # Componentes de busca
+│   │   │   │   ├── search/             # Componentes de busca
+│   │   │   │   └── loaders/            # Componentes de loading
+│   │   │   │       └── CentralizedLoader.js # Loading global com z-index 99999
 │   │   │   ├── producao/               # Componentes de produção
 │   │   │   ├── turma-colheita/         # Componentes de turmas de colheita
 │   │   │   │   ├── TurmaColheitaForm.js        # Formulário de turma
@@ -244,7 +279,8 @@ SistemaWebAlencarFrutas/
 │   │   │   ├── useDashboardOptimized.js # Dashboard com performance otimizada
 │   │   │   ├── useSmartDashboardReload.js # Sistema de reload inteligente por operação
 │   │   │   ├── useFormValidation.js    # Validação de formulários memoizada
-│   │   │   └── useDebounce.js          # Hook genérico de debounce
+│   │   │   ├── useDebounce.js          # Hook genérico de debounce
+│   │   │   └── useNotificationWithContext.js # Notificações com z-index correto
 │   │   ├── utils/                      # Utilitários (OTIMIZADOS)
 │   │   │   ├── validation.js           # Sistema de validação robusto
 │   │   │   ├── errorHandling.js        # Tratamento padronizado de erros
@@ -536,6 +572,7 @@ GET    /api/config-whatsapp            # Configurações do WhatsApp
 - **useSmartDashboardReload**: Sistema de reload inteligente por tipo de operação
 - **useFormValidation**: Validação memoizada para formulários complexos
 - **useDebounce**: Hook genérico para debounce de valores e callbacks
+- **useNotificationWithContext**: Notificações com z-index correto que respeitam ConfigProvider
 
 **🔧 Otimizações Técnicas:**
 - **Cache Inteligente**: TTL de 30 segundos para dados do dashboard
@@ -590,6 +627,48 @@ GET    /api/config-whatsapp            # Configurações do WhatsApp
 - **Tratamento de CanceledError**: Supressão de logs de erro para cancelamentos normais
 - **Validação de Função**: Verificação de disponibilidade antes de executar reload
 - **Logging Inteligente**: Console logs informativos para debugging
+
+### **🔔 Sistema de Notificações Avançado com Z-index Correto**
+
+**🎯 Problema Identificado:**
+- **Static Methods Limitados**: `notification.*` e `message.*` não acessam ConfigProvider
+- **Z-index Conflitante**: Notificações apareciam atrás de modais (z-index 1000 vs 100000)
+- **Contexto Perdido**: Methods estáticos renderizam em DOM nodes independentes
+
+**✅ Solução Hook-based:**
+- **useNotificationWithContext**: Hook personalizado que respeita ConfigProvider
+- **Z-index Configurado**: `zIndexPopupBase: 100001` no App.js para todas notificações
+- **API Familiar**: Mantém sintaxe idêntica ao `showNotification` existente
+- **Context-Aware**: Renderização dentro da árvore React com `contextHolder`
+
+**🔧 Implementação:**
+```javascript
+// Hook com API familiar
+const { success, error, info, warning, contextHolder } = useNotificationWithContext();
+
+// Uso idêntico ao showNotification
+success('Sucesso', 'Operação realizada!');
+error('Erro', 'Algo deu errado!');
+
+// OBRIGATÓRIO: contextHolder no JSX
+return (
+  <>
+    {contextHolder}
+    <Modal>...</Modal>
+  </>
+);
+```
+
+**📋 Configuração Global:**
+- **ConfigProvider** (App.js): `zIndexPopupBase: 100001` para Message e Notification
+- **CSS Existente**: Utiliza `globalNotifications.css` para estilo consistente
+- **Migração Opcional**: Use apenas onde `showNotification` tem problema de z-index
+
+**🎨 Benefícios:**
+- **Z-index Definitivo**: Sempre aparece sobre modais (z-index 100001)
+- **Estilo Consistente**: Visual idêntico ao sistema atual
+- **API Compatível**: Sem necessidade de mudança de código significativa
+- **Documentação Completa**: README-useNotificationWithContext.md com exemplos
 
 ---
 
@@ -762,6 +841,7 @@ const fasesColheita = {
 - **PrimaryButton** - Botões de ação principais (40px altura)
 - **MonetaryInput** - Input monetário com validações específicas
 - **MiniSelectPersonalizavel** - Select customizado com ícones, loading states e estilização flexível
+- **CentralizedLoader** - Loading global que cobre toda a tela com backdrop blur e z-index 99999
 
 ### **5. Sistema de Interface Avançado**
 - **Tema Global** com CSS Variables automáticas
@@ -769,6 +849,7 @@ const fasesColheita = {
 - **Modais Inteligentes** com headers coloridos e sistema de cards
 - **Loading States** otimizados sem "flickering"
 - **Sistema de Notificações** centralizado com tipos variados
+- **Hook useNotificationWithContext** - Notificações que respeitam ConfigProvider e z-index correto
 
 ---
 
@@ -931,6 +1012,10 @@ npx prisma db seed           # Popular com dados
 - [x] Tratamento correto de cancelamento de requisições (CanceledError)
 - [x] Otimização de performance com atualizações específicas por tipo de operação
 - [x] Integração transparente com todos os modais do sistema de pedidos
+- [x] Hook useNotificationWithContext para notificações com z-index correto
+- [x] Sistema de notificações que respeitam ConfigProvider
+- [x] Correção de z-index conflitante entre modais e notificações
+- [x] CentralizedLoader com backdrop blur e z-index global otimizado
 
 ### **🔄 Em Desenvolvimento**
 - [ ] Relatórios avançados

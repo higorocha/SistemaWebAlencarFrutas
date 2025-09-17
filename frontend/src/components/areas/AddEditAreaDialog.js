@@ -89,7 +89,7 @@ const AddEditAreaDialog = ({
         </Button>
         <PrimaryButton
           onClick={handleSalvarArea}
-          loading={isSaving}
+          disabled={isSaving}
         >
           {editando ? "Salvar Alterações" : "Cadastrar Área"}
         </PrimaryButton>

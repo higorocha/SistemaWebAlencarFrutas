@@ -581,6 +581,7 @@ const ColheitaModal = ({
       }}
       centered
       destroyOnClose
+      zIndex={99999}
     >
       {pedido && (
         <>

@@ -3,6 +3,7 @@ import { Card, Typography, Row, Col, Spin, message, Button } from 'antd';
 import { PlusOutlined, SettingOutlined, SwapOutlined } from '@ant-design/icons';
 import axiosInstance from '../../api/axiosConfig';
 import { showNotification } from '../../config/notificationConfig';
+import { CentralizedLoader } from '../../components/common/loaders';
 import PrimaryButton from '../../components/common/buttons/PrimaryButton';
 import RegistrarFitaModal from '../../components/producao/RegistrarFitaModal';
 import GerenciarFitasModal from '../../components/producao/GerenciarFitasModal';
@@ -17,6 +18,8 @@ const { Title } = Typography;
 
 const ControleBanana = () => {
   const [loading, setLoading] = useState(true);
+  const [centralizedLoading, setCentralizedLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Carregando...");
   const [dashboardData, setDashboardData] = useState(null);
   const [listagemFitas, setListagemFitas] = useState([]);
   const [listagemAreas, setListagemAreas] = useState([]);
@@ -36,8 +39,12 @@ const ControleBanana = () => {
     carregarDados();
   }, []);
 
-  const carregarDados = async () => {
+  const carregarDados = async (showCentralizedLoading = true) => {
     try {
+      if (showCentralizedLoading) {
+        setCentralizedLoading(true);
+        setLoadingMessage("Carregando dados do controle de banana...");
+      }
       setLoading(true);
       
       // Carregar dados do dashboard (que já inclui informações de tempo das fitas)
@@ -93,8 +100,12 @@ const ControleBanana = () => {
       );
     } finally {
       setLoading(false);
+      if (showCentralizedLoading) {
+        setCentralizedLoading(false);
+      }
     }
   };
+
 
   const handleRegistrarFita = () => {
     setRegistrarModalVisible(true);
@@ -126,18 +137,24 @@ const ControleBanana = () => {
     });
   };
 
-  if (loading) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '400px' 
-      }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
+  // Callback para atualizar dados após operações nos modais
+  const handleModalSuccess = () => {
+    // Recarregar dados com CentralizedLoader para RegistrarFitaModal (afeta mapa + seção)
+    carregarDados(true);
+  };
+
+  // Callback para controlar loading dos modais
+  const handleModalLoading = (loading, message) => {
+    setCentralizedLoading(loading);
+    if (message) {
+      setLoadingMessage(message);
+    }
+  };
+
+  // Callback para reabrir modal em caso de erro
+  const handleModalError = () => {
+    setRegistrarModalVisible(true);
+  };
 
   return (
     <div className="controle-banana-container">
@@ -374,13 +391,16 @@ const ControleBanana = () => {
       <RegistrarFitaModal
         visible={registrarModalVisible}
         onCancel={() => setRegistrarModalVisible(false)}
-        onSuccess={carregarDados}
+        onSuccess={handleModalSuccess}
+        onLoadingChange={handleModalLoading}
+        onError={handleModalError}
       />
 
       <GerenciarFitasModal
         visible={gerenciarModalVisible}
         onCancel={() => setGerenciarModalVisible(false)}
-        onSuccess={carregarDados}
+        onSuccess={handleModalSuccess}
+        onLoadingChange={handleModalLoading}
       />
 
       {/* Modal de Detalhamento */}
@@ -391,7 +411,14 @@ const ControleBanana = () => {
         itemId={modalDetalhamento.itemId}
         itemNome={modalDetalhamento.itemNome}
         areas={dashboardData?.areasComFitas || []}
-        onSuccess={carregarDados}
+        onSuccess={handleModalSuccess}
+      />
+
+      {/* CentralizedLoader */}
+      <CentralizedLoader
+        visible={centralizedLoading}
+        message={loadingMessage}
+        subMessage="Aguarde enquanto processamos sua solicitação..."
       />
     </div>
   );

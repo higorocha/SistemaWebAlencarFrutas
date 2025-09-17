@@ -133,6 +133,32 @@ const getTheme = (mode) =>
               error: "#ff4d4f",
               errorBg: "#fff2f0",
             },
+            // NOVA SEÇÃO: Cores de Status de Pedidos (Padronizadas)
+            pedidoStatus: {
+              // Status iniciais (azul)
+              PEDIDO_CRIADO: "#1890ff", // Azul - Pedidos recém-criados
+              AGUARDANDO_COLHEITA: "#1890ff", // Azul - Aguardando colheita
+              
+              // Status de colheita e precificação (roxo)
+              COLHEITA_REALIZADA: "#722ed1", // Roxo - Colheita concluída
+              AGUARDANDO_PRECIFICACAO: "#722ed1", // Roxo - Aguardando precificação
+              PRECIFICACAO_REALIZADA: "#722ed1", // Roxo - Precificação concluída
+              
+              // Status de pagamento (amarelo)
+              AGUARDANDO_PAGAMENTO: "#faad14", // Amarelo - Aguardando pagamento
+              PAGAMENTO_PARCIAL: "#faad14", // Amarelo - Pagamento parcial
+              
+              // Status finais (verde)
+              PAGAMENTO_REALIZADO: "#52c41a", // Verde - Pagamento completo
+              PEDIDO_FINALIZADO: "#52c41a", // Verde - Processo finalizado
+              
+              // Status de cancelamento (vermelho)
+              CANCELADO: "#ff4d4f", // Vermelho - Pedido cancelado
+              
+              // Cores de fallback
+              DEFAULT: "#d9d9d9", // Cinza para status não reconhecidos
+            },
+            
             // NOVA SEÇÃO: Paginação padronizada
             pagination: {
               // Layout e espaçamento
@@ -302,6 +328,32 @@ const getTheme = (mode) =>
               error: "#ff4d4f",
               errorBg: "#2d1a1a",
             },
+            // NOVA SEÇÃO: Cores de Status de Pedidos (Modo Escuro)
+            pedidoStatus: {
+              // Status iniciais (azul)
+              PEDIDO_CRIADO: "#1890ff", // Azul - Pedidos recém-criados
+              AGUARDANDO_COLHEITA: "#1890ff", // Azul - Aguardando colheita
+              
+              // Status de colheita e precificação (roxo)
+              COLHEITA_REALIZADA: "#722ed1", // Roxo - Colheita concluída
+              AGUARDANDO_PRECIFICACAO: "#722ed1", // Roxo - Aguardando precificação
+              PRECIFICACAO_REALIZADA: "#722ed1", // Roxo - Precificação concluída
+              
+              // Status de pagamento (amarelo)
+              AGUARDANDO_PAGAMENTO: "#faad14", // Amarelo - Aguardando pagamento
+              PAGAMENTO_PARCIAL: "#faad14", // Amarelo - Pagamento parcial
+              
+              // Status finais (verde)
+              PAGAMENTO_REALIZADO: "#52c41a", // Verde - Pagamento completo
+              PEDIDO_FINALIZADO: "#52c41a", // Verde - Processo finalizado
+              
+              // Status de cancelamento (vermelho)
+              CANCELADO: "#ff4d4f", // Vermelho - Pedido cancelado
+              
+              // Cores de fallback
+              DEFAULT: "#6b7280", // Cinza para status não reconhecidos (modo escuro)
+            },
+            
             // NOVA SEÇÃO: Paginação padronizada (Modo Escuro)
             pagination: {
               // Layout e espaçamento
