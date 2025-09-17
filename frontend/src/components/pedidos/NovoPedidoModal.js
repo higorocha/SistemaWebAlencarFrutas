@@ -31,6 +31,7 @@ const NovoPedidoModal = ({
   onSave,
   loading,
   clientes,
+  onLoadingChange, // Callback para controlar CentralizedLoader
 }) => {
   const [form] = Form.useForm();
   const [isSaving, setIsSaving] = useState(false);
@@ -100,12 +101,12 @@ const NovoPedidoModal = ({
         // Mostrar primeiro erro encontrado
         const primeiroErro = resultadoValidacao.erros[0] || "Erro de validação";
         showNotification("error", "Erro de Validação", primeiroErro);
-        
+
         // Log todos os erros para debug
         if (resultadoValidacao.erros.length > 1) {
           console.warn('Erros adicionais encontrados:', resultadoValidacao.erros.slice(1));
         }
-        
+
         return;
       }
 
@@ -119,9 +120,18 @@ const NovoPedidoModal = ({
 
       console.log('✅ Validação do pedido passou!');
 
+      // PADRÃO "FECHAR-ENTÃO-LOADING": Fechar modal ANTES de iniciar loading
+      form.resetFields();
+      onClose();
+
+      // Notificar parent component para iniciar CentralizedLoader
+      if (onLoadingChange) {
+        onLoadingChange(true, "Criando pedido...");
+      }
+
       const formData = {
         ...values,
-        dataPrevistaColheita: values.dataPrevistaColheita 
+        dataPrevistaColheita: values.dataPrevistaColheita
           ? moment(values.dataPrevistaColheita).startOf('day').toISOString()
           : undefined,
         // NOVA ESTRUTURA: Criar área placeholder para satisfazer validação do backend
@@ -138,12 +148,16 @@ const NovoPedidoModal = ({
       };
 
       await onSave(formData);
-      form.resetFields();
-      onClose();
     } catch (error) {
       console.error("Erro ao criar pedido:", error);
+      // Em caso de erro, reabrir o modal
+      onClose(false); // false indica que não deve fechar
     } finally {
       setIsSaving(false);
+      // Notificar parent component para parar CentralizedLoader
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     }
   };
 
@@ -648,6 +662,7 @@ NovoPedidoModal.propTypes = {
   onSave: PropTypes.func.isRequired,
   loading: PropTypes.bool,
   clientes: PropTypes.array.isRequired,
+  onLoadingChange: PropTypes.func, // Callback para controlar CentralizedLoader
 };
 
 export default NovoPedidoModal;

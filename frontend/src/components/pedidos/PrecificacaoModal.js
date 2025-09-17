@@ -52,6 +52,7 @@ const PrecificacaoModal = ({
   onSave,
   pedido,
   loading,
+  onLoadingChange, // Callback para controlar CentralizedLoader
 }) => {
   const [form] = Form.useForm();
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -321,6 +322,15 @@ const PrecificacaoModal = ({
         }
       }
 
+      // PADRÃO "FECHAR-ENTÃO-LOADING": Fechar modal ANTES de iniciar loading
+      form.resetFields();
+      onClose();
+
+      // Notificar parent component para iniciar CentralizedLoader
+      if (onLoadingChange) {
+        onLoadingChange(true, "Definindo precificação...");
+      }
+
       const formData = {
         frutas: values.frutas.map(fruta => ({
           frutaPedidoId: fruta.frutaPedidoId,
@@ -340,12 +350,16 @@ const PrecificacaoModal = ({
       };
 
       await onSave(formData);
-      form.resetFields();
-      onClose();
     } catch (error) {
       console.error("Erro ao definir precificação:", error);
+      // Em caso de erro, reabrir o modal
+      onClose(false); // false indica que não deve fechar
     } finally {
       setSubmitLoading(false);
+      // Notificar parent component para parar CentralizedLoader
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     }
   };
 

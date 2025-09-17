@@ -24,6 +24,7 @@ import {
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import useNotificationWithContext from "../../hooks/useNotificationWithContext";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -40,6 +41,9 @@ const VincularAreasModal = ({
   const [loadingDados, setLoadingDados] = useState(false);
   const [selectedAreas, setSelectedAreas] = useState([]);
   const [observacoes, setObservacoes] = useState("");
+
+  // Hook para notificações com z-index correto
+  const { error, warning, contextHolder } = useNotificationWithContext();
 
   // Buscar dados quando modal abrir
   useEffect(() => {
@@ -69,7 +73,7 @@ const VincularAreasModal = ({
       
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
-      showNotification("error", "Erro", "Erro ao carregar áreas disponíveis");
+      error("Erro", "Erro ao carregar áreas disponíveis");
     } finally {
       setLoadingDados(false);
     }
@@ -117,7 +121,7 @@ const VincularAreasModal = ({
 
   const handleSave = () => {
     if (selectedAreas.length === 0) {
-      showNotification("warning", "Atenção", "Selecione pelo menos uma área");
+      warning("Atenção", "Selecione pelo menos uma área");
       return;
     }
 
@@ -141,22 +145,24 @@ const VincularAreasModal = ({
   };
 
   return (
-    <Modal
-      title={
-        <span style={{ 
-          color: "#ffffff", 
-          fontWeight: "600", 
-          fontSize: "16px",
-          backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
-          display: "block",
-          borderRadius: "8px 8px 0 0",
-        }}>
-          <LinkOutlined style={{ marginRight: 8 }} />
-          Vincular Áreas - {fruta?.frutaNome || 'Fruta'}
-        </span>
-      }
+    <>
+      {contextHolder}
+      <Modal
+        title={
+          <span style={{
+            color: "#ffffff",
+            fontWeight: "600",
+            fontSize: "16px",
+            backgroundColor: "#059669",
+            padding: "12px 16px",
+            margin: "-20px -24px 0 -24px",
+            display: "block",
+            borderRadius: "8px 8px 0 0",
+          }}>
+            <LinkOutlined style={{ marginRight: 8 }} />
+            Vincular Áreas - {fruta?.frutaNome || 'Fruta'}
+          </span>
+        }
       open={open}
       onCancel={onClose}
       footer={null}
@@ -387,7 +393,8 @@ const VincularAreasModal = ({
           Confirmar Vinculação
         </Button>
       </div>
-    </Modal>
+      </Modal>
+    </>
   );
 };
 

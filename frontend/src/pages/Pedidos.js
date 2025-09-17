@@ -18,6 +18,7 @@ import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
+import { CentralizedLoader } from "components/common/loaders";
 import { PrimaryButton, SecondaryButton } from "components/common/buttons";
 import { SearchInput, SearchInputInteligente } from "components/common/search";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../components/Icons/PaymentIcons";
@@ -47,6 +48,10 @@ const Pedidos = () => {
   // Estados da aplicação
   const [loading, setLoading] = useState(false);
   const [totalPedidos, setTotalPedidos] = useState(0);
+
+  // Estados para CentralizedLoader
+  const [centralizedLoading, setCentralizedLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Carregando...");
   
      // Estados para busca e filtros
    const [searchTerm, setSearchTerm] = useState("");
@@ -68,9 +73,19 @@ const Pedidos = () => {
   // Dados auxiliares
   const [clientes, setClientes] = useState([]);
 
+  // Callback para controlar loading dos modais
+  const handleModalLoading = useCallback((loading, message) => {
+    setCentralizedLoading(loading);
+    if (message) {
+      setLoadingMessage(message);
+    }
+  }, []);
+
   // Função para buscar pedidos da API
   const fetchPedidos = useCallback(async (page = 1, limit = 20, search = "", searchType = "", status = "", dataInicio = null, dataFim = null) => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Carregando pedidos...");
       setLoading(true);
       const params = new URLSearchParams();
       
@@ -83,12 +98,12 @@ const Pedidos = () => {
       if (dataFim) params.append('dataFim', dataFim);
 
       const response = await axiosInstance.get(`/api/pedidos?${params.toString()}`);
-      
+
       setPedidos(response.data.data || []);
       setPedidosFiltrados(response.data.data || []);
       setTotalPedidos(response.data.total || 0);
       setCurrentPage(response.data.page || 1);
-      
+
     } catch (error) {
       console.error("Erro ao buscar pedidos:", error);
       showNotification("error", "Erro", "Erro ao carregar pedidos");
@@ -97,6 +112,7 @@ const Pedidos = () => {
       setTotalPedidos(0);
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, []);
 
@@ -228,8 +244,10 @@ const Pedidos = () => {
   // Função para salvar pedido
   const handleSavePedido = useCallback(async (pedidoData) => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage(pedidoEditando ? "Atualizando pedido..." : "Criando pedido...");
       setLoading(true);
-      
+
       if (pedidoEditando) {
         // Nova rota de edição completa
         await axiosInstance.patch(`/api/pedidos/${pedidoEditando.id}/editar-completo`, pedidoData);
@@ -248,13 +266,17 @@ const Pedidos = () => {
       showNotification("error", "Erro", message);
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, [pedidoEditando, fetchPedidos, currentPage, pageSize, searchTerm, statusFilter, handleCloseModal]);
 
   // Função para atualizar colheita
   const handleSaveColheita = useCallback(async (colheitaData) => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Registrando colheita...");
       setLoading(true);
+
       await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/colheita`, colheitaData);
       showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
       
@@ -268,33 +290,43 @@ const Pedidos = () => {
       showNotification("error", "Erro", message);
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, searchTerm, statusFilter]);
 
   // Função para atualizar precificação
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Definindo precificação...");
       setLoading(true);
+
       await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/precificacao`, precificacaoData);
       showNotification("success", "Sucesso", "Precificação realizada com sucesso!");
-      
+
       setPrecificacaoModalOpen(false);
       setPedidoSelecionado(null);
+
+      setLoadingMessage("Atualizando lista de pedidos...");
       await fetchPedidos(currentPage, pageSize, searchTerm, statusFilter);
-      
+
     } catch (error) {
       console.error("Erro ao definir precificação:", error);
       const message = error.response?.data?.message || "Erro ao definir precificação";
       showNotification("error", "Erro", message);
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, searchTerm, statusFilter]);
 
   // Função para criar novo pagamento
   const handleNovoPagamento = useCallback(async (pagamentoData) => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage(pagamentoData.id ? "Atualizando pagamento..." : "Registrando pagamento...");
       setLoading(true);
+
       if (pagamentoData.id) {
         // Edição - usar PATCH (remover id do body)
         const { id, ...dadosSemId } = pagamentoData;
@@ -305,16 +337,17 @@ const Pedidos = () => {
         await axiosInstance.post('/api/pedidos/pagamentos', pagamentoData);
         showNotification("success", "Sucesso", "Pagamento registrado com sucesso!");
       }
-      
+
+      setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos
       await fetchPedidos(currentPage, pageSize, searchTerm, statusFilter);
-      
+
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
         const response = await axiosInstance.get(`/api/pedidos/${pedidoSelecionado.id}`);
         setPedidoSelecionado(response.data);
       }
-      
+
     } catch (error) {
       console.error("Erro ao processar pagamento:", error);
       const message = error.response?.data?.message || "Erro ao processar pagamento";
@@ -322,25 +355,30 @@ const Pedidos = () => {
       throw error; // Re-throw para o modal tratar
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, [fetchPedidos, currentPage, pageSize, searchTerm, statusFilter, pedidoSelecionado]);
 
   // Função para remover pagamento
   const handleRemoverPagamento = useCallback(async (pagamentoId) => {
     try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Removendo pagamento...");
       setLoading(true);
+
       await axiosInstance.delete(`/api/pedidos/pagamentos/${pagamentoId}`);
       showNotification("success", "Sucesso", "Pagamento removido com sucesso!");
-      
+
+      setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos
       await fetchPedidos(currentPage, pageSize, searchTerm, statusFilter);
-      
+
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
         const response = await axiosInstance.get(`/api/pedidos/${pedidoSelecionado.id}`);
         setPedidoSelecionado(response.data);
       }
-      
+
     } catch (error) {
       console.error("Erro ao remover pagamento:", error);
       const message = error.response?.data?.message || "Erro ao remover pagamento";
@@ -348,6 +386,7 @@ const Pedidos = () => {
       throw error; // Re-throw para o modal tratar
     } finally {
       setLoading(false);
+      setCentralizedLoading(false);
     }
   }, [fetchPedidos, currentPage, pageSize, searchTerm, statusFilter, pedidoSelecionado]);
 
@@ -613,6 +652,7 @@ const Pedidos = () => {
           onSave={handleSavePedido}
           loading={loading}
           clientes={clientes}
+          onLoadingChange={handleModalLoading}
         />
 
         {/* Modal para Editar Pedido */}
@@ -623,6 +663,7 @@ const Pedidos = () => {
           pedido={pedidoEditando}
           loading={loading}
           clientes={clientes}
+          onLoadingChange={handleModalLoading}
         />
 
         <ColheitaModal
@@ -634,6 +675,7 @@ const Pedidos = () => {
           onSave={handleSaveColheita}
           pedido={pedidoSelecionado}
           loading={loading}
+          onLoadingChange={handleModalLoading}
         />
 
         <PrecificacaoModal
@@ -645,6 +687,7 @@ const Pedidos = () => {
           onSave={handleSavePrecificacao}
           pedido={pedidoSelecionado}
           loading={loading}
+          onLoadingChange={handleModalLoading}
         />
 
         <PagamentoModal
@@ -659,6 +702,13 @@ const Pedidos = () => {
           loading={loading}
         />
       </Suspense>
+
+      {/* CentralizedLoader */}
+      <CentralizedLoader
+        visible={centralizedLoading}
+        message={loadingMessage}
+        subMessage="Aguarde enquanto processamos sua solicitação..."
+      />
     </Box>
   );
 };

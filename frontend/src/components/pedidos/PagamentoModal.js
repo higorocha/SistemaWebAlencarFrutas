@@ -31,6 +31,7 @@ import { formatarValorMonetario } from "../../utils/formatters";
 import { PrimaryButton } from "../common/buttons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import useNotificationWithContext from "../../hooks/useNotificationWithContext";
 import NovoPagamentoModal from "./NovoPagamentoModal";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import styled from "styled-components";
@@ -120,6 +121,21 @@ const StyledTable = styled(Table)`
   }
 `;
 
+// Styled component para o spinner com animação
+const SpinnerContainer = styled.div`
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #059669;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
 const PagamentoModal = ({
   open,
   onClose,
@@ -129,9 +145,13 @@ const PagamentoModal = ({
   onRemoverPagamento,
 }) => {
   const [novoPagamentoModalOpen, setNovoPagamentoModalOpen] = useState(false);
+
+  // Hook para notificações com z-index correto
+  const { error, contextHolder } = useNotificationWithContext();
   const [pagamentoEditando, setPagamentoEditando] = useState(null);
   const [pagamentos, setPagamentos] = useState([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(false);
+  const [operacaoLoading, setOperacaoLoading] = useState(false); // Loading para operações internas
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [pagamentoParaRemover, setPagamentoParaRemover] = useState(null);
 
@@ -153,7 +173,7 @@ const PagamentoModal = ({
       setPagamentos(pagamentosArray);
     } catch (error) {
       console.error("Erro ao buscar pagamentos:", error);
-      showNotification("error", "Erro", "Erro ao carregar pagamentos");
+      error("Erro", "Erro ao carregar pagamentos");
     } finally {
       setLoadingPagamentos(false);
     }
@@ -161,14 +181,22 @@ const PagamentoModal = ({
 
   const handleNovoPagamento = async (pagamentoData) => {
     try {
-      await onNovoPagamento(pagamentoData);
-      await fetchPagamentos(); // Recarregar lista interna
+      // Fechar modal filho e mostrar overlay interno
       setNovoPagamentoModalOpen(false);
       setPagamentoEditando(null);
+      setOperacaoLoading(true); // Ativar overlay interno
+
+      await onNovoPagamento(pagamentoData);
+      await fetchPagamentos(); // Recarregar lista interna
       // Não mostrar mensagem aqui pois a página principal já mostra
     } catch (error) {
       console.error("Erro ao registrar pagamento:", error);
+      // Em caso de erro, reabrir o modal
+      setNovoPagamentoModalOpen(true);
+      setPagamentoEditando(pagamentoData.id ? pagamentoData : null);
       throw error; // Re-throw para o modal tratar
+    } finally {
+      setOperacaoLoading(false); // Desativar overlay interno
     }
   };
 
@@ -194,7 +222,7 @@ const PagamentoModal = ({
       // Não exibir notificação aqui pois o componente pai já exibe
     } catch (error) {
       console.error("Erro ao remover pagamento:", error);
-      showNotification("error", "Erro", "Erro ao remover pagamento");
+      error("Erro", "Erro ao remover pagamento");
     }
   };
 
@@ -392,6 +420,7 @@ const PagamentoModal = ({
 
   return (
     <>
+      {contextHolder}
       <Modal
         title={
           <span style={{ 
@@ -420,6 +449,45 @@ const PagamentoModal = ({
         centered
         destroyOnClose
       >
+        <div style={{ position: 'relative' }}>
+          {/* Overlay de Loading para Operações */}
+          {operacaoLoading && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1000,
+              borderRadius: '8px'
+            }}>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '16px',
+                padding: '32px',
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+                border: '1px solid #e8e8e8'
+              }}>
+                <SpinnerContainer />
+                <div style={{
+                  color: '#059669',
+                  fontSize: '16px',
+                  fontWeight: '600'
+                }}>
+                  Processando pagamento...
+                </div>
+              </div>
+            </div>
+          )}
+
         {pedido && (
           <>
             {/* Informações do Pedido */}
@@ -664,6 +732,7 @@ const PagamentoModal = ({
             </div>
           </>
         )}
+        </div>
       </Modal>
 
       {/* Modal para Novo Pagamento */}

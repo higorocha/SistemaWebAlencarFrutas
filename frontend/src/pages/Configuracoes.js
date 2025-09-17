@@ -6,20 +6,18 @@ import React, {
   startTransition,
   useEffect,
 } from "react";
-import { Spin, Typography, Card, Tabs } from "antd";
+import { Typography, Card, Tabs } from "antd";
 import { motion, AnimatePresence } from "framer-motion";
 import { BankOutlined, SettingOutlined, UserOutlined } from "@ant-design/icons";
-import LoadingFallback from "components/common/loaders/LoadingFallback"; // se você tiver esse componente
+import CentralizedLoader from "components/common/loaders/CentralizedLoader";
 import { MailOutlined } from "@mui/icons-material";
 import { showNotification } from "config/notificationConfig";
-import axiosInstance from "../api/axiosConfig"; // Substituir axios por axiosInstance
-// Se não tiver, pode usar <Spin /> diretamente ou criar um fallback simples.
+import axiosInstance from "../api/axiosConfig";
+import styled from "styled-components";
 
 const { Title } = Typography;
 
-// Aqui, só para fins de exemplo, vamos criar 4 componentes fictícios
-// que representam o conteúdo de cada aba.
-// Se preferir, você pode extrair cada um para um arquivo separado.
+// Componentes lazy
 const Geral = lazy(() => import("../components/configuracoes/Geral"));
 const DadosBancarios = lazy(() =>
   import("../components/configuracoes/DadosBancarios")
@@ -29,7 +27,57 @@ const Preferencias = lazy(() =>
   import("../components/configuracoes/ConfigServers")
 );
 
-// Exemplo de variantes de animação para cada tab
+// Styled components para aplicar o estilo do sistema
+const StyledCard = styled(Card)`
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e8f5e8;
+  overflow: hidden;
+  
+  .ant-card-body {
+    padding: 0;
+  }
+`;
+
+const StyledTabs = styled(Tabs)`
+  .ant-tabs-nav {
+    background: linear-gradient(135deg, #f8fffe 0%, #f0fdf4 100%);
+    margin: 0;
+    padding: 0 24px;
+    border-bottom: 2px solid #e8f5e8;
+  }
+  
+  .ant-tabs-tab {
+    border: none !important;
+    border-radius: 12px 12px 0 0 !important;
+    margin-right: 8px !important;
+    padding: 16px 24px !important;
+    background: transparent !important;
+    transition: all 0.3s ease !important;
+    
+    &:hover {
+      background: rgba(5, 150, 105, 0.1) !important;
+      color: #059669 !important;
+    }
+    
+    &.ant-tabs-tab-active {
+      background: #059669 !important;
+      color: white !important;
+      box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
+      
+      .ant-tabs-tab-btn {
+        color: white !important;
+      }
+    }
+  }
+  
+  .ant-tabs-content-holder {
+    padding: 24px;
+    background: white;
+  }
+`;
+
+// Variantes de animação para cada tab
 const tabVariants = {
   initial: { x: 50, opacity: 0 },
   animate: {
@@ -112,7 +160,7 @@ const Configuracoes = () => {
         exit="exit"
         variants={tabVariants}
       >
-        <Suspense fallback={<Spin />}>
+        <Suspense fallback={<CentralizedLoader visible={true} message="Carregando configurações gerais..." />}>
           <Geral
             loading={loading}
             dadosEmpresa={dadosEmpresa}
@@ -129,9 +177,7 @@ const Configuracoes = () => {
         exit="exit"
         variants={tabVariants}
       >
-        <Suspense
-          fallback={<LoadingFallback message="Carregando dados bancários..." />}
-        >
+        <Suspense fallback={<CentralizedLoader visible={true} message="Carregando dados bancários..." />}>
           <DadosBancarios />
         </Suspense>
       </motion.div>
@@ -144,9 +190,7 @@ const Configuracoes = () => {
         exit="exit"
         variants={tabVariants}
       >
-        <Suspense
-          fallback={<LoadingFallback message="Carregando usuários..." />}
-        >
+        <Suspense fallback={<CentralizedLoader visible={true} message="Carregando usuários..." />}>
           <Usuarios />
         </Suspense>
       </motion.div>
@@ -159,11 +203,7 @@ const Configuracoes = () => {
         exit="exit"
         variants={tabVariants}
       >
-        <Suspense
-          fallback={
-            <LoadingFallback message="Carregando servidor de email..." />
-          }
-        >
+        <Suspense fallback={<CentralizedLoader visible={true} message="Carregando configurações de servidor..." />}>
           <Preferencias />
         </Suspense>
       </motion.div>
@@ -236,12 +276,13 @@ const Configuracoes = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <Title level={2} style={{ marginBottom: 24 }}>
+      {/* Título */}
+      <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
         Configurações
-      </Title>
+      </Typography.Title>
 
-      <Card style={{ padding: 16 }}>
-        <Tabs
+      <StyledCard>
+        <StyledTabs
           type="card"
           activeKey={activeKey}
           onChange={handleTabChange}
@@ -258,12 +299,12 @@ const Configuracoes = () => {
             exit="exit"
             variants={tabVariants}
             transition={{ duration: 0.3 }}
-            style={{ position: "relative", marginTop: 16 }}
+            style={{ position: "relative" }}
           >
             {tabsContent[activeKey]}
           </motion.div>
         </AnimatePresence>
-      </Card>
+      </StyledCard>
     </div>
   );
 };

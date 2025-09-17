@@ -11,6 +11,8 @@ import {
   Select,
   Switch,
   Card,
+  Space,
+  Divider,
 } from "antd";
 import InputMask from "react-input-mask";
 import styled from "styled-components";
@@ -38,30 +40,108 @@ import {
 } from "../../utils/formatters";
 import { GlobalOutlined, FlagOutlined } from "@ant-design/icons";
 import { showNotification } from "config/notificationConfig";
-import axiosInstance from "../../api/axiosConfig"; // substituindo axios por axiosInstance
+import axiosInstance from "../../api/axiosConfig";
+import { PrimaryButton } from "../common/buttons";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+
+// Styled components para aplicar o estilo do sistema
+const SectionContainer = styled.div`
+  border: 1px solid #e8f5e8;
+  padding: 24px;
+  border-radius: 16px;
+  margin-top: 16px;
+  background: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 8px 32px rgba(5, 150, 105, 0.1);
+  }
+`;
+
+const StyledCard = styled(Card)`
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e8f5e8;
+  overflow: hidden;
+  
+  .ant-card-body {
+    padding: 24px;
+  }
+`;
+
+const StyledForm = styled(Form)`
+  .ant-form-item-label > label {
+    color: #059669 !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+  }
+
+  .ant-input,
+  .ant-select-selector,
+  .ant-input-number {
+    border: 2px solid #e8f5e8 !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+
+    &:hover {
+      border-color: #10b981 !important;
+      box-shadow: 0 4px 16px rgba(5, 150, 105, 0.1) !important;
+    }
+
+    &:focus,
+    &.ant-input-focused,
+    &.ant-select-focused .ant-select-selector {
+      border-color: #059669 !important;
+      box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1) !important;
+    }
+  }
+
+  .ant-select-selector {
+    height: 48px !important;
+    
+    .ant-select-selection-item {
+      line-height: 24px !important;
+    }
+  }
+
+  .ant-input-number {
+    width: 100% !important;
+    
+    .ant-input-number-input {
+      height: 24px !important;
+      padding: 0 !important;
+    }
+  }
+`;
+
 
 const StyledSwitchContainer = styled.div`
   .ant-form-item {
     display: flex;
     flex-direction: column;
-    margin-bottom: 12px; // Mantém consistente com outros Form.Items
+    margin-bottom: 12px;
   }
 
   .switch-wrapper {
     display: flex;
     align-items: center;
-    height: 50px; /* Definido para 50px para consistência */
+    height: 50px;
     padding: 0 11px;
-    border: 1px solid #d9d9d9;
-    border-radius: 8px;
+    border: 2px solid #e8f5e8;
+    border-radius: 12px;
     background-color: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 
     &:hover {
-      border-color: #40a9ff;
+      border-color: #10b981;
+      box-shadow: 0 4px 16px rgba(5, 150, 105, 0.1);
     }
   }
 
@@ -69,9 +149,6 @@ const StyledSwitchContainer = styled.div`
     transform: scale(1.2);
   }
 `;
-
-// Removido StyledInputNumber. Usaremos o InputNumber padrão do Ant Design.
-// const StyledInputNumber = styled(InputNumber)`...`;
 
 // Componente customizado para inputs com máscara
 const MaskedInput = ({ mask, ...props }) => (
@@ -184,19 +261,24 @@ const Geral = ({ loading, dadosEmpresa, onSalvar }) => {
   return (
     <div>
       {/* Container para Dados Gerais da Empresa */}
-      <div
-        style={{
-          border: "1px solid #ccc",
-          padding: 16,
-          borderRadius: 8,
-          marginTop: 16,
-        }}
-      >
-        <Title level={4} style={{ marginBottom: 16 }}>
-          Dados Gerais da Empresa
-        </Title>
+      <SectionContainer>
+        <StyledCard
+          title={
+            <Space>
+              <BankOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Gerais da Empresa</span>
+            </Space>
+          }
+          styles={{ 
+            header: { 
+              backgroundColor: "#059669", 
+              color: "#ffffff", 
+              borderRadius: "8px 8px 0 0" 
+            }
+          }}
+        >
 
-        <Form
+        <StyledForm
           form={form}
           layout="vertical"
           onFinish={onFinish}
@@ -291,10 +373,11 @@ const Geral = ({ loading, dadosEmpresa, onSalvar }) => {
           </Row>
 
           {/* Endereço Separado */}
-          <Title level={5} style={{ marginBottom: 16, marginTop: 24 }}>
+          <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "24px" }}>
             <EnvironmentOutlined style={{ marginRight: 8 }} />
             Endereço
           </Title>
+          <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
           <Row gutter={[16, 16]}>
             {/* Logradouro */}
             <Col xs={24} sm={16}>
@@ -402,20 +485,19 @@ const Geral = ({ loading, dadosEmpresa, onSalvar }) => {
             </Col>
           </Row>
 
-          <Form.Item style={{ marginTop: 16 }}>
-            <Button
-              type="primary"
+          <Form.Item style={{ marginTop: 24 }}>
+            <PrimaryButton
               htmlType="submit"
               size="large"
               loading={loadingDadosEmpresa}
+              onClick={() => {}} // Será substituído pelo onFinish do Form
             >
               Salvar Dados da Empresa
-            </Button>
+            </PrimaryButton>
           </Form.Item>
-        </Form>
-      </div>
-
-
+        </StyledForm>
+        </StyledCard>
+      </SectionContainer>
     </div>
   );
 };

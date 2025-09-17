@@ -15,6 +15,8 @@ import {
   Tooltip,
   Switch,
   InputNumber,
+  Space,
+  Divider,
 } from "antd";
 import {
   BankOutlined,
@@ -38,17 +40,99 @@ import {
   CalendarOutlined,
   CreditCardOutlined,
   RiseOutlined,
+  FormOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig"; // substituindo axios por axiosInstance
 import { showNotification } from "config/notificationConfig";
 import { getBancoDisplay, getBancosOptions } from "../../utils/bancosUtils";
 import styled from "styled-components";
+import { PrimaryButton } from "../common/buttons";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { confirm } = Modal;
 
-// Styled component para o Switch de convênios
+// Styled components para aplicar o estilo do sistema
+const PageContainer = styled.div`
+  padding: 16px;
+`;
+
+const SectionContainer = styled.div`
+  border: 1px solid #e8f5e8;
+  padding: 24px;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  background: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 8px 32px rgba(5, 150, 105, 0.1);
+  }
+`;
+
+
+const StyledCard = styled(Card)`
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e8f5e8;
+  overflow: hidden;
+  
+  .ant-card-body {
+    padding: 24px;
+  }
+`;
+
+const StyledForm = styled(Form)`
+  .ant-form-item-label > label {
+    color: #059669 !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+  }
+
+  .ant-input,
+  .ant-select-selector,
+  .ant-input-number {
+    border: 2px solid #e8f5e8 !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+
+    &:hover {
+      border-color: #10b981 !important;
+      box-shadow: 0 4px 16px rgba(5, 150, 105, 0.1) !important;
+    }
+
+    &:focus,
+    &.ant-input-focused,
+    &.ant-select-focused .ant-select-selector {
+      border-color: #059669 !important;
+      box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1) !important;
+    }
+  }
+
+  .ant-select-selector {
+    height: 48px !important;
+    
+    .ant-select-selection-item {
+      line-height: 24px !important;
+    }
+  }
+
+  .ant-input-number {
+    width: 100% !important;
+    
+    .ant-input-number-input {
+      height: 24px !important;
+      padding: 0 !important;
+    }
+  }
+`;
+
+
 const StyledSwitchContainer = styled.div`
   .ant-form-item {
     display: flex;
@@ -61,18 +145,57 @@ const StyledSwitchContainer = styled.div`
     align-items: center;
     height: 50px;
     padding: 0 11px;
-    border: 1px solid #d9d9d9;
-    border-radius: 8px;
+    border: 2px solid #e8f5e8;
+    border-radius: 12px;
     background-color: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 
     &:hover {
-      border-color: #40a9ff;
+      border-color: #10b981;
+      box-shadow: 0 4px 16px rgba(5, 150, 105, 0.1);
     }
   }
 
   .ant-switch {
     transform: scale(1.2);
+  }
+`;
+
+const StyledList = styled(List)`
+  .ant-list-item {
+    border: 1px solid #e8f5e8 !important;
+    border-radius: 12px !important;
+    margin-bottom: 12px !important;
+    padding: 16px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+
+    &:hover {
+      border-color: #10b981 !important;
+      box-shadow: 0 4px 16px rgba(5, 150, 105, 0.1) !important;
+      transform: translateY(-2px) !important;
+    }
+
+    .ant-list-item-meta-title {
+      color: #059669 !important;
+      font-weight: 600 !important;
+    }
+
+    .ant-list-item-meta-description {
+      color: #666 !important;
+    }
+
+    .ant-list-item-action {
+      .ant-btn {
+        border-radius: 8px !important;
+        transition: all 0.3s ease !important;
+
+        &:hover {
+          transform: translateY(-1px) !important;
+        }
+      }
+    }
   }
 `;
 
@@ -429,22 +552,40 @@ const DadosBancarios = () => {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <Title level={2} style={{ marginBottom: 24 }}>
+    <PageContainer>
+      <Title level={2} style={{ color: "#059669", marginBottom: 24, display: "flex", alignItems: "center", gap: 8 }}>
+        <BankOutlined />
         Dados Bancários
       </Title>
 
       {/* Container Conta Corrente - Dividido em duas metades */}
-      <Card style={{ marginBottom: 24, padding: 16 }}>
-        <Title level={4} style={{ marginBottom: 16 }}>
-          Conta Corrente
-        </Title>
+      <StyledCard
+        title={
+          <Space>
+            <ContainerOutlined style={{ color: "#ffffff" }} />
+            <span style={{ color: "#ffffff", fontWeight: "600" }}>Conta Corrente</span>
+          </Space>
+        }
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            color: "#ffffff", 
+            borderRadius: "8px 8px 0 0" 
+          }
+        }}
+        style={{ marginBottom: 24 }}
+      >
         
         <Row gutter={[24, 0]}>
           {/* Metade Esquerda - Formulário */}
           <Col xs={24} lg={12}>
-            <Card type="inner" title="Formulário de Conta Corrente" style={{ minHeight: '500px' }}>
-              <Form layout="vertical" onFinish={onFinishContaCorrente} form={form}>
+            <StyledCard type="inner" style={{ minHeight: '500px' }}>
+              <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
+                <FormOutlined style={{ marginRight: 8 }} />
+                Formulário de Conta Corrente
+              </Title>
+              <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+              <StyledForm layout="vertical" onFinish={onFinishContaCorrente} form={form}>
                                  {/* Banco - Select simplificado */}
                  <Form.Item
                    name="banco"
@@ -551,13 +692,18 @@ const DadosBancarios = () => {
                   </Col>
                 </Row>
 
-                <Form.Item style={{ marginTop: 16 }}>
-                  <Button type="primary" htmlType="submit" size="large" block>
+                <Form.Item style={{ marginTop: 24 }}>
+                  <PrimaryButton 
+                    htmlType="submit" 
+                    size="large" 
+                    block
+                    onClick={() => {}} // Será substituído pelo onFinish do Form
+                  >
                     {editingContaCorrente ? "Atualizar Conta Corrente" : "Cadastrar Conta Corrente"}
-                  </Button>
+                  </PrimaryButton>
                   {editingContaCorrente && (
-                    <Button 
-                      style={{ marginTop: 8 }} 
+                    <PrimaryButton 
+                      style={{ marginTop: 12, backgroundColor: '#6b7280', borderColor: '#6b7280' }} 
                       size="large" 
                       block 
                       onClick={() => {
@@ -566,39 +712,44 @@ const DadosBancarios = () => {
                       }}
                     >
                       Cancelar Edição
-                    </Button>
+                    </PrimaryButton>
                   )}
                 </Form.Item>
-              </Form>
-            </Card>
+              </StyledForm>
+            </StyledCard>
           </Col>
 
                      {/* Metade Direita - Listagem */}
            <Col xs={24} lg={12}>
-             <Card type="inner" title="Contas Correntes Cadastradas" style={{ minHeight: '500px' }}>
+             <StyledCard type="inner" style={{ minHeight: '500px' }}>
+               <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
+                 <UnorderedListOutlined style={{ marginRight: 8 }} />
+                 Contas Correntes Cadastradas
+               </Title>
+               <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
                <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden' }}>
-                 <List
+                 <StyledList
                    itemLayout="vertical"
                    dataSource={contaCorrenteRecords}
                    renderItem={(conta) => (
                   <List.Item
                     key={conta.id}
                     actions={[
-                      <Button
-                        type="text"
-                        icon={<EditOutlined style={{ color: 'blue' }}/>}
+                      <PrimaryButton
+                        icon={<EditOutlined />}
                         onClick={() => handleEditContaCorrente(conta)}
+                        size="small"
                       >
                         Editar
-                      </Button>,
-                      <Button
-                        type="text"
-                        danger
+                      </PrimaryButton>,
+                      <PrimaryButton
                         icon={<DeleteOutlined />}
                         onClick={() => handleDeleteContaCorrente(conta.id)}
+                        size="small"
+                        style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f' }}
                       >
                         Excluir
-                      </Button>,
+                      </PrimaryButton>,
                     ]}
                   >
                                          <List.Item.Meta
@@ -621,22 +772,39 @@ const DadosBancarios = () => {
                    </div>
                  )}
                </div>
-             </Card>
+             </StyledCard>
            </Col>
         </Row>
-      </Card>
+        </StyledCard>
 
       {/* Container Credenciais API - Dividido em duas metades */}
-      <Card style={{ marginBottom: 24, padding: 16 }}>
-        <Title level={4} style={{ marginBottom: 16 }}>
-          Credenciais API
-        </Title>
+      <StyledCard
+        title={
+          <Space>
+            <KeyOutlined style={{ color: "#ffffff" }} />
+            <span style={{ color: "#ffffff", fontWeight: "600" }}>Credenciais API</span>
+          </Space>
+        }
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            color: "#ffffff", 
+            borderRadius: "8px 8px 0 0" 
+          }
+        }}
+        style={{ marginBottom: 24 }}
+      >
         
                  <Row gutter={[24, 0]}>
            {/* Metade Esquerda - Formulário */}
            <Col xs={24} lg={12}>
-             <Card type="inner" title="Formulário de Credenciais API" style={{ minHeight: '600px' }}>
-              <Form layout="vertical" onFinish={onFinishAPICredentials} form={apiForm}>
+             <StyledCard type="inner" style={{ minHeight: '600px' }}>
+               <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
+                 <FormOutlined style={{ marginRight: 8 }} />
+                 Formulário de Credenciais API
+               </Title>
+               <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+              <StyledForm layout="vertical" onFinish={onFinishAPICredentials} form={apiForm}>
                 {/* Banco e Conta Corrente - Lado a lado */}
                 <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
                                      <Col xs={24} sm={12}>
@@ -758,13 +926,18 @@ const DadosBancarios = () => {
                   <Input size="large" placeholder="Ex: secret001" />
                 </Form.Item>
 
-                <Form.Item style={{ marginTop: 16 }}>
-                  <Button type="primary" htmlType="submit" size="large" block>
+                <Form.Item style={{ marginTop: 24 }}>
+                  <PrimaryButton 
+                    htmlType="submit" 
+                    size="large" 
+                    block
+                    onClick={() => {}} // Será substituído pelo onFinish do Form
+                  >
                     {editingCredential ? "Atualizar Credenciais API" : "Cadastrar Credenciais API"}
-                  </Button>
+                  </PrimaryButton>
                   {editingCredential && (
-                    <Button 
-                      style={{ marginTop: 8 }} 
+                    <PrimaryButton 
+                      style={{ marginTop: 12, backgroundColor: '#6b7280', borderColor: '#6b7280' }} 
                       size="large" 
                       block 
                       onClick={() => {
@@ -773,18 +946,23 @@ const DadosBancarios = () => {
                       }}
                     >
                       Cancelar Edição
-                    </Button>
+                    </PrimaryButton>
                   )}
                 </Form.Item>
-              </Form>
-            </Card>
+              </StyledForm>
+            </StyledCard>
           </Col>
 
                      {/* Metade Direita - Listagem */}
            <Col xs={24} lg={12}>
-             <Card type="inner" title="Credenciais API Cadastradas" style={{ minHeight: '600px' }}>
+             <StyledCard type="inner" style={{ minHeight: '600px' }}>
+               <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
+                 <UnorderedListOutlined style={{ marginRight: 8 }} />
+                 Credenciais API Cadastradas
+               </Title>
+               <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
               <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden' }}>
-                <List
+                <StyledList
                   itemLayout="vertical"
                   dataSource={credenciaisRecords}
                   renderItem={(item) => {
@@ -798,21 +976,21 @@ const DadosBancarios = () => {
                       <List.Item
                         key={item.id}
                         actions={[
-                          <Button
-                            type="text"
-                            icon={<EditOutlined style={{ color: 'blue' }}/>}
+                          <PrimaryButton
+                            icon={<EditOutlined />}
                             onClick={() => handleEdit(item)}
+                            size="small"
                           >
                             Editar
-                          </Button>,
-                          <Button
-                            type="text"
-                            danger
+                          </PrimaryButton>,
+                          <PrimaryButton
                             icon={<DeleteOutlined />}
                             onClick={() => handleDelete(item.id)}
+                            size="small"
+                            style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f' }}
                           >
                             Excluir
-                          </Button>,
+                          </PrimaryButton>,
                         ]}
                       >
                                                  <List.Item.Meta
@@ -834,25 +1012,41 @@ const DadosBancarios = () => {
                     Nenhuma credencial API cadastrada
                   </div>
                 )}
-              </div>
-            </Card>
-          </Col>
+               </div>
+             </StyledCard>
+           </Col>
         </Row>
-      </Card>
+        </StyledCard>
 
       {/* Container Convênios */}
-      <Card style={{ marginBottom: 24, padding: 16 }}>
-        <Title level={4} style={{ marginBottom: 16 }}>
-          Convênios
-        </Title>
+      <StyledCard
+        title={
+          <Space>
+            <FileTextOutlined style={{ color: "#ffffff" }} />
+            <span style={{ color: "#ffffff", fontWeight: "600" }}>Convênios</span>
+          </Space>
+        }
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            color: "#ffffff", 
+            borderRadius: "8px 8px 0 0" 
+          }
+        }}
+        style={{ marginBottom: 24 }}
+      >
 
-        <Form
+        <StyledForm
           form={conveniosForm}
           layout="vertical"
           onFinish={onFinishConvenios}
         >
           {/* Subcontainer: Cobrança */}
-          <Card type="inner" title="Cobrança">
+          <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
+            <CreditCardOutlined style={{ marginRight: 8 }} />
+            Configurações de Cobrança
+          </Title>
+          <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
             <Row gutter={[16, 16]} align="top">
               {/* Conta Corrente */}
               <Col xs={24} sm={6}>
@@ -1065,21 +1259,20 @@ const DadosBancarios = () => {
                 </Form.Item>
               </Col>
             </Row>
-          </Card>
 
-                     <Form.Item style={{ marginTop: 16 }}>
-             <Button
-               type="primary"
-               htmlType="submit"
-               size="large"
-               loading={loadingConvenios}
-             >
-               Salvar Convênio de Cobrança
-             </Button>
-           </Form.Item>
-        </Form>
-      </Card>
-     </div>
+          <Form.Item style={{ marginTop: 24 }}>
+            <PrimaryButton
+              htmlType="submit"
+              size="large"
+              loading={loadingConvenios}
+              onClick={() => {}} // Será substituído pelo onFinish do Form
+            >
+              Salvar Convênio de Cobrança
+            </PrimaryButton>
+          </Form.Item>
+        </StyledForm>
+        </StyledCard>
+    </PageContainer>
    );
  };
  

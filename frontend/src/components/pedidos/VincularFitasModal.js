@@ -31,6 +31,7 @@ import {
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import useNotificationWithContext from "../../hooks/useNotificationWithContext";
 import moment from "moment";
 import { 
   consolidarUsoFitas, 
@@ -57,6 +58,9 @@ const VincularFitasModal = ({
   const [lotesSelecionados, setLotesSelecionados] = useState([]); // Array com seleções + quantidade/observação
   const [errosValidacao, setErrosValidacao] = useState({});
   const [alertasEstoque, setAlertasEstoque] = useState([]); // ✅ NOVO: Alertas de validação global
+
+  // Hook para notificações com z-index correto
+  const { error, warning, contextHolder } = useNotificationWithContext();
   
   // ✅ COMPATIBILIDADE: Dados originais do EditarPedidoDialog (quando disponível) ou fallback para dados atuais
   const fitasOriginaisBank = fruta?.fitasOriginaisBanco || fruta?.fitas || [];
@@ -106,7 +110,7 @@ const VincularFitasModal = ({
       
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
-      showNotification("error", "Erro", "Erro ao carregar fitas disponíveis");
+      error("Erro", "Erro ao carregar fitas disponíveis");
     } finally {
       setLoadingDados(false);
     }
@@ -323,7 +327,7 @@ const VincularFitasModal = ({
       
       if (!podeSelecionar) {
         if (isModoEdicao) {
-          showNotification("warning", "Estoque Esgotado", 
+          warning("Estoque Esgotado",
             `O lote da área "${area.nome}" não possui fitas disponíveis`);
         }
         // No modo criação, não mostra notification - apenas não permite seleção
@@ -512,14 +516,14 @@ const VincularFitasModal = ({
   const handleSave = () => {
     // Validar se há seleções
     if (lotesSelecionados.length === 0) {
-      showNotification("warning", "Atenção", "Selecione pelo menos um lote de fita");
+      warning("Atenção", "Selecione pelo menos um lote de fita");
       return;
     }
 
     // Validar quantidades
     const selecoesSemQuantidade = lotesSelecionados.filter(item => !item.quantidade || item.quantidade <= 0);
     if (selecoesSemQuantidade.length > 0) {
-      showNotification("warning", "Atenção", "Todas as seleções devem ter quantidade maior que zero");
+      warning("Atenção", "Todas as seleções devem ter quantidade maior que zero");
       return;
     }
 
@@ -557,9 +561,8 @@ const VincularFitasModal = ({
       if (!resultadoValidacao.valido) {
         setAlertasEstoque(resultadoValidacao.mensagensErro || []);
         
-        showNotification(
-          "error", 
-          "Conflito de Estoque Detectado", 
+        error(
+          "Conflito de Estoque Detectado",
           `${resultadoValidacao.mensagensErro?.length || 0} conflito(s) encontrado(s). Verifique os alertas e ajuste as quantidades.`
         );
         return;
@@ -567,13 +570,13 @@ const VincularFitasModal = ({
       
     } catch (error) {
       console.error('Erro na validação final:', error);
-      showNotification("error", "Erro", "Erro interno na validação. Tente novamente.");
+      error("Erro", "Erro interno na validação. Tente novamente.");
       return;
     }
 
     // Validar erros de validação locais existentes
     if (Object.keys(errosValidacao).length > 0) {
-      showNotification("error", "Erro de Validação", "Corrija as quantidades com erro antes de continuar");
+      error("Erro de Validação", "Corrija as quantidades com erro antes de continuar");
       return;
     }
 
@@ -616,7 +619,9 @@ const VincularFitasModal = ({
   };
 
   return (
-    <Modal
+    <>
+      {contextHolder}
+      <Modal
       title={
         <span style={{ 
           color: "#ffffff", 
@@ -1194,7 +1199,8 @@ const VincularFitasModal = ({
           Confirmar Vinculação
         </Button>
       </div>
-    </Modal>
+      </Modal>
+    </>
   );
 };
 

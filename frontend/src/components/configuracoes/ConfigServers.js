@@ -33,9 +33,10 @@ import {
   QuestionCircleOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
-import styled from "styled-components"; // Mantido caso haja outros styled-components no futuro
+import styled from "styled-components";
 import { showNotification } from "../../config/notificationConfig";
 import axiosInstance from "../../api/axiosConfig";
+import { PrimaryButton } from "../common/buttons";
 
 const { Text, Title, Paragraph } = Typography;
 const { Option } = Select;
@@ -51,6 +52,114 @@ const API_URL = {
 
 // Removido StyledInputNumber. Usaremos o InputNumber padrão do Ant Design.
 // const StyledInputNumber = styled(InputNumber)`...`; 
+
+// Styled components para aplicar o estilo do sistema
+const PageContainer = styled.div`
+  padding: 24px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  min-height: 100vh;
+`;
+
+const StyledCard = styled(Card)`
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e8f5e8;
+  overflow: hidden;
+  
+  .ant-card-body {
+    padding: 24px;
+  }
+`;
+
+const StyledForm = styled(Form)`
+  .ant-form-item-label > label {
+    color: #059669 !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+  }
+
+  .ant-input,
+  .ant-input-password,
+  .ant-select-selector,
+  .ant-input-number {
+    border: 2px solid #e8f5e8 !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+
+    &:hover {
+      border-color: #10b981 !important;
+      box-shadow: 0 4px 16px rgba(5, 150, 105, 0.1) !important;
+    }
+
+    &:focus,
+    &.ant-input-focused,
+    &.ant-select-focused .ant-select-selector {
+      border-color: #059669 !important;
+      box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1) !important;
+    }
+  }
+
+  .ant-select-selector {
+    height: 48px !important;
+    
+    .ant-select-selection-item {
+      line-height: 24px !important;
+    }
+  }
+
+  .ant-input-number {
+    width: 100% !important;
+    
+    .ant-input-number-input {
+      height: 24px !important;
+      padding: 0 !important;
+    }
+  }
+
+  .ant-input-password {
+    .ant-input {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+    }
+  }
+`;
+
+const StyledTabs = styled(Tabs)`
+  .ant-tabs-tab {
+    border-radius: 8px 8px 0 0 !important;
+    border: 1px solid #e8f5e8 !important;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
+    margin-right: 8px !important;
+    transition: all 0.3s ease !important;
+
+    &:hover {
+      background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
+    }
+
+    &.ant-tabs-tab-active {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+      border-color: #059669 !important;
+      
+      .ant-tabs-tab-btn {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+      }
+    }
+  }
+
+  .ant-tabs-content-holder {
+    background: white;
+    border-radius: 0 8px 8px 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e8f5e8;
+    border-top: none;
+    padding: 24px;
+  }
+`;
 
 const NoMarginFormItem = styled(Form.Item)`
   margin-bottom: 0 !important;
@@ -317,8 +426,23 @@ const ConfigServers = () => {
 
   // =============== COMPONENTE EMAIL ===============
   const renderEmailTab = () => (
-    <Card title="Configurações do Servidor de Email" loading={emailLoading}>
-      <Form
+    <StyledCard
+      title={
+        <Space>
+          <MailOutlined style={{ color: "#ffffff" }} />
+          <span style={{ color: "#ffffff", fontWeight: "600" }}>Configurações do Servidor de Email</span>
+        </Space>
+      }
+      loading={emailLoading}
+      styles={{ 
+        header: { 
+          backgroundColor: "#059669", 
+          color: "#ffffff", 
+          borderRadius: "8px 8px 0 0" 
+        }
+      }}
+    >
+      <StyledForm
         form={emailForm}
         layout="vertical"
         onFinish={onFinishEmail}
@@ -517,8 +641,7 @@ const ConfigServers = () => {
 
         {/* Botões de Ação */}
         <Form.Item>
-          <Button
-            type="primary"
+          <PrimaryButton
             htmlType="submit"
             icon={<SaveOutlined />}
             size="large"
@@ -526,27 +649,39 @@ const ConfigServers = () => {
             loading={emailLoading}
           >
             Salvar Configurações
-          </Button>
-          <Button
-            type="default"
+          </PrimaryButton>
+          <PrimaryButton
             size="large"
             onClick={handleTestEmail}
             disabled={!emailTesteValue}
             loading={testEmailLoading}
             icon={<SendOutlined />}
+            style={{ backgroundColor: '#6b7280', borderColor: '#6b7280' }}
           >
             Testar Configurações
-          </Button>
+          </PrimaryButton>
         </Form.Item>
-      </Form>
-    </Card>
+      </StyledForm>
+    </StyledCard>
   );
 
   // =============== COMPONENTE WHATSAPP ===============
   const renderWhatsAppTab = () => (
-    <Card
-      title="Configurações de Integração com WhatsApp"
+    <StyledCard
+      title={
+        <Space>
+          <WhatsAppOutlined style={{ color: "#ffffff" }} />
+          <span style={{ color: "#ffffff", fontWeight: "600" }}>Configurações de Integração com WhatsApp</span>
+        </Space>
+      }
       loading={whatsappLoading}
+      styles={{ 
+        header: { 
+          backgroundColor: "#059669", 
+          color: "#ffffff", 
+          borderRadius: "8px 8px 0 0" 
+        }
+      }}
     >
       <Typography>
         <Paragraph>
@@ -558,7 +693,7 @@ const ConfigServers = () => {
 
       <Divider />
 
-      <Form
+      <StyledForm
         form={whatsappForm}
         layout="vertical"
         onFinish={onFinishWhatsApp}
@@ -777,8 +912,7 @@ const ConfigServers = () => {
 
         {/* Botões de Ação */}
         <Form.Item>
-          <Button
-            type="primary"
+          <PrimaryButton
             htmlType="submit"
             loading={whatsappLoading}
             icon={<SaveOutlined />}
@@ -786,20 +920,20 @@ const ConfigServers = () => {
             style={{ marginRight: 8 }}
           >
             {whatsappConfigExistente ? "Atualizar" : "Salvar"}
-          </Button>
+          </PrimaryButton>
 
-          <Button
-            type="default"
+          <PrimaryButton
             onClick={handleTestWhatsApp}
             loading={testWhatsAppLoading}
             disabled={!whatsappConfigExistente}
             icon={<SendOutlined />}
             size="large"
+            style={{ backgroundColor: '#6b7280', borderColor: '#6b7280' }}
           >
             Enviar mensagem de teste
-          </Button>
+          </PrimaryButton>
         </Form.Item>
-      </Form>
+      </StyledForm>
 
       <Divider />
 
@@ -855,41 +989,43 @@ const ConfigServers = () => {
           <br />
         </Paragraph>
       </Typography>
-    </Card>
+    </StyledCard>
   );
 
   // =============== RENDER PRINCIPAL ===============
   return (
-    <Tabs
-      activeKey={activeTab}
-      onChange={handleTabChange}
-      type="card"
-      size="large"
-      tabBarStyle={{ marginBottom: 24 }}
-    >
-      <TabPane
-        tab={
-          <span>
-            <MailOutlined style={{ fontSize: "18px", marginRight: 8 }} />
-            Servidor de Email
-          </span>
-        }
-        key="1"
+    <PageContainer>
+      <StyledTabs
+        activeKey={activeTab}
+        onChange={handleTabChange}
+        type="card"
+        size="large"
+        tabBarStyle={{ marginBottom: 24 }}
       >
-        {renderEmailTab()}
-      </TabPane>
-      <TabPane
-        tab={
-          <span>
-            <WhatsAppOutlined style={{ fontSize: "18px", marginRight: 8 }} />
-            WhatsApp Business
-          </span>
-        }
-        key="2"
-      >
-        {renderWhatsAppTab()}
-      </TabPane>
-    </Tabs>
+        <TabPane
+          tab={
+            <span>
+              <MailOutlined style={{ fontSize: "18px", marginRight: 8 }} />
+              Servidor de Email
+            </span>
+          }
+          key="1"
+        >
+          {renderEmailTab()}
+        </TabPane>
+        <TabPane
+          tab={
+            <span>
+              <WhatsAppOutlined style={{ fontSize: "18px", marginRight: 8 }} />
+              WhatsApp Business
+            </span>
+          }
+          key="2"
+        >
+          {renderWhatsAppTab()}
+        </TabPane>
+      </StyledTabs>
+    </PageContainer>
   );
 };
 

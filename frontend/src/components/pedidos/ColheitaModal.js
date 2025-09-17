@@ -21,6 +21,7 @@ import {
   DeleteOutlined
 } from "@ant-design/icons";
 import { showNotification } from "../../config/notificationConfig";
+import useNotificationWithContext from "../../hooks/useNotificationWithContext";
 import moment from "moment";
 import axiosInstance from "../../api/axiosConfig";
 import { MonetaryInput } from "../../components/common/inputs";
@@ -41,8 +42,12 @@ const ColheitaModal = ({
   onSave,
   pedido,
   loading,
+  onLoadingChange, // Callback para controlar CentralizedLoader
 }) => {
   const [form] = Form.useForm();
+
+  // Hook para notificações com z-index correto
+  const { error, warning, success, contextHolder } = useNotificationWithContext();
   const [isSaving, setIsSaving] = useState(false);
   const [areasProprias, setAreasProprias] = useState([]);
   const [areasFornecedores, setAreasFornecedores] = useState([]);
@@ -89,7 +94,7 @@ const ColheitaModal = ({
          setTurmasColheita(responseTurmas.data || []);
       } catch (error) {
         console.error("Erro ao buscar dados:", error);
-        showNotification("error", "Erro", "Erro ao carregar dados necessários");
+        error("Erro", "Erro ao carregar dados necessários");
       }
     };
 
@@ -302,7 +307,7 @@ const ColheitaModal = ({
     });
 
     form.setFieldsValue({ frutas: frutasAtualizadas });
-    showNotification("success", "Sucesso", "Áreas vinculadas com sucesso!");
+    success("Sucesso", "Áreas vinculadas com sucesso!");
   };
 
   // Função para salvar fitas vinculadas
@@ -322,7 +327,7 @@ const ColheitaModal = ({
     });
 
     form.setFieldsValue({ frutas: frutasAtualizadas });
-    showNotification("success", "Sucesso", "Fitas vinculadas com sucesso!");
+    success("Sucesso", "Fitas vinculadas com sucesso!");
   };
 
 
@@ -332,7 +337,7 @@ const ColheitaModal = ({
 
       // Validar se pelo menos uma fruta tem dados de colheita
       if (!values.frutas || values.frutas.length === 0) {
-        showNotification("error", "Erro", "Nenhuma fruta encontrada para colheita");
+        error("Erro", "Nenhuma fruta encontrada para colheita");
         return;
       }
 
@@ -346,19 +351,19 @@ const ColheitaModal = ({
         
         // Se tem quantidade, deve ser maior que zero
         if (item.quantidadeColhida && item.quantidadeColhida <= 0) {
-          showNotification("error", "Erro", `Mão de obra ${i + 1}: Quantidade deve ser maior que zero`);
+          error("Erro", `Mão de obra ${i + 1}: Quantidade deve ser maior que zero`);
           return;
         }
         
         // Se tem quantidade, deve ter unidade de medida
         if (item.quantidadeColhida && !item.unidadeMedida) {
-          showNotification("error", "Erro", `Mão de obra ${i + 1}: Unidade de medida é obrigatória quando há quantidade`);
+          error("Erro", `Mão de obra ${i + 1}: Unidade de medida é obrigatória quando há quantidade`);
           return;
         }
         
         // Se tem unidade de medida, deve ter quantidade
         if (item.unidadeMedida && !item.quantidadeColhida) {
-          showNotification("error", "Erro", `Mão de obra ${i + 1}: Quantidade é obrigatória quando há unidade de medida`);
+          error("Erro", `Mão de obra ${i + 1}: Quantidade é obrigatória quando há unidade de medida`);
           return;
         }
       }
@@ -372,7 +377,7 @@ const ColheitaModal = ({
             
             if (!quantidadeReal || quantidadeReal <= 0) {
                const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
-               showNotification("error", "Erro", `Informe a quantidade real colhida de "${nomeFruta}"`);
+               error("Erro", `Informe a quantidade real colhida de "${nomeFruta}"`);
                return;
              }
            
@@ -383,7 +388,7 @@ const ColheitaModal = ({
              
              if (areasReais.length === 0) {
                const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
-               showNotification("error", "Erro", `Adicione pelo menos uma área de origem para "${nomeFruta}"`);
+               error("Erro", `Adicione pelo menos uma área de origem para "${nomeFruta}"`);
                return;
              }
 
@@ -395,13 +400,13 @@ const ColheitaModal = ({
                
                if (!hasAreaPropria && !hasAreaFornecedor) {
                  const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
-                 showNotification("error", "Erro", `Fruta "${nomeFruta}", área ${j + 1}: Selecione uma área válida`);
+                 error("Erro", `Fruta "${nomeFruta}", área ${j + 1}: Selecione uma área válida`);
                  return;
                }
                
                if (hasAreaPropria && hasAreaFornecedor) {
                  const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
-                 showNotification("error", "Erro", `Fruta "${nomeFruta}", área ${j + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
+                 error("Erro", `Fruta "${nomeFruta}", área ${j + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
                  return;
                }
              }
@@ -416,7 +421,7 @@ const ColheitaModal = ({
                ) || [];
                
                if (fitasVinculadas.length === 0) {
-                 showNotification("error", "Erro", `A fruta "${frutaNome}" é uma banana e deve ter pelo menos uma fita vinculada`);
+                 error("Erro", `A fruta "${frutaNome}" é uma banana e deve ter pelo menos uma fita vinculada`);
                  return;
                }
              }
@@ -434,12 +439,12 @@ const ColheitaModal = ({
         if (!resultadoValidacao.valido) {
           // Mostrar primeira mensagem de erro
           const primeiroErro = resultadoValidacao.mensagensErro?.[0] || "Conflito de estoque detectado";
-          showNotification("error", "Conflito de Estoque de Fitas", primeiroErro);
+          error("Conflito de Estoque de Fitas", primeiroErro);
           return;
         }
       } catch (error) {
         console.error('Erro na validação global de fitas:', error);
-        showNotification("error", "Erro", "Erro interno na validação de estoque. Tente novamente.");
+        error("Erro", "Erro interno na validação de estoque. Tente novamente.");
         return;
       }
 
@@ -479,12 +484,26 @@ const ColheitaModal = ({
         nomeMotorista: values.nomeMotorista
       };
 
+      // PADRÃO "FECHAR-ENTÃO-LOADING": Fechar modal ANTES de iniciar loading
+      form.resetFields();
+      onClose();
+
+      // Notificar parent component para iniciar CentralizedLoader
+      if (onLoadingChange) {
+        onLoadingChange(true, "Registrando colheita...");
+      }
+
       // 1️⃣ Primeiro: Salvar a colheita
       await onSave(formData);
 
       // 2️⃣ Segundo: Salvar mão de obra se existir (não depende do retorno de onSave)
       if (maoObraValida.length > 0 && pedido?.id) {
         try {
+          // Atualizar mensagem do loading para mão de obra
+          if (onLoadingChange) {
+            onLoadingChange(true, "Registrando mão de obra...");
+          }
+
           // Usar o ID do pedido original (já existe)
           const pedidoId = pedido.id;
 
@@ -510,16 +529,19 @@ const ColheitaModal = ({
 
         } catch (error) {
           console.error('Erro ao salvar mão de obra:', error);
-          showNotification("warning", "Aviso", "Colheita salva, mas houve erro ao registrar mão de obra. Verifique na seção de Turmas de Colheita.");
+          warning("Aviso", "Colheita salva, mas houve erro ao registrar mão de obra. Verifique na seção de Turmas de Colheita.");
         }
       }
-
-      form.resetFields();
-      onClose();
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
+      // Em caso de erro, reabrir o modal
+      onClose(false); // false indica que não deve fechar
     } finally {
       setIsSaving(false);
+      // Notificar parent component para parar CentralizedLoader
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     }
   };
 
@@ -545,6 +567,8 @@ const ColheitaModal = ({
   };
 
   return (
+    <>
+      {contextHolder}
       <Modal
       title={
         <span style={{ 
@@ -1452,6 +1476,7 @@ const ColheitaModal = ({
        />
 
      </Modal>
+    </>
    );
  };
 
@@ -1461,6 +1486,7 @@ ColheitaModal.propTypes = {
   onSave: PropTypes.func.isRequired,
   pedido: PropTypes.object,
   loading: PropTypes.bool,
+  onLoadingChange: PropTypes.func, // Callback para controlar CentralizedLoader
 };
 
 export default ColheitaModal;

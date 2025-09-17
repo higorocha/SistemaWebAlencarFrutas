@@ -27,6 +27,7 @@ const EditarPedidoDialog = ({
   pedido,
   loading,
   clientes,
+  onLoadingChange, // Callback para controlar CentralizedLoader
 }) => {
   const [pedidoAtual, setPedidoAtual] = useState({
     clienteId: "",
@@ -633,6 +634,14 @@ const EditarPedidoDialog = ({
     try {
       setIsSaving(true);
 
+      // PADRÃO "FECHAR-ENTÃO-LOADING": Fechar modal ANTES de iniciar loading
+      handleCancelar();
+
+      // Notificar parent component para iniciar CentralizedLoader
+      if (onLoadingChange) {
+        onLoadingChange(true, "Salvando pedido...");
+      }
+
       // Construir formData apenas com campos apropriados para a fase atual
       const formData = {
         // Dados básicos sempre enviados
@@ -749,6 +758,11 @@ const EditarPedidoDialog = ({
           maoObra: pedidoAtual.maoObra
         });
 
+        // Atualizar mensagem do loading para mão de obra
+        if (onLoadingChange) {
+          onLoadingChange(true, "Salvando mão de obra...");
+        }
+
         const maoObraSalva = await salvarMaoObraViaAPI();
 
         if (!maoObraSalva) {
@@ -762,11 +776,16 @@ const EditarPedidoDialog = ({
         });
       }
 
-      handleCancelar();
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);
+      // Em caso de erro, reabrir o modal
+      onClose(false); // false indica que não deve fechar
     } finally {
       setIsSaving(false);
+      // Notificar parent component para parar CentralizedLoader
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
     }
   };
 
@@ -966,6 +985,7 @@ EditarPedidoDialog.propTypes = {
   pedido: PropTypes.object,
   loading: PropTypes.bool,
   clientes: PropTypes.array.isRequired,
+  onLoadingChange: PropTypes.func, // Callback para controlar CentralizedLoader
 };
 
 export default EditarPedidoDialog;
