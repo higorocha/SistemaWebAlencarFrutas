@@ -33,6 +33,8 @@ const getTheme = (mode) =>
               activeItem: "#e3f2fd",
               hoverItem: "#f5f5f5",
               submenuBackground: "#ededed", // Nova cor para submenus
+              submenuText: "#000000", // PRETO para texto dos submenus
+              submenuIcon: "#000000", // PRETO para ícones dos submenus
             },
             status: {
               success: "#10b981", // Verde mais vibrante
@@ -240,6 +242,8 @@ const getTheme = (mode) =>
               activeItem: "#132F4C",
               hoverItem: "#173A5E",
               submenuBackground: "#374151", // Nova cor para submenus no modo escuro
+              submenuText: "#000000", // PRETO para texto dos submenus
+              submenuIcon: "#000000", // PRETO para ícones dos submenus
             },
             status: {
               success: "#10b981", // Verde para sucessos (mantém destaque)

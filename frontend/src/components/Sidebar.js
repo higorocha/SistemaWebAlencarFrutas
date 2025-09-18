@@ -338,7 +338,11 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
               backgroundColor: active
                 ? theme.palette.primary.main
                 : "transparent",
-              color: active ? "#fff" : theme.palette.text.primary,
+              color: active 
+                ? "#fff" 
+                : (level > 0 && theme.palette.sidebar?.submenuText) 
+                  ? theme.palette.sidebar.submenuText 
+                  : theme.palette.text.primary,
               fontWeight: active ? 700 : 500,
               "&:hover": {
                 backgroundColor: active
@@ -348,9 +352,11 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
               borderRadius: "8px",
               margin: level === 0 ? "4px 8px" : "2px 4px",
             }),
-            icon: {
-              color: theme.palette.text.secondary,
-            },
+            icon: ({ level }) => ({
+              color: (level > 0 && theme.palette.sidebar?.submenuIcon) 
+                ? theme.palette.sidebar.submenuIcon 
+                : theme.palette.text.secondary,
+            }),
             SubMenuExpandIcon: {
               color: theme.palette.text.secondary,
               size: "20px",
