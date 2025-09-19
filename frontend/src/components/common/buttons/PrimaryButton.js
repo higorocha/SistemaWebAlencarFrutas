@@ -117,7 +117,7 @@ const PrimaryButton = ({
 PrimaryButton.propTypes = {
   children: PropTypes.node.isRequired,
   icon: PropTypes.node,
-  onClick: PropTypes.func.isRequired,
+  onClick: PropTypes.func, // Não obrigatório para casos como htmlType="submit"
   loading: PropTypes.bool,
   disabled: PropTypes.bool,
   size: PropTypes.oneOf(["small", "middle", "large"]),

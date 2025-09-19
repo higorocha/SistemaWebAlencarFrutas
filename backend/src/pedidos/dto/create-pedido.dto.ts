@@ -150,6 +150,13 @@ export class CreatePedidoDto {
   clienteId: number;
 
   @ApiProperty({
+    description: 'Data do pedido (temporário)',
+    example: '2024-03-15T00:00:00Z',
+  })
+  @IsDateString()
+  dataPedido: string;
+
+  @ApiProperty({
     description: 'Data prevista para colheita',
     example: '2024-03-15T00:00:00Z',
   })

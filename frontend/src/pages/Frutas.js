@@ -66,11 +66,9 @@ const Frutas = () => {
       setIsLoading(true);
       
       const response = await axiosInstance.get(API_URL.frutas);
-      console.log("Dados recebidos da API:", response.data);
 
       setFrutas(response.data.data || response.data);
       setFrutasFiltradas(response.data.data || response.data);
-      console.log("Frutas carregadas:", response.data.data || response.data);
     } catch (error) {
       console.error("Erro ao buscar frutas:", error);
       showNotification("error", "Erro", "Erro ao buscar frutas.");
@@ -350,7 +348,6 @@ const Frutas = () => {
             onChange={handlePageChange}
             onShowSizeChange={handleShowSizeChange}
             showSizeChanger
-            showQuickJumper
             showTotal={(total, range) => `${range[0]}-${range[1]} de ${total} frutas`}
             pageSizeOptions={["10", "20", "50", "100"]}
           />

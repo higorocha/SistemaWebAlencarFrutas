@@ -117,7 +117,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onE
       }}
       centered
       destroyOnClose
-      zIndex={99999}
+      zIndex={1050}
     >
       <Form
         form={form}
@@ -142,11 +142,13 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onE
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Form.Item
@@ -200,11 +202,13 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onE
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={[16, 16]}>

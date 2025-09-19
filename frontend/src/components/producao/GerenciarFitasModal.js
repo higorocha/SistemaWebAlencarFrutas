@@ -277,7 +277,7 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess, onLoadingChange }) 
       }}
       centered
       destroyOnClose
-      zIndex={99999}
+      zIndex={1050}
     >
       <div className="gerenciar-fitas-container" style={{ position: 'relative' }}>
         {/* Overlay de Loading para Operações */}
@@ -292,7 +292,7 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess, onLoadingChange }) 
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            zIndex: 1000,
+            zIndex: 1060,
             borderRadius: '8px'
           }}>
             <div style={{
@@ -586,7 +586,7 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess, onLoadingChange }) 
         }}
         centered
         destroyOnClose
-        zIndex={100000}
+        zIndex={1100}
       >
         <Form
           form={form}
@@ -607,11 +607,13 @@ const GerenciarFitasModal = ({ visible, onCancel, onSuccess, onLoadingChange }) 
               borderRadius: "8px",
               backgroundColor: "#f9f9f9",
             }}
-            headStyle={{
-              backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
-              color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+            styles={{
+              header: {
+                backgroundColor: "#059669",
+                borderBottom: "2px solid #047857",
+                color: "#ffffff",
+                borderRadius: "8px 8px 0 0",
+              }
             }}
           >
             <Form.Item

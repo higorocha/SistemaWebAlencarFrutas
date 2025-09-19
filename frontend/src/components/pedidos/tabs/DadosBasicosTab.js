@@ -277,7 +277,7 @@ const DadosBasicosTab = ({
           }}
         >
           <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
+            <Col xs={24} md={8}>
               <Form.Item
                 label={
                   <Space>
@@ -313,7 +313,36 @@ const DadosBasicosTab = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={12}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                label={
+                  <Space>
+                    <CalendarOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Data do Pedido</span>
+                  </Space>
+                }
+                validateStatus={erros.dataPedido ? "error" : ""}
+                help={erros.dataPedido}
+                required
+              >
+                <DatePicker
+                  style={{
+                    width: "100%",
+                    borderRadius: "6px",
+                    borderColor: erros.dataPedido ? "#ff4d4f" : "#d9d9d9",
+                  }}
+                  value={pedidoAtual.dataPedido ? moment(pedidoAtual.dataPedido) : undefined}
+                  onChange={(date) => {
+                    handleChange("dataPedido", date ? date.format('YYYY-MM-DD') : null);
+                  }}
+                  format="DD/MM/YYYY"
+                  placeholder="Selecione a data"
+                  disabled={!canEditTab("1")}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
               <Form.Item
                 label={
                   <Space>
@@ -326,7 +355,7 @@ const DadosBasicosTab = ({
                 required
               >
                 <DatePicker
-                  style={{ 
+                  style={{
                     width: "100%",
                     borderRadius: "6px",
                     borderColor: erros.dataPrevistaColheita ? "#ff4d4f" : "#d9d9d9",

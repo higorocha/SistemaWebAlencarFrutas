@@ -251,9 +251,8 @@ const TurmaColheita = () => {
             pageSize={pageSize}
             total={totalTurmas}
             onChange={handlePageChange}
-            onShowSizeChange={handlePageChange}
+            onShowSizeChanger={handlePageChange}
             showSizeChanger
-            showQuickJumper
             showTotal={(total, range) =>
               `${range[0]}-${range[1]} de ${total} turmas de colheita`
             }

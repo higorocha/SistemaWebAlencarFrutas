@@ -1,6 +1,6 @@
 // src/components/clientes/ClienteForm.js
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import {
   Form,
@@ -13,6 +13,10 @@ import {
   Space,
   Tag,
   Switch,
+  Spin,
+  Modal,
+  Button,
+  Progress,
 } from "antd";
 import {
   UserOutlined,
@@ -23,9 +27,15 @@ import {
   FileTextOutlined,
   InfoCircleOutlined,
   BuildOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  LoadingOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import { IMaskInput } from "react-imask";
 import { validarDocumento } from "../../utils/documentValidation";
+import { useClienteValidation } from "../../hooks/useClienteValidation";
+import { useCnpjConsulta } from "../../hooks/useCnpjConsulta";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -38,6 +48,8 @@ const ClienteForm = ({
   erros,
   setErros,
 }) => {
+  const { nomeValidation, validateNome, resetValidation } = useClienteValidation();
+  const { cnpjData, consultarCnpj, resetConsulta } = useCnpjConsulta();
   const handleChange = (field, value) => {
     setClienteAtual(prev => ({
       ...prev,
@@ -60,12 +72,78 @@ const ClienteForm = ({
           ...prev,
           documento: validacao.mensagem,
         }));
+      } else {
+        // Se é um CNPJ válido (14 dígitos), consultar API
+        const documentoLimpo = value.replace(/\D/g, '');
+        if (documentoLimpo.length === 14) {
+          consultarCnpj(value);
+        }
+      }
+    } else if (field === 'documento' && !value) {
+      // Se documento foi limpo, resetar consulta
+      resetConsulta();
+    }
+
+    // Validação em tempo real para o campo nome
+    if (field === 'nome') {
+      if (value && value.trim().length >= 2) {
+        validateNome(value, editando ? clienteAtual.id : null);
+      } else {
+        resetValidation();
       }
     }
   };
 
+  // Resetar validação quando o componente for desmontado ou cliente mudado
+  useEffect(() => {
+    resetValidation();
+    resetConsulta();
+  }, [clienteAtual.id, resetValidation, resetConsulta]);
+
+  // Estado para controlar modal de confirmação
+  const [cnpjModalVisible, setCnpjModalVisible] = useState(false);
+  const [dadosCnpjEncontrados, setDadosCnpjEncontrados] = useState(null);
+
+  // Preencher formulário automaticamente quando dados do CNPJ chegarem
+  useEffect(() => {
+    if (cnpjData.data && !cnpjData.isLoading && !cnpjData.error) {
+      setDadosCnpjEncontrados(cnpjData.data);
+      setCnpjModalVisible(true);
+    }
+  }, [cnpjData.data, cnpjData.isLoading, cnpjData.error]);
+
+  const handleConfirmarPreenchimento = () => {
+    setClienteAtual(prev => ({
+      ...prev,
+      ...dadosCnpjEncontrados,
+      // Manter o documento original formatado
+      documento: prev.documento,
+      // Manter o ID se estiver editando
+      id: prev.id
+    }));
+    setCnpjModalVisible(false);
+    setDadosCnpjEncontrados(null);
+  };
+
+  const handleCancelarPreenchimento = () => {
+    setCnpjModalVisible(false);
+    setDadosCnpjEncontrados(null);
+  };
+
   return (
     <div>
+      <style>
+        {`
+          .rotating-progress .ant-progress-circle-path {
+            animation: spin 1s linear infinite;
+          }
+
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
       <Form layout="vertical" size="large">
         {/* Seção 1: Informações Básicas */}
         <Card
@@ -81,11 +159,13 @@ const ClienteForm = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={[16, 16]}>
@@ -97,17 +177,64 @@ const ClienteForm = ({
                     <span style={{ fontWeight: "700", color: "#333" }}>Nome do Cliente</span>
                   </Space>
                 }
-                validateStatus={erros.nome ? "error" : ""}
-                help={erros.nome}
+                validateStatus={
+                  erros.nome
+                    ? "error"
+                    : nomeValidation.isValid === false
+                      ? "error"
+                      : nomeValidation.isValid === true
+                        ? "success"
+                        : ""
+                }
+                help={
+                  erros.nome ||
+                  (nomeValidation.message && (
+                    <Space>
+                      {nomeValidation.isChecking ? (
+                        <LoadingOutlined style={{ color: "#1890ff" }} />
+                      ) : nomeValidation.isValid === false ? (
+                        <ExclamationCircleOutlined style={{ color: "#ff4d4f" }} />
+                      ) : nomeValidation.isValid === true ? (
+                        <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                      ) : null}
+                      <span style={{
+                        color: nomeValidation.isValid === false
+                          ? "#ff4d4f"
+                          : nomeValidation.isValid === true
+                            ? "#52c41a"
+                            : "#666"
+                      }}>
+                        {nomeValidation.message}
+                      </span>
+                    </Space>
+                  ))
+                }
                 required
               >
                 <Input
                   placeholder="Ex: Distribuidora ABC Ltda"
                   value={clienteAtual.nome}
                   onChange={(e) => handleChange("nome", e.target.value)}
+                  suffix={
+                    nomeValidation.isChecking ? (
+                      <Spin
+                        indicator={<LoadingOutlined style={{ fontSize: 16, color: "#1890ff" }} />}
+                      />
+                    ) : nomeValidation.isValid === false ? (
+                      <ExclamationCircleOutlined style={{ color: "#ff4d4f" }} />
+                    ) : nomeValidation.isValid === true ? (
+                      <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                    ) : null
+                  }
                   style={{
                     borderRadius: "6px",
-                    borderColor: erros.nome ? "#ff4d4f" : "#d9d9d9",
+                    borderColor: erros.nome
+                      ? "#ff4d4f"
+                      : nomeValidation.isValid === false
+                        ? "#ff4d4f"
+                        : nomeValidation.isValid === true
+                          ? "#52c41a"
+                          : "#d9d9d9",
                   }}
                 />
               </Form.Item>
@@ -148,34 +275,81 @@ const ClienteForm = ({
                 }
                 validateStatus={erros.documento ? "error" : ""}
                 help={
-                  erros.documento || 
-                  (clienteAtual.documento && (
+                  erros.documento ||
+                  cnpjData.error ? (
+                    <Space>
+                      <ExclamationCircleOutlined style={{ color: "#ff4d4f" }} />
+                      <span style={{ color: "#ff4d4f", fontSize: "12px" }}>
+                        {cnpjData.error}
+                      </span>
+                    </Space>
+                  ) : cnpjData.isLoading ? (
+                    <Space>
+                      <LoadingOutlined style={{ color: "#1890ff" }} />
+                      <span style={{ color: "#1890ff", fontSize: "12px" }}>
+                        Consultando CNPJ...
+                      </span>
+                    </Space>
+                  ) : cnpjData.data ? (
+                    <Space>
+                      <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                      <span style={{ color: "#52c41a", fontSize: "12px" }}>
+                        CNPJ encontrado: {cnpjData.data.razaoSocial}
+                      </span>
+                    </Space>
+                  ) : (clienteAtual.documento && (
                     <span style={{ color: "#52c41a", fontSize: "12px" }}>
                       {validarDocumento(clienteAtual.documento).tipo} válido
                     </span>
                   ))
                 }
               >
-                <IMaskInput
-                  mask={[
-                    { mask: '000.000.000-00' },
-                    { mask: '00.000.000/0000-00' },
-                  ]}
-                  placeholder="Digite o CPF ou CNPJ"
-                  onAccept={(value) => handleChange("documento", value)}
-                  value={clienteAtual.documento || ''}
-                  className="ant-input ant-input-lg"
-                  style={{
-                    borderRadius: "6px",
-                    borderColor: erros.documento ? "#ff4d4f" : "#d9d9d9",
-                    width: '100%',
-                    height: '40px',
-                    padding: '4px 11px',
-                    fontSize: '14px',
-                    border: '1px solid',
-                    transition: 'all 0.3s',
-                  }}
-                />
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <IMaskInput
+                    mask={[
+                      { mask: '000.000.000-00' },
+                      { mask: '00.000.000/0000-00' },
+                    ]}
+                    placeholder="Digite o CPF ou CNPJ"
+                    onAccept={(value) => handleChange("documento", value)}
+                    value={clienteAtual.documento || ''}
+                    className="ant-input ant-input-lg"
+                    style={{
+                      borderRadius: "6px",
+                      borderColor: erros.documento ? "#ff4d4f" : cnpjData.isLoading ? "#1890ff" : "#d9d9d9",
+                      width: '100%',
+                      height: '40px',
+                      padding: '4px 11px',
+                      fontSize: '14px',
+                      border: '1px solid',
+                      transition: 'all 0.3s',
+                      paddingRight: cnpjData.isLoading ? '40px' : '11px',
+                    }}
+                  />
+                  {cnpjData.isLoading && (
+                    <div style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '24px',
+                      height: '24px'
+                    }}>
+                      <Progress
+                        type="circle"
+                        percent={75}
+                        showInfo={false}
+                        size={20}
+                        strokeColor="#1890ff"
+                        strokeWidth={8}
+                        className="rotating-progress"
+                      />
+                    </div>
+                  )}
+                </div>
               </Form.Item>
             </Col>
 
@@ -241,11 +415,13 @@ const ClienteForm = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={[16, 16]}>
@@ -390,11 +566,13 @@ const ClienteForm = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={[16, 16]}>
@@ -524,11 +702,13 @@ const ClienteForm = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={[16, 16]}>
@@ -586,6 +766,170 @@ const ClienteForm = ({
           </Row>
         </Card>
       </Form>
+
+      {/* Modal de Confirmação CNPJ */}
+      <Modal
+        title={
+          <span style={{
+            color: "#ffffff",
+            fontWeight: "600",
+            fontSize: "16px",
+            backgroundColor: "#059669",
+            padding: "12px 16px",
+            margin: "-20px -24px 0 -24px",
+            display: "block",
+            borderRadius: "8px 8px 0 0",
+          }}>
+            <CheckCircleOutlined style={{ marginRight: 8 }} />
+            CNPJ Encontrado!
+          </span>
+        }
+        open={cnpjModalVisible}
+        onCancel={handleCancelarPreenchimento}
+        footer={null}
+        width={600}
+        styles={{
+          body: {
+            maxHeight: "calc(100vh - 200px)",
+            overflowY: "auto",
+            overflowX: "hidden",
+            padding: 20
+          },
+          header: {
+            backgroundColor: "#059669",
+            borderBottom: "2px solid #047857",
+            padding: 0
+          },
+          wrapper: { zIndex: 1200 },
+          mask: { zIndex: 1150 }
+        }}
+        centered
+        destroyOnClose
+      >
+        {dadosCnpjEncontrados && (
+          <>
+            {/* Card com dados da empresa */}
+            <Card
+              title={
+                <Space>
+                  <UserOutlined style={{ color: "#ffffff" }} />
+                  <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados da Empresa</span>
+                </Space>
+              }
+              style={{
+                marginBottom: 16,
+                border: "1px solid #e8e8e8",
+                borderRadius: "8px",
+                backgroundColor: "#f9f9f9",
+              }}
+              styles={{
+                header: {
+                  backgroundColor: "#059669",
+                  borderBottom: "2px solid #047857",
+                  color: "#ffffff",
+                  borderRadius: "8px 8px 0 0",
+                }
+              }}
+            >
+              <Row gutter={[16, 8]}>
+                <Col span={24}>
+                  <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                    <div>
+                      <Text strong style={{ color: "#059669" }}>Razão Social:</Text>
+                      <br />
+                      <Text style={{ fontSize: "16px" }}>{dadosCnpjEncontrados.razaoSocial}</Text>
+                    </div>
+                    <div>
+                      <Text strong style={{ color: "#059669" }}>Nome Fantasia:</Text>
+                      <br />
+                      <Text style={{ fontSize: "16px" }}>{dadosCnpjEncontrados.nome}</Text>
+                    </div>
+                    <div>
+                      <Text strong style={{ color: "#059669" }}>Endereço:</Text>
+                      <br />
+                      <Text style={{ fontSize: "16px" }}>
+                        {dadosCnpjEncontrados.logradouro}, {dadosCnpjEncontrados.numero} - {dadosCnpjEncontrados.bairro}
+                      </Text>
+                    </div>
+                    <div>
+                      <Text strong style={{ color: "#059669" }}>Cidade/Estado:</Text>
+                      <br />
+                      <Text style={{ fontSize: "16px" }}>
+                        {dadosCnpjEncontrados.cidade} - {dadosCnpjEncontrados.estado}
+                      </Text>
+                    </div>
+                    {dadosCnpjEncontrados.cep && (
+                      <div>
+                        <Text strong style={{ color: "#059669" }}>CEP:</Text>
+                        <br />
+                        <Text style={{ fontSize: "16px" }}>{dadosCnpjEncontrados.cep}</Text>
+                      </div>
+                    )}
+                    {dadosCnpjEncontrados.email1 && (
+                      <div>
+                        <Text strong style={{ color: "#059669" }}>Email:</Text>
+                        <br />
+                        <Text style={{ fontSize: "16px" }}>{dadosCnpjEncontrados.email1}</Text>
+                      </div>
+                    )}
+                    {dadosCnpjEncontrados.telefone1 && (
+                      <div>
+                        <Text strong style={{ color: "#059669" }}>Telefone:</Text>
+                        <br />
+                        <Text style={{ fontSize: "16px" }}>{dadosCnpjEncontrados.telefone1}</Text>
+                      </div>
+                    )}
+                  </Space>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Pergunta de confirmação */}
+            <Card
+              style={{
+                marginBottom: 16,
+                border: "1px solid #e8e8e8",
+                borderRadius: "8px",
+                backgroundColor: "#f0f9ff",
+                borderColor: "#1890ff"
+              }}
+            >
+              <div style={{ textAlign: "center", padding: "8px" }}>
+                <Text style={{ fontSize: "16px", fontWeight: "500" }}>
+                  Deseja preencher automaticamente os campos do formulário com estes dados?
+                </Text>
+              </div>
+            </Card>
+
+            {/* Botões de ação */}
+            <div style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 12,
+              marginTop: 24,
+              paddingTop: 16,
+              borderTop: "1px solid #e8e8e8"
+            }}>
+              <Button
+                icon={<CloseOutlined />}
+                onClick={handleCancelarPreenchimento}
+                size="large"
+              >
+                Não, obrigado
+              </Button>
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={handleConfirmarPreenchimento}
+                size="large"
+                style={{ backgroundColor: '#059669', borderColor: '#059669' }}
+              >
+                Sim, preencher
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 };

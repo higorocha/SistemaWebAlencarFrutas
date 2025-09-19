@@ -639,7 +639,7 @@ const PagamentosTab = ({
 };
 
 PagamentosTab.propTypes = {
-  pedido: PropTypes.object.isRequired,
+  pedido: PropTypes.object,
   canEditTab: PropTypes.func.isRequired,
   onSave: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,

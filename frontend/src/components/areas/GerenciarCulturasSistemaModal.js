@@ -273,11 +273,13 @@ const GerenciarCulturasSistemaModal = ({
                </span>
              </Space>
            }
-           headStyle={{
-             backgroundColor: "#059669",
-             borderBottom: "2px solid #047857",
-             color: "#ffffff",
-             borderRadius: "8px 8px 0 0",
+           styles={{
+             header: {
+               backgroundColor: "#059669",
+               borderBottom: "2px solid #047857",
+               color: "#ffffff",
+               borderRadius: "8px 8px 0 0",
+             }
            }}
            style={{ flex: "0 0 auto", marginBottom: 0 }}
          >
@@ -428,18 +430,20 @@ const GerenciarCulturasSistemaModal = ({
                />
              </div>
            }
-           headStyle={{
-             backgroundColor: "#059669",
-             borderBottom: "2px solid #047857",
-             color: "#ffffff",
-             borderRadius: "8px 8px 0 0",
+           styles={{
+             header: {
+               backgroundColor: "#059669",
+               borderBottom: "2px solid #047857",
+               color: "#ffffff",
+               borderRadius: "8px 8px 0 0",
+             },
+             body: {
+               padding: "16px",
+               height: "300px",
+               overflowY: "auto",
+               overflowX: "hidden"
+             }
            }}
-                       bodyStyle={{
-              padding: "16px",
-              height: "300px",
-              overflowY: "auto",
-              overflowX: "hidden",
-            }}
           >
                          {/* Cabeçalho da lista */}
              <div style={{

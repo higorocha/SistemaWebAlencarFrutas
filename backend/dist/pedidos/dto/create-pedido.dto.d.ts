@@ -19,6 +19,7 @@ export declare class FrutaPedidoDto {
 }
 export declare class CreatePedidoDto {
     clienteId: number;
+    dataPedido: string;
     dataPrevistaColheita: string;
     frutas: FrutaPedidoDto[];
     observacoes?: string;

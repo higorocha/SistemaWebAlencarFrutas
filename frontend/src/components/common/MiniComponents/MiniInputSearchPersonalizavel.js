@@ -4,7 +4,9 @@ import { SearchOutlined } from '@ant-design/icons';
 import styled from 'styled-components';
 
 // Componente estilizado para o input de busca
-const SearchInputContainer = styled.div`
+const SearchInputContainer = styled.div.withConfig({
+  shouldForwardProp: (prop) => !['iconColor', 'iconSize', 'textColor', 'fontSize', 'height', 'hasValue'].includes(prop),
+})`
   position: relative;
   width: 100%;
 

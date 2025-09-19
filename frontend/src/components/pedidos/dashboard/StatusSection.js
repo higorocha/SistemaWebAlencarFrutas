@@ -78,11 +78,13 @@ const StatusSection = ({
           display: "flex",
           flexDirection: "column",
         }}
-        bodyStyle={{ 
-          padding: 0,
-          flex: 1,
-          display: "flex",
-          flexDirection: "column"
+        styles={{ 
+          body: {
+            padding: 0,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column"
+          }
         }}
       >
         {/* Header da seção */}

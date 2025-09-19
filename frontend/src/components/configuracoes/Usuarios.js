@@ -83,6 +83,7 @@ const StyledForm = styled(Form)`
       box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
     }
   }
+
 `;
 
 const StyledList = styled(List)`
@@ -164,17 +165,6 @@ const EmailInputWrapper = styled.div`
     font-weight: 600;
   }
 
-  &.ant-form-item-has-error {
-    border-color: #ff4d4f !important;
-    margin-bottom: 0 !important; /* FORÇA margin-bottom 0 mesmo com erro */
-  }
-  &.ant-form-item-has-error:hover {
-    border-color: #ff7875 !important;
-  }
-  &.ant-form-item-has-error:focus-within {
-    border-color: #ff4d4f !important;
-    box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2) !important;
-  }
 `;
 
 // === Componente customizado para o campo de email ===
@@ -192,7 +182,7 @@ const CustomEmailInput = ({ value = '', onChange, placeholder }) => {
   };
 
   return (
-    <EmailInputWrapper>
+    <EmailInputWrapper className="email-input-wrapper">
       <Input
         placeholder={placeholder}
         value={username}
@@ -292,9 +282,15 @@ const Usuarios = () => {
 
   const openEditModal = (usuario) => {
     setEditingUsuario(usuario);
+    
+    // Garantir que o CPF esteja formatado corretamente
+    const cpfFormatado = usuario.cpf 
+      ? usuario.cpf.replace(/[^\d]/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+      : '';
+    
     editForm.setFieldsValue({
       nome: usuario.nome,
-      cpf: usuario.cpf,
+      cpf: cpfFormatado,
       email: usuario.email,
       nivel: usuario.nivel
     });
@@ -699,7 +695,7 @@ const Usuarios = () => {
               label={<Text strong><IdcardOutlined style={{ marginRight: 8 }} />CPF</Text>}
               rules={[
                 { required: true, message: "Informe o CPF" },
-                { len: 14, message: "CPF deve ter 11 dígitos" }
+                { pattern: /^\d{3}\.\d{3}\.\d{3}-\d{2}$/, message: "Formato de CPF inválido. Ex: 123.456.789-00" },
               ]}
             >
               <InputMask

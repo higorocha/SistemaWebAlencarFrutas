@@ -91,7 +91,7 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
   return (
     <Card
       style={cardStyle}
-      bodyStyle={{ padding: "10px 12px" }}
+      styles={{ body: { padding: "10px 12px" } }}
       hoverable
       className="pedido-card-container"
       onClick={() => onVisualizar && onVisualizar(pedido)}

@@ -44,7 +44,7 @@ const SuggestionsDropdown = styled.div`
   z-index: 1050;
   max-height: 300px;
   overflow-y: auto;
-  display: ${props => props.isOpen ? 'block' : 'none'};
+  display: ${props => props.$isOpen ? 'block' : 'none'};
 `;
 
 // Item de sugestão
@@ -502,7 +502,7 @@ const SearchInputInteligente = ({
         {...props}
       />
 
-      <SuggestionsDropdown isOpen={isOpen}>
+      <SuggestionsDropdown $isOpen={isOpen}>
         {isLoading ? (
           <LoadingContainer>
             <LoadingOutlined style={{ color: '#1890ff' }} spin />

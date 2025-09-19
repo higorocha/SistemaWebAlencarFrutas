@@ -50,7 +50,6 @@ const AreaForm = ({
 
   // Função para manipular mudanças nos campos
   const handleChange = (field, value) => {
-    console.log("DEBUG_FORM: handleChange chamado:", field, value?.length ? `${value.length} items` : value);
     setAreaAtual(prev => ({
       ...prev,
       [field]: value,
@@ -142,11 +141,13 @@ const AreaForm = ({
             borderRadius: "8px",
             backgroundColor: theme.palette.forms.sectionBackground,
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: `2px solid #047857`,
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: `2px solid #047857`,
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={[16, 16]}>
@@ -250,11 +251,13 @@ const AreaForm = ({
             borderRadius: "8px",
             backgroundColor: theme.palette.forms.sectionBackground,
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: `2px solid #047857`,
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: `2px solid #047857`,
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
           extra={
             <PrimaryButton
@@ -262,10 +265,8 @@ const AreaForm = ({
               onClick={() => {
                 // Se já tem coordenadas, sempre entrar em modo de edição
                 if (areaAtual.coordenadas && areaAtual.coordenadas.length > 0) {
-                  console.log("DEBUG_FORM: Editando coordenadas existentes:", areaAtual.coordenadas.length);
                   abrirMapa(areaAtual, "edit");
                 } else {
-                  console.log("DEBUG_FORM: Criando novas coordenadas");
                   abrirMapa(areaAtual, "create");
                 }
               }}
@@ -326,11 +327,13 @@ const AreaForm = ({
             borderRadius: "8px",
             backgroundColor: theme.palette.forms.sectionBackground,
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: `2px solid #047857`,
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: `2px solid #047857`,
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
           extra={
             <PrimaryButton

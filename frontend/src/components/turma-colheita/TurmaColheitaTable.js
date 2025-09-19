@@ -107,7 +107,7 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString("pt-BR");
 };
 
-const TurmaColheitaTable = ({ turmasColheita, loading, onEdit, onDelete }) => {
+const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, onDelete = null }) => {
   const [modalEstatisticas, setModalEstatisticas] = useState({
     open: false,
     turmaId: null,
@@ -401,10 +401,5 @@ TurmaColheitaTable.propTypes = {
   onDelete: PropTypes.func,
 };
 
-TurmaColheitaTable.defaultProps = {
-  loading: false,
-  onEdit: null,
-  onDelete: null,
-};
 
 export default TurmaColheitaTable;

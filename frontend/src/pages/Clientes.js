@@ -47,6 +47,7 @@ const Clientes = () => {
   // Estados do modal
   const [modalOpen, setModalOpen] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
+  const [dadosTemporarios, setDadosTemporarios] = useState(null); // Para manter dados em caso de erro
   
   // Estados do modal de pedidos
   const [pedidosModalOpen, setPedidosModalOpen] = useState(false);
@@ -126,6 +127,7 @@ const Clientes = () => {
   const handleCloseModal = useCallback(() => {
     setModalOpen(false);
     setClienteEditando(null);
+    setDadosTemporarios(null); // Limpar dados temporários
   }, []);
 
   // Função para abrir modal de pedidos
@@ -144,12 +146,12 @@ const Clientes = () => {
   const handleSaveCliente = useCallback(async (clienteData) => {
     // FECHAR MODAL IMEDIATAMENTE ao clicar em salvar
     handleCloseModal();
-    
+
     try {
       setCentralizedLoading(true);
       setLoadingMessage(clienteEditando ? "Atualizando cliente..." : "Criando cliente...");
       setLoading(true);
-      
+
       if (clienteEditando) {
         // Editando cliente existente
         await axiosInstance.patch(`/api/clientes/${clienteEditando.id}`, clienteData);
@@ -159,10 +161,10 @@ const Clientes = () => {
         await axiosInstance.post("/api/clientes", clienteData);
         showNotification("success", "Sucesso", "Cliente criado com sucesso!");
       }
-      
+
       // Atualizar mensagem para recarregamento
       setLoadingMessage("Atualizando lista de clientes...");
-      
+
       // Recarregar lista de clientes (sem delay adicional)
       const params = new URLSearchParams();
       if (currentPage) params.append('page', currentPage.toString());
@@ -175,16 +177,28 @@ const Clientes = () => {
       setClientesFiltrados(response.data.data || []);
       setTotalClientes(response.data.total || 0);
       setCurrentPage(response.data.page || 1);
-      
+
+      // Limpar dados temporários após sucesso
+      setDadosTemporarios(null);
+
     } catch (error) {
       console.error("Erro ao salvar cliente:", error);
       const message = error.response?.data?.message || "Erro ao salvar cliente";
       showNotification("error", "Erro", message);
-      
+
+      // MANTER OS DADOS PREENCHIDOS EM CASO DE ERRO
+      setDadosTemporarios(clienteData);
+
       // REABRIR MODAL EM CASO DE ERRO
-      setClienteEditando(clienteEditando ? clienteEditando : null);
+      if (clienteEditando) {
+        // Se estava editando, manter os dados originais + dados preenchidos
+        setClienteEditando({ ...clienteEditando, ...clienteData });
+      } else {
+        // Se era novo cliente, usar os dados preenchidos
+        setClienteEditando(clienteData);
+      }
       setModalOpen(true);
-      
+
     } finally {
       setLoading(false);
       setCentralizedLoading(false);
@@ -275,8 +289,7 @@ const Clientes = () => {
              onChange={handlePageChange}
              onShowSizeChange={handlePageChange}
              showSizeChanger
-             showQuickJumper
-             showTotal={(total, range) => 
+             showTotal={(total, range) =>
                `${range[0]}-${range[1]} de ${total} clientes`
              }
              pageSizeOptions={['10', '20', '50', '100']}

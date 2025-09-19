@@ -14,6 +14,7 @@ import { MailOutlined } from "@mui/icons-material";
 import { showNotification } from "config/notificationConfig";
 import axiosInstance from "../api/axiosConfig";
 import styled from "styled-components";
+import "../components/configuracoes/ConfiguracaoFormStyles.css";
 
 const { Title } = Typography;
 
@@ -275,7 +276,7 @@ const Configuracoes = () => {
   ];
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="configuracao-form" style={{ padding: 16 }}>
       {/* Título */}
       <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
         Configurações

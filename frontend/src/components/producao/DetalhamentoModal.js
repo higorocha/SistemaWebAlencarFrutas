@@ -61,7 +61,6 @@ const DetalhamentoModal = ({
         : `/controle-banana/detalhes-fita/${itemId}`;
       
       const response = await axiosInstance.get(endpoint);
-      console.log('Dados carregados do DetalhamentoModal:', response.data);
       setDados(response.data);
     } catch (error) {
       console.error('Erro ao carregar detalhes:', error);
@@ -164,7 +163,7 @@ const DetalhamentoModal = ({
       okButtonProps: {
         danger: true
       },
-      zIndex: 100100 // Maior que DetalhamentoModal (99999)
+      zIndex: 1200 // Maior que DetalhamentoModal (1050)
     });
   };
 
@@ -627,11 +626,13 @@ const DetalhamentoModal = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={16}>
@@ -686,11 +687,13 @@ const DetalhamentoModal = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={16}>
@@ -799,7 +802,7 @@ const DetalhamentoModal = ({
       }}
       centered
       destroyOnClose
-      zIndex={99999}
+      zIndex={1050}
     >
       <div style={{ position: 'relative' }}>
         {/* Overlay de Loading para Operações */}
@@ -814,7 +817,7 @@ const DetalhamentoModal = ({
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            zIndex: 1000,
+            zIndex: 1060,
             borderRadius: '8px'
           }}>
             <div style={{
@@ -880,17 +883,19 @@ const DetalhamentoModal = ({
                 />
               </div>
             }
-            headStyle={{
-              backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
-              color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
-            }}
-            bodyStyle={{
-              padding: "16px",
-              maxHeight: "350px",
-              overflowY: "auto",
-              overflowX: "hidden",
+            styles={{
+              header: {
+                backgroundColor: "#059669",
+                borderBottom: "2px solid #047857",
+                color: "#ffffff",
+                borderRadius: "8px 8px 0 0",
+              },
+              body: {
+                padding: "16px",
+                maxHeight: "350px",
+                overflowY: "auto",
+                overflowX: "hidden"
+              }
             }}
           >
             {renderControles()}
@@ -923,17 +928,19 @@ const DetalhamentoModal = ({
                   />
                 </div>
               }
-              headStyle={{
-                backgroundColor: "#059669",
-                borderBottom: "2px solid #047857",
-                color: "#ffffff",
-                borderRadius: "8px 8px 0 0",
-              }}
-              bodyStyle={{
-                padding: "16px",
-                maxHeight: "350px",
-                overflowY: "auto",
-                overflowX: "hidden",
+              styles={{
+                header: {
+                  backgroundColor: "#059669",
+                  borderBottom: "2px solid #047857",
+                  color: "#ffffff",
+                  borderRadius: "8px 8px 0 0",
+                },
+                body: {
+                  padding: "16px",
+                  maxHeight: "350px",
+                  overflowY: "auto",
+                  overflowX: "hidden"
+                }
               }}
             >
               <div style={{ 

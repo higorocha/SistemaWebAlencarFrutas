@@ -139,7 +139,7 @@ const AreasAgricolas = () => {
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
-    onLoad: () => console.log("Google Maps carregado com sucesso"),
+    onLoad: () => {},
     onError: (error) => console.error("Erro ao carregar Google Maps:", error),
   });
 
@@ -157,7 +157,6 @@ const AreasAgricolas = () => {
       return;
     }
     
-    console.log("DEBUG_MAP: calcularMidpoints chamado com:", coordinates.length, "coordenadas");
     const newMidpoints = [];
     
     // Criar apenas um midpoint simples por segmento para reduzir complexidade
@@ -177,7 +176,6 @@ const AreasAgricolas = () => {
       });
     }
     
-    console.log("DEBUG_MAP: Midpoints calculados:", newMidpoints.length);
     setMidpoints(newMidpoints);
   }, []);
 
@@ -197,9 +195,7 @@ const AreasAgricolas = () => {
   }, []);
 
   useEffect(() => {
-    console.log("DEBUG_MAP: useEffect tempCoordinates mudou:", tempCoordinates.length);
     if (tempCoordinates.length > 0) {
-      console.log("DEBUG_MAP: Sincronizando markers com", tempCoordinates.length, "coordenadas");
       // Sincronizar markers com tempCoordinates apenas quando não estiver editando midpoints
       const novosMarkers = tempCoordinates.map((coord, index) => ({
         id: index,
@@ -207,9 +203,7 @@ const AreasAgricolas = () => {
         lng: coord.lng,
       }));
       setMarkers(novosMarkers);
-      console.log("DEBUG_MAP: Markers sincronizados:", novosMarkers.length);
     } else {
-      console.log("DEBUG_MAP: Limpando markers e midpoints");
       setMidpoints([]);
       setMarkers([]);
     }
@@ -218,7 +212,6 @@ const AreasAgricolas = () => {
   // useEffect separado para calcular midpoints
   useEffect(() => {
     if (tempCoordinates.length > 2) {
-      console.log("DEBUG_MAP: Calculando midpoints para", tempCoordinates.length, "coordenadas");
       calcularMidpoints(tempCoordinates);
     } else if (tempCoordinates.length === 0) {
       setMidpoints([]);
@@ -228,11 +221,8 @@ const AreasAgricolas = () => {
   useEffect(() => {
     if (tempCoordinates.length > 0) {
       const area = calcularAreaPolygon(tempCoordinates);
-      console.log("Coordenadas do Polígono:", tempCoordinates);
-      console.log("Área Calculada (ha):", area);
       setAreaPoligono(area);
     } else {
-      console.log("Nenhuma coordenada no polígono. Área definida para 0.");
       setAreaPoligono(0);
     }
   }, [tempCoordinates, calcularAreaPolygon]);
@@ -251,11 +241,8 @@ const AreasAgricolas = () => {
       setIsLoading(true);
       
       const response = await axiosInstance.get(API_URL.areas);
-      console.log("Dados recebidos da API:", response.data);
-
       setAreas(response.data);
       setAreasFiltradas(response.data);
-      console.log("Áreas carregadas:", response.data);
     } catch (error) {
       console.error("Erro ao buscar áreas agrícolas:", error);
       showNotification("error", "Erro", "Erro ao buscar áreas agrícolas.");
@@ -276,7 +263,6 @@ const AreasAgricolas = () => {
   }, []);
 
   const handleOpenDialog = useCallback(() => {
-    console.log("DEBUG_MAP: handleOpenDialog chamado");
     setAreaAtual({
       id: null,
       nome: "",
@@ -289,13 +275,10 @@ const AreasAgricolas = () => {
     setErros({});
     // CORREÇÃO: Não limpar coordenadas se já existem
     if (tempCoordinates.length === 0) {
-      console.log("DEBUG_MAP: Limpando coordenadas no handleOpenDialog");
       setMarkers([]);
       setTempCoordinates([]);
       setMidpoints([]);
       setAreaPoligono(0);
-    } else {
-      console.log("DEBUG_MAP: Mantendo coordenadas existentes:", tempCoordinates.length);
     }
     setMapCenter(defaultCenter);
     setMapZoom(defaultZoom);
@@ -305,7 +288,6 @@ const AreasAgricolas = () => {
   }, [defaultCenter, tempCoordinates.length]);
 
   const handleCloseDialog = useCallback(() => {
-    console.log("DEBUG_MAP: handleCloseDialog chamado");
     setOpenDialog(false);
     setErros({});
     setMarkers([]);
@@ -319,17 +301,13 @@ const AreasAgricolas = () => {
   }, [defaultCenter]);
 
   const handleCloseMapDialog = useCallback(() => {
-    console.log("DEBUG_MAP: handleCloseMapDialog chamado");
     // Sincronizar área do polígono com o formulário se houver coordenadas
     if (tempCoordinates.length > 0 && areaPoligono > 0) {
-      console.log("DEBUG_MAP: Sincronizando área:", areaPoligono, "com coordenadas:", tempCoordinates.length);
       setAreaAtual(prev => ({
         ...prev,
         areaTotal: Number(areaPoligono).toFixed(2),
         coordenadas: tempCoordinates,
       }));
-    } else {
-      console.log("DEBUG_MAP: Nenhuma área para sincronizar - tempCoordinates:", tempCoordinates.length, "areaPoligono:", areaPoligono);
     }
     setMapOpen(false);
   }, [tempCoordinates, areaPoligono, setAreaAtual]);
@@ -351,7 +329,6 @@ const AreasAgricolas = () => {
   // CORREÇÃO 1: Lógica de abrir mapa simplificada e centralizada
   const abrirMapa = useCallback(
     (area, mode = "view") => {
-      console.log("DEBUG_MAP: abrirMapa chamado com:", { area: area ? { id: area.id, coordenadas: area.coordenadas?.length } : null, mode });
       if (mode === "view") {
         setIsLoading(true);
         axiosInstance
@@ -380,7 +357,6 @@ const AreasAgricolas = () => {
       
       if (mode === "edit" && coordenadas && coordenadas.length > 0) {
         // Editar área existente com coordenadas
-        console.log("DEBUG_MAP: Editando área com coordenadas:", coordenadas.length);
         setTempCoordinates(coordenadas);
         
         // Calcular centro do polígono
@@ -395,7 +371,6 @@ const AreasAgricolas = () => {
         // Calcular e setar a área do polígono
         const areaCalculada = calcularAreaPolygon(coordenadas);
         setAreaPoligono(areaCalculada);
-        console.log("DEBUG_MAP: Área calculada para edição:", areaCalculada);
       } else {
         // Criar nova área ou editar sem coordenadas
         setTempCoordinates([]);
@@ -465,14 +440,6 @@ const AreasAgricolas = () => {
         }
       });
       
-      console.log("DEBUG_SAVE: Dados enviados para o backend:", {
-        nome: dadosParaEnvio.nome,
-        categoria: dadosParaEnvio.categoria,
-        areaTotal: dadosParaEnvio.areaTotal,
-        coordenadas: dadosParaEnvio.coordenadas ? `${dadosParaEnvio.coordenadas.length} pontos` : "sem coordenadas",
-        culturas: dadosParaEnvio.culturas ? `${dadosParaEnvio.culturas.length} culturas` : "sem culturas"
-      });
-      console.log("DEBUG_SAVE: Payload completo:", JSON.stringify(dadosParaEnvio, null, 2));
       
       if (editando) {
         // Para edição, remover o id do payload se existir
@@ -510,7 +477,6 @@ const AreasAgricolas = () => {
 
   const handleEditarArea = useCallback(
     (area) => {
-      console.log("Área recebida para edição:", area);
 
       const coordenadas = area.coordenadas || [];
 
@@ -599,7 +565,6 @@ const AreasAgricolas = () => {
   );
 
   const handleChange = useCallback((fieldName, value) => {
-    console.log(`Mudança no campo ${fieldName}:`, value);
     setAreaAtual((prevState) => ({
       ...prevState,
       [fieldName]: value,
@@ -629,18 +594,14 @@ const AreasAgricolas = () => {
 
   const handlePolygonComplete = useCallback(
     (polygon) => {
-      console.log("DEBUG_MAP: handlePolygonComplete chamado");
       const path = polygon.getPath();
       const newCoordinates = path.getArray().map((latLng) => ({
         lat: latLng.lat(),
         lng: latLng.lng(),
       }));
 
-      console.log("DEBUG_MAP: Novas coordenadas:", newCoordinates);
-
       // Verificar se há pelo menos 3 pontos
       if (newCoordinates.length < 3) {
-        console.log("DEBUG_MAP: Polígono com menos de 3 pontos, ignorando");
         polygon.setMap(null);
         return;
       }
@@ -648,8 +609,6 @@ const AreasAgricolas = () => {
       // Calcular a área
       const area = calcularAreaPolygon(newCoordinates);
       const AREA_MAXIMA = 100; // em hectares
-
-      console.log("DEBUG_MAP: Área calculada:", area);
 
       if (area > AREA_MAXIMA) {
         showNotification(
@@ -665,7 +624,6 @@ const AreasAgricolas = () => {
       }
 
       // CORREÇÃO: Garantir que as coordenadas sejam mantidas
-      console.log("DEBUG_MAP: Definindo tempCoordinates com:", newCoordinates);
       setTempCoordinates(newCoordinates); // Salva as coordenadas temporárias do polígono
       setAreaPoligono(area); // Armazena a área calculada
 
@@ -676,7 +634,6 @@ const AreasAgricolas = () => {
 
       // Remover o polígono desenhado pelo DrawingManager
       polygon.setMap(null);
-      console.log("DEBUG_MAP: handlePolygonComplete finalizado");
     },
     [calcularAreaPolygon, calcularMidpoints]
   );
@@ -701,10 +658,8 @@ const AreasAgricolas = () => {
   // CORREÇÃO 3: Sincronização correta de markers ao arrastar midpoints
   const handleMidpointDragEnd = useCallback(
     (midpointId, event) => {
-      console.log("DEBUG_MAP: handleMidpointDragEnd chamado:", midpointId);
       const midpoint = midpoints.find((m) => m.id === midpointId);
       if (!midpoint) {
-        console.log("DEBUG_MAP: Midpoint não encontrado:", midpointId);
         return;
       }
 
@@ -712,13 +667,11 @@ const AreasAgricolas = () => {
       const newLng = event.latLng.lng();
 
       const newVertex = { lat: newLat, lng: newLng };
-      console.log("DEBUG_MAP: Novo vértice:", newVertex, "na posição:", midpoint.originalIndex + 1);
 
       // Criar novo array de coordenadas com o novo vértice inserido
       const newPath = [...tempCoordinates];
       newPath.splice(midpoint.originalIndex + 1, 0, newVertex);
 
-      console.log("DEBUG_MAP: Atualizando tempCoordinates com novo path:", newPath.length, "pontos");
       setTempCoordinates(newPath);
     },
     [midpoints, tempCoordinates]
@@ -831,7 +784,6 @@ const AreasAgricolas = () => {
             onChange={handlePageChange}
             onShowSizeChange={handleShowSizeChange}
             showSizeChanger
-            showQuickJumper
             showTotal={(total, range) => `${range[0]}-${range[1]} de ${total} áreas`}
             pageSizeOptions={["10", "20", "50", "100"]}
           />

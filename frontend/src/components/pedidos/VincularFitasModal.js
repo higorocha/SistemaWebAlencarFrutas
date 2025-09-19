@@ -128,13 +128,6 @@ const VincularFitasModal = ({
       const usoConsolidado = consolidarUsoFitas(frutasParaConsolidar);
       setUsoGlobalAtual(usoConsolidado);
       
-      console.log('🔄 Validação global inicializada:', {
-        totalFrutasNoPedido: todasFrutasPedido.length,
-        frutaAtualIndex: fruta?.index,
-        frutasConsideradasParaConsolidacao: frutasParaConsolidar.length,
-        usoConsolidado,
-        mapaEstoque
-      });
     } catch (error) {
       console.error('Erro ao inicializar validação global:', error);
     }
@@ -142,11 +135,6 @@ const VincularFitasModal = ({
 
   const initializeFromExistingFitas = () => {
     if (fruta?.fitas && Array.isArray(fruta.fitas) && fitasComAreas.length > 0) {
-      console.log('🔄 Inicializando fitas existentes:', {
-        frutaFitas: fruta.fitas,
-        fitasComAreasTotal: fitasComAreas.length,
-        isModoEdicao
-      });
       
       // Limpar seleções existentes antes de inicializar
       setSelecoesPorLote({});
@@ -170,13 +158,6 @@ const VincularFitasModal = ({
               if (area) {
                 const controleEspecifico = area.controles.find(c => c.id === detalhe.controleBananaId);
                 if (controleEspecifico) {
-                  console.log('✅ Lote encontrado e será carregado:', {
-                    fitaNome: fitaData.nome,
-                    areaNome: area.nome,
-                    controleBananaId: detalhe.controleBananaId,
-                    quantidade: detalhe.quantidade,
-                    estoqueAtual: controleEspecifico.quantidadeFitas
-                  });
                   
                   const chave = `${fitaData.id}_${controleEspecifico.id}`;
                   
@@ -201,28 +182,8 @@ const VincularFitasModal = ({
                     maxDisponivel: controleEspecifico.quantidadeFitas,
                     dataRegistro: controleEspecifico.dataRegistro
                   });
-                } else {
-                  console.warn('❌ Lote específico não encontrado:', {
-                    controleBananaId: detalhe.controleBananaId,
-                    area: area?.nome,
-                    controlesDisponiveis: area?.controles?.map(c => ({ id: c.id, estoque: c.quantidadeFitas })),
-                    detalheBuscado: detalhe
-                  });
                 }
-              } else {
-                console.warn('❌ Área não encontrada:', {
-                  areaIdBuscada: detalhe.areaId,
-                  areasDisponiveis: fitaData.areas?.map(a => ({ id: a.areaId, nome: a.nome })),
-                  fitaNome: fitaData.nome,
-                  detalheBuscado: detalhe
-                });
               }
-            } else {
-              console.warn('❌ Fita não encontrada nas áreas disponíveis:', {
-                fitaBananaIdBuscada: fitaExistente.fitaBananaId,
-                fitasDisponiveis: fitasComAreas.map(f => ({ id: f.fitaBananaId, nome: f.nome })),
-                fitaExistente
-              });
             }
           });
         } else if (fitaExistente.areaId && fitaExistente.areaNome) {
@@ -295,11 +256,6 @@ const VincularFitasModal = ({
         }
       });
       
-      console.log('📦 Resultado da inicialização:', {
-        novasSelecoes,
-        novosLotesSelecionados,
-        totalCarregado: novosLotesSelecionados.length
-      });
       
       setSelecoesPorLote(novasSelecoes);
       setLotesSelecionados(novosLotesSelecionados);
@@ -359,7 +315,6 @@ const VincularFitasModal = ({
         // Verificação dupla para evitar duplicações
         const jaExisteNaLista = prev.some(item => item.chave === chave);
         if (jaExisteNaLista) {
-          console.warn('Tentativa de duplicação detectada:', chave);
           return prev; // Retorna lista atual sem alterações
         }
         
@@ -461,12 +416,6 @@ const VincularFitasModal = ({
         }
       }
       
-      console.log('🔍 Validação em tempo real:', {
-        chaveAlterada,
-        resultadoValidacao: resultadoValidacao.valido,
-        conflitos: Object.keys(resultadoValidacao.conflitos || {}),
-        mensagensErro: resultadoValidacao.mensagensErro?.length || 0
-      });
       
     } catch (error) {
       console.error('Erro na validação em tempo real:', error);
@@ -551,11 +500,6 @@ const VincularFitasModal = ({
         isModoEdicao
       );
       
-      console.log('🔍 Validação final antes do save:', {
-        valido: resultadoValidacao.valido,
-        conflitos: resultadoValidacao.conflitos,
-        mensagensErro: resultadoValidacao.mensagensErro
-      });
       
       // Se há conflitos, não permitir salvar
       if (!resultadoValidacao.valido) {
@@ -901,7 +845,7 @@ const VincularFitasModal = ({
                                             podeSelecionar && toggleLoteSelection(fita.id, area, controle);
                                           }
                                         }}
-                                        bodyStyle={{ padding: '10px' }}
+                                        styles={{ body: { padding: '10px' } }}
                                       >
                                         {/* Header com gradiente da cor da fita */}
                                         <div style={{
@@ -1055,7 +999,7 @@ const VincularFitasModal = ({
                     boxShadow: `0 2px 6px ${item.fitaCor}30`,
                     marginBottom: 12
                   }}
-                  bodyStyle={{ padding: '12px' }}
+                  styles={{ body: { padding: '12px' } }}
                 >
                   {/* Header com gradiente da cor da fita */}
                   <div style={{

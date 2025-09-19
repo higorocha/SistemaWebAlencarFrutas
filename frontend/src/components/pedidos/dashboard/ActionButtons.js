@@ -32,7 +32,7 @@ const ActionButtons = ({
   return (
     <Card 
       style={cardStyle} 
-      bodyStyle={{ padding: "16px" }}
+      styles={{ body: { padding: "16px" } }}
       title={
         <span style={{ color: "#059669", fontWeight: "600", fontSize: "16px" }}>
           Ações Rápidas

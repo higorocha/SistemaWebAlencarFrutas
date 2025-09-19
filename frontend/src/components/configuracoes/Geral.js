@@ -102,6 +102,7 @@ const StyledForm = styled(Form)`
     }
   }
 
+
   .ant-select-selector {
     height: 48px !important;
     
@@ -490,7 +491,6 @@ const Geral = ({ loading, dadosEmpresa, onSalvar }) => {
               htmlType="submit"
               size="large"
               loading={loadingDadosEmpresa}
-              onClick={() => {}} // Será substituído pelo onFinish do Form
             >
               Salvar Dados da Empresa
             </PrimaryButton>

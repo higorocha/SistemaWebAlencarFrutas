@@ -1,0 +1,47 @@
+/* 
+ * ConfiguracaoFormStyles.css
+ * Estilos compartilhados para validação de formulários na página de Configurações
+ * Usado por: Geral.js, DadosBancarios.js, Usuarios.js, etc.
+ */
+
+/* ✅ Suporte para estados de erro em formulários customizados */
+.configuracao-form .ant-form-item-has-error .ant-input,
+.configuracao-form .ant-form-item-has-error .ant-select-selector,
+.configuracao-form .ant-form-item-has-error .ant-input-number,
+.configuracao-form .ant-form-item-has-error .ant-input-password {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2) !important;
+}
+
+.configuracao-form .ant-form-item-has-error .ant-input:hover,
+.configuracao-form .ant-form-item-has-error .ant-select-selector:hover,
+.configuracao-form .ant-form-item-has-error .ant-input-number:hover,
+.configuracao-form .ant-form-item-has-error .ant-input-password:hover {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.3) !important;
+}
+
+.configuracao-form .ant-form-item-has-error .ant-input:focus,
+.configuracao-form .ant-form-item-has-error .ant-input.ant-input-focused,
+.configuracao-form .ant-form-item-has-error .ant-select-focused .ant-select-selector,
+.configuracao-form .ant-form-item-has-error .ant-input-number:focus,
+.configuracao-form .ant-form-item-has-error .ant-input-password:focus {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.2) !important;
+}
+
+/* ✅ Suporte para campos customizados (como CustomEmailInput) */
+.configuracao-form .ant-form-item-has-error .email-input-wrapper {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2) !important;
+}
+
+.configuracao-form .ant-form-item-has-error .email-input-wrapper:hover {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.3) !important;
+}
+
+.configuracao-form .ant-form-item-has-error .email-input-wrapper:focus-within {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.2) !important;
+}

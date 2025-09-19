@@ -445,10 +445,12 @@ const CalendarioColheitaBanana = () => {
         </div>
       }
       style={{ marginTop: '24px' }}
-      headStyle={{
-        backgroundColor: '#f8f9fa',
-        borderBottom: '2px solid #e9ecef',
-        borderRadius: '8px 8px 0 0'
+      styles={{
+        header: {
+          backgroundColor: '#f8f9fa',
+          borderBottom: '2px solid #e9ecef',
+          borderRadius: '8px 8px 0 0'
+        }
       }}
     >
       {/* Legenda */}

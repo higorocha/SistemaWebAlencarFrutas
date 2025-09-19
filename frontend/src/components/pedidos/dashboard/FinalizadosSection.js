@@ -114,11 +114,13 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
           display: "flex",
           flexDirection: "column",
         }}
-        bodyStyle={{ 
-          padding: 0,
-          flex: 1,
-          display: "flex",
-          flexDirection: "column"
+        styles={{ 
+          body: {
+            padding: 0,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column"
+          }
         }}
       >
         {/* Header da seção */}
@@ -224,7 +226,7 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
                     transition: "all 0.2s ease",
                     cursor: "pointer"
                   }}
-                  bodyStyle={{ padding: "8px 12px" }}
+                  styles={{ body: { padding: "8px 12px" } }}
                   hoverable
                   className="pedido-card-container"
                   onClick={() => onAction(pedido)}

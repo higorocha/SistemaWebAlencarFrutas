@@ -69,11 +69,13 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
           size="small" 
           title="Dados adicionais" 
           style={{ marginTop: 16 }}
-          bodyStyle={{ 
-            background: '#fafafa', 
-            padding: 16,
-            maxHeight: '200px',
-            overflow: 'auto'
+          styles={{ 
+            body: {
+              background: '#fafafa', 
+              padding: 16,
+              maxHeight: '200px',
+              overflow: 'auto'
+            }
           }}
         >
           <pre style={{ 

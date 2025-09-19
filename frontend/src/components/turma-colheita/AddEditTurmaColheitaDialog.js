@@ -12,8 +12,8 @@ const AddEditTurmaColheitaDialog = ({
   open,
   onClose,
   onSave,
-  turmaColheita,
-  loading,
+  turmaColheita = null,
+  loading = false,
 }) => {
   const [turmaAtual, setTurmaAtual] = useState({
     nomeColhedor: "",
@@ -228,9 +228,5 @@ AddEditTurmaColheitaDialog.propTypes = {
   loading: PropTypes.bool,
 };
 
-AddEditTurmaColheitaDialog.defaultProps = {
-  turmaColheita: null,
-  loading: false,
-};
 
 export default AddEditTurmaColheitaDialog;

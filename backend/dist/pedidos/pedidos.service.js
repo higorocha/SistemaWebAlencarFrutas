@@ -472,6 +472,7 @@ let PedidosService = class PedidosService {
                 data: {
                     numeroPedido,
                     clienteId: createPedidoDto.clienteId,
+                    dataPedido: createPedidoDto.dataPedido,
                     dataPrevistaColheita: createPedidoDto.dataPrevistaColheita,
                     observacoes: createPedidoDto.observacoes,
                     indDataEntrada: createPedidoDto.indDataEntrada ? new Date(createPedidoDto.indDataEntrada) : null,
@@ -1372,6 +1373,7 @@ let PedidosService = class PedidosService {
                 where: { id },
                 data: {
                     clienteId: updatePedidoCompletoDto.clienteId,
+                    dataPedido: updatePedidoCompletoDto.dataPedido,
                     dataPrevistaColheita: updatePedidoCompletoDto.dataPrevistaColheita,
                     dataColheita: updatePedidoCompletoDto.dataColheita,
                     observacoes: updatePedidoCompletoDto.observacoes,

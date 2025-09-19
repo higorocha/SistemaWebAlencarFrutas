@@ -571,6 +571,7 @@ export class PedidosService {
         data: {
           numeroPedido,
           clienteId: createPedidoDto.clienteId,
+          dataPedido: createPedidoDto.dataPedido,
           dataPrevistaColheita: createPedidoDto.dataPrevistaColheita,
           observacoes: createPedidoDto.observacoes,
           // Campos específicos para clientes indústria
@@ -1698,6 +1699,7 @@ export class PedidosService {
         where: { id },
         data: {
           clienteId: updatePedidoCompletoDto.clienteId,
+          dataPedido: updatePedidoCompletoDto.dataPedido,
           dataPrevistaColheita: updatePedidoCompletoDto.dataPrevistaColheita,
 
           dataColheita: updatePedidoCompletoDto.dataColheita,

@@ -114,6 +114,7 @@ const StyledForm = styled(Form)`
     }
   }
 
+
   .ant-select-selector {
     height: 48px !important;
     
@@ -282,9 +283,9 @@ const DadosBancarios = () => {
 
   const onFinishContaCorrente = async (values) => {
     try {
-      // Mapear "banco" para "bancoCodigo" para o backend
+      // Mapear "conta_banco" para "bancoCodigo" para o backend
       const dadosFormatados = {
-        bancoCodigo: values.banco,
+        bancoCodigo: values.conta_banco,
         agencia: values.agencia,
         agenciaDigito: values.agenciaDigito,
         contaCorrente: values.contaCorrente,
@@ -334,7 +335,7 @@ const DadosBancarios = () => {
   const handleEditContaCorrente = (contaCorrente) => {
     setEditingContaCorrente(contaCorrente);
     form.setFieldsValue({
-      banco: contaCorrente.bancoCodigo, // Mapear bancoCodigo de volta para banco
+      conta_banco: contaCorrente.bancoCodigo, // Mapear bancoCodigo de volta para conta_banco
       agencia: contaCorrente.agencia,
       agenciaDigito: contaCorrente.agenciaDigito,
       contaCorrente: contaCorrente.contaCorrente,
@@ -377,8 +378,8 @@ const DadosBancarios = () => {
     try {
       // Mapear dados para o backend
       const dadosFormatados = {
-        banco: values.banco,
-        contaCorrenteId: values.contaCorrente,
+        banco: values.api_banco,
+        contaCorrenteId: values.api_contaCorrente,
         modalidadeApi: values.modalidadeApi,
         developerAppKey: values.developerAppKey,
         clienteId: values.clienteId,
@@ -447,8 +448,8 @@ const DadosBancarios = () => {
   const handleEdit = (credential) => {
     setEditingCredential(credential);
     apiForm.setFieldsValue({
-      banco: credential.banco,
-      contaCorrente: credential.contaCorrenteId,
+      api_banco: credential.banco,
+      api_contaCorrente: credential.contaCorrenteId,
       modalidadeApi: credential.modalidadeApi,
       developerAppKey: credential.developerAppKey,
       clienteId: credential.clienteId,
@@ -588,7 +589,7 @@ const DadosBancarios = () => {
               <StyledForm layout="vertical" onFinish={onFinishContaCorrente} form={form}>
                                  {/* Banco - Select simplificado */}
                  <Form.Item
-                   name="banco"
+                   name="conta_banco"
                    label={
                      <Text strong>
                        <BankOutlined style={{ marginRight: 8 }} />
@@ -697,7 +698,6 @@ const DadosBancarios = () => {
                     htmlType="submit" 
                     size="large" 
                     block
-                    onClick={() => {}} // Será substituído pelo onFinish do Form
                   >
                     {editingContaCorrente ? "Atualizar Conta Corrente" : "Cadastrar Conta Corrente"}
                   </PrimaryButton>
@@ -809,7 +809,7 @@ const DadosBancarios = () => {
                 <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
                                      <Col xs={24} sm={12}>
                      <Form.Item
-                       name="banco"
+                       name="api_banco"
                        label={
                          <Text strong>
                            <BankOutlined style={{ marginRight: 8 }} />
@@ -829,7 +829,7 @@ const DadosBancarios = () => {
                    </Col>
                   <Col xs={24} sm={12}>
                     <Form.Item
-                      name="contaCorrente"
+                      name="api_contaCorrente"
                       label={
                         <Text strong>
                           <ContainerOutlined style={{ marginRight: 8 }} />
@@ -931,7 +931,6 @@ const DadosBancarios = () => {
                     htmlType="submit" 
                     size="large" 
                     block
-                    onClick={() => {}} // Será substituído pelo onFinish do Form
                   >
                     {editingCredential ? "Atualizar Credenciais API" : "Cadastrar Credenciais API"}
                   </PrimaryButton>
@@ -1265,7 +1264,6 @@ const DadosBancarios = () => {
               htmlType="submit"
               size="large"
               loading={loadingConvenios}
-              onClick={() => {}} // Será substituído pelo onFinish do Form
             >
               Salvar Convênio de Cobrança
             </PrimaryButton>

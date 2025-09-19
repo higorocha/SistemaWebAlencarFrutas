@@ -122,12 +122,12 @@ const StyledTable = styled(Table)`
 
 const PedidosTable = ({ 
   pedidos, 
-  loading, 
+  loading = false, 
   onEdit, 
   onColheita, 
   onPrecificacao, 
   onPagamento,
-  onPedidoRemovido 
+  onPedidoRemovido
 }) => {
   const [frutasModalOpen, setFrutasModalOpen] = useState(false);
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
@@ -647,8 +647,5 @@ PedidosTable.propTypes = {
   onPedidoRemovido: PropTypes.func,
 };
 
-PedidosTable.defaultProps = {
-  loading: false,
-};
 
 export default PedidosTable;

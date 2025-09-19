@@ -40,7 +40,6 @@ import { PrimaryButton } from "../common/buttons";
 
 const { Text, Title, Paragraph } = Typography;
 const { Option } = Select;
-const { TabPane } = Tabs;
 
 const API_URL = {
   configEmail: "/config-email",
@@ -1001,30 +1000,29 @@ const ConfigServers = () => {
         type="card"
         size="large"
         tabBarStyle={{ marginBottom: 24 }}
-      >
-        <TabPane
-          tab={
-            <span>
-              <MailOutlined style={{ fontSize: "18px", marginRight: 8 }} />
-              Servidor de Email
-            </span>
+        items={[
+          {
+            key: "1",
+            tab: (
+              <span>
+                <MailOutlined style={{ fontSize: "18px", marginRight: 8 }} />
+                Servidor de Email
+              </span>
+            ),
+            children: renderEmailTab()
+          },
+          {
+            key: "2", 
+            tab: (
+              <span>
+                <WhatsAppOutlined style={{ fontSize: "18px", marginRight: 8 }} />
+                WhatsApp Business
+              </span>
+            ),
+            children: renderWhatsAppTab()
           }
-          key="1"
-        >
-          {renderEmailTab()}
-        </TabPane>
-        <TabPane
-          tab={
-            <span>
-              <WhatsAppOutlined style={{ fontSize: "18px", marginRight: 8 }} />
-              WhatsApp Business
-            </span>
-          }
-          key="2"
-        >
-          {renderWhatsAppTab()}
-        </TabPane>
-      </StyledTabs>
+        ]}
+      />
     </PageContainer>
   );
 };

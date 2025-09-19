@@ -214,10 +214,9 @@ const FornecedoresPage = () => {
             pageSize={pageSize}
             total={total}
             onChange={handlePageChange}
-            onShowSizeChange={handlePageChange}
+            onShowSizeChanger={handlePageChange}
             showSizeChanger
-            showQuickJumper
-            showTotal={(total, range) => 
+            showTotal={(total, range) =>
               `${range[0]}-${range[1]} de ${total} fornecedores`
             }
             pageSizeOptions={['10', '20', '50', '100']}

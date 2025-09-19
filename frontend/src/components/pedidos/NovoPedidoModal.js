@@ -84,6 +84,13 @@ const NovoPedidoModal = ({
     try {
       setIsSaving(true);
 
+      // 🔍 DEBUG: Verificar valores recebidos
+      console.log('📋 Valores recebidos do formulário:', values);
+      console.log('📅 Data do pedido RAW:', values.dataPedido);
+      console.log('📅 Data prevista colheita RAW:', values.dataPrevistaColheita);
+      console.log('📅 Tipo da data do pedido:', typeof values.dataPedido);
+      console.log('📅 Tipo da data prevista:', typeof values.dataPrevistaColheita);
+
       // ✅ NOVA VALIDAÇÃO: Usar validação completa do pedido
       console.log('🔍 Validando pedido completo...', {
         totalFrutas: values.frutas?.length || 0,
@@ -120,6 +127,14 @@ const NovoPedidoModal = ({
 
       console.log('✅ Validação do pedido passou!');
 
+      // Validação simples das datas (CORRIGIDO - usar .toDate())
+      if (values.dataPedido && values.dataPrevistaColheita) {
+        if (moment(values.dataPrevistaColheita.toDate()).isBefore(moment(values.dataPedido.toDate()), 'day')) {
+          showNotification("error", "Erro", "Data prevista para colheita não pode ser anterior à data do pedido");
+          return;
+        }
+      }
+
       // PADRÃO "FECHAR-ENTÃO-LOADING": Fechar modal ANTES de iniciar loading
       form.resetFields();
       onClose();
@@ -129,11 +144,21 @@ const NovoPedidoModal = ({
         onLoadingChange(true, "Criando pedido...");
       }
 
+      // 🔍 DEBUG: Processar datas (CORRIGIDO - usar .toDate() para converter dayjs para Date)
+      const dataPedidoProcessada = values.dataPedido
+        ? moment(values.dataPedido.toDate()).startOf('day').toISOString()
+        : undefined;
+      const dataPrevistaProcessada = values.dataPrevistaColheita
+        ? moment(values.dataPrevistaColheita.toDate()).startOf('day').toISOString()
+        : undefined;
+
+      console.log('📅 Data do pedido processada:', dataPedidoProcessada);
+      console.log('📅 Data prevista processada:', dataPrevistaProcessada);
+
       const formData = {
         ...values,
-        dataPrevistaColheita: values.dataPrevistaColheita
-          ? moment(values.dataPrevistaColheita).startOf('day').toISOString()
-          : undefined,
+        dataPedido: dataPedidoProcessada,
+        dataPrevistaColheita: dataPrevistaProcessada,
         // NOVA ESTRUTURA: Criar área placeholder para satisfazer validação do backend
         frutas: values.frutas.map(fruta => ({
           ...fruta,
@@ -146,6 +171,12 @@ const NovoPedidoModal = ({
           fitas: [] // Array vazio de fitas
         }))
       };
+
+      console.log('🚀 FormData final sendo enviado:', formData);
+      console.log('🚀 Datas no formData final:', {
+        dataPedido: formData.dataPedido,
+        dataPrevistaColheita: formData.dataPrevistaColheita
+      });
 
       await onSave(formData);
     } catch (error) {
@@ -254,15 +285,17 @@ const NovoPedidoModal = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
+            <Col xs={24} md={8}>
               <Form.Item
                 label={
                   <Space>
@@ -296,7 +329,32 @@ const NovoPedidoModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={12}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                label={
+                  <Space>
+                    <CalendarOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Data do Pedido</span>
+                  </Space>
+                }
+                name="dataPedido"
+                rules={[
+                  { required: true, message: "Data do pedido é obrigatória" },
+                ]}
+              >
+                <DatePicker
+                  style={{
+                    width: "100%",
+                    borderRadius: "6px",
+                    borderColor: "#d9d9d9",
+                  }}
+                  format="DD/MM/YYYY"
+                  placeholder="Selecione a data"
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
               <Form.Item
                 label={
                   <Space>
@@ -310,14 +368,13 @@ const NovoPedidoModal = ({
                 ]}
               >
                 <DatePicker
-                  style={{ 
+                  style={{
                     width: "100%",
                     borderRadius: "6px",
                     borderColor: "#d9d9d9",
                   }}
                   format="DD/MM/YYYY"
                   placeholder="Selecione a data"
-                  disabledDate={(current) => current && current < moment().startOf('day')}
                 />
               </Form.Item>
             </Col>
@@ -338,11 +395,13 @@ const NovoPedidoModal = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Form.List name="frutas">
@@ -587,11 +646,13 @@ const NovoPedidoModal = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={[16, 16]}>

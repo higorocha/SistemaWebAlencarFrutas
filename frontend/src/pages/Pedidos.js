@@ -633,8 +633,7 @@ const Pedidos = () => {
                 setPageSize(size);
               }}
               showSizeChanger
-              showQuickJumper
-              showTotal={(total, range) => 
+              showTotal={(total, range) =>
                 `${range[0]}-${range[1]} de ${total} pedidos`
               }
               pageSizeOptions={['10', '20', '50', '100']}

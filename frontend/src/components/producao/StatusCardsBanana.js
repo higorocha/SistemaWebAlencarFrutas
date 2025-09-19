@@ -29,7 +29,7 @@ const StatusCardsBanana = ({ stats = {} }) => {
     <div className="status-cards-row">
       {/* Total de Registros */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>
@@ -45,7 +45,7 @@ const StatusCardsBanana = ({ stats = {} }) => {
 
       {/* Total de Fitas */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>
@@ -61,7 +61,7 @@ const StatusCardsBanana = ({ stats = {} }) => {
 
       {/* Áreas com Registros */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>
@@ -77,7 +77,7 @@ const StatusCardsBanana = ({ stats = {} }) => {
 
       {/* Média por Área */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>

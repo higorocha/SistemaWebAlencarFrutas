@@ -136,11 +136,13 @@ const ModalDetalhesSemana = ({
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
           }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Row gutter={16}>
@@ -213,17 +215,19 @@ const ModalDetalhesSemana = ({
               />
             </div>
           }
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
-          }}
-          bodyStyle={{
-            padding: "16px",
-            height: "400px",
-            overflowY: "auto",
-            overflowX: "hidden",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            },
+            body: {
+              padding: "16px",
+              height: "400px",
+              overflowY: "auto",
+              overflowX: "hidden"
+            }
           }}
         >
           <div style={{ 

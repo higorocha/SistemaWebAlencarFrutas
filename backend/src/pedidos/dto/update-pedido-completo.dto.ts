@@ -216,6 +216,11 @@ export class UpdatePedidoCompletoDto {
   @IsNumber({}, { message: 'ID do cliente deve ser um número' })
   clienteId?: number;
 
+  @ApiPropertyOptional({ description: 'Data do pedido (temporário)' })
+  @IsOptional()
+  @IsDateString({}, { message: 'Data do pedido deve ser uma data válida' })
+  dataPedido?: string;
+
   @ApiPropertyOptional({ description: 'Data prevista para colheita' })
   @IsOptional()
   @IsDateString({}, { message: 'Data prevista para colheita deve ser uma data válida' })

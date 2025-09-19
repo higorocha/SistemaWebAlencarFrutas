@@ -31,6 +31,7 @@ const EditarPedidoDialog = ({
 }) => {
   const [pedidoAtual, setPedidoAtual] = useState({
     clienteId: "",
+    dataPedido: null,
     dataPrevistaColheita: null,
     observacoes: "",
     frutas: [],
@@ -193,14 +194,17 @@ const EditarPedidoDialog = ({
       
       const pedidoAtualData = {
         clienteId: pedido.clienteId || "",
-        dataPrevistaColheita: pedido.dataPrevistaColheita 
-          ? new Date(pedido.dataPrevistaColheita.split('T')[0] + 'T12:00:00') 
+        dataPedido: pedido.dataPedido
+          ? new Date(pedido.dataPedido.split('T')[0] + 'T12:00:00')
+          : null,
+        dataPrevistaColheita: pedido.dataPrevistaColheita
+          ? new Date(pedido.dataPrevistaColheita.split('T')[0] + 'T12:00:00')
           : null,
         observacoes: pedido.observacoes || "",
         frutas: frutasForm,
         // Dados de colheita
-        dataColheita: pedido.dataColheita 
-          ? new Date(pedido.dataColheita.split('T')[0] + 'T12:00:00') 
+        dataColheita: pedido.dataColheita
+          ? new Date(pedido.dataColheita.split('T')[0] + 'T12:00:00')
           : null,
         observacoesColheita: pedido.observacoesColheita || "",
         // Dados de frete
@@ -254,6 +258,7 @@ const EditarPedidoDialog = ({
       
       setPedidoAtual({
         clienteId: "",
+        dataPedido: null,
         dataPrevistaColheita: null,
         observacoes: "",
         frutas: [],
@@ -423,14 +428,30 @@ const EditarPedidoDialog = ({
   const validarFormulario = () => {
     const novosErros = {};
     let temInconsistenciaUnidades = false;
+    let temErroData = false;
 
     // Validações obrigatórias - Dados Básicos
     if (!pedidoAtual.clienteId) {
       novosErros.clienteId = "Cliente é obrigatório";
     }
 
+    if (!pedidoAtual.dataPedido) {
+      novosErros.dataPedido = "Data do pedido é obrigatória";
+    }
+
     if (!pedidoAtual.dataPrevistaColheita) {
       novosErros.dataPrevistaColheita = "Data prevista para colheita é obrigatória";
+    }
+
+    // Validar se data prevista para colheita é posterior à data do pedido
+    if (pedidoAtual.dataPedido && pedidoAtual.dataPrevistaColheita) {
+      const dataPedido = moment(pedidoAtual.dataPedido);
+      const dataPrevistaColheita = moment(pedidoAtual.dataPrevistaColheita);
+
+      if (dataPrevistaColheita.isBefore(dataPedido, 'day')) {
+        novosErros.dataPrevistaColheita = "Data prevista para colheita não pode ser anterior à data do pedido";
+        temErroData = true;
+      }
     }
 
     // Validar frutas
@@ -545,7 +566,8 @@ const EditarPedidoDialog = ({
     
     return {
       valido: Object.keys(novosErros).length === 0,
-      temInconsistenciaUnidades
+      temInconsistenciaUnidades,
+      erroData: temErroData
     };
   };
 
@@ -626,7 +648,12 @@ const EditarPedidoDialog = ({
       // Se o erro é só inconsistência de unidades, não mostrar mensagem genérica
       // pois já foi mostrada a notificação específica
       if (!validacao.temInconsistenciaUnidades) {
-        message.error("Por favor, corrija os erros no formulário");
+        // Verificar se há erro específico de data (após validarFormulario ter sido executado)
+        if (validacao.erroData) {
+          showNotification('error', 'Data Inválida', 'A data prevista para colheita não pode ser anterior à data do pedido');
+        } else {
+          showNotification('error', 'Erro no Formulário', 'Por favor, corrija os erros no formulário antes de continuar');
+        }
       }
       return;
     }
@@ -646,6 +673,9 @@ const EditarPedidoDialog = ({
       const formData = {
         // Dados básicos sempre enviados
         clienteId: pedidoAtual.clienteId,
+        dataPedido: pedidoAtual.dataPedido
+          ? moment(pedidoAtual.dataPedido).toISOString()
+          : undefined,
         dataPrevistaColheita: pedidoAtual.dataPrevistaColheita
           ? moment(pedidoAtual.dataPrevistaColheita).toISOString()
           : undefined,
@@ -792,6 +822,7 @@ const EditarPedidoDialog = ({
   const handleCancelar = () => {
     setPedidoAtual({
       clienteId: "",
+      dataPedido: null,
       dataPrevistaColheita: null,
       observacoes: "",
       frutas: [],

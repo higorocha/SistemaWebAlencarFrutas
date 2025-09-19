@@ -133,7 +133,6 @@ const NovoPagamentoModal = ({
         formData.id = pagamentoEditando.id;
       }
 
-      console.log("Dados do pagamento:", formData); // Debug
 
       await onSave(formData);
       form.resetFields();

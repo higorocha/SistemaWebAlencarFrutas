@@ -67,9 +67,9 @@ const VincularCulturasModal = ({
         areaPlantada: "",
         areaProduzindo: "",
       });
-      form.resetFields();
+      // Não resetar form quando modal não está aberto para evitar warning
     }
-  }, [open, form]);
+  }, [open]);
 
   // Função para adicionar nova cultura
   const handleAdicionarCultura = () => {
@@ -183,9 +183,16 @@ const VincularCulturasModal = ({
     showNotification("success", "Sucesso", "Cultura removida com sucesso");
   };
 
+  // Função para cancelar e fechar
+  const handleCancelar = () => {
+    form.resetFields(); // Limpar form antes de fechar
+    onClose();
+  };
+
   // Função para salvar e fechar
   const handleSalvarFechar = () => {
     onUpdateCulturas(culturasAreaState);
+    form.resetFields(); // Limpar form antes de fechar
     onClose();
     showNotification("success", "Sucesso", "Culturas salvas com sucesso");
   };
@@ -319,10 +326,10 @@ const VincularCulturasModal = ({
         </span>
       }
       open={open}
-      onCancel={onClose}
+      onCancel={handleCancelar}
       width={800}
       footer={[
-        <Button key="cancel" onClick={onClose}>
+        <Button key="cancel" onClick={handleCancelar}>
           Cancelar
         </Button>,
         <Button
@@ -360,11 +367,13 @@ const VincularCulturasModal = ({
               </span>
             </Space>
           }
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           <Form
@@ -518,11 +527,13 @@ const VincularCulturasModal = ({
               <span style={{ color: "#ffffff", fontWeight: "600" }}>Culturas da Área</span>
             </Space>
           }
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
           }}
         >
           {culturasAreaState.length > 0 ? (

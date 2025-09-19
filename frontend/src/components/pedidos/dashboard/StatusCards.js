@@ -40,7 +40,7 @@ const StatusCards = ({ stats = {} }) => {
     <div className="status-cards-row">
       {/* Total de Pedidos */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>
@@ -56,7 +56,7 @@ const StatusCards = ({ stats = {} }) => {
 
       {/* Pedidos Ativos */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>
@@ -72,7 +72,7 @@ const StatusCards = ({ stats = {} }) => {
 
       {/* Pedidos Finalizados */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>
@@ -88,7 +88,7 @@ const StatusCards = ({ stats = {} }) => {
 
       {/* Valor Total em Aberto */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>
@@ -104,7 +104,7 @@ const StatusCards = ({ stats = {} }) => {
 
       {/* Valor Recebido */}
       <div className="status-cards-col">
-        <Card style={cardStyle} bodyStyle={{ padding: "12px" }}>
+        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
           <Statistic
             title={
               <Text style={{ color: "#666", fontSize: "11px" }}>
@@ -128,7 +128,7 @@ const StatusCards = ({ stats = {} }) => {
               boxShadow: "0 2px 8px rgba(255, 77, 79, 0.15)"
             })
           }} 
-          bodyStyle={{ padding: "12px" }}
+          styles={{ body: { padding: "12px" } }}
         >
           <Statistic
             title={

@@ -54,7 +54,12 @@ const App = () => {
       <AuthProvider>
         <LoadingContext.Provider value={{ loading, setLoading }}>
           <CustomScrollbar>
-            <Router>
+            <Router
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true
+              }}
+            >
               <Routes>
                 {/* Rota pública */}
                 <Route path="/login" element={<Login />} />

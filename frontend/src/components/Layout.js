@@ -58,7 +58,7 @@ const Layout = ({ children }) => {
   const popoverContent = (
     <Card 
       bordered={false} 
-      bodyStyle={{ padding: 0 }} // Remove padding interno do Card
+      styles={{ body: { padding: 0 } }} // Remove padding interno do Card
       style={{ 
         width: 300,
         borderRadius: "6px"

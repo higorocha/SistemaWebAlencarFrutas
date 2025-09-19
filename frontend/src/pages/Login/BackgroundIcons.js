@@ -26,20 +26,26 @@ const IconWrapper = styled('div')(({ theme, top, left, delay, size }) => ({
 }));
 
 const BackgroundIcons = () => {
-  // Função para verificar se duas posições estão suficientemente distantes
+  // Função otimizada para verificar se duas posições estão suficientemente distantes
   const isPositionValid = (newPos, positions, minDistance) => {
     return positions.every(pos => {
+      // Converte strings de porcentagem para números para cálculo correto
+      const newTop = parseFloat(newPos.top);
+      const newLeft = parseFloat(newPos.left);
+      const posTop = parseFloat(pos.top);
+      const posLeft = parseFloat(pos.left);
+      
       const distance = Math.sqrt(
-        Math.pow(newPos.top - pos.top, 2) + Math.pow(newPos.left - pos.left, 2)
+        Math.pow(newTop - posTop, 2) + Math.pow(newLeft - posLeft, 2)
       );
       return distance >= minDistance;
     });
   };
 
-  // Função para gerar posições únicas com espaçamento mínimo
+  // Função otimizada para gerar posições únicas com espaçamento mínimo
   const generatePositions = (count, minDistance) => {
     const positions = [];
-    const maxAttempts = 100; // Limite de tentativas para evitar loops infinitos
+    const maxAttempts = 50; // Reduzido para melhor performance
 
     while (positions.length < count) {
       let attempts = 0;
@@ -78,16 +84,16 @@ const BackgroundIcons = () => {
     return positions;
   };
 
-  // Gera posições para os ícones usando useMemo
+  // Gera posições para os ícones usando useMemo com dependências corretas
   const minDistance = 15; // Distância mínima entre ícones (em porcentagem da tela)
-  const iconCount = fruitIcons.length * 8; // 8 instâncias de cada ícone
-  const positions = useMemo(() => generatePositions(iconCount, minDistance), []);
+  const iconCount = fruitIcons.length * 6; // Reduzido de 8 para 6 para melhor performance
+  const positions = useMemo(() => generatePositions(iconCount, minDistance), [iconCount, minDistance]);
 
   return (
     <>
       {fruitIcons.flatMap((fruit, index) =>
-        Array(8).fill(fruit).map((_, i) => {
-          const { top, left } = positions[index * 8 + i];
+        Array(6).fill(fruit).map((_, i) => {
+          const { top, left } = positions[index * 6 + i];
           const delay = `${Math.random() * 2}s`;
           const size = `${Math.random() * 20 + 40}px`;
 

@@ -32,6 +32,17 @@ let ClientesService = class ClientesService {
         return obj;
     }
     async create(createClienteDto) {
+        const clienteExistentePorNome = await this.prisma.cliente.findFirst({
+            where: {
+                nome: {
+                    equals: createClienteDto.nome,
+                    mode: 'insensitive',
+                },
+            },
+        });
+        if (clienteExistentePorNome) {
+            throw new common_1.ConflictException('Já existe um cliente com este nome');
+        }
         let dataToCreate = { ...createClienteDto };
         delete dataToCreate.documento;
         if (createClienteDto.documento && createClienteDto.documento.trim()) {
@@ -141,6 +152,20 @@ let ClientesService = class ClientesService {
         if (!existingCliente) {
             throw new common_1.NotFoundException('Cliente não encontrado');
         }
+        if (updateClienteDto.nome) {
+            const clienteExistentePorNome = await this.prisma.cliente.findFirst({
+                where: {
+                    nome: {
+                        equals: updateClienteDto.nome,
+                        mode: 'insensitive',
+                    },
+                    id: { not: id },
+                },
+            });
+            if (clienteExistentePorNome) {
+                throw new common_1.ConflictException('Já existe um cliente com este nome');
+            }
+        }
         let dataToUpdate = { ...updateClienteDto };
         delete dataToUpdate.documento;
         if (updateClienteDto.documento && updateClienteDto.documento.trim()) {
@@ -189,9 +214,15 @@ let ClientesService = class ClientesService {
     async remove(id) {
         const cliente = await this.prisma.cliente.findUnique({
             where: { id },
+            include: {
+                pedidos: true,
+            },
         });
         if (!cliente) {
             throw new common_1.NotFoundException('Cliente não encontrado');
+        }
+        if (cliente.pedidos && cliente.pedidos.length > 0) {
+            throw new common_1.BadRequestException(`Não é possível excluir o cliente. Existem ${cliente.pedidos.length} pedido(s) vinculado(s) a este cliente.`);
         }
         await this.prisma.cliente.delete({
             where: { id },

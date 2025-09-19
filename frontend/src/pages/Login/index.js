@@ -1,17 +1,10 @@
 //src/pages/login/index.js
 import React, { useState, useEffect, useRef } from "react";
-import { Form, Input, Button, Typography, Card, Space, Divider, Alert, Skeleton } from "antd";
+import { Form, Input, Button, Typography, Card, Skeleton } from "antd";
 import { UserOutlined, LockOutlined, EyeInvisibleOutlined, EyeTwoTone } from "@ant-design/icons";
-import { Box, useTheme } from "@mui/material";
-import { motion, AnimatePresence } from "framer-motion";
-import { BankOutlined, SettingOutlined } from "@ant-design/icons";
-import LoadingFallback from "../../components/common/loaders/LoadingFallback";
-import { MailOutlined } from "@mui/icons-material";
 import { showNotification } from "../../config/notificationConfig";
 import { useAuth } from "../../contexts/AuthContext";
-import { useNavigate, useLocation } from "react-router-dom";
-import axiosInstance from "../../api/axiosConfig";
-import { cpf } from "cpf-cnpj-validator";
+import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import logo from "../../components/assets/img/logoEstendido.png";
 import irrigationImage from "../../assets/img/irrigation.png";
@@ -102,9 +95,9 @@ const OptimizedImage = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: ${props => props.isLoaded ? 1 : 0};
+  opacity: ${props => props.$isLoaded ? 1 : 0};
   transition: opacity 0.5s ease-in-out;
-  filter: ${props => props.isLoaded ? 'none' : 'blur(10px)'};
+  filter: ${props => props.$isLoaded ? 'none' : 'blur(10px)'};
 `;
 
 const ImageSkeleton = styled.div`
@@ -205,7 +198,7 @@ const LazyImage = ({ src, alt, onLoad }) => {
         ref={imgRef}
         src={src}
         alt={alt}
-        isLoaded={isLoaded}
+        $isLoaded={isLoaded}
         onLoad={() => setIsLoaded(true)}
       />
     </>

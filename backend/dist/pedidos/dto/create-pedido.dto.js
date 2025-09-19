@@ -174,6 +174,7 @@ __decorate([
 ], FrutaPedidoDto.prototype, "fitas", void 0);
 class CreatePedidoDto {
     clienteId;
+    dataPedido;
     dataPrevistaColheita;
     frutas;
     observacoes;
@@ -193,6 +194,14 @@ __decorate([
     (0, class_validator_1.IsPositive)(),
     __metadata("design:type", Number)
 ], CreatePedidoDto.prototype, "clienteId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Data do pedido (temporário)',
+        example: '2024-03-15T00:00:00Z',
+    }),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreatePedidoDto.prototype, "dataPedido", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Data prevista para colheita',

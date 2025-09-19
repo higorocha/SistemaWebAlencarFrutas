@@ -257,6 +257,7 @@ __decorate([
 ], UpdateFrutaPedidoDto.prototype, "fitas", void 0);
 class UpdatePedidoCompletoDto {
     clienteId;
+    dataPedido;
     dataPrevistaColheita;
     dataColheita;
     observacoes;
@@ -285,6 +286,12 @@ __decorate([
     (0, class_validator_1.IsNumber)({}, { message: 'ID do cliente deve ser um número' }),
     __metadata("design:type", Number)
 ], UpdatePedidoCompletoDto.prototype, "clienteId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Data do pedido (temporário)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)({}, { message: 'Data do pedido deve ser uma data válida' }),
+    __metadata("design:type", String)
+], UpdatePedidoCompletoDto.prototype, "dataPedido", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ description: 'Data prevista para colheita' }),
     (0, class_validator_1.IsOptional)(),

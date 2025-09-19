@@ -84,7 +84,7 @@ const StaticNameOverlay = styled.div`
   setMapCenter,
   mapZoom,
   setMapZoom,
-  loteAtual,
+  loteAtual = null,
   setLoteAtual,
   tempCoordinates,
   setTempCoordinates,
@@ -97,12 +97,12 @@ const StaticNameOverlay = styled.div`
   handleMarkerClick,
   handleMidpointDragEnd,
   deleteMarker,
-  selectedMarker,
+  selectedMarker = null,
   handleCloseInfoWindow,
   calculateAreaPolygon,
   setAreaPoligono,
   areaPoligono,
-  lotesExistentes,
+  lotesExistentes = [],
 }) => {
   const theme = useTheme();
   
@@ -147,7 +147,6 @@ const StaticNameOverlay = styled.div`
           tempCoordinates.length !== loteAtual.coordenadas.length || 
           JSON.stringify(tempCoordinates) !== JSON.stringify(loteAtual.coordenadas)) {
         
-        console.log("DEBUG_MAP: Carregando coordenadas existentes no MapDialog:", loteAtual.coordenadas.length, "pontos");
         setTempCoordinates(loteAtual.coordenadas);
         setIsDrawing(false); // Desabilitar desenho para modo edit
         
@@ -157,7 +156,6 @@ const StaticNameOverlay = styled.div`
         setManualArea(area);
         setOriginalArea(area);
         
-        console.log("DEBUG_MAP: Área calculada no MapDialog:", area);
       }
     }
   }, [open, mapMode, loteAtual?.id, calculateAreaPolygon]); // Removido tempCoordinates da dependência
@@ -171,7 +169,6 @@ const StaticNameOverlay = styled.div`
         lng: coord.lng,
       }));
       setMarkers(novosMarkers);
-      console.log("DEBUG_MAP: Markers sincronizados:", novosMarkers.length);
       
       // Calcular midpoints apenas se for um polígono válido (3+ pontos)
       if (tempCoordinates.length >= 3) {
@@ -192,7 +189,6 @@ const StaticNameOverlay = styled.div`
           });
         }
         setMidpoints(midpointsArray);
-        console.log("DEBUG_MAP: Midpoints calculados no MapDialog:", midpointsArray.length);
       } else {
         setMidpoints([]);
       }
@@ -282,7 +278,6 @@ const StaticNameOverlay = styled.div`
     mapMode === "edit" ? "Editar Polígono no Mapa" : "Criar Polígono no Mapa";
 
   const handleFinalizar = () => {
-    console.log("DEBUG_MAP: Finalizando captura com área:", manualArea);
     setLoteAtual((prevState) => ({
       ...prevState,
       coordenadas: tempCoordinates,
@@ -452,7 +447,7 @@ const StaticNameOverlay = styled.div`
 
   return (
     <Modal
-      visible={open}
+      open={open}
       onCancel={onClose}
       title={
         <span style={{ 
@@ -939,10 +934,5 @@ MapDialog.propTypes = {
   lotesExistentes: PropTypes.array
 };
 
-MapDialog.defaultProps = {
-  loteAtual: null,
-  selectedMarker: null,
-  lotesExistentes: []
-};
 
 export default MapDialog;

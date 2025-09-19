@@ -22,6 +22,7 @@ import { FitasBananaModule } from './fitas-banana/fitas-banana.module';
 import { ControleBananaModule } from './controle-banana/controle-banana.module';
 import { HistoricoFitasModule } from './historico-fitas/historico-fitas.module';
 import { TurmaColheitaModule } from './turma-colheita/turma-colheita.module';
+import { CnpjModule } from './cnpj/cnpj.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { TurmaColheitaModule } from './turma-colheita/turma-colheita.module';
     ControleBananaModule,
     HistoricoFitasModule,
     TurmaColheitaModule,
+    CnpjModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

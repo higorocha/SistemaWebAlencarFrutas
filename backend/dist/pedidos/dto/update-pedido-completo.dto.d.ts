@@ -35,6 +35,7 @@ export declare class UpdateFrutaPedidoDto {
 }
 export declare class UpdatePedidoCompletoDto {
     clienteId?: number;
+    dataPedido?: string;
     dataPrevistaColheita?: string;
     dataColheita?: string;
     observacoes?: string;

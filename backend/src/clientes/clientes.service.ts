@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto, UpdateClienteDto, ClienteResponseDto } from './dto';
 
@@ -22,16 +22,30 @@ export class ClientesService {
   }
 
   async create(createClienteDto: CreateClienteDto): Promise<ClienteResponseDto> {
+    // Verificar se já existe um cliente com o mesmo nome (case insensitive)
+    const clienteExistentePorNome = await this.prisma.cliente.findFirst({
+      where: {
+        nome: {
+          equals: createClienteDto.nome,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    if (clienteExistentePorNome) {
+      throw new ConflictException('Já existe um cliente com este nome');
+    }
+
     // Processar o campo documento para separar em cpf ou cnpj
     let dataToCreate: any = { ...createClienteDto };
-    
+
     // Sempre deletar o campo documento antes de enviar para o Prisma
     delete dataToCreate.documento;
-    
+
     // Se documento foi fornecido, determinar se é CPF ou CNPJ
     if (createClienteDto.documento && createClienteDto.documento.trim()) {
       const documentoLimpo = createClienteDto.documento.replace(/\D/g, '');
-      
+
       if (documentoLimpo.length === 11) {
         // É um CPF
         dataToCreate.cpf = createClienteDto.documento;
@@ -166,16 +180,33 @@ export class ClientesService {
       throw new NotFoundException('Cliente não encontrado');
     }
 
+    // Verificar se já existe outro cliente com o mesmo nome (case insensitive)
+    if (updateClienteDto.nome) {
+      const clienteExistentePorNome = await this.prisma.cliente.findFirst({
+        where: {
+          nome: {
+            equals: updateClienteDto.nome,
+            mode: 'insensitive',
+          },
+          id: { not: id },
+        },
+      });
+
+      if (clienteExistentePorNome) {
+        throw new ConflictException('Já existe um cliente com este nome');
+      }
+    }
+
     // Processar o campo documento para separar em cpf ou cnpj
     let dataToUpdate: any = { ...updateClienteDto };
-    
+
     // Sempre deletar o campo documento antes de enviar para o Prisma
     delete dataToUpdate.documento;
-    
+
     // Se documento foi fornecido, determinar se é CPF ou CNPJ
     if (updateClienteDto.documento && updateClienteDto.documento.trim()) {
       const documentoLimpo = updateClienteDto.documento.replace(/\D/g, '');
-      
+
       if (documentoLimpo.length === 11) {
         // É um CPF
         dataToUpdate.cpf = updateClienteDto.documento;
@@ -194,7 +225,7 @@ export class ClientesService {
     // Verificar se já existe outro cliente com o mesmo CNPJ ou CPF
     if (dataToUpdate.cnpj) {
       const existingCnpj = await this.prisma.cliente.findFirst({
-        where: { 
+        where: {
           cnpj: dataToUpdate.cnpj,
           id: { not: id },
         },
@@ -227,10 +258,19 @@ export class ClientesService {
   async remove(id: number): Promise<void> {
     const cliente = await this.prisma.cliente.findUnique({
       where: { id },
+      include: {
+        pedidos: true,
+      },
     });
 
     if (!cliente) {
       throw new NotFoundException('Cliente não encontrado');
+    }
+
+    if (cliente.pedidos && cliente.pedidos.length > 0) {
+      throw new BadRequestException(
+        `Não é possível excluir o cliente. Existem ${cliente.pedidos.length} pedido(s) vinculado(s) a este cliente.`
+      );
     }
 
     await this.prisma.cliente.delete({
