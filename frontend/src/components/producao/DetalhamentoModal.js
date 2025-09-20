@@ -56,10 +56,10 @@ const DetalhamentoModal = ({
   const carregarDetalhes = async () => {
     try {
       setLoading(true);
-      const endpoint = tipo === 'area' 
+      const endpoint = tipo === 'area'
         ? `/controle-banana/detalhes-area/${itemId}`
         : `/controle-banana/detalhes-fita/${itemId}`;
-      
+
       const response = await axiosInstance.get(endpoint);
       setDados(response.data);
     } catch (error) {
@@ -128,7 +128,7 @@ const DetalhamentoModal = ({
         areaAgricolaId: editandoControle.areaId,
         fitaBananaId: editandoControle.fitaId,
         quantidadeFitas: editandoControle.quantidade,
-        dataRegistro: editandoControle.dataRegistro.toISOString()
+        dataRegistro: editandoControle.dataRegistro.format('YYYY-MM-DD')
       };
 
       console.log('Dados para atualização:', dadosAtualizacao);

@@ -47,17 +47,23 @@ const ModalDetalhesSemana = ({
   };
 
   const calcularPrevisaoColheita = (dataRegistro) => {
-    // Período ideal de colheita: 100-115 dias (usando 107 dias como média)
-    const dataPrevisao = new Date(dataRegistro);
-    dataPrevisao.setDate(dataPrevisao.getDate() + 107);
+    // Período ideal de colheita: 100-115 dias (usar início do período)
+    const dataColheitaInicio = new Date(dataRegistro);
+    dataColheitaInicio.setDate(dataColheitaInicio.getDate() + 100);
 
-    const semanaColheita = obterNumeroSemana(dataPrevisao);
-    const anoColheita = dataPrevisao.getFullYear();
+    const dataColheitaFim = new Date(dataRegistro);
+    dataColheitaFim.setDate(dataColheitaFim.getDate() + 115);
+
+    const semanaColheitaInicio = obterNumeroSemana(dataColheitaInicio);
+    const semanaColheitaFim = obterNumeroSemana(dataColheitaFim);
+    const anoColheita = dataColheitaInicio.getFullYear();
 
     return {
-      semana: semanaColheita,
+      semana: semanaColheitaInicio, // Usar início do período para consistência
+      semanaFim: semanaColheitaFim,
       ano: anoColheita,
-      data: dataPrevisao
+      dataInicio: dataColheitaInicio,
+      dataFim: dataColheitaFim
     };
   };
 
@@ -280,12 +286,8 @@ const ModalDetalhesSemana = ({
               const previsaoColheita = calcularPrevisaoColheita(item.dataRegistro);
               const exibirAno = previsaoColheita.ano !== new Date().getFullYear();
 
-              // Calcular data de início da semana de colheita prevista
-              const inicioSemanaColheita = calcularInicioSemanaColheita(
-                item.dataRegistro,
-                previsaoColheita.ano,
-                previsaoColheita.semana
-              );
+              // Usar a data de início do período de colheita diretamente
+              const inicioSemanaColheita = previsaoColheita.dataInicio;
 
               // Verificar se a semana atual está atrasada em relação à previsão
               const semanaAtual = semana.numero;
@@ -446,7 +448,11 @@ const ModalDetalhesSemana = ({
                           fontSize: '14px',
                           color: estaAtrasada ? '#dc2626' : '#059669'
                         }}>
-                          Sem {previsaoColheita.semana}
+                          {previsaoColheita.semana === previsaoColheita.semanaFim ? (
+                            `Sem ${previsaoColheita.semana}`
+                          ) : (
+                            `Sem ${previsaoColheita.semana}-${previsaoColheita.semanaFim}`
+                          )}
                           {exibirAno && (
                             <span style={{
                               fontSize: '10px',
@@ -462,7 +468,10 @@ const ModalDetalhesSemana = ({
                           color: estaAtrasada ? '#dc2626' : '#666',
                           opacity: 0.8
                         }}>
-                          {inicioSemanaColheita.toLocaleDateString('pt-BR', {
+                          {previsaoColheita.dataInicio.toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit'
+                          })} - {previsaoColheita.dataFim.toLocaleDateString('pt-BR', {
                             day: '2-digit',
                             month: '2-digit'
                           })}

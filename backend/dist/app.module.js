@@ -32,6 +32,7 @@ const controle_banana_module_1 = require("./controle-banana/controle-banana.modu
 const historico_fitas_module_1 = require("./historico-fitas/historico-fitas.module");
 const turma_colheita_module_1 = require("./turma-colheita/turma-colheita.module");
 const cnpj_module_1 = require("./cnpj/cnpj.module");
+const dashboard_module_1 = require("./dashboard/dashboard.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -68,6 +69,7 @@ exports.AppModule = AppModule = __decorate([
             historico_fitas_module_1.HistoricoFitasModule,
             turma_colheita_module_1.TurmaColheitaModule,
             cnpj_module_1.CnpjModule,
+            dashboard_module_1.DashboardModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService, prisma_service_1.PrismaService],

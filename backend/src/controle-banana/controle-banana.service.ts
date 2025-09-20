@@ -11,6 +11,19 @@ export class ControleBananaService {
   ) {}
 
   /**
+   * Parse de data de registro, lidando com problemas de fuso horário
+   */
+  private parseDataRegistro(dataStr: string): Date {
+    // Se a string já contém horário, usar como está
+    if (dataStr.includes('T') || dataStr.includes(' ')) {
+      return new Date(dataStr);
+    }
+
+    // Se é apenas data (YYYY-MM-DD), adicionar horário meio-dia UTC para evitar problemas de fuso
+    return new Date(dataStr + 'T12:00:00.000Z');
+  }
+
+  /**
    * Calcula dias e semanas desde uma data até hoje
    */
   private calcularTempoDesdeData(dataRegistro: Date): { dias: number; semanas: number } {
@@ -48,8 +61,8 @@ export class ControleBananaService {
         throw new NotFoundException('Área agrícola não encontrada');
       }
 
-      const dataRegistro = createControleBananaDto.dataRegistro 
-        ? new Date(createControleBananaDto.dataRegistro)
+      const dataRegistro = createControleBananaDto.dataRegistro
+        ? this.parseDataRegistro(createControleBananaDto.dataRegistro)
         : new Date();
 
       // Criar o controle
@@ -208,8 +221,8 @@ export class ControleBananaService {
         }
       }
 
-      const dataRegistro = updateControleBananaDto.dataRegistro 
-        ? new Date(updateControleBananaDto.dataRegistro)
+      const dataRegistro = updateControleBananaDto.dataRegistro
+        ? this.parseDataRegistro(updateControleBananaDto.dataRegistro)
         : undefined;
 
       // Atualizar o controle
@@ -455,15 +468,28 @@ export class ControleBananaService {
     // Processar controles individuais (sem agrupamento)
     const controlesDetalhados = area.controlesBanana
       .filter(controle => controle.quantidadeFitas > 0)
-      .map(controle => ({
-        id: controle.id,
-        fita: controle.fitaBanana,
-        quantidadeFitas: controle.quantidadeFitas,
-        dataRegistro: controle.dataRegistro,
-        usuario: controle.usuario,
-        observacoes: controle.observacoes,
-        tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
-      }));
+      .map(controle => {
+        // CORREÇÃO: Se a data estiver em meia-noite, ajustar para meio-dia para evitar problemas de fuso
+        let dataRegistroCorrigida = controle.dataRegistro;
+
+        if (controle.dataRegistro.getUTCHours() === 0 &&
+            controle.dataRegistro.getUTCMinutes() === 0 &&
+            controle.dataRegistro.getUTCSeconds() === 0) {
+
+          dataRegistroCorrigida = new Date(controle.dataRegistro);
+          dataRegistroCorrigida.setUTCHours(12, 0, 0, 0);
+        }
+
+        return {
+          id: controle.id,
+          fita: controle.fitaBanana,
+          quantidadeFitas: controle.quantidadeFitas,
+          dataRegistro: dataRegistroCorrigida, // Usar data corrigida
+          usuario: controle.usuario,
+          observacoes: controle.observacoes,
+          tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
+        };
+      });
 
     return {
       id: area.id,
@@ -514,15 +540,28 @@ export class ControleBananaService {
     // Processar controles individuais (sem agrupamento)
     const controlesDetalhados = fita.controles
       .filter(controle => controle.quantidadeFitas > 0)
-      .map(controle => ({
-        id: controle.id,
-        area: controle.areaAgricola,
-        quantidadeFitas: controle.quantidadeFitas,
-        dataRegistro: controle.dataRegistro,
-        usuario: controle.usuario,
-        observacoes: controle.observacoes,
-        tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
-      }));
+      .map(controle => {
+        // CORREÇÃO: Se a data estiver em meia-noite, ajustar para meio-dia para evitar problemas de fuso
+        let dataRegistroCorrigida = controle.dataRegistro;
+
+        if (controle.dataRegistro.getUTCHours() === 0 &&
+            controle.dataRegistro.getUTCMinutes() === 0 &&
+            controle.dataRegistro.getUTCSeconds() === 0) {
+
+          dataRegistroCorrigida = new Date(controle.dataRegistro);
+          dataRegistroCorrigida.setUTCHours(12, 0, 0, 0);
+        }
+
+        return {
+          id: controle.id,
+          area: controle.areaAgricola,
+          quantidadeFitas: controle.quantidadeFitas,
+          dataRegistro: dataRegistroCorrigida, // Usar data corrigida
+          usuario: controle.usuario,
+          observacoes: controle.observacoes,
+          tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
+        };
+      });
 
     return {
       id: fita.id,

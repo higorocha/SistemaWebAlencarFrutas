@@ -23,6 +23,7 @@ import { ControleBananaModule } from './controle-banana/controle-banana.module';
 import { HistoricoFitasModule } from './historico-fitas/historico-fitas.module';
 import { TurmaColheitaModule } from './turma-colheita/turma-colheita.module';
 import { CnpjModule } from './cnpj/cnpj.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { CnpjModule } from './cnpj/cnpj.module';
     HistoricoFitasModule,
     TurmaColheitaModule,
     CnpjModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

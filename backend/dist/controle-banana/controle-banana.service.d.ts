@@ -5,6 +5,7 @@ export declare class ControleBananaService {
     private readonly prisma;
     private readonly historicoFitasService;
     constructor(prisma: PrismaService, historicoFitasService: HistoricoFitasService);
+    private parseDataRegistro;
     private calcularTempoDesdeData;
     create(createControleBananaDto: CreateControleBananaDto, usuarioId: number): Promise<{
         usuario: {

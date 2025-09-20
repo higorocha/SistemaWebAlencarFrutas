@@ -370,7 +370,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
           {isOpen ? (
             <SubMenu
               key="PEDIDOS"
-              icon={<BarChart />}
+              icon={<ShoppingCartOutlined />}
               label="Pedidos"
               open={openParents.PEDIDOS}
               onOpenChange={(opened) =>
@@ -389,7 +389,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
               key="PEDIDOS"
               icon={
                 <Tooltip title="Pedidos" placement="right">
-                  <BarChart />
+                  <ShoppingCartOutlined />
                 </Tooltip>
               }
               label=""

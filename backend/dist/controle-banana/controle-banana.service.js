@@ -20,6 +20,12 @@ let ControleBananaService = class ControleBananaService {
         this.prisma = prisma;
         this.historicoFitasService = historicoFitasService;
     }
+    parseDataRegistro(dataStr) {
+        if (dataStr.includes('T') || dataStr.includes(' ')) {
+            return new Date(dataStr);
+        }
+        return new Date(dataStr + 'T12:00:00.000Z');
+    }
     calcularTempoDesdeData(dataRegistro) {
         const hoje = new Date();
         const dataInicio = new Date(dataRegistro);
@@ -45,7 +51,7 @@ let ControleBananaService = class ControleBananaService {
                 throw new common_1.NotFoundException('Área agrícola não encontrada');
             }
             const dataRegistro = createControleBananaDto.dataRegistro
-                ? new Date(createControleBananaDto.dataRegistro)
+                ? this.parseDataRegistro(createControleBananaDto.dataRegistro)
                 : new Date();
             const controle = await this.prisma.controleBanana.create({
                 data: {
@@ -180,7 +186,7 @@ let ControleBananaService = class ControleBananaService {
                 }
             }
             const dataRegistro = updateControleBananaDto.dataRegistro
-                ? new Date(updateControleBananaDto.dataRegistro)
+                ? this.parseDataRegistro(updateControleBananaDto.dataRegistro)
                 : undefined;
             const controleAtualizado = await this.prisma.controleBanana.update({
                 where: { id },
@@ -383,15 +389,24 @@ let ControleBananaService = class ControleBananaService {
         }
         const controlesDetalhados = area.controlesBanana
             .filter(controle => controle.quantidadeFitas > 0)
-            .map(controle => ({
-            id: controle.id,
-            fita: controle.fitaBanana,
-            quantidadeFitas: controle.quantidadeFitas,
-            dataRegistro: controle.dataRegistro,
-            usuario: controle.usuario,
-            observacoes: controle.observacoes,
-            tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
-        }));
+            .map(controle => {
+            let dataRegistroCorrigida = controle.dataRegistro;
+            if (controle.dataRegistro.getUTCHours() === 0 &&
+                controle.dataRegistro.getUTCMinutes() === 0 &&
+                controle.dataRegistro.getUTCSeconds() === 0) {
+                dataRegistroCorrigida = new Date(controle.dataRegistro);
+                dataRegistroCorrigida.setUTCHours(12, 0, 0, 0);
+            }
+            return {
+                id: controle.id,
+                fita: controle.fitaBanana,
+                quantidadeFitas: controle.quantidadeFitas,
+                dataRegistro: dataRegistroCorrigida,
+                usuario: controle.usuario,
+                observacoes: controle.observacoes,
+                tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
+            };
+        });
         return {
             id: area.id,
             nome: area.nome,
@@ -436,15 +451,24 @@ let ControleBananaService = class ControleBananaService {
         }
         const controlesDetalhados = fita.controles
             .filter(controle => controle.quantidadeFitas > 0)
-            .map(controle => ({
-            id: controle.id,
-            area: controle.areaAgricola,
-            quantidadeFitas: controle.quantidadeFitas,
-            dataRegistro: controle.dataRegistro,
-            usuario: controle.usuario,
-            observacoes: controle.observacoes,
-            tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
-        }));
+            .map(controle => {
+            let dataRegistroCorrigida = controle.dataRegistro;
+            if (controle.dataRegistro.getUTCHours() === 0 &&
+                controle.dataRegistro.getUTCMinutes() === 0 &&
+                controle.dataRegistro.getUTCSeconds() === 0) {
+                dataRegistroCorrigida = new Date(controle.dataRegistro);
+                dataRegistroCorrigida.setUTCHours(12, 0, 0, 0);
+            }
+            return {
+                id: controle.id,
+                area: controle.areaAgricola,
+                quantidadeFitas: controle.quantidadeFitas,
+                dataRegistro: dataRegistroCorrigida,
+                usuario: controle.usuario,
+                observacoes: controle.observacoes,
+                tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
+            };
+        });
         return {
             id: fita.id,
             nome: fita.nome,
