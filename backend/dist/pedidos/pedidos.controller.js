@@ -47,10 +47,10 @@ let PedidosController = class PedidosController {
     removePagamento(id) {
         return this.pedidosService.removePagamento(+id);
     }
-    findAll(page, limit, search, searchType, status, clienteId, dataInicio, dataFim) {
+    findAll(page, limit, search, searchType, status, clienteId, dataInicio, dataFim, filters) {
         const dataInicioDate = dataInicio ? new Date(dataInicio) : undefined;
         const dataFimDate = dataFim ? new Date(dataFim) : undefined;
-        return this.pedidosService.findAll(page, limit, search, searchType, status, clienteId, dataInicioDate, dataFimDate);
+        return this.pedidosService.findAll(page, limit, search, searchType, status, clienteId, dataInicioDate, dataFimDate, filters);
     }
     findByCliente(clienteId, status) {
         return this.pedidosService.findByCliente(+clienteId, status);
@@ -248,6 +248,7 @@ __decorate([
     (0, swagger_1.ApiQuery)({ name: 'clienteId', required: false, type: Number, description: 'Filtrar por cliente' }),
     (0, swagger_1.ApiQuery)({ name: 'dataInicio', required: false, type: String, description: 'Data início (ISO 8601)' }),
     (0, swagger_1.ApiQuery)({ name: 'dataFim', required: false, type: String, description: 'Data fim (ISO 8601)' }),
+    (0, swagger_1.ApiQuery)({ name: 'filters', required: false, type: [String], description: 'Filtros aninhados no formato tipo:valor (ex: cliente:João,vale:12345)' }),
     (0, swagger_1.ApiResponse)({
         status: common_1.HttpStatus.OK,
         description: 'Lista de pedidos retornada com sucesso',
@@ -272,8 +273,9 @@ __decorate([
     __param(5, (0, common_1.Query)('clienteId')),
     __param(6, (0, common_1.Query)('dataInicio')),
     __param(7, (0, common_1.Query)('dataFim')),
+    __param(8, (0, common_1.Query)('filters')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, Number, String, String, String, Number, String, String]),
+    __metadata("design:paramtypes", [Number, Number, String, String, String, Number, String, String, Array]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "findAll", null);
 __decorate([

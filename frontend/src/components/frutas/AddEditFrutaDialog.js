@@ -6,6 +6,8 @@ import PropTypes from "prop-types";
 import LoadingFallback from "../common/loaders/LoadingFallback";
 import { PrimaryButton } from "../common/buttons";
 import FrutaForm from "./FrutaForm";
+import ConfirmCloseModal from "../common/modals/ConfirmCloseModal";
+import useConfirmClose from "../../hooks/useConfirmClose";
 
 const AddEditFrutaDialog = ({
   open,
@@ -18,8 +20,35 @@ const AddEditFrutaDialog = ({
   isSaving = false,
   handleSalvarFruta,
 }) => {
+  // Função customizada para verificar se há dados preenchidos no formulário de frutas
+  const customHasDataChecker = (data) => {
+    // Verifica campos básicos obrigatórios
+    const hasBasicData = data.nome?.trim() || 
+                        data.codigo?.trim() || 
+                        data.categoria;
+    
+    // Verifica dados de unidades de medida
+    const hasUnitData = data.unidadeMedida1?.trim() || 
+                       data.unidadeMedida2?.trim();
+    
+    // Verifica outros campos
+    const hasOtherData = data.descricao?.trim() || 
+                        data.observacoes?.trim();
+    
+    return hasBasicData || hasUnitData || hasOtherData;
+  };
+
+  // Hook customizado para gerenciar confirmação de fechamento
+  const {
+    confirmCloseModal,
+    handleCloseAttempt,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useConfirmClose(frutaAtual, onClose, customHasDataChecker);
+
   return (
-    <Modal
+    <>
+      <Modal
       title={
         <span style={{ 
           color: "#ffffff", 
@@ -35,7 +64,7 @@ const AddEditFrutaDialog = ({
         </span>
       }
       open={open}
-      onCancel={onClose}
+      onCancel={handleCloseAttempt}
       footer={null}
       width="90%"
       style={{ maxWidth: 800 }}
@@ -74,7 +103,7 @@ const AddEditFrutaDialog = ({
         }}
       >
         <Button 
-          onClick={onClose}
+          onClick={handleCloseAttempt}
           size="large"
         >
           Cancelar
@@ -87,6 +116,18 @@ const AddEditFrutaDialog = ({
         </PrimaryButton>
       </div>
     </Modal>
+
+    {/* Modal de confirmação para fechar sem salvar */}
+    <ConfirmCloseModal
+      open={confirmCloseModal}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+      title="Descartar Dados da Fruta?"
+      message="Você tem dados preenchidos no formulário de fruta que serão perdidos."
+      confirmText="Sim, Descartar"
+      cancelText="Continuar Editando"
+    />
+    </>
   );
 };
 

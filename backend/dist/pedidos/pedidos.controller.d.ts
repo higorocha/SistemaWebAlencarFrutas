@@ -10,7 +10,7 @@ export declare class PedidosController {
     findPagamentosByPedido(id: string): Promise<PagamentoPedidoResponseDto[]>;
     updatePagamentoIndividual(id: string, updatePagamentoDto: UpdatePagamentoDto): Promise<PagamentoPedidoResponseDto>;
     removePagamento(id: string): Promise<void>;
-    findAll(page?: number, limit?: number, search?: string, searchType?: string, status?: string, clienteId?: number, dataInicio?: string, dataFim?: string): Promise<{
+    findAll(page?: number, limit?: number, search?: string, searchType?: string, status?: string, clienteId?: number, dataInicio?: string, dataFim?: string, filters?: string[]): Promise<{
         data: PedidoResponseDto[];
         total: number;
         page: number;

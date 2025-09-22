@@ -222,6 +222,56 @@ export class TurmaColheitaController {
     return this.turmaColheitaService.getEstatisticasPorTurma(+id);
   }
 
+  @Get(':id/pagamentos-pendentes')
+  @ApiOperation({ summary: 'Buscar detalhamento de pagamentos pendentes de uma turma' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Detalhamento de pagamentos pendentes retornado com sucesso',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Turma de colheita não encontrada',
+  })
+  getPagamentosPendentes(@Param('id') id: string) {
+    return this.turmaColheitaService.getPagamentosPendentesDetalhado(+id);
+  }
+
+  @Get('pagamentos-efetuados')
+  @ApiOperation({ summary: 'Buscar todos os pagamentos efetuados agrupados por turma' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de pagamentos efetuados retornada com sucesso',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Erro interno do servidor',
+  })
+  getPagamentosEfetuados() {
+    return this.turmaColheitaService.getPagamentosEfetuadosAgrupados();
+  }
+
+  // Rota para processar pagamentos seletivos
+  @Patch(':id/processar-pagamentos')
+  @ApiOperation({ summary: 'Processar pagamentos seletivos de uma turma' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Pagamentos processados com sucesso',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Turma de colheita não encontrada',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos para processamento',
+  })
+  processarPagamentos(
+    @Param('id') id: string,
+    @Body() dadosPagamento: { colheitaIds: number[]; observacoes?: string }
+  ) {
+    return this.turmaColheitaService.processarPagamentosSeletivos(+id, dadosPagamento);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar uma turma de colheita por ID' })
   @ApiResponse({

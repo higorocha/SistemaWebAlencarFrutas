@@ -265,6 +265,8 @@ SistemaWebAlencarFrutas/
 │   │   │   │   ├── buttons/            # Botões personalizados
 │   │   │   │   ├── inputs/             # Inputs especializados
 │   │   │   │   ├── search/             # Componentes de busca
+│   │   │   │   ├── modals/             # Modais reutilizáveis
+│   │   │   │   │   └── ConfirmCloseModal.js # Modal de confirmação de fechamento
 │   │   │   │   └── loaders/            # Componentes de loading
 │   │   │   │       └── CentralizedLoader.js # Loading global com z-index 99999
 │   │   │   ├── producao/               # Componentes de produção
@@ -280,7 +282,8 @@ SistemaWebAlencarFrutas/
 │   │   │   ├── useSmartDashboardReload.js # Sistema de reload inteligente por operação
 │   │   │   ├── useFormValidation.js    # Validação de formulários memoizada
 │   │   │   ├── useDebounce.js          # Hook genérico de debounce
-│   │   │   └── useNotificationWithContext.js # Notificações com z-index correto
+│   │   │   ├── useNotificationWithContext.js # Notificações com z-index correto
+│   │   │   └── useConfirmClose.js      # Hook para validação de fechamento de modais
 │   │   ├── utils/                      # Utilitários (OTIMIZADOS)
 │   │   │   ├── validation.js           # Sistema de validação robusto
 │   │   │   ├── errorHandling.js        # Tratamento padronizado de erros
@@ -670,6 +673,78 @@ return (
 - **API Compatível**: Sem necessidade de mudança de código significativa
 - **Documentação Completa**: README-useNotificationWithContext.md com exemplos
 
+### **🛡️ Sistema de Validação de Fechamento de Modais**
+
+**🎯 Prevenção de Perda Acidental de Dados:**
+- **Detecção Automática**: Verifica se há dados preenchidos no formulário
+- **Modal de Confirmação**: Pergunta se usuário realmente quer descartar alterações
+- **Componente Reutilizável**: `ConfirmCloseModal` para uso em qualquer modal
+- **Hook Customizado**: `useConfirmClose` para lógica reutilizável
+- **Validação Inteligente**: Detecta campos básicos, coordenadas, arrays e dados customizados
+
+**🔧 Componentes Implementados:**
+- **ConfirmCloseModal**: Modal de confirmação totalmente customizável
+- **useConfirmClose**: Hook com lógica de validação e controle de estado
+- **Validação Padrão**: Detecta nome, área, categoria, coordenadas, culturas, itens, produtos
+- **Validação Customizada**: Suporte a funções de validação específicas por modal
+
+**📋 Uso Simples (3 linhas):**
+```javascript
+import ConfirmCloseModal from "../common/modals/ConfirmCloseModal";
+import useConfirmClose from "../../hooks/useConfirmClose";
+
+const MeuModal = ({ open, onClose, formData }) => {
+  const { confirmCloseModal, handleCloseAttempt, handleConfirmClose, handleCancelClose } = 
+    useConfirmClose(formData, onClose);
+
+  return (
+    <>
+      <Modal open={open} onCancel={handleCloseAttempt}>
+        {/* Seu formulário */}
+        <Button onClick={handleCloseAttempt}>Cancelar</Button>
+      </Modal>
+      <ConfirmCloseModal
+        open={confirmCloseModal}
+        onConfirm={handleConfirmClose}
+        onCancel={handleCancelClose}
+      />
+    </>
+  );
+};
+```
+
+**🎨 Funcionalidades:**
+- **Detecção Automática**: Verifica campos comuns automaticamente
+- **Validação Customizada**: Função personalizada quando necessário
+- **Modal Personalizável**: Título, mensagem e textos dos botões configuráveis
+- **Design Consistente**: Cabeçalho verde (padrão do sistema) e botão vermelho para confirmação
+- **UX Otimizada**: Botões intuitivos ("Continuar Editando" vs "Sim, Descartar")
+- **Validação Específica**: Implementada em 5 formulários principais (Áreas, Clientes, Frutas, Fornecedores, Turma de Colheita)
+
+**🔄 Pontos de Validação:**
+- **Botão 'X' do modal**: `onCancel={handleCloseAttempt}`
+- **Botão "Cancelar"**: `onClick={handleCloseAttempt}`
+- **ESC do teclado**: Funciona automaticamente via onCancel
+
+**📊 Benefícios:**
+- **🛡️ Prevenção**: Evita perda acidental de dados preenchidos
+- **🔄 Reutilização**: Use em qualquer modal do sistema
+- **⚡ Rapidez**: Implementação em 3 linhas de código
+- **🎯 Flexibilidade**: Validação customizável quando necessário
+- **📚 Documentação**: Integrado ao README principal
+
+**🏆 Formulários Implementados:**
+1. **✅ Áreas Agrícolas** - `AddEditAreaDialog.js`
+   - Validação: nome, área, categoria, coordenadas, culturas
+2. **✅ Clientes** - `AddEditClienteDialog.js`
+   - Validação: dados básicos, endereço, contato, observações
+3. **✅ Frutas** - `AddEditFrutaDialog.js`
+   - Validação: nome, código, categoria, unidades de medida, descrição
+4. **✅ Fornecedores** - `AddEditFornecedorDialog.js`
+   - Validação: nome, documento, contato, endereço, observações
+5. **✅ Turma de Colheita** - `AddEditTurmaColheitaDialog.js`
+   - Validação: nome do colhedor, chave PIX, observações
+
 ---
 
 ## 🍌 Sistema de Fitas de Banana - Documentação Técnica
@@ -842,6 +917,8 @@ const fasesColheita = {
 - **MonetaryInput** - Input monetário com validações específicas
 - **MiniSelectPersonalizavel** - Select customizado com ícones, loading states e estilização flexível
 - **CentralizedLoader** - Loading global que cobre toda a tela com backdrop blur e z-index 99999
+- **ConfirmCloseModal** - Modal de confirmação reutilizável para fechamento com dados preenchidos
+- **useConfirmClose** - Hook customizado para gerenciar validação de fechamento de modais
 
 ### **5. Sistema de Interface Avançado**
 - **Tema Global** com CSS Variables automáticas
@@ -850,6 +927,7 @@ const fasesColheita = {
 - **Loading States** otimizados sem "flickering"
 - **Sistema de Notificações** centralizado com tipos variados
 - **Hook useNotificationWithContext** - Notificações que respeitam ConfigProvider e z-index correto
+- **Sistema de Validação de Fechamento de Modais** - Prevenção de perda acidental de dados
 
 ---
 
@@ -1016,6 +1094,13 @@ npx prisma db seed           # Popular com dados
 - [x] Sistema de notificações que respeitam ConfigProvider
 - [x] Correção de z-index conflitante entre modais e notificações
 - [x] CentralizedLoader com backdrop blur e z-index global otimizado
+- [x] Sistema de validação de fechamento de modais com prevenção de perda de dados
+- [x] Componente ConfirmCloseModal reutilizável para confirmação de fechamento
+- [x] Hook useConfirmClose para lógica de validação reutilizável
+- [x] Detecção automática de dados preenchidos em formulários
+- [x] Validação customizável para diferentes tipos de modais
+- [x] Implementação completa em 5 formulários principais (Áreas, Clientes, Frutas, Fornecedores, Turma de Colheita)
+- [x] Validação específica por tipo de formulário (dados básicos, contato, pagamento, unidades, etc.)
 
 ### **🔄 Em Desenvolvimento**
 - [ ] Relatórios avançados
@@ -1027,6 +1112,228 @@ npx prisma db seed           # Popular com dados
 - [ ] Integração com marketplace
 - [ ] BI e Analytics avançado
 - [ ] API pública
+
+---
+
+## 🎨 Padrão de Interface - Modals
+
+### **Estrutura Padrão de Modals**
+
+Todos os modals do sistema seguem um padrão consistente para garantir uniformidade visual e experiência do usuário:
+
+#### **🎯 Configuração Base do Modal**
+```jsx
+<Modal
+  title={
+    <span style={{
+      color: "#ffffff",
+      fontWeight: "600",
+      fontSize: "16px",
+      backgroundColor: "#059669",
+      padding: "12px 16px",
+      margin: "-20px -24px 0 -24px",
+      display: "block",
+      borderRadius: "8px 8px 0 0",
+    }}>
+      <IconeModal style={{ marginRight: 8 }} />
+      Título do Modal
+    </span>
+  }
+  open={open}
+  onCancel={onClose}
+  footer={null} // Sempre null - footer customizado
+  width={1000} // Ajustar conforme necessidade
+  styles={{
+    body: {
+      maxHeight: "calc(100vh - 200px)",
+      overflowY: "auto",
+      overflowX: "hidden",
+      padding: 20
+    },
+    header: {
+      backgroundColor: "#059669",
+      borderBottom: "2px solid #047857",
+      padding: 0
+    },
+    wrapper: { zIndex: 1000 } // Ajustar se necessário
+  }}
+  centered
+  destroyOnClose
+>
+```
+
+#### **🎨 Cards Internos Padrão**
+```jsx
+<Card
+  title={
+    <Space>
+      <IconeCard style={{ color: "#ffffff" }} />
+      <span style={{ color: "#ffffff", fontWeight: "600" }}>Título da Seção</span>
+    </Space>
+  }
+  style={{
+    marginBottom: 16,
+    border: "1px solid #e8e8e8",
+    borderRadius: "8px",
+    backgroundColor: "#f9f9f9",
+  }}
+  styles={{
+    header: {
+      backgroundColor: "#059669",
+      borderBottom: "2px solid #047857",
+      color: "#ffffff",
+      borderRadius: "8px 8px 0 0",
+      padding: "8px 16px" // Para cards internos
+    },
+    body: { padding: "16px" }
+  }}
+>
+  {/* Conteúdo do card */}
+</Card>
+```
+
+#### **📊 Tabelas Padronizadas**
+```jsx
+const StyledTable = styled(Table)`
+  .ant-table-thead > tr > th {
+    background-color: #059669 !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    padding: 16px;
+    font-size: 14px;
+  }
+
+  .ant-table-tbody > tr:nth-child(even) {
+    background-color: #fafafa;
+  }
+
+  .ant-table-tbody > tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+
+  .ant-table-tbody > tr:hover {
+    background-color: #e6f7ff !important;
+  }
+
+  .ant-table-tbody > tr.ant-table-row-selected {
+    background-color: #d1fae5 !important;
+  }
+
+  .ant-table-container {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+`;
+```
+
+#### **🔴 Footer Padrão**
+```jsx
+<div style={{
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "12px",
+  marginTop: "24px",
+  paddingTop: "16px",
+  borderTop: "1px solid #e8e8e8",
+}}>
+  <Button onClick={onClose} size="large">
+    Fechar
+  </Button>
+  <Button
+    type="primary"
+    onClick={handleSalvar}
+    loading={loading}
+    size="large"
+    style={{
+      backgroundColor: "#059669",
+      borderColor: "#059669",
+    }}
+  >
+    Ação Principal
+  </Button>
+</div>
+```
+
+#### **✨ Estados de Loading**
+```jsx
+{operacaoLoading && (
+  <div style={{
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    borderRadius: '8px'
+  }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '16px',
+      padding: '32px',
+      backgroundColor: '#ffffff',
+      borderRadius: '12px',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+      border: '1px solid #e8e8e8'
+    }}>
+      <SpinnerContainer />
+      <div style={{
+        color: '#059669',
+        fontSize: '16px',
+        fontWeight: '600'
+      }}>
+        Mensagem de Loading...
+      </div>
+    </div>
+  </div>
+)}
+```
+
+#### **🎨 Cores do Sistema**
+- **Verde Principal**: `#059669` (headers, botões primários)
+- **Verde Escuro**: `#047857` (bordas, sombras)
+- **Fundo Cards**: `#f9f9f9`
+- **Bordas**: `#e8e8e8`
+- **Hover Tabelas**: `#e6f7ff`
+- **Seleção Tabelas**: `#d1fae5`
+
+#### **📱 Responsividade**
+- **Mobile**: `xs={24}` (largura total)
+- **Tablet**: `md={12}` (metade da linha)
+- **Desktop**: `lg={8}` ou `lg={6}` (divisões específicas)
+
+#### **🔧 Props Obrigatórias**
+```jsx
+ModalComponent.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  // Props específicas do modal...
+};
+```
+
+#### **💡 Boas Práticas**
+1. **Sempre usar `destroyOnClose`** para limpar estado
+2. **Footer sempre `null`** - criar footer customizado
+3. **zIndex consistente** - usar hierarquia clara
+4. **Loading states** - overlay interno para operações
+5. **Notificações** - usar `showNotification` do sistema
+6. **Validações** - usar hooks customizados quando aplicável
+7. **Styled Components** - para tabelas e elementos customizados
+
+### **📁 Exemplos de Implementação**
+- `frontend/src/components/pedidos/NovoPedidoModal.js`
+- `frontend/src/components/pedidos/LancarPagamentosModal.js`
+- `frontend/src/components/pedidos/PagamentoModal.js`
+- `frontend/src/components/turma-colheita/EstatisticasTurmaModal.js`
+- `frontend/src/components/areas/AddEditAreaDialog.js` - **Implementação com validação de fechamento**
+- `frontend/src/components/clientes/AddEditClienteDialog.js` - **Implementação com validação de fechamento**
+- `frontend/src/components/frutas/AddEditFrutaDialog.js` - **Implementação com validação de fechamento**
+- `frontend/src/components/fornecedores/AddEditFornecedorDialog.js` - **Implementação com validação de fechamento**
+- `frontend/src/components/turma-colheita/AddEditTurmaColheitaDialog.js` - **Implementação com validação de fechamento**
+- `frontend/src/components/common/modals/ConfirmCloseModal.js` - **Modal de confirmação reutilizável**
+- `frontend/src/hooks/useConfirmClose.js` - **Hook para validação de fechamento**
 
 ---
 

@@ -17,7 +17,8 @@ import {
   TagOutlined,
   TeamOutlined,
   PlusOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  CheckCircleOutlined
 } from "@ant-design/icons";
 import { MonetaryInput } from "../../../components/common/inputs";
 import { FormButton } from "../../common/buttons";
@@ -93,7 +94,8 @@ const ColheitaTab = ({
         quantidadeColhida: undefined,
         unidadeMedida: undefined,
         valorColheita: undefined,
-        observacoes: ''
+        observacoes: '',
+        pagamentoEfetuado: false
       }];
       needsUpdate = true;
     }
@@ -240,7 +242,8 @@ const ColheitaTab = ({
         quantidadeColhida: undefined,
         unidadeMedida: undefined,
         valorColheita: undefined,
-        observacoes: ''
+        observacoes: '',
+        pagamentoEfetuado: false
       }]
     }));
   };
@@ -270,6 +273,64 @@ const ColheitaTab = ({
       return item;
     });
     setPedidoAtual(prev => ({ ...prev, maoObra: novaMaoObra }));
+  };
+
+  // ✅ NOVA FUNÇÃO: Validar mão de obra em tempo real
+  const validarMaoObraItem = (item, index) => {
+    // Verificar se pelo menos um campo foi preenchido (exceto observações)
+    const temAlgumCampo = item.turmaColheitaId ||
+                          item.quantidadeColhida ||
+                          item.unidadeMedida ||
+                          item.valorColheita;
+
+    if (!temAlgumCampo) {
+      return null; // Item vazio, sem erro
+    }
+
+    // Se qualquer campo foi preenchido, verificar campos obrigatórios
+    const camposObrigatorios = ['turmaColheitaId', 'quantidadeColhida', 'unidadeMedida', 'valorColheita'];
+    const camposFaltando = camposObrigatorios.filter(campo => !item[campo]);
+
+    if (camposFaltando.length > 0) {
+      const nomesCampos = {
+        'turmaColheitaId': 'Turma de Colheita',
+        'quantidadeColhida': 'Quantidade Colhida',
+        'unidadeMedida': 'Unidade de Medida',
+        'valorColheita': 'Valor da Colheita'
+      };
+      return `Mão de obra ${index + 1}: Campos obrigatórios não preenchidos: ${camposFaltando.map(campo => nomesCampos[campo]).join(', ')}`;
+    }
+
+    // Validar valores numéricos
+    if (item.quantidadeColhida && item.quantidadeColhida <= 0) {
+      return `Mão de obra ${index + 1}: Quantidade deve ser maior que zero`;
+    }
+
+    if (item.valorColheita && item.valorColheita <= 0) {
+      return `Mão de obra ${index + 1}: Valor deve ser maior que zero`;
+    }
+
+    return null; // Sem erros
+  };
+
+  // ✅ NOVA FUNÇÃO: Validar duplicação de colheitadores
+  const validarDuplicacao = (turmaColheitaId, indexAtual) => {
+    if (!turmaColheitaId) return { valido: true };
+
+    const maoObraAtual = pedidoAtual.maoObra || [];
+    const duplicata = maoObraAtual.find((item, index) =>
+      index !== indexAtual && item.turmaColheitaId === turmaColheitaId
+    );
+
+    if (duplicata) {
+      const nomeColhedor = turmasColheita.find(t => t.id === turmaColheitaId)?.nomeColhedor || 'Colhedor';
+      return {
+        valido: false,
+        mensagem: `${nomeColhedor} já foi selecionado neste pedido`
+      };
+    }
+
+    return { valido: true };
   };
 
   const unidadesMedida = [
@@ -891,6 +952,12 @@ const ColheitaTab = ({
           <Space>
             <TeamOutlined style={{ color: "#ffffff" }} />
             <span style={{ color: "#ffffff", fontWeight: "600" }}>Mão de Obra</span>
+            {/* ✅ INDICADOR DE PAGAMENTOS EFETUADOS */}
+            {pedidoAtual.maoObra?.some(item => item.pagamentoEfetuado === true) && (
+              <Tooltip title="Alguns registros já tiveram pagamento efetuado e estão bloqueados para edição">
+                <CheckCircleOutlined style={{ color: "#ffffff", fontSize: "16px" }} />
+              </Tooltip>
+            )}
           </Space>
         }
         style={{
@@ -947,11 +1014,49 @@ const ColheitaTab = ({
           </Col>
         </Row>
 
-        {pedidoAtual.maoObra && pedidoAtual.maoObra.map((item, index) => (
+        {pedidoAtual.maoObra && pedidoAtual.maoObra.map((item, index) => {
+          const pagamentoEfetuado = item.pagamentoEfetuado === true;
+          
+          return (
           <div key={index}>
+            {/* ✅ INDICADOR DE PAGAMENTO EFETUADO */}
+            {pagamentoEfetuado && (
+              <Row style={{ marginBottom: '8px' }}>
+                <Col span={24}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    padding: '8px 12px', 
+                    backgroundColor: '#f6ffed', 
+                    border: '1px solid #b7eb8f', 
+                    borderRadius: '6px',
+                    marginBottom: '8px'
+                  }}>
+                    <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px', fontSize: '16px' }} />
+                    <span style={{ color: '#52c41a', fontWeight: '600', fontSize: '14px' }}>
+                      Pagamento já efetuado - Campos bloqueados para edição
+                    </span>
+                  </div>
+                </Col>
+              </Row>
+            )}
+            
             <Row gutter={[16, 16]} align="baseline">
               <Col xs={24} md={6}>
-                <Form.Item>
+                <Form.Item
+                  validateStatus={(() => {
+                    const erro = validarMaoObraItem(item, index);
+                    const duplicacao = validarDuplicacao(item.turmaColheitaId, index);
+                    return (erro && !item.turmaColheitaId) || !duplicacao.valido ? "error" : "";
+                  })()}
+                  help={(() => {
+                    const erro = validarMaoObraItem(item, index);
+                    const duplicacao = validarDuplicacao(item.turmaColheitaId, index);
+                    if (!duplicacao.valido) return duplicacao.mensagem;
+                    if (erro && !item.turmaColheitaId) return "Campo obrigatório";
+                    return "";
+                  })()}
+                >
                   <Select
                     placeholder="Selecione uma turma"
                     showSearch
@@ -961,14 +1066,36 @@ const ColheitaTab = ({
                     }
                     style={{
                       borderRadius: "6px",
-                      borderColor: "#d9d9d9",
+                      borderColor: (() => {
+                        const erro = validarMaoObraItem(item, index);
+                        const duplicacao = validarDuplicacao(item.turmaColheitaId, index);
+                        return (erro && !item.turmaColheitaId) || !duplicacao.valido ? "#ff4d4f" : "#d9d9d9";
+                      })(),
                     }}
                     value={item.turmaColheitaId}
-                    onChange={(value) => handleMaoObraChange(index, 'turmaColheitaId', value)}
-                    disabled={!canEditTab("2")}
+                    onChange={(value) => {
+                      // Validar duplicação antes de permitir a mudança
+                      const validacao = validarDuplicacao(value, index);
+                      if (!validacao.valido) {
+                        showNotification("error", "Colhedor Duplicado", validacao.mensagem);
+                        return;
+                      }
+                      handleMaoObraChange(index, 'turmaColheitaId', value);
+                    }}
+                    disabled={!canEditTab("2") || pagamentoEfetuado}
                   >
                     {turmasColheita.map((turma) => (
-                      <Option key={turma.id} value={turma.id}>
+                      <Option
+                        key={turma.id}
+                        value={turma.id}
+                        disabled={(() => {
+                          // Desabilitar opção se já foi selecionada em outro item
+                          const maoObraAtual = pedidoAtual.maoObra || [];
+                          return maoObraAtual.some((maoObraItem, maoObraIndex) =>
+                            maoObraIndex !== index && maoObraItem.turmaColheitaId === turma.id
+                          );
+                        })()}
+                      >
                         {turma.nomeColhedor}
                       </Option>
                     ))}
@@ -977,32 +1104,38 @@ const ColheitaTab = ({
               </Col>
 
               <Col xs={24} md={4}>
-                <Form.Item>
+                <Form.Item
+                  validateStatus={validarMaoObraItem(item, index) && !item.quantidadeColhida ? "error" : ""}
+                  help={validarMaoObraItem(item, index) && !item.quantidadeColhida ? "Campo obrigatório" : ""}
+                >
                   <MonetaryInput
                     placeholder="Ex: 1.234,56"
                     size="large"
                     style={{
                       borderRadius: "6px",
-                      borderColor: "#d9d9d9",
+                      borderColor: validarMaoObraItem(item, index) && !item.quantidadeColhida ? "#ff4d4f" : "#d9d9d9",
                     }}
                     value={item.quantidadeColhida}
                     onChange={(value) => handleMaoObraChange(index, 'quantidadeColhida', value)}
-                    disabled={!canEditTab("2")}
+                    disabled={!canEditTab("2") || pagamentoEfetuado}
                   />
                 </Form.Item>
               </Col>
 
               <Col xs={24} md={3}>
-                <Form.Item>
+                <Form.Item
+                  validateStatus={validarMaoObraItem(item, index) && !item.unidadeMedida ? "error" : ""}
+                  help={validarMaoObraItem(item, index) && !item.unidadeMedida ? "Campo obrigatório" : ""}
+                >
                   <Select
                     placeholder="Unidade"
                     style={{
                       borderRadius: "6px",
-                      borderColor: "#d9d9d9",
+                      borderColor: validarMaoObraItem(item, index) && !item.unidadeMedida ? "#ff4d4f" : "#d9d9d9",
                     }}
                     value={item.unidadeMedida}
                     onChange={(value) => handleMaoObraChange(index, 'unidadeMedida', value)}
-                    disabled={!canEditTab("2")}
+                    disabled={!canEditTab("2") || pagamentoEfetuado}
                   >
                     {unidadesMedida.map((unidade) => (
                       <Option key={unidade.value} value={unidade.value}>
@@ -1014,18 +1147,21 @@ const ColheitaTab = ({
               </Col>
 
               <Col xs={24} md={4}>
-                <Form.Item>
+                <Form.Item
+                  validateStatus={validarMaoObraItem(item, index) && !item.valorColheita ? "error" : ""}
+                  help={validarMaoObraItem(item, index) && !item.valorColheita ? "Campo obrigatório" : ""}
+                >
                   <MonetaryInput
                     placeholder="Ex: 150,00"
                     addonBefore="R$"
                     size="large"
                     style={{
                       borderRadius: "6px",
-                      borderColor: "#d9d9d9",
+                      borderColor: validarMaoObraItem(item, index) && !item.valorColheita ? "#ff4d4f" : "#d9d9d9",
                     }}
                     value={item.valorColheita}
                     onChange={(value) => handleMaoObraChange(index, 'valorColheita', value)}
-                    disabled={!canEditTab("2")}
+                    disabled={!canEditTab("2") || pagamentoEfetuado}
                   />
                 </Form.Item>
               </Col>
@@ -1040,7 +1176,7 @@ const ColheitaTab = ({
                     }}
                     value={item.observacoes}
                     onChange={(e) => handleMaoObraChange(index, 'observacoes', e.target.value)}
-                    disabled={!canEditTab("2")}
+                    disabled={!canEditTab("2") || pagamentoEfetuado}
                   />
                 </Form.Item>
               </Col>
@@ -1054,7 +1190,7 @@ const ColheitaTab = ({
                     icon={<DeleteOutlined />}
                     onClick={() => removerMaoObra(index)}
                     size="large"
-                    disabled={!canEditTab("2") || (pedidoAtual.maoObra && pedidoAtual.maoObra.length <= 1)}
+                    disabled={!canEditTab("2") || (pedidoAtual.maoObra && pedidoAtual.maoObra.length <= 1) || pagamentoEfetuado}
                     style={{
                       borderRadius: "50px",
                       height: "40px",
@@ -1076,7 +1212,7 @@ const ColheitaTab = ({
                       icon={<PlusOutlined />}
                       onClick={adicionarMaoObra}
                       size="large"
-                      disabled={!canEditTab("2")}
+                      disabled={!canEditTab("2") || pagamentoEfetuado}
                       style={{
                         borderRadius: "50px",
                         borderColor: "#10b981",
@@ -1097,7 +1233,8 @@ const ColheitaTab = ({
             </Row>
             {index < (pedidoAtual.maoObra?.length - 1) && <Divider style={{ margin: "16px 0" }} />}
           </div>
-        ))}
+          );
+        })}
       </Card>
 
       {canEditTab("2") && (
@@ -1126,7 +1263,67 @@ const ColheitaTab = ({
             type="primary"
             icon={<SaveOutlined />}
             onClick={() => {
-              // ✅ NOVA VALIDAÇÃO GLOBAL antes de salvar
+              // ✅ NOVA VALIDAÇÃO: Validar mão de obra antes de salvar
+              const maoObraValida = pedidoAtual.maoObra?.filter(item => {
+                // Verificar se pelo menos um campo não-obrigatório foi preenchido (exceto observações)
+                const temAlgumCampo = item.turmaColheitaId ||
+                                      item.quantidadeColhida ||
+                                      item.unidadeMedida ||
+                                      item.valorColheita;
+                return temAlgumCampo;
+              }) || [];
+
+              // ✅ VALIDAR DUPLICAÇÃO DE COLHEITADORES
+              const turmasColheitaIds = maoObraValida.map(item => item.turmaColheitaId).filter(Boolean);
+              const turmasUnicas = new Set(turmasColheitaIds);
+              if (turmasColheitaIds.length !== turmasUnicas.size) {
+                const duplicatas = [];
+                turmasColheitaIds.forEach(id => {
+                  const ocorrencias = turmasColheitaIds.filter(tid => tid === id).length;
+                  if (ocorrencias > 1) {
+                    const nomeColhedor = turmasColheita.find(t => t.id === id)?.nomeColhedor || 'Colhedor';
+                    if (!duplicatas.includes(nomeColhedor)) {
+                      duplicatas.push(nomeColhedor);
+                    }
+                  }
+                });
+                showNotification("error", "Colheitadores Duplicados", `Os seguintes colheitadores estão duplicados: ${duplicatas.join(', ')}`);
+                return;
+              }
+
+              for (let i = 0; i < maoObraValida.length; i++) {
+                const item = maoObraValida[i];
+
+                // Se qualquer campo foi preenchido, todos os obrigatórios devem estar preenchidos
+                const camposObrigatorios = ['turmaColheitaId', 'quantidadeColhida', 'unidadeMedida', 'valorColheita'];
+                const camposFaltando = camposObrigatorios.filter(campo => !item[campo]);
+
+                if (camposFaltando.length > 0) {
+                  const nomesCampos = {
+                    'turmaColheitaId': 'Turma de Colheita',
+                    'quantidadeColhida': 'Quantidade Colhida',
+                    'unidadeMedida': 'Unidade de Medida',
+                    'valorColheita': 'Valor da Colheita'
+                  };
+                  const camposFaltandoNomes = camposFaltando.map(campo => nomesCampos[campo]).join(', ');
+                  showNotification("error", "Erro", `Mão de obra ${i + 1}: Campos obrigatórios não preenchidos: ${camposFaltandoNomes}`);
+                  return;
+                }
+
+                // Validar se quantidade é maior que zero
+                if (item.quantidadeColhida && item.quantidadeColhida <= 0) {
+                  showNotification("error", "Erro", `Mão de obra ${i + 1}: Quantidade deve ser maior que zero`);
+                  return;
+                }
+
+                // Validar se valor é positivo (se preenchido)
+                if (item.valorColheita && item.valorColheita <= 0) {
+                  showNotification("error", "Erro", `Mão de obra ${i + 1}: Valor deve ser maior que zero`);
+                  return;
+                }
+              }
+
+              // ✅ VALIDAÇÃO GLOBAL de fitas antes de salvar
               try {
                 const resultadoValidacao = validarFitasCompleto(
                   pedidoAtual.frutas || [],

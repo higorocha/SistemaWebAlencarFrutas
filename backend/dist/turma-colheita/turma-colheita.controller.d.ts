@@ -68,6 +68,58 @@ export declare class TurmaColheitaController {
             observacoes: string | null;
         }[];
     }>;
+    getPagamentosPendentes(id: string): Promise<{
+        turma: {
+            id: number;
+            nomeColhedor: string;
+            chavePix: string | null;
+            dataCadastro: Date;
+            observacoes: string | null;
+        };
+        resumo: {
+            totalPendente: number;
+            quantidadePedidos: number;
+            quantidadeFrutas: number;
+            quantidadeColheitas: number;
+        };
+        colheitas: {
+            id: number;
+            pedidoId: number;
+            pedidoNumero: string;
+            cliente: {
+                id: number;
+                nome: string;
+            };
+            fruta: {
+                id: number;
+                nome: string;
+            };
+            quantidadeColhida: number;
+            unidadeMedida: import(".prisma/client").$Enums.UnidadeMedida;
+            valorColheita: number;
+            dataColheita: Date | null;
+            observacoes: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+        }[];
+    }>;
+    getPagamentosEfetuados(): Promise<any[]>;
+    processarPagamentos(id: string, dadosPagamento: {
+        colheitaIds: number[];
+        observacoes?: string;
+    }): Promise<{
+        sucesso: boolean;
+        message: string;
+        totalPago: number;
+        quantidadePagamentos: number;
+        pagamentosProcessados: {
+            id: number;
+            pedidoNumero: string;
+            cliente: string;
+            fruta: string;
+            valorPago: number;
+        }[];
+    }>;
     findOne(id: string): Promise<TurmaColheitaResponseDto>;
     update(id: string, updateTurmaColheitaDto: UpdateTurmaColheitaDto): Promise<TurmaColheitaResponseDto>;
     remove(id: string): Promise<void>;

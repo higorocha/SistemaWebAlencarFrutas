@@ -682,6 +682,7 @@ model TurmaColheitaPedidoCusto {
   valorColheita     Float?           // Valor pago pela colheita
   dataColheita      DateTime?        // Data da colheita específica
   pagamentoEfetuado Boolean          @default(false) // Se o pagamento foi efetuado
+  dataPagamento     DateTime?        // Data quando o pagamento foi efetuado
 
   // Observações específicas da colheita
   observacoes       String?          @db.Text

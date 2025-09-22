@@ -34,7 +34,8 @@ export class PedidosService {
         cliente: {
           select: {
             id: true,
-            nome: true
+            nome: true,
+            industria: true
           }
         },
         frutasPedidos: {
@@ -161,7 +162,8 @@ export class PedidosService {
           cliente: {
             select: {
               id: true,
-              nome: true
+              nome: true,
+              industria: true
             }
           },
           frutasPedidos: {
@@ -654,6 +656,7 @@ export class PedidosService {
     clienteId?: number,
     dataInicio?: Date,
     dataFim?: Date,
+    filters?: string[],
   ): Promise<{ data: PedidoResponseDto[]; total: number; page: number; limit: number }> {
     const skip = page && limit ? (page - 1) * limit : 0;
     const take = limit || 10;
@@ -770,6 +773,118 @@ export class PedidosService {
       where.status = {
         in: statusArray as any[]
       };
+    }
+
+    // ✅ NOVA LÓGICA: Processar filtros aninhados
+    if (filters) {
+      const filterConditions: any[] = [];
+      
+      // Garantir que filters seja um array
+      const filtersArray = Array.isArray(filters) ? filters : [filters];
+      
+      filtersArray.forEach(filter => {
+        if (filter && filter.includes(':')) {
+          const [type, value] = filter.split(':', 2);
+          if (type && value) {
+            switch (type) {
+              case 'cliente':
+                // Verificar se o valor é um ID numérico ou nome
+                if (/^\d+$/.test(value)) {
+                  // Se for um ID numérico, filtrar por ID
+                  filterConditions.push({
+                    clienteId: parseInt(value)
+                  });
+                } else {
+                  // Se for um nome, filtrar por nome (busca exata)
+                  filterConditions.push({
+                    cliente: { nome: { equals: value, mode: 'insensitive' } }
+                  });
+                }
+                break;
+              case 'numero':
+                // Para número de pedido, usar busca exata
+                filterConditions.push({
+                  numeroPedido: { equals: value, mode: 'insensitive' }
+                });
+                break;
+              case 'motorista':
+                filterConditions.push({
+                  nomeMotorista: { contains: value, mode: 'insensitive' }
+                });
+                break;
+              case 'placa':
+                filterConditions.push({
+                  OR: [
+                    { placaPrimaria: { contains: value, mode: 'insensitive' } },
+                    { placaSecundaria: { contains: value, mode: 'insensitive' } }
+                  ]
+                });
+                break;
+              case 'vale':
+                // Para vale, usar busca exata por referência externa
+                filterConditions.push({
+                  pagamentosPedidos: {
+                    some: { referenciaExterna: { equals: value, mode: 'insensitive' } }
+                  }
+                });
+                break;
+              case 'fornecedor':
+                filterConditions.push({
+                  frutasPedidos: {
+                    some: {
+                      areas: {
+                        some: {
+                          areaFornecedor: {
+                            fornecedor: { nome: { contains: value, mode: 'insensitive' } }
+                          }
+                        }
+                      }
+                    }
+                  }
+                });
+                break;
+              case 'area':
+                filterConditions.push({
+                  frutasPedidos: {
+                    some: {
+                      areas: {
+                        some: {
+                          OR: [
+                            { areaPropria: { nome: { contains: value, mode: 'insensitive' } } },
+                            { areaFornecedor: { nome: { contains: value, mode: 'insensitive' } } }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                });
+                break;
+              case 'fruta':
+                filterConditions.push({
+                  frutasPedidos: {
+                    some: { fruta: { nome: { contains: value, mode: 'insensitive' } } }
+                  }
+                });
+                break;
+              case 'pesagem':
+                filterConditions.push({
+                  pesagem: { contains: value, mode: 'insensitive' }
+                });
+                break;
+            }
+          }
+        }
+      });
+      
+      // Se há filtros aninhados, combiná-los com AND
+      if (filterConditions.length > 0) {
+        // Se já existe uma condição AND, preservar e adicionar os novos filtros
+        if (where.AND) {
+          where.AND = [...where.AND, ...filterConditions];
+        } else {
+          where.AND = filterConditions;
+        }
+      }
     }
 
     if (clienteId) {
@@ -2605,24 +2720,53 @@ export class PedidosService {
           },
           _count: { id: true },
           orderBy: { _count: { id: 'desc' } },
-          take: 3
+          take: 10 // Aumentar para capturar todas as variações
         });
 
+        // ✅ AGRUPAR MOTORISTAS POR NOME NORMALIZADO (case-insensitive)
+        const motoristasAgrupados = new Map();
+        
         motoristasUnicos.forEach(motorista => {
           if (motorista.nomeMotorista) {
-            suggestions.push({
-              type: 'motorista',
-              label: 'Motorista',
-              value: motorista.nomeMotorista,
-              icon: '🚛',
-              color: '#fa8c16',
-              description: `${motorista.nomeMotorista} - ${motorista._count.id} pedidos`,
-              metadata: {
-                nome: motorista.nomeMotorista,
-                totalPedidos: motorista._count.id
+            const nomeNormalizado = motorista.nomeMotorista.toLowerCase();
+            
+            if (motoristasAgrupados.has(nomeNormalizado)) {
+              // Somar contadores se já existe
+              const existente = motoristasAgrupados.get(nomeNormalizado);
+              existente.totalPedidos += motorista._count.id;
+              // Manter o nome com capitalização original mais comum
+              if (motorista._count.id > existente.contadorOriginal) {
+                existente.nomeOriginal = motorista.nomeMotorista;
+                existente.contadorOriginal = motorista._count.id;
               }
-            });
+            } else {
+              motoristasAgrupados.set(nomeNormalizado, {
+                nomeOriginal: motorista.nomeMotorista,
+                totalPedidos: motorista._count.id,
+                contadorOriginal: motorista._count.id
+              });
+            }
           }
+        });
+
+        // Converter para array e ordenar por total de pedidos
+        const motoristasFinal = Array.from(motoristasAgrupados.values())
+          .sort((a, b) => b.totalPedidos - a.totalPedidos)
+          .slice(0, 3); // Limitar a 3 resultados
+
+        motoristasFinal.forEach(motorista => {
+          suggestions.push({
+            type: 'motorista',
+            label: 'Motorista',
+            value: motorista.nomeOriginal,
+            icon: '🚛',
+            color: '#fa8c16',
+            description: `${motorista.nomeOriginal} - ${motorista.totalPedidos} pedidos`,
+            metadata: {
+              nome: motorista.nomeOriginal,
+              totalPedidos: motorista.totalPedidos
+            }
+          });
         });
       }
 
@@ -2640,7 +2784,7 @@ export class PedidosService {
           },
           _count: { id: true },
           orderBy: { _count: { id: 'desc' } },
-          take: 2
+          take: 5 // Aumentar para capturar variações
         });
 
         const placasSecundarias = await this.prisma.pedido.groupBy({
@@ -2653,43 +2797,78 @@ export class PedidosService {
           },
           _count: { id: true },
           orderBy: { _count: { id: 'desc' } },
-          take: 2
+          take: 5 // Aumentar para capturar variações
         });
 
+        // ✅ AGRUPAR PLACAS POR VALOR NORMALIZADO (case-insensitive)
+        const placasAgrupadas = new Map();
+
+        // Processar placas primárias
         placasPrimarias.forEach(placa => {
           if (placa.placaPrimaria) {
-            suggestions.push({
-              type: 'placa',
-              label: 'Placa Principal',
-              value: placa.placaPrimaria,
-              icon: '🚗',
-              color: '#eb2f96',
-              description: `Placa ${placa.placaPrimaria} - ${placa._count.id} pedidos`,
-              metadata: {
-                placa: placa.placaPrimaria,
-                totalPedidos: placa._count.id,
-                tipo: 'primaria'
+            const placaNormalizada = placa.placaPrimaria.toUpperCase();
+            
+            if (placasAgrupadas.has(placaNormalizada)) {
+              const existente = placasAgrupadas.get(placaNormalizada);
+              existente.totalPedidos += placa._count.id;
+              if (placa._count.id > existente.contadorOriginal) {
+                existente.placaOriginal = placa.placaPrimaria;
+                existente.contadorOriginal = placa._count.id;
               }
-            });
+            } else {
+              placasAgrupadas.set(placaNormalizada, {
+                placaOriginal: placa.placaPrimaria,
+                totalPedidos: placa._count.id,
+                contadorOriginal: placa._count.id,
+                tipo: 'primaria'
+              });
+            }
           }
         });
 
+        // Processar placas secundárias
         placasSecundarias.forEach(placa => {
           if (placa.placaSecundaria) {
-            suggestions.push({
-              type: 'placa',
-              label: 'Placa Reboque',
-              value: placa.placaSecundaria,
-              icon: '🚛',
-              color: '#eb2f96',
-              description: `Placa ${placa.placaSecundaria} - ${placa._count.id} pedidos`,
-              metadata: {
-                placa: placa.placaSecundaria,
-                totalPedidos: placa._count.id,
-                tipo: 'secundaria'
+            const placaNormalizada = placa.placaSecundaria.toUpperCase();
+            
+            if (placasAgrupadas.has(placaNormalizada)) {
+              const existente = placasAgrupadas.get(placaNormalizada);
+              existente.totalPedidos += placa._count.id;
+              if (placa._count.id > existente.contadorOriginal) {
+                existente.placaOriginal = placa.placaSecundaria;
+                existente.contadorOriginal = placa._count.id;
+                existente.tipo = 'secundaria';
               }
-            });
+            } else {
+              placasAgrupadas.set(placaNormalizada, {
+                placaOriginal: placa.placaSecundaria,
+                totalPedidos: placa._count.id,
+                contadorOriginal: placa._count.id,
+                tipo: 'secundaria'
+              });
+            }
           }
+        });
+
+        // Converter para array e ordenar por total de pedidos
+        const placasFinal = Array.from(placasAgrupadas.values())
+          .sort((a, b) => b.totalPedidos - a.totalPedidos)
+          .slice(0, 3); // Limitar a 3 resultados
+
+        placasFinal.forEach(placa => {
+          suggestions.push({
+            type: 'placa',
+            label: placa.tipo === 'primaria' ? 'Placa Principal' : 'Placa Reboque',
+            value: placa.placaOriginal,
+            icon: placa.tipo === 'primaria' ? '🚗' : '🚛',
+            color: '#eb2f96',
+            description: `Placa ${placa.placaOriginal} - ${placa.totalPedidos} pedidos`,
+            metadata: {
+              placa: placa.placaOriginal,
+              totalPedidos: placa.totalPedidos,
+              tipo: placa.tipo
+            }
+          });
         });
       }
 

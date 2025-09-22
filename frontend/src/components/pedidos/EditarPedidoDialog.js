@@ -304,10 +304,12 @@ const EditarPedidoDialog = ({
           const maoObraFormatada = maoObraExistente.map(item => ({
             id: item.id,
             turmaColheitaId: item.turmaColheitaId,
+            frutaId: item.frutaId, // ✅ PRESERVAR frutaId original do banco
             quantidadeColhida: item.quantidadeColhida,
             unidadeMedida: item.unidadeMedida,
             valorColheita: item.valorColheita,
-            observacoes: item.observacoes || ''
+            observacoes: item.observacoes || '',
+            pagamentoEfetuado: item.pagamentoEfetuado || false
           }));
 
           // Se não há dados, inicializar com um item vazio
@@ -315,6 +317,7 @@ const EditarPedidoDialog = ({
             ? maoObraFormatada
             : [{
                 turmaColheitaId: undefined,
+                frutaId: pedidoAtual.frutas && pedidoAtual.frutas[0]?.frutaId, // ✅ Inicializar com primeira fruta
                 quantidadeColhida: undefined,
                 unidadeMedida: undefined,
                 valorColheita: undefined,
@@ -332,6 +335,7 @@ const EditarPedidoDialog = ({
             ...prev,
             maoObra: [{
               turmaColheitaId: undefined,
+              frutaId: prev.frutas && prev.frutas[0]?.frutaId, // ✅ Usar primeira fruta disponível
               quantidadeColhida: undefined,
               unidadeMedida: undefined,
               valorColheita: undefined,
@@ -602,34 +606,30 @@ const EditarPedidoDialog = ({
         if (!item.quantidadeColhida || item.quantidadeColhida <= 0) continue;
         if (!item.unidadeMedida) continue;
 
-        // Para cada fruta do pedido, criar/atualizar registro
-        if (pedidoAtual.frutas && pedidoAtual.frutas.length > 0) {
-          for (const fruta of pedidoAtual.frutas) {
-            const custoData = {
-              turmaColheitaId: item.turmaColheitaId,
-              pedidoId: pedido.id,
-              frutaId: fruta.frutaId,
-              quantidadeColhida: parseFloat(item.quantidadeColhida),
-              unidadeMedida: item.unidadeMedida,
-              valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
-              dataColheita: pedidoAtual.dataColheita || new Date().toISOString(),
-              pagamentoEfetuado: false,
-              observacoes: item.observacoes || ''
-            };
+        // ✅ CORREÇÃO: Criar UM registro por turma de colheita
+        const custoData = {
+          turmaColheitaId: item.turmaColheitaId,
+          pedidoId: pedido.id,
+          frutaId: item.frutaId || (pedidoAtual.frutas && pedidoAtual.frutas[0]?.frutaId), // ✅ Usar frutaId original ou primeira fruta
+          quantidadeColhida: parseFloat(item.quantidadeColhida),
+          unidadeMedida: item.unidadeMedida,
+          valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
+          dataColheita: pedidoAtual.dataColheita || new Date().toISOString(),
+          pagamentoEfetuado: false,
+          observacoes: item.observacoes || ''
+        };
 
-            if (item.id) {
-              // Atualizar existente
-              await axiosInstance.patch(`/api/turma-colheita/colheita-pedido/${item.id}`, custoData);
-              console.log(`✏️ Atualizado registro ${item.id}`);
-            } else {
-              // Criar novo
-              const response = await axiosInstance.post('/api/turma-colheita/custo-colheita', custoData);
-              console.log(`➕ Criado novo registro ${response.data.id}`);
+        if (item.id) {
+          // Atualizar existente
+          await axiosInstance.patch(`/api/turma-colheita/colheita-pedido/${item.id}`, custoData);
+          console.log(`✏️ Atualizado registro ${item.id}`);
+        } else {
+          // Criar novo (usar primeira fruta do pedido)
+          const response = await axiosInstance.post('/api/turma-colheita/custo-colheita', custoData);
+          console.log(`➕ Criado novo registro ${response.data.id}`);
 
-              // Atualizar o item com o ID retornado
-              item.id = response.data.id;
-            }
-          }
+          // Atualizar o item com o ID retornado
+          item.id = response.data.id;
         }
       }
 

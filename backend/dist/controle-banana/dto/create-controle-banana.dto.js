@@ -46,7 +46,6 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_transformer_1.Transform)(({ value }) => value?.trim()),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], CreateControleBananaDto.prototype, "observacoes", void 0);
 //# sourceMappingURL=create-controle-banana.dto.js.map

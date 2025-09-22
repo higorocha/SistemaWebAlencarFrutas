@@ -53,6 +53,32 @@ let ControleBananaService = class ControleBananaService {
             const dataRegistro = createControleBananaDto.dataRegistro
                 ? this.parseDataRegistro(createControleBananaDto.dataRegistro)
                 : new Date();
+            const inicioDia = new Date(dataRegistro);
+            inicioDia.setUTCHours(0, 0, 0, 0);
+            const fimDia = new Date(dataRegistro);
+            fimDia.setUTCHours(23, 59, 59, 999);
+            const registroExistente = await this.prisma.controleBanana.findFirst({
+                where: {
+                    fitaBananaId: createControleBananaDto.fitaBananaId,
+                    areaAgricolaId: createControleBananaDto.areaAgricolaId,
+                    dataRegistro: {
+                        gte: inicioDia,
+                        lte: fimDia
+                    }
+                },
+                include: {
+                    fitaBanana: {
+                        select: {
+                            nome: true,
+                            corHex: true
+                        }
+                    }
+                }
+            });
+            if (registroExistente) {
+                throw new common_1.ConflictException(`Não é possível cadastrar outro lote da fita "${registroExistente.fitaBanana.nome}" para a área "${area.nome}" no mesmo dia (${dataRegistro.toLocaleDateString('pt-BR')}). ` +
+                    `Já existe um registro cadastrado hoje. Por favor, edite o lote existente ao invés de criar um novo.`);
+            }
             const controle = await this.prisma.controleBanana.create({
                 data: {
                     ...createControleBananaDto,
@@ -86,7 +112,7 @@ let ControleBananaService = class ControleBananaService {
             return controle;
         }
         catch (error) {
-            if (error instanceof common_1.NotFoundException) {
+            if (error instanceof common_1.NotFoundException || error instanceof common_1.ConflictException) {
                 throw error;
             }
             throw new common_1.BadRequestException('Erro ao criar controle de banana');
@@ -226,7 +252,7 @@ let ControleBananaService = class ControleBananaService {
             return controleAtualizado;
         }
         catch (error) {
-            if (error instanceof common_1.NotFoundException) {
+            if (error instanceof common_1.NotFoundException || error instanceof common_1.ConflictException) {
                 throw error;
             }
             throw new common_1.BadRequestException('Erro ao atualizar controle de banana');
@@ -248,7 +274,7 @@ let ControleBananaService = class ControleBananaService {
             return { message: 'Controle de banana excluído com sucesso' };
         }
         catch (error) {
-            if (error instanceof common_1.NotFoundException) {
+            if (error instanceof common_1.NotFoundException || error instanceof common_1.ConflictException) {
                 throw error;
             }
             throw new common_1.BadRequestException('Erro ao excluir controle de banana');
@@ -620,7 +646,6 @@ let ControleBananaService = class ControleBananaService {
             return fitasComAreas;
         }
         catch (error) {
-            console.error('Erro ao buscar fitas com áreas:', error);
             throw new common_1.BadRequestException('Erro ao buscar fitas disponíveis');
         }
     }
@@ -647,7 +672,6 @@ let ControleBananaService = class ControleBananaService {
                 quantidadeFitas: controle.quantidadeFitas - quantidade
             }
         });
-        console.log(`✅ Subtraído ${quantidade} fitas do lote ${controleBananaId}. Restante: ${controle.quantidadeFitas - quantidade}`);
     }
     async adicionarEstoquePorControle(controleBananaId, quantidade, usuarioId) {
         const controle = await this.prisma.controleBanana.findUnique({
@@ -669,7 +693,6 @@ let ControleBananaService = class ControleBananaService {
                 quantidadeFitas: controle.quantidadeFitas + quantidade
             }
         });
-        console.log(`✅ Adicionado ${quantidade} fitas de volta ao lote ${controleBananaId}. Total: ${controle.quantidadeFitas + quantidade}`);
     }
     async processarSubtracaoFitas(detalhesAreas, usuarioId) {
         for (const detalhe of detalhesAreas) {

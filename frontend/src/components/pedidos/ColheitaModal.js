@@ -341,29 +341,66 @@ const ColheitaModal = ({
         return;
       }
 
-      // Validar dados de mão de obra se existirem
-      const maoObraValida = values.maoObra?.filter(item => 
-        item.turmaColheitaId || item.quantidadeColhida || item.unidadeMedida
-      ) || [];
+      // ✅ NOVA VALIDAÇÃO: Validar dados de mão de obra com lógica mais rigorosa
+      const maoObraValida = values.maoObra?.filter(item => {
+        // Verificar se pelo menos um campo não-obrigatório foi preenchido (exceto observações)
+        const temAlgumCampo = item.turmaColheitaId ||
+                              item.quantidadeColhida ||
+                              item.unidadeMedida ||
+                              item.valorColheita;
+        return temAlgumCampo;
+      }) || [];
+
+      // ✅ NOVA VALIDAÇÃO: Verificar duplicação de colheitadores
+      const turmasUtilizadas = new Set();
+      const turmasDuplicadas = [];
 
       for (let i = 0; i < maoObraValida.length; i++) {
         const item = maoObraValida[i];
-        
-        // Se tem quantidade, deve ser maior que zero
+
+        if (item.turmaColheitaId) {
+          if (turmasUtilizadas.has(item.turmaColheitaId)) {
+            const turmaNome = turmasColheita.find(t => t.id === item.turmaColheitaId)?.nomeColhedor || `Turma ${item.turmaColheitaId}`;
+            turmasDuplicadas.push(turmaNome);
+          } else {
+            turmasUtilizadas.add(item.turmaColheitaId);
+          }
+        }
+      }
+
+      if (turmasDuplicadas.length > 0) {
+        error("Erro", `Colheitador(es) duplicado(s) detectado(s): ${turmasDuplicadas.join(', ')}. Cada colheitador pode aparecer apenas uma vez por pedido.`);
+        return;
+      }
+
+      for (let i = 0; i < maoObraValida.length; i++) {
+        const item = maoObraValida[i];
+
+        // ✅ NOVA VALIDAÇÃO: Se qualquer campo foi preenchido, todos os obrigatórios devem estar preenchidos
+        const camposObrigatorios = ['turmaColheitaId', 'quantidadeColhida', 'unidadeMedida', 'valorColheita'];
+        const camposFaltando = camposObrigatorios.filter(campo => !item[campo]);
+
+        if (camposFaltando.length > 0) {
+          const nomesCampos = {
+            'turmaColheitaId': 'Turma de Colheita',
+            'quantidadeColhida': 'Quantidade Colhida',
+            'unidadeMedida': 'Unidade de Medida',
+            'valorColheita': 'Valor da Colheita'
+          };
+          const camposFaltandoNomes = camposFaltando.map(campo => nomesCampos[campo]).join(', ');
+          error("Erro", `Mão de obra ${i + 1}: Campos obrigatórios não preenchidos: ${camposFaltandoNomes}`);
+          return;
+        }
+
+        // Validar se quantidade é maior que zero
         if (item.quantidadeColhida && item.quantidadeColhida <= 0) {
           error("Erro", `Mão de obra ${i + 1}: Quantidade deve ser maior que zero`);
           return;
         }
-        
-        // Se tem quantidade, deve ter unidade de medida
-        if (item.quantidadeColhida && !item.unidadeMedida) {
-          error("Erro", `Mão de obra ${i + 1}: Unidade de medida é obrigatória quando há quantidade`);
-          return;
-        }
-        
-        // Se tem unidade de medida, deve ter quantidade
-        if (item.unidadeMedida && !item.quantidadeColhida) {
-          error("Erro", `Mão de obra ${i + 1}: Quantidade é obrigatória quando há unidade de medida`);
+
+        // Validar se valor é positivo (se preenchido)
+        if (item.valorColheita && item.valorColheita <= 0) {
+          error("Erro", `Mão de obra ${i + 1}: Valor deve ser maior que zero`);
           return;
         }
       }
@@ -509,12 +546,14 @@ const ColheitaModal = ({
 
           // Salvar cada item de mão de obra individualmente
           for (const item of maoObraValida) {
-            // Para cada fruta no pedido, criar um registro de mão de obra
-            for (const fruta of values.frutas) {
+            // ✅ CORREÇÃO: Usar apenas a PRIMEIRA fruta do pedido para criar UM registro por turma
+            const primeiraFruta = values.frutas[0]; // Pegar primeira fruta
+
+            if (primeiraFruta) {
               const custoData = {
                 turmaColheitaId: item.turmaColheitaId,
                 pedidoId: pedidoId,
-                frutaId: fruta.frutaId, // frutaId já está disponível na estrutura de frutas
+                frutaId: primeiraFruta.frutaId, // ✅ Sempre usar primeira fruta
                 quantidadeColhida: parseFloat(item.quantidadeColhida),
                 unidadeMedida: item.unidadeMedida,
                 valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
@@ -1256,6 +1295,38 @@ const ColheitaModal = ({
                         <Form.Item
                           {...restField}
                           name={[name, 'turmaColheitaId']}
+                          rules={[
+                            {
+                              validator: (_, value) => {
+                                // Verificar se outros campos foram preenchidos
+                                const formValues = form.getFieldsValue();
+                                const maoObraItem = formValues.maoObra?.[name] || {};
+                                const temOutrosCampos = maoObraItem.quantidadeColhida ||
+                                                        maoObraItem.unidadeMedida ||
+                                                        maoObraItem.valorColheita;
+
+                                // Se outros campos foram preenchidos, turma é obrigatória
+                                if (temOutrosCampos && !value) {
+                                  return Promise.reject(new Error("Turma é obrigatória quando outros campos são preenchidos"));
+                                }
+
+                                // ✅ NOVA VALIDAÇÃO: Verificar duplicação de turma
+                                if (value) {
+                                  const todasTurmas = formValues.maoObra || [];
+                                  const turmasComValor = todasTurmas
+                                    .map((item, idx) => ({ turmaId: item?.turmaColheitaId, index: idx }))
+                                    .filter(item => item.turmaId && item.turmaId === value);
+
+                                  if (turmasComValor.length > 1) {
+                                    const turmaNome = turmasColheita.find(t => t.id === value)?.nomeColhedor || `Turma ${value}`;
+                                    return Promise.reject(new Error(`${turmaNome} já foi selecionado(a) em outro registro`));
+                                  }
+                                }
+
+                                return Promise.resolve();
+                              }
+                            }
+                          ]}
                         >
                           <Select
                             placeholder="Selecione uma turma"
@@ -1285,13 +1356,26 @@ const ColheitaModal = ({
                           rules={[
                             {
                               validator: (_, value) => {
-                                // Se não tem valor, é válido (campo opcional)
-                                if (!value) return Promise.resolve();
+                                // Verificar se outros campos foram preenchidos
+                                const formValues = form.getFieldsValue();
+                                const maoObraItem = formValues.maoObra?.[name] || {};
+                                const temOutrosCampos = maoObraItem.turmaColheitaId || 
+                                                        maoObraItem.unidadeMedida || 
+                                                        maoObraItem.valorColheita;
                                 
-                                const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                                if (numValue && numValue <= 0) {
-                                  return Promise.reject(new Error("Quantidade deve ser maior que zero"));
+                                // Se outros campos foram preenchidos, quantidade é obrigatória
+                                if (temOutrosCampos && !value) {
+                                  return Promise.reject(new Error("Quantidade é obrigatória quando outros campos são preenchidos"));
                                 }
+                                
+                                // Se tem valor, deve ser maior que zero
+                                if (value) {
+                                  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                  if (numValue && numValue <= 0) {
+                                    return Promise.reject(new Error("Quantidade deve ser maior que zero"));
+                                  }
+                                }
+                                
                                 return Promise.resolve();
                               }
                             }
@@ -1312,6 +1396,25 @@ const ColheitaModal = ({
                         <Form.Item
                           {...restField}
                           name={[name, 'unidadeMedida']}
+                          rules={[
+                            {
+                              validator: (_, value) => {
+                                // Verificar se outros campos foram preenchidos
+                                const formValues = form.getFieldsValue();
+                                const maoObraItem = formValues.maoObra?.[name] || {};
+                                const temOutrosCampos = maoObraItem.turmaColheitaId || 
+                                                        maoObraItem.quantidadeColhida || 
+                                                        maoObraItem.valorColheita;
+                                
+                                // Se outros campos foram preenchidos, unidade é obrigatória
+                                if (temOutrosCampos && !value) {
+                                  return Promise.reject(new Error("Unidade de medida é obrigatória quando outros campos são preenchidos"));
+                                }
+                                
+                                return Promise.resolve();
+                              }
+                            }
+                          ]}
                         >
                           <Select
                             placeholder="Unidade"
@@ -1333,6 +1436,30 @@ const ColheitaModal = ({
                         <Form.Item
                           {...restField}
                           name={[name, 'valorColheita']}
+                          rules={[
+                            {
+                              validator: (_, value) => {
+                                // Verificar se outros campos foram preenchidos
+                                const formValues = form.getFieldsValue();
+                                const maoObraItem = formValues.maoObra?.[name] || {};
+                                const temOutrosCampos = maoObraItem.turmaColheitaId || 
+                                                        maoObraItem.quantidadeColhida || 
+                                                        maoObraItem.unidadeMedida;
+                                
+                                // Se outros campos foram preenchidos, valor é obrigatório
+                                if (temOutrosCampos && !value) {
+                                  return Promise.reject(new Error("Valor é obrigatório quando outros campos são preenchidos"));
+                                }
+                                
+                                // Se tem valor, deve ser maior que zero
+                                if (value && value <= 0) {
+                                  return Promise.reject(new Error("Valor deve ser maior que zero"));
+                                }
+                                
+                                return Promise.resolve();
+                              }
+                            }
+                          ]}
                         >
                           <MonetaryInput
                             placeholder="Ex: 150,00"

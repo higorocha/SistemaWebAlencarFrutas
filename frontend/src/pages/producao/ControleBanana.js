@@ -139,21 +139,16 @@ const ControleBanana = () => {
 
   // Callback para atualizar dados após operações nos modais
   const handleModalSuccess = () => {
-    // Recarregar dados com CentralizedLoader para RegistrarFitaModal (afeta mapa + seção)
-    carregarDados(true);
+    // Recarregar dados para atualizar mapa e listagem
+    carregarDados(false); // Sem centralizedLoader, pois modal permanece aberto
   };
 
-  // Callback para controlar loading dos modais
+  // Callback para controlar loading dos modais (usado pelo GerenciarFitasModal)
   const handleModalLoading = (loading, message) => {
     setCentralizedLoading(loading);
     if (message) {
       setLoadingMessage(message);
     }
-  };
-
-  // Callback para reabrir modal em caso de erro
-  const handleModalError = () => {
-    setRegistrarModalVisible(true);
   };
 
   return (
@@ -392,8 +387,6 @@ const ControleBanana = () => {
         visible={registrarModalVisible}
         onCancel={() => setRegistrarModalVisible(false)}
         onSuccess={handleModalSuccess}
-        onLoadingChange={handleModalLoading}
-        onError={handleModalError}
       />
 
       <GerenciarFitasModal

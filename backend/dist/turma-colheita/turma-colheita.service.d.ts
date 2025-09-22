@@ -71,4 +71,57 @@ export declare class TurmaColheitaService {
         pagamentosEfetuados: number;
         pagamentosPendentes: number;
     }>;
+    getPagamentosPendentesDetalhado(turmaId: number): Promise<{
+        turma: {
+            id: number;
+            nomeColhedor: string;
+            chavePix: string | null;
+            dataCadastro: Date;
+            observacoes: string | null;
+        };
+        resumo: {
+            totalPendente: number;
+            quantidadePedidos: number;
+            quantidadeFrutas: number;
+            quantidadeColheitas: number;
+        };
+        colheitas: {
+            id: number;
+            pedidoId: number;
+            pedidoNumero: string;
+            cliente: {
+                id: number;
+                nome: string;
+            };
+            fruta: {
+                id: number;
+                nome: string;
+            };
+            quantidadeColhida: number;
+            unidadeMedida: import(".prisma/client").$Enums.UnidadeMedida;
+            valorColheita: number;
+            dataColheita: Date | null;
+            observacoes: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+        }[];
+    }>;
+    processarPagamentosSeletivos(turmaId: number, dadosPagamento: {
+        colheitaIds: number[];
+        observacoes?: string;
+    }): Promise<{
+        sucesso: boolean;
+        message: string;
+        totalPago: number;
+        quantidadePagamentos: number;
+        pagamentosProcessados: {
+            id: number;
+            pedidoNumero: string;
+            cliente: string;
+            fruta: string;
+            valorPago: number;
+        }[];
+    }>;
+    private gerarDataComHorarioFixo;
+    getPagamentosEfetuadosAgrupados(): Promise<any[]>;
 }

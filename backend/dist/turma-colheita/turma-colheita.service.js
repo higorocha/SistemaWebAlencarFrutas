@@ -602,6 +602,239 @@ let TurmaColheitaService = class TurmaColheitaService {
             pagamentosPendentes,
         };
     }
+    async getPagamentosPendentesDetalhado(turmaId) {
+        const turma = await this.prisma.turmaColheita.findUnique({
+            where: { id: turmaId },
+        });
+        if (!turma) {
+            throw new common_1.NotFoundException('Turma de colheita não encontrada');
+        }
+        const custosComPendencias = await this.prisma.turmaColheitaPedidoCusto.findMany({
+            where: {
+                turmaColheitaId: turmaId,
+                pagamentoEfetuado: false,
+            },
+            include: {
+                pedido: {
+                    select: {
+                        id: true,
+                        numeroPedido: true,
+                        cliente: {
+                            select: {
+                                id: true,
+                                nome: true,
+                                razaoSocial: true,
+                            },
+                        },
+                    },
+                },
+                fruta: {
+                    select: {
+                        id: true,
+                        nome: true,
+                    },
+                },
+            },
+            orderBy: [
+                { dataColheita: 'desc' },
+                { createdAt: 'desc' },
+            ],
+        });
+        const totalPendente = custosComPendencias.reduce((acc, custo) => acc + (custo.valorColheita || 0), 0);
+        const quantidadePedidos = new Set(custosComPendencias.map(custo => custo.pedidoId)).size;
+        const quantidadeFrutas = new Set(custosComPendencias.map(custo => custo.frutaId)).size;
+        const colheitasDetalhadas = custosComPendencias.map(custo => ({
+            id: custo.id,
+            pedidoId: custo.pedidoId,
+            pedidoNumero: custo.pedido.numeroPedido,
+            cliente: {
+                id: custo.pedido.cliente.id,
+                nome: custo.pedido.cliente.razaoSocial || custo.pedido.cliente.nome,
+            },
+            fruta: {
+                id: custo.fruta.id,
+                nome: custo.fruta.nome,
+            },
+            quantidadeColhida: custo.quantidadeColhida,
+            unidadeMedida: custo.unidadeMedida,
+            valorColheita: custo.valorColheita || 0,
+            dataColheita: custo.dataColheita,
+            observacoes: custo.observacoes,
+            createdAt: custo.createdAt,
+            updatedAt: custo.updatedAt,
+        }));
+        return {
+            turma: {
+                id: turma.id,
+                nomeColhedor: turma.nomeColhedor,
+                chavePix: turma.chavePix,
+                dataCadastro: turma.dataCadastro,
+                observacoes: turma.observacoes,
+            },
+            resumo: {
+                totalPendente,
+                quantidadePedidos,
+                quantidadeFrutas,
+                quantidadeColheitas: custosComPendencias.length,
+            },
+            colheitas: colheitasDetalhadas,
+        };
+    }
+    async processarPagamentosSeletivos(turmaId, dadosPagamento) {
+        const turma = await this.prisma.turmaColheita.findUnique({
+            where: { id: turmaId },
+        });
+        if (!turma) {
+            throw new common_1.NotFoundException('Turma de colheita não encontrada');
+        }
+        if (!dadosPagamento.colheitaIds || dadosPagamento.colheitaIds.length === 0) {
+            throw new common_1.BadRequestException('Nenhuma colheita selecionada para pagamento');
+        }
+        const colheitasParaPagar = await this.prisma.turmaColheitaPedidoCusto.findMany({
+            where: {
+                id: { in: dadosPagamento.colheitaIds },
+                turmaColheitaId: turmaId,
+                pagamentoEfetuado: false,
+            },
+        });
+        if (colheitasParaPagar.length !== dadosPagamento.colheitaIds.length) {
+            throw new common_1.BadRequestException('Algumas colheitas não foram encontradas ou já foram pagas');
+        }
+        const resultados = await this.prisma.$transaction(async (prisma) => {
+            const pagamentosProcessados = [];
+            for (const colheita of colheitasParaPagar) {
+                const pagamentoAtualizado = await prisma.turmaColheitaPedidoCusto.update({
+                    where: { id: colheita.id },
+                    data: {
+                        pagamentoEfetuado: true,
+                        dataPagamento: this.gerarDataComHorarioFixo(),
+                        observacoes: dadosPagamento.observacoes
+                            ? `${colheita.observacoes || ''}\n[PAGAMENTO] ${dadosPagamento.observacoes}`.trim()
+                            : colheita.observacoes,
+                    },
+                    include: {
+                        pedido: {
+                            select: {
+                                numeroPedido: true,
+                                cliente: { select: { nome: true, razaoSocial: true } },
+                            },
+                        },
+                        fruta: { select: { nome: true } },
+                    },
+                });
+                pagamentosProcessados.push({
+                    id: pagamentoAtualizado.id,
+                    pedidoNumero: pagamentoAtualizado.pedido.numeroPedido,
+                    cliente: pagamentoAtualizado.pedido.cliente.razaoSocial ||
+                        pagamentoAtualizado.pedido.cliente.nome,
+                    fruta: pagamentoAtualizado.fruta.nome,
+                    valorPago: pagamentoAtualizado.valorColheita || 0,
+                });
+            }
+            return pagamentosProcessados;
+        });
+        const totalPago = resultados.reduce((acc, item) => acc + item.valorPago, 0);
+        return {
+            sucesso: true,
+            message: `${resultados.length} pagamento(s) processado(s) com sucesso`,
+            totalPago,
+            quantidadePagamentos: resultados.length,
+            pagamentosProcessados: resultados,
+        };
+    }
+    gerarDataComHorarioFixo() {
+        const hoje = new Date();
+        hoje.setHours(12, 0, 0, 0);
+        return hoje;
+    }
+    async getPagamentosEfetuadosAgrupados() {
+        try {
+            const turmasComPagamentosEfetuados = await this.prisma.turmaColheita.findMany({
+                include: {
+                    custosColheita: {
+                        where: {
+                            pagamentoEfetuado: true,
+                            dataPagamento: {
+                                not: null,
+                            },
+                        },
+                        include: {
+                            pedido: {
+                                select: {
+                                    numeroPedido: true,
+                                    cliente: {
+                                        select: {
+                                            nome: true,
+                                            razaoSocial: true,
+                                        },
+                                    },
+                                },
+                            },
+                            fruta: {
+                                select: {
+                                    nome: true,
+                                },
+                            },
+                        },
+                        orderBy: {
+                            dataPagamento: 'desc',
+                        },
+                    },
+                },
+            });
+            const turmasComPagamentos = turmasComPagamentosEfetuados.filter(turma => turma.custosColheita.length > 0);
+            const pagamentosAgrupados = [];
+            for (const turma of turmasComPagamentos) {
+                const pagamentosPorData = new Map();
+                for (const custo of turma.custosColheita) {
+                    if (!custo.dataPagamento)
+                        continue;
+                    const dataPagamento = custo.dataPagamento.toISOString().split('T')[0];
+                    const chave = `${dataPagamento}`;
+                    if (!pagamentosPorData.has(chave)) {
+                        pagamentosPorData.set(chave, {
+                            id: `${turma.id}-${new Date(dataPagamento).getTime()}`,
+                            nomeColhedor: turma.nomeColhedor,
+                            chavePix: turma.chavePix,
+                            dataPagamento: dataPagamento,
+                            totalPago: 0,
+                            quantidadePedidos: 0,
+                            quantidadeFrutas: 0,
+                            dataCadastro: turma.createdAt.toISOString(),
+                            observacoes: turma.observacoes,
+                            detalhes: [],
+                            frutas: new Set(),
+                        });
+                    }
+                    const grupo = pagamentosPorData.get(chave);
+                    grupo.totalPago += custo.valorColheita;
+                    grupo.quantidadePedidos += 1;
+                    grupo.frutas.add(custo.fruta.nome);
+                    grupo.detalhes.push({
+                        pedidoNumero: custo.pedido.numeroPedido,
+                        cliente: custo.pedido.cliente.razaoSocial || custo.pedido.cliente.nome,
+                        fruta: custo.fruta.nome,
+                        quantidadeColhida: custo.quantidadeColhida,
+                        unidadeMedida: custo.unidadeMedida,
+                        valorColheita: custo.valorColheita,
+                        dataColheita: custo.dataColheita?.toISOString(),
+                        dataPagamento: custo.dataPagamento?.toISOString(),
+                        observacoes: custo.observacoes,
+                    });
+                }
+                for (const grupo of pagamentosPorData.values()) {
+                    grupo.quantidadeFrutas = grupo.frutas.size;
+                    delete grupo.frutas;
+                    pagamentosAgrupados.push(grupo);
+                }
+            }
+            return pagamentosAgrupados.sort((a, b) => new Date(b.dataPagamento).getTime() - new Date(a.dataPagamento).getTime());
+        }
+        catch (error) {
+            console.error('Erro ao buscar pagamentos efetuados:', error);
+            throw error;
+        }
+    }
 };
 exports.TurmaColheitaService = TurmaColheitaService;
 exports.TurmaColheitaService = TurmaColheitaService = __decorate([

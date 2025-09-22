@@ -2,7 +2,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DashboardResponseDto, ReceitaMensalDto, ProgramacaoColheitaDto, PrevisaoBananaDto } from './dto/dashboard-response.dto';
+import { DashboardResponseDto, ReceitaMensalDto, ProgramacaoColheitaDto, PrevisaoBananaDto, PagamentoEfetuadoDto } from './dto/dashboard-response.dto';
 
 @Injectable()
 export class DashboardService {
@@ -20,7 +20,9 @@ export class DashboardService {
       pedidosAtivos,
       receitaMensal,
       programacaoColheita,
-      previsoesBanana
+      previsoesBanana,
+      pagamentosPendentes,
+      pagamentosEfetuados
     ] = await Promise.all([
       this.getFaturamentoTotal(),
       this.getFaturamentoAberto(),
@@ -31,7 +33,9 @@ export class DashboardService {
       this.getPedidosAtivos(),
       this.getReceitaMensal(),
       this.getProgramacaoColheita(),
-      this.getPrevisoesBanana()
+      this.getPrevisoesBanana(),
+      this.getPagamentosPendentes(),
+      this.getPagamentosEfetuados()
     ]);
 
     const result = {
@@ -44,7 +48,9 @@ export class DashboardService {
       pedidosAtivos,
       receitaMensal,
       programacaoColheita,
-      previsoesBanana
+      previsoesBanana,
+      pagamentosPendentes,
+      pagamentosEfetuados
     };
 
 
@@ -379,5 +385,199 @@ export class DashboardService {
 
   private formatarDataCurta(data: Date): string {
     return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  }
+
+  private async getPagamentosPendentes(): Promise<any[]> {
+    try {
+      // Buscar todas as turmas com seus custos de colheita pendentes de pagamento
+      const turmasComPagamentosPendentes = await this.prisma.turmaColheita.findMany({
+        include: {
+          custosColheita: {
+            where: {
+              pagamentoEfetuado: false, // Apenas pagamentos pendentes
+            },
+            include: {
+              pedido: {
+                select: {
+                  numeroPedido: true,
+                  cliente: {
+                    select: {
+                      nome: true,
+                      razaoSocial: true,
+                    },
+                  },
+                },
+              },
+              fruta: {
+                select: {
+                  nome: true,
+                },
+              },
+            },
+            orderBy: {
+              dataColheita: 'desc', // Mais recentes primeiro
+            },
+          },
+        },
+      });
+
+      // Filtrar apenas turmas que realmente têm pagamentos pendentes
+      const turmasComPendencias = turmasComPagamentosPendentes.filter(
+        turma => turma.custosColheita.length > 0
+      );
+
+      // Processar dados para o formato esperado no frontend
+      const pagamentosPendentes = turmasComPendencias.map(turma => {
+        // Calcular totais agregados
+        const totalPendente = turma.custosColheita.reduce(
+          (acc, custo) => acc + (custo.valorColheita || 0),
+          0
+        );
+
+        const quantidadePedidos = new Set(
+          turma.custosColheita.map(custo => custo.pedidoId)
+        ).size;
+
+        const quantidadeFrutas = new Set(
+          turma.custosColheita.map(custo => custo.frutaId)
+        ).size;
+
+        // Detalhamento dos custos
+        const detalhes = turma.custosColheita.map(custo => ({
+          pedidoNumero: custo.pedido.numeroPedido,
+          cliente: custo.pedido.cliente.razaoSocial || custo.pedido.cliente.nome,
+          fruta: custo.fruta.nome,
+          quantidadeColhida: custo.quantidadeColhida,
+          unidadeMedida: custo.unidadeMedida,
+          valorColheita: custo.valorColheita || 0,
+          dataColheita: custo.dataColheita,
+          observacoes: custo.observacoes,
+        }));
+
+        return {
+          id: turma.id,
+          nomeColhedor: turma.nomeColhedor,
+          chavePix: turma.chavePix,
+          totalPendente,
+          quantidadePedidos,
+          quantidadeFrutas,
+          detalhes,
+          dataCadastro: turma.dataCadastro,
+          observacoes: turma.observacoes,
+        };
+      });
+
+      // Ordenar por maior valor pendente primeiro
+      return pagamentosPendentes.sort((a, b) => b.totalPendente - a.totalPendente);
+
+    } catch (error) {
+      console.error('Erro ao buscar pagamentos pendentes:', error);
+      return [];
+    }
+  }
+
+  private async getPagamentosEfetuados(): Promise<any[]> {
+    try {
+      // Buscar todas as turmas com seus custos de colheita já pagos
+      const turmasComPagamentosEfetuados = await this.prisma.turmaColheita.findMany({
+        include: {
+          custosColheita: {
+            where: {
+              pagamentoEfetuado: true, // Apenas pagamentos efetuados
+              dataPagamento: {
+                not: null, // Garantir que tem data de pagamento
+              },
+            },
+            include: {
+              pedido: {
+                select: {
+                  numeroPedido: true,
+                  cliente: {
+                    select: {
+                      nome: true,
+                      razaoSocial: true,
+                    },
+                  },
+                },
+              },
+              fruta: {
+                select: {
+                  nome: true,
+                },
+              },
+            },
+            orderBy: {
+              dataPagamento: 'desc', // Mais recentes primeiro
+            },
+          },
+        },
+      });
+
+      // Filtrar apenas turmas que realmente têm pagamentos efetuados
+      const turmasComEfetuados = turmasComPagamentosEfetuados.filter(
+        turma => turma.custosColheita.length > 0
+      );
+
+      // Agrupar por colhedor e data de pagamento (para diferenciar de pendentes)
+      const pagamentosAgrupados = new Map<string, any>();
+
+      turmasComEfetuados.forEach(turma => {
+        turma.custosColheita.forEach(custo => {
+          const dataPagamento = custo.dataPagamento;
+          if (!dataPagamento) return; // Skip se dataPagamento for null
+
+          const chaveAgrupamento = `${turma.id}-${dataPagamento.toISOString().split('T')[0]}`; // colhedor + data
+
+          if (!pagamentosAgrupados.has(chaveAgrupamento)) {
+            pagamentosAgrupados.set(chaveAgrupamento, {
+              id: `${turma.id}-${dataPagamento.getTime()}`,
+              nomeColhedor: turma.nomeColhedor,
+              chavePix: turma.chavePix,
+              dataPagamento: dataPagamento,
+              totalPago: 0,
+              quantidadePedidos: new Set(),
+              quantidadeFrutas: new Set(),
+              detalhes: [],
+              observacoes: turma.observacoes,
+              dataCadastro: turma.dataCadastro,
+            });
+          }
+
+          const pagamento = pagamentosAgrupados.get(chaveAgrupamento);
+
+          // Acumular valores
+          pagamento.totalPago += custo.valorColheita || 0;
+          pagamento.quantidadePedidos.add(custo.pedidoId);
+          pagamento.quantidadeFrutas.add(custo.frutaId);
+
+          // Adicionar detalhes
+          pagamento.detalhes.push({
+            pedidoNumero: custo.pedido.numeroPedido,
+            cliente: custo.pedido.cliente.razaoSocial || custo.pedido.cliente.nome,
+            fruta: custo.fruta.nome,
+            quantidadeColhida: custo.quantidadeColhida,
+            unidadeMedida: custo.unidadeMedida,
+            valorColheita: custo.valorColheita || 0,
+            dataColheita: custo.dataColheita,
+            dataPagamento: custo.dataPagamento,
+            observacoes: custo.observacoes,
+          });
+        });
+      });
+
+      // Converter para array e ajustar contadores
+      const pagamentosEfetuados = Array.from(pagamentosAgrupados.values()).map(pagamento => ({
+        ...pagamento,
+        quantidadePedidos: pagamento.quantidadePedidos.size,
+        quantidadeFrutas: pagamento.quantidadeFrutas.size,
+      }));
+
+      // Ordenar por data de pagamento mais recente primeiro
+      return pagamentosEfetuados.sort((a, b) => b.dataPagamento.getTime() - a.dataPagamento.getTime());
+
+    } catch (error) {
+      console.error('Erro ao buscar pagamentos efetuados:', error);
+      return [];
+    }
   }
 }

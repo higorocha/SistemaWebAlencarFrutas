@@ -8,6 +8,7 @@ import {
   BarChartOutlined,
   CalculatorOutlined,
 } from "@ant-design/icons";
+import { intFormatter } from "../../utils/formatters";
 
 const { Text } = Typography;
 
@@ -36,7 +37,7 @@ const StatusCardsBanana = ({ stats = {} }) => {
                 Total de Registros
               </Text>
             }
-            value={totalControles}
+            value={intFormatter(totalControles)}
             prefix={<FileTextOutlined style={{ color: "#059669", fontSize: "16px" }} />}
             valueStyle={{ color: "#059669", fontSize: "18px", fontWeight: "600" }}
           />
@@ -52,7 +53,7 @@ const StatusCardsBanana = ({ stats = {} }) => {
                 Total de Fitas
               </Text>
             }
-            value={totalFitas}
+            value={intFormatter(totalFitas)}
             prefix={<BarChartOutlined style={{ color: "#1890ff", fontSize: "16px" }} />}
             valueStyle={{ color: "#1890ff", fontSize: "18px", fontWeight: "600" }}
           />
@@ -68,7 +69,7 @@ const StatusCardsBanana = ({ stats = {} }) => {
                 Áreas com Registros
               </Text>
             }
-            value={totalAreas}
+            value={intFormatter(totalAreas)}
             prefix={<EnvironmentOutlined style={{ color: "#52c41a", fontSize: "16px" }} />}
             valueStyle={{ color: "#52c41a", fontSize: "18px", fontWeight: "600" }}
           />

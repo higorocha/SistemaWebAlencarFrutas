@@ -58,6 +58,115 @@ export class PrevisaoBananaDto {
   status: string;
 }
 
+export class PagamentoPendenteDto {
+  @ApiProperty({ example: 1, description: 'ID da turma de colheita' })
+  id: number;
+
+  @ApiProperty({ example: 'João Silva', description: 'Nome do colhedor' })
+  nomeColhedor: string;
+
+  @ApiProperty({ example: 'joao@example.com', description: 'Chave PIX do colhedor' })
+  chavePix?: string;
+
+  @ApiProperty({ example: 2500.75, description: 'Valor total pendente de pagamento' })
+  totalPendente: number;
+
+  @ApiProperty({ example: 3, description: 'Quantidade de pedidos com pagamento pendente' })
+  quantidadePedidos: number;
+
+  @ApiProperty({ example: 2, description: 'Quantidade de frutas diferentes' })
+  quantidadeFrutas: number;
+
+  @ApiProperty({ example: '2024-01-15T10:30:00Z', description: 'Data de cadastro da turma' })
+  dataCadastro: string;
+
+  @ApiProperty({ example: 'Turma experiente', description: 'Observações sobre a turma' })
+  observacoes?: string;
+
+  @ApiProperty({
+    example: [
+      {
+        pedidoNumero: 'PED-2024-0001',
+        cliente: 'João Silva Ltda',
+        fruta: 'Banana Prata',
+        quantidadeColhida: 1500,
+        unidadeMedida: 'KG',
+        valorColheita: 750.50,
+        dataColheita: '2024-01-15T10:30:00Z',
+        observacoes: 'Colheita sem problemas'
+      }
+    ],
+    description: 'Detalhes dos custos de colheita pendentes'
+  })
+  detalhes: Array<{
+    pedidoNumero: string;
+    cliente: string;
+    fruta: string;
+    quantidadeColhida: number;
+    unidadeMedida: string;
+    valorColheita: number;
+    dataColheita?: string;
+    observacoes?: string;
+  }>;
+}
+
+export class PagamentoEfetuadoDto {
+  @ApiProperty({ example: '1-1642262400000', description: 'ID único do agrupamento (turma-timestamp)' })
+  id: string;
+
+  @ApiProperty({ example: 'João Silva', description: 'Nome do colhedor' })
+  nomeColhedor: string;
+
+  @ApiProperty({ example: 'joao@example.com', description: 'Chave PIX do colhedor' })
+  chavePix?: string;
+
+  @ApiProperty({ example: '2024-01-15T10:30:00Z', description: 'Data do pagamento' })
+  dataPagamento: string;
+
+  @ApiProperty({ example: 2500.75, description: 'Valor total pago' })
+  totalPago: number;
+
+  @ApiProperty({ example: 3, description: 'Quantidade de pedidos pagos' })
+  quantidadePedidos: number;
+
+  @ApiProperty({ example: 2, description: 'Quantidade de frutas diferentes' })
+  quantidadeFrutas: number;
+
+  @ApiProperty({ example: '2024-01-10T08:00:00Z', description: 'Data de cadastro da turma' })
+  dataCadastro: string;
+
+  @ApiProperty({ example: 'Turma experiente', description: 'Observações sobre a turma' })
+  observacoes?: string;
+
+  @ApiProperty({
+    example: [
+      {
+        pedidoNumero: 'PED-2024-0001',
+        cliente: 'João Silva Ltda',
+        fruta: 'Banana Prata',
+        quantidadeColhida: 1500,
+        unidadeMedida: 'KG',
+        valorColheita: 750.50,
+        dataColheita: '2024-01-10T10:30:00Z',
+        dataPagamento: '2024-01-15T10:30:00Z',
+        observacoes: 'Colheita sem problemas'
+      }
+    ],
+    description: 'Detalhes dos custos de colheita pagos'
+  })
+  detalhes: Array<{
+    pedidoNumero: string;
+    cliente: string;
+    fruta: string;
+    quantidadeColhida: number;
+    unidadeMedida: string;
+    valorColheita: number;
+    dataColheita?: string;
+    dataPagamento?: string;
+    observacoes?: string;
+  }>;
+}
+
 export class DashboardResponseDto {
   // Cards principais
   @ApiProperty({ example: 1245780.50, description: 'Faturamento total consolidado' })
@@ -91,4 +200,12 @@ export class DashboardResponseDto {
   // Nova seção: Previsões de Banana
   @ApiProperty({ type: [PrevisaoBananaDto], description: 'Previsões de colheita de banana por semana' })
   previsoesBanana: PrevisaoBananaDto[];
+
+  // Nova seção: Pagamentos Pendentes
+  @ApiProperty({ type: [PagamentoPendenteDto], description: 'Pagamentos pendentes por colheitador' })
+  pagamentosPendentes: PagamentoPendenteDto[];
+
+  // Nova seção: Pagamentos Efetuados
+  @ApiProperty({ type: [PagamentoEfetuadoDto], description: 'Pagamentos efetuados agrupados por colheitador e data' })
+  pagamentosEfetuados: PagamentoEfetuadoDto[];
 }

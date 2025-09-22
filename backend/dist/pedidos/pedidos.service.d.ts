@@ -15,7 +15,7 @@ export declare class PedidosService {
     private calcularValorRecebidoConsolidado;
     private atualizarStatusPagamento;
     create(createPedidoDto: CreatePedidoDto): Promise<PedidoResponseDto>;
-    findAll(page?: number, limit?: number, search?: string, searchType?: string, status?: string, clienteId?: number, dataInicio?: Date, dataFim?: Date): Promise<{
+    findAll(page?: number, limit?: number, search?: string, searchType?: string, status?: string, clienteId?: number, dataInicio?: Date, dataFim?: Date, filters?: string[]): Promise<{
         data: PedidoResponseDto[];
         total: number;
         page: number;

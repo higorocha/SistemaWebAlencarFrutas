@@ -8,6 +8,8 @@ import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { validarDocumento } from "../../utils/documentValidation";
 import FornecedorForm from "./FornecedorForm";
+import ConfirmCloseModal from "../common/modals/ConfirmCloseModal";
+import useConfirmClose from "../../hooks/useConfirmClose";
 
 const AddEditFornecedorDialog = ({
   open,
@@ -27,6 +29,31 @@ const AddEditFornecedorDialog = ({
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+
+  // Função customizada para verificar se há dados preenchidos no formulário de fornecedores
+  const customHasDataChecker = (data) => {
+    // Verifica campos básicos obrigatórios
+    const hasBasicData = data.nome?.trim() || 
+                        data.documento?.trim();
+    
+    // Verifica dados de contato
+    const hasContactData = data.telefone?.trim() || 
+                          data.email?.trim();
+    
+    // Verifica outros campos
+    const hasOtherData = data.endereco?.trim() || 
+                        data.observacoes?.trim();
+    
+    return hasBasicData || hasContactData || hasOtherData;
+  };
+
+  // Hook customizado para gerenciar confirmação de fechamento
+  const {
+    confirmCloseModal,
+    handleCloseAttempt,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useConfirmClose(fornecedorAtual, onClose, customHasDataChecker);
 
   // Preencher formulário quando fornecedor for selecionado para edição
   useEffect(() => {
@@ -119,7 +146,8 @@ const AddEditFornecedorDialog = ({
   };
 
   return (
-    <Modal
+    <>
+      <Modal
       title={
         <span style={{ 
           color: "#ffffff", 
@@ -136,7 +164,7 @@ const AddEditFornecedorDialog = ({
         </span>
       }
       open={open}
-      onCancel={handleCancelar}
+      onCancel={handleCloseAttempt}
       footer={null}
       width="90%"
       style={{ maxWidth: 1200 }}
@@ -176,7 +204,7 @@ const AddEditFornecedorDialog = ({
       >
         <Button
           icon={<CloseOutlined />}
-          onClick={handleCancelar}
+          onClick={handleCloseAttempt}
           disabled={loading || isSaving}
           size="large"
         >
@@ -197,6 +225,18 @@ const AddEditFornecedorDialog = ({
         </Button>
       </div>
     </Modal>
+
+    {/* Modal de confirmação para fechar sem salvar */}
+    <ConfirmCloseModal
+      open={confirmCloseModal}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+      title="Descartar Dados do Fornecedor?"
+      message="Você tem dados preenchidos no formulário de fornecedor que serão perdidos."
+      confirmText="Sim, Descartar"
+      cancelText="Continuar Editando"
+    />
+    </>
   );
 };
 

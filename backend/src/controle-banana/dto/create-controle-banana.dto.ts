@@ -23,6 +23,5 @@ export class CreateControleBananaDto {
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => value?.trim())
-  observacoes?: string;
+  observacoes?: string | null;
 }

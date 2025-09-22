@@ -61,9 +61,43 @@ export class ControleBananaService {
         throw new NotFoundException('Área agrícola não encontrada');
       }
 
+      // ✅ NOVA VALIDAÇÃO: Verificar se já existe registro da mesma fita na mesma área no mesmo dia
       const dataRegistro = createControleBananaDto.dataRegistro
         ? this.parseDataRegistro(createControleBananaDto.dataRegistro)
         : new Date();
+
+      // Criar range de data para o dia completo (00:00:00 até 23:59:59)
+      const inicioDia = new Date(dataRegistro);
+      inicioDia.setUTCHours(0, 0, 0, 0);
+      
+      const fimDia = new Date(dataRegistro);
+      fimDia.setUTCHours(23, 59, 59, 999);
+
+      const registroExistente = await this.prisma.controleBanana.findFirst({
+        where: {
+          fitaBananaId: createControleBananaDto.fitaBananaId,
+          areaAgricolaId: createControleBananaDto.areaAgricolaId,
+          dataRegistro: {
+            gte: inicioDia,
+            lte: fimDia
+          }
+        },
+        include: {
+          fitaBanana: {
+            select: {
+              nome: true,
+              corHex: true
+            }
+          }
+        }
+      });
+
+      if (registroExistente) {
+        throw new ConflictException(
+          `Não é possível cadastrar outro lote da fita "${registroExistente.fitaBanana.nome}" para a área "${area.nome}" no mesmo dia (${dataRegistro.toLocaleDateString('pt-BR')}). ` +
+          `Já existe um registro cadastrado hoje. Por favor, edite o lote existente ao invés de criar um novo.`
+        );
+      }
 
       // Criar o controle
       const controle = await this.prisma.controleBanana.create({
@@ -107,7 +141,7 @@ export class ControleBananaService {
 
       return controle;
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof ConflictException) {
         throw error;
       }
       throw new BadRequestException('Erro ao criar controle de banana');
@@ -272,7 +306,7 @@ export class ControleBananaService {
 
       return controleAtualizado;
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof ConflictException) {
         throw error;
       }
       throw new BadRequestException('Erro ao atualizar controle de banana');
@@ -305,7 +339,7 @@ export class ControleBananaService {
 
       return { message: 'Controle de banana excluído com sucesso' };
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof ConflictException) {
         throw error;
       }
       throw new BadRequestException('Erro ao excluir controle de banana');
@@ -755,7 +789,6 @@ export class ControleBananaService {
 
       return fitasComAreas;
     } catch (error) {
-      console.error('Erro ao buscar fitas com áreas:', error);
       throw new BadRequestException('Erro ao buscar fitas disponíveis');
     }
   }
@@ -805,7 +838,6 @@ export class ControleBananaService {
       }
     });
 
-    console.log(`✅ Subtraído ${quantidade} fitas do lote ${controleBananaId}. Restante: ${controle.quantidadeFitas - quantidade}`);
   }
 
   /**
@@ -845,7 +877,6 @@ export class ControleBananaService {
       }
     });
 
-    console.log(`✅ Adicionado ${quantidade} fitas de volta ao lote ${controleBananaId}. Total: ${controle.quantidadeFitas + quantidade}`);
   }
 
   /**

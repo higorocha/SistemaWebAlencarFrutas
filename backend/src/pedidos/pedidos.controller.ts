@@ -194,6 +194,7 @@ export class PedidosController {
   @ApiQuery({ name: 'clienteId', required: false, type: Number, description: 'Filtrar por cliente' })
   @ApiQuery({ name: 'dataInicio', required: false, type: String, description: 'Data início (ISO 8601)' })
   @ApiQuery({ name: 'dataFim', required: false, type: String, description: 'Data fim (ISO 8601)' })
+  @ApiQuery({ name: 'filters', required: false, type: [String], description: 'Filtros aninhados no formato tipo:valor (ex: cliente:João,vale:12345)' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Lista de pedidos retornada com sucesso',
@@ -219,6 +220,7 @@ export class PedidosController {
     @Query('clienteId') clienteId?: number,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @Query('filters') filters?: string[],
   ) {
     const dataInicioDate = dataInicio ? new Date(dataInicio) : undefined;
     const dataFimDate = dataFim ? new Date(dataFim) : undefined;
@@ -231,7 +233,8 @@ export class PedidosController {
       status,
       clienteId,
       dataInicioDate,
-      dataFimDate
+      dataFimDate,
+      filters
     );
   }
 

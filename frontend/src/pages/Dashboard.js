@@ -17,7 +17,8 @@ import {
   SyncOutlined,
   ReloadOutlined,
   CalendarOutlined,
-  ScheduleOutlined
+  ScheduleOutlined,
+  SwapOutlined
 } from "@ant-design/icons";
 import { styled } from "styled-components";
 import {
@@ -36,6 +37,7 @@ import {
 import axiosInstance from "../api/axiosConfig";
 import { useTheme } from '@mui/material/styles';
 import  CentralizedLoader  from "../components/common/loaders/CentralizedLoader";
+import PagamentosPendentesModal from "../components/dashboard/PagamentosPendentesModal";
 
 const { Title } = Typography;
 
@@ -95,9 +97,28 @@ const CardStyled = styled(Card)`
   }
 `;
 
+// Constantes para o toggle de pagamentos
+const PAGAMENTOS_MODOS = {
+  PENDENTES: 'pendentes',
+  EFETUADOS: 'efetuados'
+};
+
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [bananaPrevisoes, setBananaPrevisoes] = useState([]);
+  const [modoPagamentos, setModoPagamentos] = useState(PAGAMENTOS_MODOS.PENDENTES);
+  const [modalPagamentos, setModalPagamentos] = useState({
+    open: false,
+    turmaId: null,
+    turmaNome: null
+  });
+  
+  // Estados para controle de loading específico do toggle de pagamentos
+  const [loadingPagamentosEfetuados, setLoadingPagamentosEfetuados] = useState(false);
+  const [pagamentosEfetuadosCarregados, setPagamentosEfetuadosCarregados] = useState(false);
+  const [erroPagamentosEfetuados, setErroPagamentosEfetuados] = useState(null);
+  const [cacheTimestamp, setCacheTimestamp] = useState(null); // Timestamp do último carregamento
+  const [cacheCountdown, setCacheCountdown] = useState(0); // Contador regressivo do cache
   const [dashboardData, setDashboardData] = useState({
     // Cards principais
     faturamentoTotal: 1245780.50,
@@ -175,12 +196,11 @@ const Dashboard = () => {
       percentualColheita: 75
     },
 
-    // Turmas mais ativas
-    turmasAtivas: [
-      { nome: 'João Silva', pedidos: 8, valor: 12500.50 },
-      { nome: 'Maria Costa', pedidos: 5, valor: 8750.25 },
-      { nome: 'Pedro Souza', pedidos: 3, valor: 6200.75 }
-    ],
+    // Pagamentos pendentes
+    pagamentosPendentes: [],
+
+    // Pagamentos efetuados
+    pagamentosEfetuados: [],
 
     // Alertas
     alertas: {
@@ -213,6 +233,8 @@ const Dashboard = () => {
         pedidosAtivos: backendData.pedidosAtivos || 0,
         receitaMensal: backendData.receitaMensal || [],
         programacaoColheita: backendData.programacaoColheita || [],
+        pagamentosPendentes: backendData.pagamentosPendentes || [],
+        pagamentosEfetuados: backendData.pagamentosEfetuados || [],
 
         // Mock data para seções não implementadas (manter temporariamente)
         producaoBanana: {
@@ -221,11 +243,6 @@ const Dashboard = () => {
           proximasColheitas: 8,
           percentualColheita: 75
         },
-        turmasAtivas: [
-          { nome: 'João Silva', pedidos: 8, valor: 12500.50 },
-          { nome: 'Maria Costa', pedidos: 5, valor: 8750.25 },
-          { nome: 'Pedro Souza', pedidos: 3, valor: 6200.75 }
-        ],
         alertas: {
           pedidosParaColheita: 3,
           precificacoesPendentes: 2,
@@ -247,11 +264,110 @@ const Dashboard = () => {
     }
   };
 
-  // Removida a função fetchBananaPrevisoes - dados vêm agora do endpoint principal
+  // Função para abrir modal de pagamentos
+  const abrirModalPagamentos = (turmaId, turmaNome) => {
+    setModalPagamentos({
+      open: true,
+      turmaId,
+      turmaNome
+    });
+  };
+
+  // Função para fechar modal de pagamentos
+  const fecharModalPagamentos = (houvePagamentos = false) => {
+    setModalPagamentos({
+      open: false,
+      turmaId: null,
+      turmaNome: null
+    });
+    // Atualizar dashboard apenas se houve pagamentos processados
+    if (houvePagamentos) {
+      fetchDashboardData();
+      // Resetar flag de carregamento dos pagamentos efetuados para forçar reload
+      setPagamentosEfetuadosCarregados(false);
+      setCacheTimestamp(null); // Resetar cache para forçar nova requisição
+      setErroPagamentosEfetuados(null); // Limpar qualquer erro anterior
+    }
+  };
+
+  // Função para alternar entre pagamentos pendentes e efetuados
+  const toggleModoPagamentos = async () => {
+    // Evitar cliques múltiplos durante carregamento
+    if (loadingPagamentosEfetuados) {
+      return;
+    }
+    
+    const novoModo = modoPagamentos === PAGAMENTOS_MODOS.PENDENTES 
+      ? PAGAMENTOS_MODOS.EFETUADOS 
+      : PAGAMENTOS_MODOS.PENDENTES;
+    
+    // Verificar se cache ainda é válido (30 segundos)
+    const agora = Date.now();
+    const cacheValido = cacheTimestamp && (agora - cacheTimestamp) < 30000; // 30 segundos
+    
+    // Se mudando para efetuados e (não carregou OU cache expirou), buscar dados
+    if (novoModo === PAGAMENTOS_MODOS.EFETUADOS && (!pagamentosEfetuadosCarregados || !cacheValido)) {
+      setLoadingPagamentosEfetuados(true);
+      setErroPagamentosEfetuados(null); // Limpar erro anterior
+      
+      try {
+        const response = await axiosInstance.get('/api/turma-colheita/pagamentos-efetuados');
+        
+        setDashboardData(prev => ({
+          ...prev,
+          pagamentosEfetuados: response.data || []
+        }));
+        setPagamentosEfetuadosCarregados(true);
+        setCacheTimestamp(agora); // Salvar timestamp do carregamento
+      } catch (error) {
+        console.error('Erro ao carregar pagamentos efetuados:', error);
+        setErroPagamentosEfetuados('Erro ao carregar pagamentos efetuados. Tente novamente.');
+        // Em caso de erro, não muda o modo
+        setLoadingPagamentosEfetuados(false);
+        return;
+      }
+      
+      setLoadingPagamentosEfetuados(false);
+    }
+    
+    // Mudar o modo APÓS a requisição (se necessário)
+    setModoPagamentos(novoModo);
+  };
+
+  // Função auxiliar para verificar se está no modo pendentes
+  const isModoPendentes = modoPagamentos === PAGAMENTOS_MODOS.PENDENTES;
+
+  // Dados atuais baseados no modo selecionado
+  const dadosPagamentosAtuais = isModoPendentes 
+    ? dashboardData.pagamentosPendentes 
+    : dashboardData.pagamentosEfetuados;
+
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Timer para atualizar contador do cache
+  useEffect(() => {
+    if (!cacheTimestamp) {
+      setCacheCountdown(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const agora = Date.now();
+      const tempoRestante = Math.max(0, 30000 - (agora - cacheTimestamp));
+      setCacheCountdown(Math.floor(tempoRestante / 1000));
+    };
+
+    // Atualizar imediatamente
+    updateCountdown();
+
+    // Atualizar a cada segundo
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [cacheTimestamp]);
 
   if (loading) {
     return (
@@ -462,11 +578,19 @@ const Dashboard = () => {
             <Title level={4} style={{ color: '#2E7D32', marginBottom: '16px' }}>
               📅 Programação de Colheita
             </Title>
-            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              <List
-                itemLayout="horizontal"
-                dataSource={dashboardData.programacaoColheita}
-                renderItem={(item) => (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              height: '300px'
+            }}>
+              <div style={{ 
+                flex: 1, 
+                overflowY: 'auto'
+              }}>
+                <List
+                  itemLayout="horizontal"
+                  dataSource={dashboardData.programacaoColheita}
+                  renderItem={(item) => (
                   <List.Item style={{
                     padding: '12px 0',
                     borderBottom: '1px solid #f0f0f0',
@@ -569,25 +693,36 @@ const Dashboard = () => {
                       </Tag>
                     </div>
                   </List.Item>
-                )}
-              />
-            </div>
-            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography.Text style={{ fontSize: '11px', color: '#999' }}>
-                {dashboardData.programacaoColheita.length} colheitas programadas
-              </Typography.Text>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <div style={{ width: '8px', height: '8px', backgroundColor: '#f5222d', borderRadius: '50%' }}></div>
-                  <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Atrasados</Typography.Text>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <div style={{ width: '8px', height: '8px', backgroundColor: '#faad14', borderRadius: '50%' }}></div>
-                  <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Hoje</Typography.Text>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <div style={{ width: '8px', height: '8px', backgroundColor: '#52c41a', borderRadius: '50%' }}></div>
-                  <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Próximos</Typography.Text>
+                  )}
+                />
+              </div>
+              
+              {/* Footer fixo na base - sempre visível */}
+              <div style={{ 
+                marginTop: 'auto',
+                padding: '12px 0 0 0',
+                borderTop: '1px solid #f0f0f0',
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                flexShrink: 0
+              }}>
+                <Typography.Text style={{ fontSize: '11px', color: '#999' }}>
+                  {dashboardData.programacaoColheita.length} colheitas programadas
+                </Typography.Text>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ width: '8px', height: '8px', backgroundColor: '#f5222d', borderRadius: '50%' }}></div>
+                    <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Atrasados</Typography.Text>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ width: '8px', height: '8px', backgroundColor: '#faad14', borderRadius: '50%' }}></div>
+                    <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Hoje</Typography.Text>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ width: '8px', height: '8px', backgroundColor: '#52c41a', borderRadius: '50%' }}></div>
+                    <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Próximos</Typography.Text>
+                  </div>
                 </div>
               </div>
             </div>
@@ -780,39 +915,292 @@ const Dashboard = () => {
 
         <Col xs={24} lg={12}>
           <CardStyled>
-            <Title level={4} style={{ color: '#2E7D32', marginBottom: '16px' }}>
-              👥 Turmas de Colheita Mais Ativas
-            </Title>
-            <List
-              itemLayout="horizontal"
-              dataSource={dashboardData.turmasAtivas}
-              renderItem={(item, index) => (
-                <List.Item>
-                  <List.Item.Meta
-                    avatar={
-                      <Avatar
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Title level={4} style={{ color: '#2E7D32', margin: 0 }}>
+                  {isModoPendentes ? '💰 Pagamentos Pendentes' : '✅ Pagamentos Efetuados'}
+                </Title>
+                {!isModoPendentes && pagamentosEfetuadosCarregados && cacheTimestamp && cacheCountdown > 0 && (
+                  <span style={{ 
+                    fontSize: '10px', 
+                    color: cacheCountdown <= 5 ? '#ff4d4f' : '#8c8c8c',
+                    backgroundColor: cacheCountdown <= 5 ? '#fff2f0' : '#f6ffed',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    border: `1px solid ${cacheCountdown <= 5 ? '#ffccc7' : '#b7eb8f'}`,
+                    fontWeight: cacheCountdown <= 5 ? '600' : '400'
+                  }}>
+                    Cache: {cacheCountdown}s
+                  </span>
+                )}
+              </div>
+              <Button
+                type="text"
+                icon={loadingPagamentosEfetuados ? <SyncOutlined spin /> : <SwapOutlined />}
+                onClick={toggleModoPagamentos}
+                loading={loadingPagamentosEfetuados}
+                disabled={loadingPagamentosEfetuados}
+                style={{
+                  color: loadingPagamentosEfetuados ? '#8b8b8b' : '#059669',
+                  border: '1px solid ' + (loadingPagamentosEfetuados ? '#d9d9d9' : '#059669'),
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  height: 'auto',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  opacity: loadingPagamentosEfetuados ? 0.6 : 1
+                }}
+                title={loadingPagamentosEfetuados ? 'Carregando...' : `Alternar para ${isModoPendentes ? 'Efetuados' : 'Pendentes'}`}
+              >
+                {isModoPendentes ? 'Ver Efetuados' : 'Ver Pendentes'}
+              </Button>
+            </div>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              height: '300px',
+              position: 'relative'
+            }}>
+              <div style={{ 
+                flex: 1, 
+                overflowY: 'auto', 
+                minHeight: '200px'
+              }}>
+              {loadingPagamentosEfetuados ? (
+                <div style={{ 
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '16px',
+                  zIndex: 1000,
+                  borderRadius: '8px',
+                  padding: '32px',
+                  height: '100%'
+                }}>
+                  <SyncOutlined spin style={{ fontSize: '32px', color: '#059669' }} />
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: '#059669', fontSize: '16px', fontWeight: '500', marginBottom: '8px' }}>
+                      Carregando pagamentos efetuados...
+                    </div>
+                    <div style={{ color: '#8c8c8c', fontSize: '14px' }}>
+                      Cache válido por 30 segundos
+                    </div>
+                  </div>
+                </div>
+              ) : erroPagamentosEfetuados ? (
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  padding: '40px 20px',
+                  color: '#ff4d4f',
+                  textAlign: 'center'
+                }}>
+                  <WarningOutlined style={{ fontSize: '24px', marginBottom: '12px' }} />
+                  <span style={{ marginBottom: '12px' }}>{erroPagamentosEfetuados}</span>
+                  <Button 
+                    size="small" 
+                    onClick={() => {
+                      setErroPagamentosEfetuados(null);
+                      setPagamentosEfetuadosCarregados(false);
+                      toggleModoPagamentos();
+                    }}
+                    style={{ 
+                      color: '#059669', 
+                      borderColor: '#059669' 
+                    }}
+                  >
+                    Tentar Novamente
+                  </Button>
+                </div>
+              ) : dadosPagamentosAtuais && dadosPagamentosAtuais.length > 0 ? (
+                <List
+                  itemLayout="horizontal"
+                  dataSource={dadosPagamentosAtuais.slice(0, 5)} // Mostrar apenas os 5 primeiros
+                    renderItem={(item, index) => (
+                      <List.Item
                         style={{
-                          backgroundColor: ['#52c41a', '#1890ff', '#faad14'][index],
-                          color: 'white'
+                          padding: '12px 8px',
+                          borderBottom: '1px solid #f0f0f0',
+                          backgroundColor: isModoPendentes 
+                            ? (item.totalPendente > 1000 ? '#fff7e6' : 'transparent')
+                            : '#f6ffed',
+                          borderRadius: '6px',
+                          margin: '4px 0',
+                          cursor: isModoPendentes ? 'pointer' : 'default',
+                          transition: 'all 0.2s ease',
+                          minHeight: '72px',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                        onClick={isModoPendentes ? () => abrirModalPagamentos(item.id, item.nomeColhedor) : undefined}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0px)';
+                          e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
-                        {item.nome.split(' ').map(n => n[0]).join('')}
-                      </Avatar>
-                    }
-                    title={item.nome}
-                    description={`${item.pedidos} pedidos ativos`}
+                        <List.Item.Meta
+                          avatar={
+                            <Avatar
+                              style={{
+                                backgroundColor: isModoPendentes 
+                                  ? (item.totalPendente > 1000 ? '#fa8c16' :
+                                     item.totalPendente > 500 ? '#faad14' : '#52c41a')
+                                  : '#52c41a',
+                                color: 'white',
+                                fontSize: '14px',
+                                fontWeight: 'bold'
+                              }}
+                              size={40}
+                            >
+                              {item.nomeColhedor.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                            </Avatar>
+                          }
+                          title={
+                            <div style={{
+                              fontSize: '16px',
+                              fontWeight: '700',
+                              color: isModoPendentes 
+                                ? (item.totalPendente > 1000 ? '#d46b08' : '#333')
+                                : '#333',
+                              lineHeight: '1.3',
+                              marginBottom: '2px'
+                            }}>
+                              {item.nomeColhedor}
+                            </div>
+                          }
+                          description={
+                            <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.4' }}>
+                              <div style={{ marginBottom: '4px', fontWeight: '500' }}>
+                                📦 {item.quantidadePedidos} pedido{item.quantidadePedidos > 1 ? 's' : ''} •
+                                {item.quantidadeFrutas} fruta{item.quantidadeFrutas > 1 ? 's' : ''}
+                              </div>
+                              {!isModoPendentes && (
+                                <div style={{ fontSize: '12px', color: '#059669', fontWeight: '600' }}>
+                                  💰 Pago em: {new Date(item.dataPagamento).toLocaleDateString('pt-BR')}
+                                </div>
+                              )}
+                              {item.chavePix && (
+                                <div style={{ fontSize: '12px', color: '#666', fontFamily: 'monospace' }}>
+                                  PIX: {item.chavePix.length > 20 ?
+                                    `${item.chavePix.substring(0, 20)}...` :
+                                    item.chavePix
+                                  }
+                                </div>
+                              )}
+                            </div>
+                          }
+                        />
+                        <div style={{ textAlign: 'right', fontSize: '13px' }}>
+                          <div style={{
+                            color: isModoPendentes 
+                              ? (item.totalPendente > 1000 ? '#d46b08' :
+                                 item.totalPendente > 500 ? '#faad14' : '#52c41a')
+                              : '#52c41a',
+                            fontWeight: '700',
+                            marginBottom: '8px',
+                            fontSize: '16px',
+                            lineHeight: '1.2'
+                          }}>
+                            R$ {(isModoPendentes ? item.totalPendente : item.totalPago).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                          <Tag
+                            color={isModoPendentes 
+                              ? (item.totalPendente > 1000 ? 'orange' :
+                                 item.totalPendente > 500 ? 'gold' : 'green')
+                              : 'green'
+                            }
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              padding: '2px 8px',
+                              borderRadius: '4px'
+                            }}
+                          >
+                            {isModoPendentes 
+                              ? (item.totalPendente > 1000 ? 'ALTO' :
+                                 item.totalPendente > 500 ? 'MÉDIO' : 'BAIXO')
+                              : 'PAGO'
+                            }
+                          </Tag>
+                        </div>
+                      </List.Item>
+                    )}
                   />
-                  <div style={{ textAlign: 'right' }}>
-                    <Typography.Text strong style={{ color: '#52c41a' }}>
-                      R$ {item.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                ) : (
+                  <div style={{ padding: '40px 0', textAlign: 'center', color: '#8c8c8c' }}>
+                    <CheckCircleOutlined style={{ fontSize: '48px', marginBottom: '16px', color: '#52c41a' }} />
+                    <div>{isModoPendentes ? 'Nenhum pagamento pendente' : 'Nenhum pagamento efetuado'}</div>
+                    <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                      {isModoPendentes 
+                        ? 'Todos os colheitadores estão em dia'
+                        : 'Ainda não há registros de pagamentos realizados'
+                      }
                     </Typography.Text>
                   </div>
-                </List.Item>
+                )}
+              </div>
+              
+              {/* Footer fixo na base - sempre visível */}
+              {dadosPagamentosAtuais && dadosPagamentosAtuais.length > 0 && (
+                <div style={{ 
+                  marginTop: 'auto',
+                  padding: '12px 0 0 0',
+                  borderTop: '1px solid #f0f0f0',
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  flexShrink: 0
+                }}>
+                  <Typography.Text style={{ fontSize: '11px', color: '#999' }}>
+                    {isModoPendentes 
+                      ? `${dadosPagamentosAtuais.length} colheitador${dadosPagamentosAtuais.length > 1 ? 'es' : ''} com pagamento${dadosPagamentosAtuais.length > 1 ? 's' : ''} pendente${dadosPagamentosAtuais.length > 1 ? 's' : ''}`
+                      : `${dadosPagamentosAtuais.length} pagamento${dadosPagamentosAtuais.length > 1 ? 's' : ''} realizado${dadosPagamentosAtuais.length > 1 ? 's' : ''}`
+                    }
+                  </Typography.Text>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {isModoPendentes ? (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <div style={{ width: '8px', height: '8px', backgroundColor: '#fa8c16', borderRadius: '50%' }}></div>
+                          <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Alto</Typography.Text>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <div style={{ width: '8px', height: '8px', backgroundColor: '#faad14', borderRadius: '50%' }}></div>
+                          <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Médio</Typography.Text>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <div style={{ width: '8px', height: '8px', backgroundColor: '#52c41a', borderRadius: '50%' }}></div>
+                          <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Baixo</Typography.Text>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ width: '8px', height: '8px', backgroundColor: '#52c41a', borderRadius: '50%' }}></div>
+                        <Typography.Text style={{ fontSize: '10px', color: '#666' }}>Pagamentos concluídos</Typography.Text>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
-            />
-            <Button type="link" style={{ padding: 0, height: 'auto' }}>
-              Ver todas as turmas (12) →
-            </Button>
+            </div>
           </CardStyled>
         </Col>
       </Row>
@@ -895,6 +1283,14 @@ const Dashboard = () => {
           </CardStyled>
         </Col>
       </Row>
+
+      {/* Modal de Pagamentos Pendentes */}
+      <PagamentosPendentesModal
+        open={modalPagamentos.open}
+        onClose={fecharModalPagamentos}
+        turmaId={modalPagamentos.turmaId}
+        turmaNome={modalPagamentos.turmaNome}
+      />
     </div>
   );
 };

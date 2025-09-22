@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Form, Input, Select, InputNumber, DatePicker, Button, Row, Col, Card, Space } from 'antd';
 import axiosInstance from '../../api/axiosConfig';
 import dayjs from 'dayjs';
@@ -10,7 +10,7 @@ import './RegistrarFitaModal.css';
 const { TextArea } = Input;
 const { Option } = Select;
 
-const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onError }) => {
+const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [areas, setAreas] = useState([]);
@@ -39,46 +39,56 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onE
   };
 
   const handleSubmit = async (values) => {
-    // FECHAR MODAL IMEDIATAMENTE
-    onCancel();
-    
     try {
-      // Ativar loading na página pai
-      if (onLoadingChange) {
-        onLoadingChange(true, "Marcando fita...");
-      }
-      
+      // Ativar loading no próprio modal
+      setLoading(true);
+
       // Marcar controle com fita existente
       const controleData = {
         fitaBananaId: values.fitaBananaId,
         areaAgricolaId: values.areaAgricolaId,
         quantidadeFitas: values.quantidadeFitas,
         dataRegistro: values.dataRegistro?.format('YYYY-MM-DD'),
-        observacoes: values.observacoes
+        observacoes: values.observacoes || null
       };
-      
+
       await axiosInstance.post('/controle-banana', controleData);
-      
+
+      // Limpar apenas os campos do formulário, mantendo o modal aberto
+      form.resetFields();
+      form.setFieldsValue({
+        dataRegistro: dayjs(),
+        quantidadeFitas: 1
+      });
+
+      // Atualizar dados na página pai
       onSuccess();
-      
-      // Mostrar notificação após o loading
-      showNotification('success', 'Sucesso', 'Fita marcada com sucesso!');
+
+      // Mostrar notificação de sucesso
+      showNotification('success', 'Sucesso', 'Fita marcada com sucesso! O modal permanece aberto para novos registros.');
     } catch (error) {
-      console.error('Erro ao marcar fita:', error);
-      const mensagem = error.response?.data?.message || 'Falha ao marcar fita';
+      // Extrair mensagem de erro mais detalhada
+      let mensagem = 'Erro ao criar controle de banana';
+
+      if (error.response?.data?.message) {
+        mensagem = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        mensagem = error.response.data.error;
+      } else if (error.message) {
+        mensagem = error.message;
+      }
+
       showNotification('error', 'Erro', mensagem);
-      // REABRIR MODAL EM CASO DE ERRO
-      if (onError) {
-        onError();
-      }
     } finally {
-      // Desativar loading na página pai
-      if (onLoadingChange) {
-        onLoadingChange(false);
-      }
+      // Desativar loading no modal
+      setLoading(false);
     }
   };
 
+  // Função para cancelar
+  const handleCancel = () => {
+    onCancel();
+  };
 
   return (
     <Modal
@@ -98,7 +108,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onE
         </span>
       }
       open={visible}
-      onCancel={onCancel}
+      onCancel={handleCancel}
       footer={null}
       width="90%"
       style={{ maxWidth: 1200 }}
@@ -116,7 +126,6 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onE
         }
       }}
       centered
-      destroyOnClose
       zIndex={1050}
     >
       <Form
@@ -305,7 +314,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onE
         >
           <Button
             icon={<CloseOutlined />}
-            onClick={onCancel}
+            onClick={handleCancel}
             disabled={loading}
             size="large"
           >
@@ -315,13 +324,15 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess, onLoadingChange, onE
             type="primary"
             icon={<SaveOutlined />}
             htmlType="submit"
+            loading={loading}
+            disabled={loading}
             size="large"
             style={{
               backgroundColor: "#059669",
               borderColor: "#059669",
             }}
           >
-            Marcar Fita
+            {loading ? "Marcando..." : "Marcar Fita"}
           </Button>
         </div>
       </Form>

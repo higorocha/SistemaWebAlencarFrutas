@@ -67,6 +67,15 @@ let TurmaColheitaController = class TurmaColheitaController {
     getEstatisticas(id) {
         return this.turmaColheitaService.getEstatisticasPorTurma(+id);
     }
+    getPagamentosPendentes(id) {
+        return this.turmaColheitaService.getPagamentosPendentesDetalhado(+id);
+    }
+    getPagamentosEfetuados() {
+        return this.turmaColheitaService.getPagamentosEfetuadosAgrupados();
+    }
+    processarPagamentos(id, dadosPagamento) {
+        return this.turmaColheitaService.processarPagamentosSeletivos(+id, dadosPagamento);
+    }
     findOne(id) {
         return this.turmaColheitaService.findOne(+id);
     }
@@ -290,6 +299,58 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], TurmaColheitaController.prototype, "getEstatisticas", null);
+__decorate([
+    (0, common_1.Get)(':id/pagamentos-pendentes'),
+    (0, swagger_1.ApiOperation)({ summary: 'Buscar detalhamento de pagamentos pendentes de uma turma' }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Detalhamento de pagamentos pendentes retornado com sucesso',
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.NOT_FOUND,
+        description: 'Turma de colheita não encontrada',
+    }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], TurmaColheitaController.prototype, "getPagamentosPendentes", null);
+__decorate([
+    (0, common_1.Get)('pagamentos-efetuados'),
+    (0, swagger_1.ApiOperation)({ summary: 'Buscar todos os pagamentos efetuados agrupados por turma' }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Lista de pagamentos efetuados retornada com sucesso',
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.INTERNAL_SERVER_ERROR,
+        description: 'Erro interno do servidor',
+    }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], TurmaColheitaController.prototype, "getPagamentosEfetuados", null);
+__decorate([
+    (0, common_1.Patch)(':id/processar-pagamentos'),
+    (0, swagger_1.ApiOperation)({ summary: 'Processar pagamentos seletivos de uma turma' }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Pagamentos processados com sucesso',
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.NOT_FOUND,
+        description: 'Turma de colheita não encontrada',
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.BAD_REQUEST,
+        description: 'Dados inválidos para processamento',
+    }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], TurmaColheitaController.prototype, "processarPagamentos", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, swagger_1.ApiOperation)({ summary: 'Buscar uma turma de colheita por ID' }),

@@ -3,5 +3,5 @@ export declare class CreateControleBananaDto {
     areaAgricolaId: number;
     quantidadeFitas: number;
     dataRegistro?: string;
-    observacoes?: string;
+    observacoes?: string | null;
 }

@@ -54,8 +54,7 @@ const Pedidos = () => {
   const [loadingMessage, setLoadingMessage] = useState("Carregando...");
   
      // Estados para busca e filtros
-   const [searchTerm, setSearchTerm] = useState("");
-   const [searchType, setSearchType] = useState(""); // Tipo de busca selecionado
+   const [searchTerm, setSearchTerm] = useState(""); // ✅ Mantido para o input de busca
    const [appliedFilters, setAppliedFilters] = useState([]); // Filtros aplicados via sugestão
    const [statusFilter, setStatusFilter] = useState(""); // Valor vazio = "Todos"
    const [dateRange, setDateRange] = useState([]);
@@ -81,8 +80,19 @@ const Pedidos = () => {
     }
   }, []);
 
-  // Função para buscar pedidos da API
-  const fetchPedidos = useCallback(async (page = 1, limit = 20, search = "", searchType = "", status = "", dataInicio = null, dataFim = null) => {
+  // ✅ FUNÇÃO AUXILIAR: Criar objeto de filtros a partir de appliedFilters
+  const createFiltersObject = useCallback(() => {
+    const filters = {};
+    appliedFilters.forEach(filter => {
+      if (filter.type && filter.value) {
+        filters[filter.type] = filter.value;
+      }
+    });
+    return filters;
+  }, [appliedFilters]);
+
+  // ✅ FUNÇÃO ATUALIZADA: Buscar pedidos com suporte a filtros aninhados
+  const fetchPedidos = useCallback(async (page = 1, limit = 20, filters = {}, status = "", dataInicio = null, dataFim = null) => {
     try {
       setCentralizedLoading(true);
       setLoadingMessage("Carregando pedidos...");
@@ -91,11 +101,18 @@ const Pedidos = () => {
       
       if (page) params.append('page', page.toString());
       if (limit) params.append('limit', limit.toString());
-      if (search) params.append('search', search);
-      if (searchType) params.append('searchType', searchType);
       if (status) params.append('status', status);
       if (dataInicio) params.append('dataInicio', dataInicio);
       if (dataFim) params.append('dataFim', dataFim);
+
+      // ✅ ENVIAR FILTROS ANINHADOS PARA O BACKEND
+      if (Object.keys(filters).length > 0) {
+        Object.entries(filters).forEach(([type, value]) => {
+          if (value && value.trim()) {
+            params.append('filters', `${type}:${encodeURIComponent(value.trim())}`);
+          }
+        });
+      }
 
       const response = await axiosInstance.get(`/api/pedidos?${params.toString()}`);
 
@@ -137,21 +154,18 @@ const Pedidos = () => {
   // useEffect para carregar dados na inicialização
   useEffect(() => {
     fetchClientes();
-    // Carregar todos os pedidos na inicialização
-    fetchPedidos(1, pageSize, "", "", "", null, null);
+    // Carregar todos os pedidos na inicialização (sem filtros)
+    fetchPedidos(1, pageSize, {}, "", null, null);
   }, [fetchClientes, fetchPedidos, pageSize]);
 
+  // ✅ NOVA LÓGICA: Processar todos os filtros aninhados corretamente
   useEffect(() => {
     const dataInicio = dateRange[0] ? dateRange[0].toISOString() : null;
     const dataFim = dateRange[1] ? dateRange[1].toISOString() : null;
 
-    // Para múltiplos filtros, usar o primeiro como principal
-    const primaryFilter = appliedFilters.length > 0 ? appliedFilters[0] : null;
-    const search = primaryFilter ? primaryFilter.value : "";
-    const type = primaryFilter ? primaryFilter.type : "";
-
-    fetchPedidos(currentPage, pageSize, search, type, statusFilter, dataInicio, dataFim);
-  }, [fetchPedidos, currentPage, pageSize, appliedFilters, statusFilter, dateRange]);
+    // ✅ Usar função auxiliar para criar filtros aninhados
+    fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, dataInicio, dataFim);
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateRange]);
 
   // Funções de manipulação de filtros
   const handleSearch = useCallback((value) => {
@@ -189,6 +203,17 @@ const Pedidos = () => {
       icon: getFilterIcon(suggestion)
     };
 
+    // ✅ CORREÇÃO: Para tipos com ID, usar ID para filtro exato
+    if (suggestion.metadata?.id) {
+      if (suggestion.type === 'cliente') {
+        processedSuggestion.value = suggestion.metadata.id.toString();
+        processedSuggestion.displayValue = suggestion.value; // Manter nome para exibição
+      } else if (suggestion.type === 'numero') {
+        // Para número de pedido, usar o número mesmo (não o ID)
+        processedSuggestion.value = suggestion.value;
+      }
+    }
+
     setAppliedFilters(prev => [...prev, processedSuggestion]);
     setSearchTerm(""); // Limpar input para permitir novo filtro
     setCurrentPage(1);
@@ -204,10 +229,9 @@ const Pedidos = () => {
     setCurrentPage(1);
   }, []);
 
-     // Função para limpar filtros
+     // ✅ Função para limpar filtros
    const handleClearFilters = useCallback(() => {
      setSearchTerm("");
-     setSearchType("");
      setAppliedFilters([]);
      setStatusFilter(""); // Reset para "Todos"
      setDateRange([]);
@@ -258,7 +282,8 @@ const Pedidos = () => {
       }
       
       handleCloseModal();
-      await fetchPedidos(currentPage, pageSize, searchTerm, statusFilter);
+      // ✅ Usar função auxiliar para criar filtros
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
       
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);
@@ -268,7 +293,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, searchTerm, statusFilter, handleCloseModal]);
+  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, handleCloseModal]);
 
   // Função para atualizar colheita
   const handleSaveColheita = useCallback(async (colheitaData) => {
@@ -282,7 +307,8 @@ const Pedidos = () => {
       
       setColheitaModalOpen(false);
       setPedidoSelecionado(null);
-      await fetchPedidos(currentPage, pageSize, searchTerm, statusFilter);
+      // ✅ Usar função auxiliar para criar filtros
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
       
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
@@ -292,7 +318,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, searchTerm, statusFilter]);
+  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter]);
 
   // Função para atualizar precificação
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {
@@ -308,7 +334,8 @@ const Pedidos = () => {
       setPedidoSelecionado(null);
 
       setLoadingMessage("Atualizando lista de pedidos...");
-      await fetchPedidos(currentPage, pageSize, searchTerm, statusFilter);
+      // ✅ Usar função auxiliar para criar filtros
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
 
     } catch (error) {
       console.error("Erro ao definir precificação:", error);
@@ -318,7 +345,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, searchTerm, statusFilter]);
+  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter]);
 
   // Função para criar novo pagamento
   const handleNovoPagamento = useCallback(async (pagamentoData) => {
@@ -340,7 +367,8 @@ const Pedidos = () => {
 
       setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos
-      await fetchPedidos(currentPage, pageSize, searchTerm, statusFilter);
+      // ✅ Usar função auxiliar para criar filtros
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -357,7 +385,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [fetchPedidos, currentPage, pageSize, searchTerm, statusFilter, pedidoSelecionado]);
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, pedidoSelecionado]);
 
   // Função para remover pagamento
   const handleRemoverPagamento = useCallback(async (pagamentoId) => {
@@ -371,7 +399,8 @@ const Pedidos = () => {
 
       setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos
-      await fetchPedidos(currentPage, pageSize, searchTerm, statusFilter);
+      // ✅ Usar função auxiliar para criar filtros
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -388,7 +417,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [fetchPedidos, currentPage, pageSize, searchTerm, statusFilter, pedidoSelecionado]);
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, pedidoSelecionado]);
 
   return (
     <Box 
@@ -572,7 +601,7 @@ const Pedidos = () => {
                 }}
               >
                 <span style={{ fontSize: "14px" }}>{filter.icon}</span>
-                {filter.label}: {filter.value}
+                {filter.label}: {filter.displayValue || filter.value}
               </Tag>
             ))}
             {statusFilter && (

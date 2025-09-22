@@ -49,9 +49,11 @@ SistemaWebAlencarFrutas/
 - ⚠️ **IMPORTANTE:** Não executar builds automáticos - o usuário testa manualmente
 
 **Backend:**
-- `cd backend && npm run start:dev` - API com watch mode  
+- `cd backend && npm run start:dev` - API com watch mode
 - `npm run build` - Build de produção (verificar erros)
 - `npm run lint` - ESLint check
+
+⚠️ **IMPORTANTE:** NUNCA executar comandos `npm start` ou `npm run start:dev` automaticamente. O usuário gerencia a execução dos serviços.
 
 **Database (Prisma):**
 - `npx prisma generate` - Gerar cliente Prisma

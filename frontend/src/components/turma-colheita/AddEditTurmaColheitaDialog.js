@@ -7,6 +7,8 @@ import { SaveOutlined, CloseOutlined, GroupOutlined } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import TurmaColheitaForm from "./TurmaColheitaForm";
+import ConfirmCloseModal from "../common/modals/ConfirmCloseModal";
+import useConfirmClose from "../../hooks/useConfirmClose";
 
 const AddEditTurmaColheitaDialog = ({
   open,
@@ -23,6 +25,28 @@ const AddEditTurmaColheitaDialog = ({
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+
+  // Função customizada para verificar se há dados preenchidos no formulário de turma de colheita
+  const customHasDataChecker = (data) => {
+    // Verifica campos básicos obrigatórios
+    const hasBasicData = data.nomeColhedor?.trim();
+    
+    // Verifica dados de pagamento
+    const hasPaymentData = data.chavePix?.trim();
+    
+    // Verifica outros campos
+    const hasOtherData = data.observacoes?.trim();
+    
+    return hasBasicData || hasPaymentData || hasOtherData;
+  };
+
+  // Hook customizado para gerenciar confirmação de fechamento
+  const {
+    confirmCloseModal,
+    handleCloseAttempt,
+    handleConfirmClose,
+    handleCancelClose,
+  } = useConfirmClose(turmaAtual, onClose, customHasDataChecker);
 
   // Função para limpar a chave PIX antes de enviar ao backend
   const limparChavePixParaBackend = (chavePix) => {
@@ -138,7 +162,8 @@ const AddEditTurmaColheitaDialog = ({
   };
 
   return (
-    <Modal
+    <>
+      <Modal
       title={
         <span style={{
           color: "#ffffff",
@@ -155,7 +180,7 @@ const AddEditTurmaColheitaDialog = ({
         </span>
       }
       open={open}
-      onCancel={handleCancelar}
+      onCancel={handleCloseAttempt}
       footer={null}
       width={800}
       styles={{
@@ -194,7 +219,7 @@ const AddEditTurmaColheitaDialog = ({
         borderTop: "1px solid #f0f0f0"
       }}>
         <Button
-          onClick={handleCancelar}
+          onClick={handleCloseAttempt}
           disabled={isSaving}
           icon={<CloseOutlined />}
           size="large"
@@ -217,6 +242,18 @@ const AddEditTurmaColheitaDialog = ({
         </Button>
       </div>
     </Modal>
+
+    {/* Modal de confirmação para fechar sem salvar */}
+    <ConfirmCloseModal
+      open={confirmCloseModal}
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+      title="Descartar Dados da Turma de Colheita?"
+      message="Você tem dados preenchidos no formulário de turma de colheita que serão perdidos."
+      confirmText="Sim, Descartar"
+      cancelText="Continuar Editando"
+    />
+    </>
   );
 };
 
