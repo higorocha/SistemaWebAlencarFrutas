@@ -80,6 +80,7 @@ class FrutaPedidoResponseDto {
     valorUnitario;
     valorTotal;
     unidadePrecificada;
+    quantidadePrecificada;
     fitaColheita;
 }
 exports.FrutaPedidoResponseDto = FrutaPedidoResponseDto;
@@ -143,6 +144,10 @@ __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], required: false }),
     __metadata("design:type", String)
 ], FrutaPedidoResponseDto.prototype, "unidadePrecificada", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Quantidade real que será usada para precificação e relatórios', required: false }),
+    __metadata("design:type", Number)
+], FrutaPedidoResponseDto.prototype, "quantidadePrecificada", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Cor da fita para identificação', required: false }),
     __metadata("design:type", String)

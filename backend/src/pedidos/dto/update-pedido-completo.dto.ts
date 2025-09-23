@@ -170,6 +170,12 @@ export class UpdateFrutaPedidoDto {
   @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], { message: 'Unidade precificada deve ser KG, TON, CX, UND, ML ou LT' })
   unidadePrecificada?: UnidadeMedida;
 
+  @ApiPropertyOptional({ description: 'Quantidade real que será usada para precificação e relatórios' })
+  @IsOptional()
+  @IsNumber({}, { message: 'Quantidade precificada deve ser um número' })
+  @IsPositive({ message: 'Quantidade precificada deve ser positiva' })
+  quantidadePrecificada?: number;
+
   @ApiPropertyOptional({ description: 'Valor total da fruta (quantidade * valor unitário)' })
   @IsOptional()
   @IsNumber({}, { message: 'Valor total deve ser um número' })

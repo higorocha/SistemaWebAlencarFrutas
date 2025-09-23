@@ -1088,16 +1088,12 @@ let PedidosService = class PedidosService {
                     });
                 }
                 if (fruta.fitas && fruta.fitas.length > 0) {
-                    console.log(`🔍 Processando fitas para fruta ${fruta.frutaPedidoId}:`, JSON.stringify(fruta.fitas, null, 2));
                     await prisma.frutasPedidosFitas.deleteMany({
                         where: { frutaPedidoId: fruta.frutaPedidoId },
                     });
                     for (const fita of fruta.fitas) {
-                        console.log(`🔍 Processando fita ${fita.fitaBananaId} para fruta ${fruta.frutaPedidoId}:`, JSON.stringify(fita, null, 2));
                         if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
-                            console.log(`✅ Fita ${fita.fitaBananaId} tem detalhesAreas, criando registros...`);
                             for (const detalhe of fita.detalhesAreas) {
-                                console.log(`🔍 Processando detalhe:`, JSON.stringify(detalhe, null, 2));
                                 let controleBananaId = fita.controleBananaId;
                                 if (!controleBananaId) {
                                     const controle = await prisma.controleBanana.findFirst({
@@ -1114,7 +1110,6 @@ let PedidosService = class PedidosService {
                                         controleBananaId = controle.id;
                                     }
                                 }
-                                console.log(`🔍 ControleBananaId a usar:`, controleBananaId || 'NENHUM');
                                 if (controleBananaId) {
                                     const registroCriado = await prisma.frutasPedidosFitas.create({
                                         data: {
@@ -1125,7 +1120,6 @@ let PedidosService = class PedidosService {
                                             observacoes: fita.observacoes,
                                         },
                                     });
-                                    console.log(`✅ Registro criado:`, JSON.stringify(registroCriado, null, 2));
                                 }
                                 else {
                                     console.warn(`❌ Nenhum controleBananaId disponível para fita ${detalhe.fitaBananaId} na área ${detalhe.areaId}`);
@@ -1136,9 +1130,6 @@ let PedidosService = class PedidosService {
                             console.warn(`❌ Fita ${fita.fitaBananaId} sem detalhesAreas - não será processada`);
                         }
                     }
-                }
-                else {
-                    console.log(`ℹ️ Nenhuma fita informada para fruta ${fruta.frutaPedidoId}`);
                 }
             }
             return pedidoUpdated;
@@ -1214,6 +1205,7 @@ let PedidosService = class PedidosService {
                         valorUnitario: fruta.valorUnitario,
                         valorTotal: valores.valorTotal,
                         unidadePrecificada: unidadeEfetiva,
+                        quantidadePrecificada: fruta.quantidadePrecificada || quantidadeParaCalculo,
                     },
                 });
             }
@@ -1471,6 +1463,49 @@ let PedidosService = class PedidosService {
         if (existingPedido.status === 'PEDIDO_FINALIZADO' || existingPedido.status === 'CANCELADO') {
             throw new common_1.BadRequestException('Não é possível atualizar pedidos finalizados ou cancelados');
         }
+        if (updatePedidoCompletoDto.frutas && updatePedidoCompletoDto.frutas.length > 0) {
+            let novoValorTotalFrutas = 0;
+            for (const fruta of updatePedidoCompletoDto.frutas) {
+                if (fruta.frutaPedidoId) {
+                    const frutaAtual = await this.prisma.frutasPedidos.findUnique({
+                        where: { id: fruta.frutaPedidoId }
+                    });
+                    if (frutaAtual) {
+                        const valorUnitario = fruta.valorUnitario ?? frutaAtual.valorUnitario ?? 0;
+                        const quantidadeReal = fruta.quantidadeReal ?? frutaAtual.quantidadeReal ?? 0;
+                        const quantidadeReal2 = fruta.quantidadeReal2 ?? frutaAtual.quantidadeReal2 ?? 0;
+                        const unidadePrecificada = fruta.unidadePrecificada ?? frutaAtual.unidadePrecificada ?? frutaAtual.unidadeMedida1;
+                        let quantidadeParaCalculo = 0;
+                        const unidadeEfetiva = unidadePrecificada?.toString().trim().toUpperCase();
+                        const unidadeMedida1 = frutaAtual.unidadeMedida1?.toString().trim().toUpperCase();
+                        const unidadeMedida2 = frutaAtual.unidadeMedida2?.toString().trim().toUpperCase();
+                        if (unidadeEfetiva === unidadeMedida2) {
+                            quantidadeParaCalculo = quantidadeReal2;
+                        }
+                        else {
+                            quantidadeParaCalculo = quantidadeReal;
+                        }
+                        const valorTotalFruta = quantidadeParaCalculo * valorUnitario;
+                        novoValorTotalFrutas += valorTotalFruta;
+                    }
+                }
+            }
+            const frete = updatePedidoCompletoDto.frete ?? existingPedido.frete ?? 0;
+            const icms = updatePedidoCompletoDto.icms ?? existingPedido.icms ?? 0;
+            const desconto = updatePedidoCompletoDto.desconto ?? existingPedido.desconto ?? 0;
+            const avaria = updatePedidoCompletoDto.avaria ?? existingPedido.avaria ?? 0;
+            const novoValorFinal = novoValorTotalFrutas + frete + icms - desconto - avaria;
+            const valorJaRecebido = await this.calcularValorRecebidoConsolidado(id);
+            if (valorJaRecebido > novoValorFinal && valorJaRecebido > 0) {
+                const diferenca = valorJaRecebido - novoValorFinal;
+                const formatarValor = (valor) => {
+                    return valor.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                };
+                throw new common_1.BadRequestException(`Não é possível reduzir a precificação para R$ ${formatarValor(novoValorFinal)} pois já foram recebidos R$ ${formatarValor(valorJaRecebido)} em pagamentos. ` +
+                    `Isso resultaria em uma sobra de R$ ${formatarValor(diferenca)}. ` +
+                    `Para continuar, você deve primeiro editar ou remover pagamentos do pedido, deixando o valor recebido menor ou igual ao novo valor da precificação.`);
+            }
+        }
         const pedido = await this.prisma.$transaction(async (prisma) => {
             const pedidoAtualizado = await prisma.pedido.update({
                 where: { id },
@@ -1542,6 +1577,7 @@ let PedidosService = class PedidosService {
                                 unidadeMedida2: fruta.unidadeMedida2,
                                 valorUnitario: valorUnitarioEfetivo,
                                 unidadePrecificada: unidadeEfetiva,
+                                quantidadePrecificada: fruta.quantidadePrecificada || quantidadeParaCalculo,
                                 valorTotal: valorTotalCalculado,
                             },
                         });
@@ -1593,6 +1629,7 @@ let PedidosService = class PedidosService {
                                 unidadeMedida2: fruta.unidadeMedida2,
                                 valorUnitario: fruta.valorUnitario,
                                 unidadePrecificada: fruta.unidadePrecificada,
+                                quantidadePrecificada: fruta.quantidadePrecificada,
                             },
                         });
                         const frutaPedidoAtual = await prisma.frutasPedidos.findFirst({ where: { pedidoId: id, frutaId: fruta.frutaId } });

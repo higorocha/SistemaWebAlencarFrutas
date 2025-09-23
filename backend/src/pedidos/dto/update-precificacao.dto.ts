@@ -31,6 +31,15 @@ export class UpdatePrecificacaoFrutaDto {
   @IsOptional()
   @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'])
   unidadePrecificada?: UnidadeMedida;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade real que será usada para precificação e relatórios',
+    example: 1250.75,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  quantidadePrecificada?: number;
 }
 
 export class UpdatePrecificacaoDto {

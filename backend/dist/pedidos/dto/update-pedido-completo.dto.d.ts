@@ -29,6 +29,7 @@ export declare class UpdateFrutaPedidoDto {
     unidadeMedida2?: UnidadeMedida | null;
     valorUnitario?: number;
     unidadePrecificada?: UnidadeMedida;
+    quantidadePrecificada?: number;
     valorTotal?: number;
     areas?: UpdateCompletoAreaDto[];
     fitas?: UpdateCompletoFitaDto[];

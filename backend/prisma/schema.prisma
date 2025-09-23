@@ -485,6 +485,7 @@ model FrutasPedidos {
   valorUnitario         Float?
   valorTotal            Float?
   unidadePrecificada    UnidadeMedida?
+  quantidadePrecificada Float?           // Quantidade real para relatórios
   
   // Metadados
   createdAt             DateTime         @default(now())

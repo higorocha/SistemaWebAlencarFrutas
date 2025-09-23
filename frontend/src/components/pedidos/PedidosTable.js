@@ -391,7 +391,7 @@ const PedidosTable = ({
     {
       title: 'Quantidade',
       key: 'quantidade',
-      width: 140,
+      width: 120,
       align: 'left',
       render: (_, record) => {
         if (!record.frutasPedidos || record.frutasPedidos.length === 0) {
@@ -495,7 +495,7 @@ const PedidosTable = ({
     {
       title: 'Ações',
       key: 'actions',
-      width: 90,
+      width: 120,
       align: 'center',
       render: (_, record) => (
         <Space size="small">

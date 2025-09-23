@@ -592,13 +592,13 @@ const ColheitaTab = ({
               <Col xs={24} md={temBanana ? 4 : 5}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <CalculatorOutlined style={{ marginRight: 8 }} />
-                  Real
+                  Colhida
                 </span>
               </Col>
               <Col xs={24} md={temBanana ? 4 : 5}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <CalculatorOutlined style={{ marginRight: 8 }} />
-                  Real 2
+                  Colhida 2
                 </span>
               </Col>
               <Col xs={24} md={temBanana ? 5 : 4}>

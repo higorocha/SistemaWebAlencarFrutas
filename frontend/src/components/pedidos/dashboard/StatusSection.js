@@ -74,7 +74,7 @@ const StatusSection = ({
           borderRadius: "8px",
           border: `1px solid ${color}`,
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-          height: "520px", // ✅ Altura fixa
+          height: "520px", // ✅ Altura fixa (será sobrescrita em mobile pelo CSS)
           display: "flex",
           flexDirection: "column",
         }}

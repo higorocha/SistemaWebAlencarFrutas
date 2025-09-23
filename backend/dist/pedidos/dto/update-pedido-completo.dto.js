@@ -150,6 +150,7 @@ class UpdateFrutaPedidoDto {
     unidadeMedida2;
     valorUnitario;
     unidadePrecificada;
+    quantidadePrecificada;
     valorTotal;
     areas;
     fitas;
@@ -214,6 +215,13 @@ __decorate([
     (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], { message: 'Unidade precificada deve ser KG, TON, CX, UND, ML ou LT' }),
     __metadata("design:type", String)
 ], UpdateFrutaPedidoDto.prototype, "unidadePrecificada", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Quantidade real que será usada para precificação e relatórios' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)({}, { message: 'Quantidade precificada deve ser um número' }),
+    (0, class_validator_1.IsPositive)({ message: 'Quantidade precificada deve ser positiva' }),
+    __metadata("design:type", Number)
+], UpdateFrutaPedidoDto.prototype, "quantidadePrecificada", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ description: 'Valor total da fruta (quantidade * valor unitário)' }),
     (0, class_validator_1.IsOptional)(),

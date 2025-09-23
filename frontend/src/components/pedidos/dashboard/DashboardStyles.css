@@ -58,11 +58,10 @@
 }
 
 .pedido-numero {
-  min-width: 110px;
+  min-width: 120px;
   min-height: 40px; /* Altura mínima para acomodar número + valor */
   justify-content: flex-start;
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 0 0 auto; /* Não encolhe, mantém tamanho fixo */
 }
 
 /* Cabeçalho das colunas - centralizado verticalmente */
@@ -156,8 +155,8 @@
   }
   
   .pedido-numero {
-    min-width: 100px;
-    flex: 1 1 100px;
+    min-width: 120px;
+    flex: 0 0 auto; /* Não encolhe em tablets */
   }
   
   .pedido-frutas {
@@ -185,8 +184,8 @@
   
   /* Cabeçalho responsivo - mantém flex mas com larguras mínimas */
   .pedido-card-content .pedido-numero {
-    flex: 1 1 100px;
-    min-width: 100px;
+    flex: 0 0 auto;
+    min-width: 120px;
   }
   
   .pedido-card-content .pedido-cliente {
@@ -229,88 +228,130 @@
     margin-bottom: 8px;
   }
   
+  /* Ocultar cabeçalho da tabela em mobile */
+  .cabecalho-dashboard {
+    display: none !important; /* ✅ Remove o cabeçalho em mobile */
+  }
+  
   /* Cards de pedidos empilhados verticalmente em mobile */
   .pedido-card-content {
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 8px !important;
+    gap: 12px !important;
     min-height: auto;
   }
   
+  /* Layout vertical para informações do pedido em mobile */
   .pedido-info-container {
-    flex-direction: row !important;
-    justify-content: space-between !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
     flex-wrap: nowrap !important;
-    overflow-x: auto;
-    gap: 6px;
+    overflow: visible !important;
+    gap: 8px;
+    width: 100%;
   }
   
-  .pedido-action-button {
-    align-self: flex-end !important;
-    margin-top: 8px;
+  /* Elementos internos em layout vertical */
+  .pedido-info-item,
+  .pedido-frutas {
+    flex: none !important;
+    min-width: auto !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 4px 0;
+    border-bottom: 1px solid #f0f0f0;
   }
   
-  /* Ajustar tamanhos dos elementos em mobile */
-  .pedido-numero {
+  .pedido-info-item:last-child,
+  .pedido-frutas:last-child {
+    border-bottom: none;
+  }
+  
+  /* Labels para cada linha em mobile */
+  .pedido-info-item::before,
+  .pedido-frutas::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #666;
     min-width: 80px;
     font-size: 12px;
-    flex: 1 1 80px;
+    margin-right: 8px;
+    flex-shrink: 0;
   }
   
-  .pedido-frutas {
-    min-width: 60px;
-    flex: 1 1 60px;
+  .pedido-numero::before {
+    content: "Pedido:";
   }
   
-  .pedido-cliente {
-    min-width: 80px;
-    font-size: 11px;
-    flex: 1 1 80px;
+  .pedido-cliente::before {
+    content: "Cliente:";
   }
   
+  .pedido-frutas::before {
+    content: "Frutas:";
+  }
+  
+  .pedido-data::before {
+    content: "Data:";
+  }
+  
+  /* Corrigir ícone da data em mobile */
+  .pedido-data .anticon {
+    margin-left: 0 !important; /* ✅ Remove margin negativo em mobile */
+    margin-right: 4px !important; /* ✅ Adiciona espaçamento correto */
+  }
+  
+  /* Corrigir alinhamento do label Data */
   .pedido-data {
-    min-width: 50px;
-    font-size: 10px;
-    flex: 1 1 50px;
+    text-align: left !important; /* ✅ Força alinhamento à esquerda */
+    justify-content: flex-start !important; /* ✅ Remove centralização */
   }
   
   .pedido-action-button {
-    flex: 0 0 40px;
+    align-self: stretch !important;
+    margin-top: 8px;
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
   }
   
-  .pedido-valor {
-    min-width: 60px;
-    font-size: 11px;
+  .pedido-action-button .ant-btn {
+    width: 100% !important;
+    max-width: 120px !important;
   }
   
-  /* Cabeçalho responsivo para mobile */
-  .pedido-card-content .pedido-numero {
-    flex: 1 1 80px;
-    min-width: 80px;
-    font-size: 10px;
+  /* Mostrar texto + ícone nos botões em mobile */
+  .pedido-action-button .ant-btn .anticon {
+    margin-right: 6px !important; /* ✅ Espaço entre ícone e texto */
   }
   
-  .pedido-card-content .pedido-cliente {
-    flex: 1 1 80px;
-    min-width: 80px;
-    font-size: 10px;
+  /* Garantir que o texto do botão seja visível em mobile */
+  .pedido-action-button .ant-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
   }
   
-  .pedido-card-content .pedido-frutas {
-    flex: 1 1 50px;
-    min-width: 50px;
-    font-size: 10px;
+  /* Mostrar texto dos botões em mobile */
+  .button-text-mobile {
+    display: inline !important; /* ✅ Mostra texto em mobile */
+    margin-left: 6px;
+    font-size: 12px;
+    font-weight: 500;
   }
   
-  .pedido-card-content .pedido-data {
-    flex: 1 1 50px;
-    min-width: 50px;
-    font-size: 10px;
-  }
-  
-  .pedido-card-content .pedido-action-button {
-    flex: 0 0 40px;
-    font-size: 10px;
+  /* Remover regras conflitantes - layout vertical em mobile */
+  .pedido-numero,
+  .pedido-frutas,
+  .pedido-cliente,
+  .pedido-data,
+  .pedido-action-button {
+    min-width: auto !important;
+    flex: none !important;
+    font-size: 13px;
   }
   
   /* Seções com padding reduzido */
@@ -331,28 +372,66 @@
     padding: 4px;
   }
   
+  /* Container das seções ainda mais compacto */
+  .status-sections-container {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  
+  /* Cabeçalho também oculto em mobile muito pequeno */
+  .cabecalho-dashboard {
+    display: none !important;
+  }
+  
+  /* Seções ainda menores para mobile muito pequeno */
+  .status-section-scroll {
+    height: 200px !important; /* ✅ Altura ainda menor */
+  }
+  
   .pedido-info-container {
-    gap: 4px;
+    gap: 6px;
   }
   
-  .pedido-numero {
-    min-width: 70px;
-  }
-  
+  /* Layout vertical mantido para mobile muito pequeno */
+  .pedido-info-item,
   .pedido-frutas {
-    min-width: 50px;
+    font-size: 12px;
+    padding: 3px 0;
   }
   
-  .pedido-cliente {
+  .pedido-info-item::before,
+  .pedido-frutas::before {
     min-width: 70px;
+    font-size: 11px;
   }
   
+  /* Corrigir ícone da data em mobile muito pequeno */
+  .pedido-data .anticon {
+    margin-left: 0 !important;
+    margin-right: 3px !important;
+  }
+  
+  /* Corrigir alinhamento do label Data em mobile pequeno */
   .pedido-data {
-    min-width: 45px;
+    text-align: left !important;
+    justify-content: flex-start !important;
   }
   
-  .pedido-valor {
-    min-width: 55px;
+  /* Botões com texto em mobile pequeno */
+  .pedido-action-button .ant-btn .anticon {
+    margin-right: 4px !important;
+  }
+  
+  /* Texto dos botões em mobile pequeno */
+  .button-text-mobile {
+    display: inline !important;
+    margin-left: 4px;
+    font-size: 11px;
+  }
+  
+  .pedido-action-button .ant-btn {
+    max-width: 100px !important;
+    height: 32px !important;
   }
 }
 
@@ -380,6 +459,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Ocultar texto dos botões em desktop */
+.button-text-mobile {
+  display: none !important;
 }
 
 /* Estilos para scroll customizado nas seções de status */
@@ -483,6 +567,26 @@
 
 /* Seções colapsáveis em mobile se necessário */
 @media (max-width: 576px) {
+  /* Container das seções em mobile - altura automática para mostrar todas */
+  .status-sections-container {
+    height: auto !important; /* ✅ Altura automática para mostrar todas as seções */
+    overflow: visible !important; /* ✅ Permite scroll vertical da página */
+  }
+  
+  /* Altura das seções em mobile - reduzida para caber 3 seções */
+  .status-section-scroll {
+    height: 250px !important; /* ✅ Altura reduzida para mobile */
+  }
+  
+  /* Cards das seções com altura menor em mobile */
+  .ant-card {
+    height: auto !important; /* ✅ Altura automática */
+  }
+  
+  .ant-card .ant-card-body {
+    height: auto !important; /* ✅ Altura automática do body */
+  }
+  
   .ant-card-head {
     padding: 12px 16px !important;
   }

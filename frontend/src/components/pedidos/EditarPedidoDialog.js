@@ -114,21 +114,21 @@ const EditarPedidoDialog = ({
   // Função para calcular valores automaticamente
   const calcularValores = (frete = 0, icms = 0, desconto = 0, avaria = 0) => {
     const valorTotalFrutas = pedidoAtual.frutas.reduce((total, fruta) => {
-      // Determinar qual quantidade usar baseado na unidade de precificação selecionada
-      let quantidadeParaCalculo = 0;
-      
-      if (fruta.unidadePrecificada === fruta.unidadeMedida1) {
-        quantidadeParaCalculo = fruta.quantidadeReal || 0;
-      } else if (fruta.unidadePrecificada === fruta.unidadeMedida2) {
-        quantidadeParaCalculo = fruta.quantidadeReal2 || 0;
-      } else {
-        // Fallback para primeira unidade se não houver unidade selecionada
-        quantidadeParaCalculo = fruta.quantidadeReal || 0;
-      }
-      
+      // Usar quantidadePrecificada se disponível, senão usar lógica anterior
+      const quantidadeParaCalculo = fruta.quantidadePrecificada || (() => {
+        if (fruta.unidadePrecificada === fruta.unidadeMedida1) {
+          return fruta.quantidadeReal || 0;
+        } else if (fruta.unidadePrecificada === fruta.unidadeMedida2) {
+          return fruta.quantidadeReal2 || 0;
+        } else {
+          // Fallback para primeira unidade se não houver unidade selecionada
+          return fruta.quantidadeReal || 0;
+        }
+      })();
+
       const valorUnit = fruta.valorUnitario || 0;
       const valorTotalFruta = quantidadeParaCalculo * valorUnit;
-      
+
       return total + valorTotalFruta;
     }, 0);
 
@@ -188,6 +188,7 @@ const EditarPedidoDialog = ({
         // Dados de precificação
         valorUnitario: fruta.valorUnitario || 0,
         unidadePrecificada: fruta.unidadePrecificada || fruta.unidadeMedida1,
+        quantidadePrecificada: fruta.quantidadePrecificada || fruta.quantidadeReal || 0,
         valorTotal: fruta.valorTotal || 0,
       };
     }) || [];
@@ -769,6 +770,7 @@ const EditarPedidoDialog = ({
             Object.assign(frutaData, {
               valorUnitario: fruta.valorUnitario,
               unidadePrecificada: fruta.unidadePrecificada,
+              quantidadePrecificada: fruta.quantidadePrecificada,
               valorTotal: fruta.valorTotal,
             });
           }
@@ -970,8 +972,6 @@ const EditarPedidoDialog = ({
             setErros={setErros}
             canEditTab={canEditTab}
             frutas={frutas}
-            areasProprias={areasProprias}
-            areasFornecedores={areasFornecedores}
             valoresCalculados={valoresCalculados}
             setValoresCalculados={setValoresCalculados}
             onSave={handleSalvarPedido}

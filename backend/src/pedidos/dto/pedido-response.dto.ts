@@ -93,6 +93,9 @@ export class FrutaPedidoResponseDto {
   @ApiProperty({ description: 'Unidade precificada', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], required: false })
   unidadePrecificada?: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
 
+  @ApiProperty({ description: 'Quantidade real que será usada para precificação e relatórios', required: false })
+  quantidadePrecificada?: number;
+
   @ApiProperty({ description: 'Cor da fita para identificação', required: false })
   fitaColheita?: string;
 }

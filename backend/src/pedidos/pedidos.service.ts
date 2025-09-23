@@ -1293,7 +1293,6 @@ export class PedidosService {
 
         // Gerenciar fitas da fruta (se informadas)
         if (fruta.fitas && fruta.fitas.length > 0) {
-          console.log(`🔍 Processando fitas para fruta ${fruta.frutaPedidoId}:`, JSON.stringify(fruta.fitas, null, 2));
           
           // IMPORTANTE: Deletar todas as fitas antigas primeiro
           await prisma.frutasPedidosFitas.deleteMany({
@@ -1302,14 +1301,11 @@ export class PedidosService {
 
           // Processar cada fita com seus detalhes de área
           for (const fita of fruta.fitas) {
-            console.log(`🔍 Processando fita ${fita.fitaBananaId} para fruta ${fruta.frutaPedidoId}:`, JSON.stringify(fita, null, 2));
             
             if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
-              console.log(`✅ Fita ${fita.fitaBananaId} tem detalhesAreas, criando registros...`);
               
               // Para cada área, criar um registro específico com controleBananaId
               for (const detalhe of fita.detalhesAreas) {
-                console.log(`🔍 Processando detalhe:`, JSON.stringify(detalhe, null, 2));
                 
                 // NOVA LÓGICA: Usar controleBananaId diretamente se disponível
                 let controleBananaId = fita.controleBananaId;
@@ -1332,8 +1328,6 @@ export class PedidosService {
                   }
                 }
 
-                console.log(`🔍 ControleBananaId a usar:`, controleBananaId || 'NENHUM');
-
                 if (controleBananaId) {
                   const registroCriado = await prisma.frutasPedidosFitas.create({
                     data: {
@@ -1344,7 +1338,6 @@ export class PedidosService {
                       observacoes: fita.observacoes,
                     },
                   });
-                  console.log(`✅ Registro criado:`, JSON.stringify(registroCriado, null, 2));
                 } else {
                   console.warn(`❌ Nenhum controleBananaId disponível para fita ${detalhe.fitaBananaId} na área ${detalhe.areaId}`);
                 }
@@ -1353,8 +1346,6 @@ export class PedidosService {
               console.warn(`❌ Fita ${fita.fitaBananaId} sem detalhesAreas - não será processada`);
             }
           }
-        } else {
-          console.log(`ℹ️ Nenhuma fita informada para fruta ${fruta.frutaPedidoId}`);
         }
       }
 
@@ -1458,6 +1449,7 @@ export class PedidosService {
             valorUnitario: fruta.valorUnitario,
             valorTotal: valores.valorTotal,
             unidadePrecificada: unidadeEfetiva as any,
+            quantidadePrecificada: fruta.quantidadePrecificada || quantidadeParaCalculo,
           },
         });
       }
@@ -1807,6 +1799,70 @@ export class PedidosService {
       throw new BadRequestException('Não é possível atualizar pedidos finalizados ou cancelados');
     }
 
+    // ✅ NOVA VALIDAÇÃO: Verificar se há pagamentos que impedem redução da precificação
+    if (updatePedidoCompletoDto.frutas && updatePedidoCompletoDto.frutas.length > 0) {
+      // Calcular novo valor final do pedido
+      let novoValorTotalFrutas = 0;
+      
+      for (const fruta of updatePedidoCompletoDto.frutas) {
+        if (fruta.frutaPedidoId) {
+          // Buscar dados atuais da fruta para calcular novo valor
+          const frutaAtual = await this.prisma.frutasPedidos.findUnique({ 
+            where: { id: fruta.frutaPedidoId } 
+          });
+          
+          if (frutaAtual) {
+            // Usar valores atualizados ou manter os existentes
+            const valorUnitario = fruta.valorUnitario ?? frutaAtual.valorUnitario ?? 0;
+            const quantidadeReal = fruta.quantidadeReal ?? frutaAtual.quantidadeReal ?? 0;
+            const quantidadeReal2 = fruta.quantidadeReal2 ?? frutaAtual.quantidadeReal2 ?? 0;
+            const unidadePrecificada = fruta.unidadePrecificada ?? frutaAtual.unidadePrecificada ?? frutaAtual.unidadeMedida1;
+            
+            // Determinar quantidade para cálculo baseada na unidade precificada
+            let quantidadeParaCalculo = 0;
+            const unidadeEfetiva = unidadePrecificada?.toString().trim().toUpperCase();
+            const unidadeMedida1 = frutaAtual.unidadeMedida1?.toString().trim().toUpperCase();
+            const unidadeMedida2 = frutaAtual.unidadeMedida2?.toString().trim().toUpperCase();
+            
+            if (unidadeEfetiva === unidadeMedida2) {
+              quantidadeParaCalculo = quantidadeReal2;
+            } else {
+              quantidadeParaCalculo = quantidadeReal;
+            }
+            
+            const valorTotalFruta = quantidadeParaCalculo * valorUnitario;
+            novoValorTotalFrutas += valorTotalFruta;
+          }
+        }
+      }
+      
+      // Calcular novo valor final considerando frete, ICMS, desconto e avaria
+      const frete = updatePedidoCompletoDto.frete ?? existingPedido.frete ?? 0;
+      const icms = updatePedidoCompletoDto.icms ?? existingPedido.icms ?? 0;
+      const desconto = updatePedidoCompletoDto.desconto ?? existingPedido.desconto ?? 0;
+      const avaria = updatePedidoCompletoDto.avaria ?? existingPedido.avaria ?? 0;
+      
+      const novoValorFinal = novoValorTotalFrutas + frete + icms - desconto - avaria;
+      
+      // Verificar valor já recebido em pagamentos
+      const valorJaRecebido = await this.calcularValorRecebidoConsolidado(id);
+      
+      // Se valor recebido > novo valor final, impedir a operação
+      if (valorJaRecebido > novoValorFinal && valorJaRecebido > 0) {
+        const diferenca = valorJaRecebido - novoValorFinal;
+        // Formatar valores no padrão brasileiro (ponto para milhar, vírgula para decimal)
+        const formatarValor = (valor: number): string => {
+          return valor.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        };
+
+        throw new BadRequestException(
+          `Não é possível reduzir a precificação para R$ ${formatarValor(novoValorFinal)} pois já foram recebidos R$ ${formatarValor(valorJaRecebido)} em pagamentos. ` +
+          `Isso resultaria em uma sobra de R$ ${formatarValor(diferenca)}. ` +
+          `Para continuar, você deve primeiro editar ou remover pagamentos do pedido, deixando o valor recebido menor ou igual ao novo valor da precificação.`
+        );
+      }
+    }
+
     // Atualizar pedido em uma transação
     const pedido = await this.prisma.$transaction(async (prisma) => {
       // Atualizar dados básicos do pedido
@@ -1894,6 +1950,7 @@ export class PedidosService {
                 unidadeMedida2: fruta.unidadeMedida2,
                 valorUnitario: valorUnitarioEfetivo,
                 unidadePrecificada: unidadeEfetiva as any,
+                quantidadePrecificada: fruta.quantidadePrecificada || quantidadeParaCalculo,
                 valorTotal: valorTotalCalculado,
                 // fitaColheita removido - agora está em FrutasPedidosFitas
               },
@@ -1961,6 +2018,7 @@ export class PedidosService {
                 unidadeMedida2: fruta.unidadeMedida2,
                 valorUnitario: fruta.valorUnitario,
                 unidadePrecificada: fruta.unidadePrecificada,
+                quantidadePrecificada: fruta.quantidadePrecificada,
                 // fitaColheita removido - agora está em FrutasPedidosFitas
               },
             });

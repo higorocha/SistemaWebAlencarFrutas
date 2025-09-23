@@ -16,7 +16,7 @@ import {
   Tooltip
 } from "antd";
 import PropTypes from "prop-types";
-import { 
+import {
   EyeOutlined,
   UserOutlined,
   CalendarOutlined,
@@ -37,8 +37,92 @@ import { PDFButton } from "../common/buttons";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
+import styled from "styled-components";
 
 const { Title, Text, Paragraph } = Typography;
+
+// Styled components para tabela com tema personalizado (copiado do PagamentoModal)
+const StyledTable = styled(Table)`
+  .ant-table-thead > tr > th {
+    background-color: #059669 !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    padding: 16px;
+    font-size: 14px;
+  }
+
+  .ant-table-tbody > tr:nth-child(even) {
+    background-color: #fafafa;
+  }
+
+  .ant-table-tbody > tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+
+  .ant-table-tbody > tr:hover {
+    background-color: #e6f7ff !important;
+    cursor: pointer;
+  }
+
+  .ant-table-tbody > tr.ant-table-row-selected {
+    background-color: #d1fae5 !important;
+  }
+
+  .ant-table-tbody > tr > td {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  .ant-table-container {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .ant-table-cell-fix-left,
+  .ant-table-cell-fix-right {
+    background-color: inherit !important;
+  }
+
+  .ant-empty {
+    padding: 40px 20px;
+  }
+
+  .ant-empty-description {
+    color: #8c8c8c;
+    font-size: 14px;
+  }
+
+  /* LAYOUT FIXO PARA RESOLVER SCROLL HORIZONTAL */
+  .ant-table-wrapper {
+    width: 100%;
+  }
+
+  .ant-table {
+    width: 100% !important;
+    table-layout: fixed;
+  }
+
+  .ant-table-container {
+    width: 100% !important;
+  }
+
+  .ant-table-thead > tr > th {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ant-table-tbody > tr > td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* CORREÇÃO ESPECÍFICA: Esconder linha de medida */
+  .ant-table-measure-row {
+    display: none !important;
+  }
+`;
 
 const VisualizarPedidoModal = ({
   open,
@@ -109,30 +193,48 @@ const VisualizarPedidoModal = ({
       },
     },
     {
-      title: 'Qtd. Real',
-      key: 'quantidadeReal',
-      width: 140,
+      title: 'Qtd. Colhida',
+      key: 'quantidadeColhida',
+      width: 120,
       align: 'center',
       render: (_, record) => {
         // Só exibir se houver unidade de precificação
         if (!record.unidadePrecificada) return <Text>-</Text>;
-        
+
         // Usar a unidade precificada
         const unidadePrecificada = record.unidadePrecificada;
-        
+
         // Se tem unidade precificada diferente, mostrar a quantidade correspondente
         let qtd = record.quantidadeReal || 0;
         let unidade = unidadePrecificada;
-        
+
         // Se existe quantidadeReal2 e unidadeMedida2, pode ser que seja a quantidade precificada
-        if (record.quantidadeReal2 && record.unidadeMedida2 && 
+        if (record.quantidadeReal2 && record.unidadeMedida2 &&
             record.unidadePrecificada === record.unidadeMedida2) {
           qtd = record.quantidadeReal2;
         }
-        
+
         return (
           <Text strong style={{ color: "#10b981" }}>
             {numberFormatter(qtd)} {unidade}
+          </Text>
+        );
+      },
+    },
+    {
+      title: 'Qtd. Precificada',
+      dataIndex: 'quantidadePrecificada',
+      key: 'quantidadePrecificada',
+      width: 140,
+      align: 'center',
+      render: (quantidade, record) => {
+        if (!quantidade) return <Text>-</Text>;
+
+        const unidade = record.unidadePrecificada || record.unidadeMedida1 || '';
+
+        return (
+          <Text strong style={{ color: "#059669" }}>
+            {numberFormatter(quantidade)} {unidade}
           </Text>
         );
       },
@@ -142,7 +244,7 @@ const VisualizarPedidoModal = ({
       dataIndex: 'valorUnitario',
       key: 'valorUnitario',
       width: 140,
-      align: 'right',
+      align: 'center',
       render: (preco) => (
         <Text strong style={{ color: preco ? "#059669" : "#999" }}>
           {preco ? formatarValorMonetario(preco) : '-'}
@@ -154,7 +256,7 @@ const VisualizarPedidoModal = ({
       dataIndex: 'valorTotal',
       key: 'valorTotal',
       width: 140,
-      align: 'right',
+      align: 'center',
       render: (total) => (
         <Text strong style={{ 
           color: total > 0 ? "#059669" : "#999",
@@ -442,30 +544,18 @@ const VisualizarPedidoModal = ({
               Valores
             </Title>
             <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-            <Table
+            <StyledTable
               columns={frutasColumns}
               dataSource={pedido.frutasPedidos}
               rowKey="id"
               pagination={false}
-              size="small"
-              style={{ border: "1px solid #e8e8e8", borderRadius: "8px", marginBottom: "24px" }}
-              components={{
-                header: {
-                  cell: (props) => (
-                    <th
-                      {...props}
-                      style={{
-                        ...props.style,
-                        backgroundColor: '#059669',
-                        color: '#ffffff',
-                        fontWeight: 600,
-                        padding: '12px 16px',
-                        fontSize: '14px',
-                        borderBottom: 'none',
-                      }}
-                    />
-                  ),
-                },
+              size="middle"
+              bordered={true}
+              style={{
+                backgroundColor: "#ffffff",
+                borderRadius: "8px",
+                overflow: "hidden",
+                marginBottom: "24px"
               }}
             />
 

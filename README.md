@@ -73,6 +73,10 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 - **Múltiplas Áreas de Origem**: Próprias + fornecedores por fruta
 - **Múltiplas Fitas**: Sistema especial para banana com cores hexadecimais
 - **Precificação Flexível**: Pode usar qualquer unidade de medida da fruta
+- **Quantidade Precificada**: Campo específico para relatórios (independente da unidade usada)
+- **Lógica Inteligente de Quantidade Colhida**: Mostra quantidade na unidade de precificação escolhida com detecção automática de unidade
+- **Interface de Precificação Completa**: 6 colunas organizadas (Fruta, Prevista, Colhida, Quant. Precificada, Valor Unit., Total)
+- **Toggle de Unidade de Medida**: Alternância dinâmica entre unidades de medida com recálculo automático
 - **Múltiplos Pagamentos**: PIX, Boleto, Transferência, Dinheiro, Cheque
 - **Dashboard Avançado**: Cards por status com paginação e filtros
 - **Thread-Safety**: Numeração única automática (PED-2024-0001)
@@ -330,7 +334,7 @@ SistemaWebAlencarFrutas/
 ### **Principais Modelos**
 - **Usuario** - Sistema de autenticação
 - **Pedido** - Core do sistema com 10 status + campos específicos para indústria
-- **FrutasPedidos** - Relacionamento N:N com dupla unidade
+- **FrutasPedidos** - Relacionamento N:N com dupla unidade + quantidade precificada para relatórios
 - **FrutasPedidosAreas** - Múltiplas áreas por fruta
 - **FrutasPedidosFitas** - Múltiplas fitas por fruta
 - **PagamentosPedidos** - Múltiplos pagamentos por pedido
@@ -495,6 +499,36 @@ GET    /api/turma-colheita/custo-colheita/turma/:turmaId    # Colheitas por turm
 - **Ordenação Flexível**: Crescente/decrescente por qualquer campo
 - **Formatação de Dados**: Valores monetários e datas em português brasileiro
 - **Status Visuais**: Tags coloridas com ícones para identificação rápida
+
+### **Sistema de Precificação Avançado**
+
+**🎯 Interface de Precificação Completa:**
+- **6 Colunas Organizadas**: Fruta, Prevista, Colhida, Quant. Precificada, Valor Unit., Total
+- **Lógica Inteligente de Colhida**: Mostra quantidade na unidade de precificação escolhida automaticamente
+- **Toggle de Unidade**: Alternância dinâmica entre unidades de medida com recálculo automático
+- **Validação em Tempo Real**: Campos obrigatórios com validação de valores positivos
+- **Cálculo Automático**: Valor total calculado automaticamente (quantidade × valor unitário)
+
+**🔄 Funcionalidades Avançadas:**
+- **Detecção Automática de Unidade**: Sistema identifica qual unidade usar baseado na precificação
+- **Recálculo Inteligente**: Valores consolidados atualizados automaticamente
+- **Campos Condicionais**: Quantidade colhida só aparece quando há unidade de precificação definida
+- **Formatação Monetária**: Valores formatados em padrão brasileiro (R$ 1.234,56)
+- **Integração com Dados Complementares**: Campos específicos para clientes indústria
+
+**📊 Estrutura das Colunas:**
+1. **Fruta** (md=7): Nome da fruta (somente leitura)
+2. **Prevista** (md=3): Quantidade prevista na unidade padrão (somente leitura)
+3. **Colhida** (md=3): Quantidade colhida na unidade de precificação (somente leitura, lógica inteligente)
+4. **Quant. Precificada** (md=4): Campo editável para quantidade específica de precificação
+5. **Valor Unit.** (md=4): Campo editável para valor unitário com toggle de unidade
+6. **Total** (md=3): Valor total calculado automaticamente (somente leitura)
+
+**🎨 Componentes Implementados:**
+- **PrecificacaoTab.js**: Aba de precificação no sistema de edição de pedidos
+- **PrecificacaoModal.js**: Modal standalone para definição de precificação
+- **Validação Robusta**: Campos obrigatórios e validação de valores positivos
+- **Estados de Loading**: Feedback visual durante operações de salvamento
 
 ### **Sistema de Dados Complementares para Clientes Indústria**
 
@@ -888,7 +922,7 @@ const fasesColheita = {
 - **10 Fases Sequenciais** com validações específicas
 - **Thread-Safety** na geração de números únicos
 - **Múltiplas Áreas** (próprias + fornecedores) por fruta
-- **Dupla Unidade** de medida com precificação flexível
+- **Dupla Unidade** de medida com precificação flexível + quantidade específica para relatórios
 - **Múltiplos Pagamentos** com cálculo automático de status
 
 ### **2. Sistema de Tabs Inteligente**
@@ -1006,6 +1040,9 @@ npx prisma db seed           # Popular com dados
 - **Áreas Exclusivas**: Uma fruta não pode vir de área própria E de fornecedor simultaneamente
 - **Placeholders vs. Dados Reais**: Sistema diferencia áreas temporárias de definitivas
 - **Consistência entre Tabs**: Validação de unidades de precificação vs. unidades de medida
+- **Lógica de Quantidade Colhida**: Validação de unidade de precificação antes de exibir quantidade colhida
+- **Toggle de Unidade**: Validação de disponibilidade de segunda unidade antes de permitir alternância
+- **Cálculo de Valores**: Validação de valores positivos e recálculo automático de totais
 - **Status de Pagamento Automático**: Baseado em valor recebido vs. valor final
 
 ### **Sistema de Produção de Banana**  
@@ -1032,7 +1069,11 @@ npx prisma db seed           # Popular com dados
 
 ### **✅ Implementado**
 - [x] Sistema completo de autenticação
-- [x] Sistema avançado de pedidos (10 fases)
+- [x] Sistema avançado de pedidos (10 fases) com campo quantidadePrecificada para relatórios
+- [x] Lógica inteligente de "Quantidade Colhida" que mostra quantidade na unidade de precificação escolhida
+- [x] Interface de precificação com 6 colunas: Fruta, Prevista, Colhida, Quant. Precificada, Valor Unit., Total
+- [x] Modal de visualização com colunas "Qtd. Colhida" e "Quant. Precificada"
+- [x] Interface de precificação com campo obrigatório para quantidade específica
 - [x] Dashboard de pedidos com cards por status
 - [x] Gestão de áreas agrícolas próprias
 - [x] Gestão de fornecedores e suas áreas

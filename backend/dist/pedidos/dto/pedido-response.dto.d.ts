@@ -39,6 +39,7 @@ export declare class FrutaPedidoResponseDto {
     valorUnitario?: number;
     valorTotal?: number;
     unidadePrecificada?: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
+    quantidadePrecificada?: number;
     fitaColheita?: string;
 }
 export declare class PedidoResponseDto {

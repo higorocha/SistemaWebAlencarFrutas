@@ -17,6 +17,7 @@ class UpdatePrecificacaoFrutaDto {
     frutaPedidoId;
     valorUnitario;
     unidadePrecificada;
+    quantidadePrecificada;
 }
 exports.UpdatePrecificacaoFrutaDto = UpdatePrecificacaoFrutaDto;
 __decorate([
@@ -48,6 +49,16 @@ __decorate([
     (0, class_validator_1.IsEnum)(['KG', 'TON', 'CX', 'UND', 'ML', 'LT']),
     __metadata("design:type", String)
 ], UpdatePrecificacaoFrutaDto.prototype, "unidadePrecificada", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Quantidade real que será usada para precificação e relatórios',
+        example: 1250.75,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0.01),
+    __metadata("design:type", Number)
+], UpdatePrecificacaoFrutaDto.prototype, "quantidadePrecificada", void 0);
 class UpdatePrecificacaoDto {
     frutas;
     frete;

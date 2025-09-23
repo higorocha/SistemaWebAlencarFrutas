@@ -101,13 +101,13 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
         <div className="pedido-card-content">
           <div className="pedido-info-container">
             {/* Coluna 1: Nº Pedido + Valor */}
-            <div className="pedido-info-item pedido-numero" style={{ flex: "1 1 0", minWidth: "0", flexDirection: "column", alignItems: "flex-start", gap: "2px", textAlign: "left", justifyContent: "flex-start" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap" }}>
+            <div className="pedido-info-item pedido-numero" style={{ flex: "0 0 auto", minWidth: "140px", flexDirection: "column", alignItems: "flex-start", gap: "2px", textAlign: "left", justifyContent: "flex-start" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", width: "100%" }}>
+                <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "1" }}>
                   {pedido.numeroPedido}
                 </Text>
                 {isVencido && (
-                  <Tag color="error" style={{ fontSize: "10px", margin: 0 }}>
+                  <Tag color="error" style={{ fontSize: "10px", margin: 0, flexShrink: 0 }}>
                     VENCIDO
                   </Tag>
                 )}
@@ -116,11 +116,14 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
                 color: pedido.valorFinal ? "#059669" : "#999", 
                 fontSize: "12px", 
                 whiteSpace: "nowrap", 
+                overflow: "hidden",
+                textOverflow: "ellipsis",
                 fontWeight: "600",
                 backgroundColor: pedido.valorFinal ? "#f0fdf4" : "#f9f9f9",
                 padding: "2px 6px",
                 borderRadius: "4px",
-                border: pedido.valorFinal ? "1px solid #bbf7d0" : "1px solid #e5e5e5"
+                border: pedido.valorFinal ? "1px solid #bbf7d0" : "1px solid #e5e5e5",
+                width: "100%"
               }}>
                 {pedido.valorFinal ? formatarValorMonetario(pedido.valorFinal) : "A definir"}
               </Text>
@@ -173,7 +176,9 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
                   e.stopPropagation();
                   onAction(pedido);
                 }}
-              />
+              >
+                <span className="button-text-mobile">{actionConfig.text}</span>
+              </Button>
             </Tooltip>
           </div>
         </div>
@@ -182,8 +187,8 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
         <div className="pedido-card-content">
           <div className="pedido-info-container">
             {/* Coluna 1: Número do Pedido */}
-            <div className="pedido-info-item pedido-numero" style={{ flex: "1 1 0", minWidth: "0", textAlign: "left", justifyContent: "flex-start" }}>
-              <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap" }}>
+            <div className="pedido-info-item pedido-numero" style={{ flex: "0 0 auto", minWidth: "120px", textAlign: "left", justifyContent: "flex-start" }}>
+              <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {pedido.numeroPedido}
               </Text>
               {isVencido && (
@@ -240,7 +245,9 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
                   e.stopPropagation();
                   onAction(pedido);
                 }}
-              />
+              >
+                <span className="button-text-mobile">{actionConfig.text}</span>
+              </Button>
             </Tooltip>
           </div>
         </div>
