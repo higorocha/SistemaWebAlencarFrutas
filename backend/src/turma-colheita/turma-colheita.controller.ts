@@ -250,6 +250,20 @@ export class TurmaColheitaController {
     return this.turmaColheitaService.getPagamentosEfetuadosAgrupados();
   }
 
+  @Get(':id/pagamentos-efetuados')
+  @ApiOperation({ summary: 'Buscar todos os pagamentos efetuados de uma turma específica' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de pagamentos efetuados da turma retornada com sucesso',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Turma de colheita não encontrada',
+  })
+  getPagamentosEfetuadosTurma(@Param('id') id: string) {
+    return this.turmaColheitaService.getPagamentosEfetuadosTurma(+id);
+  }
+
   // Rota para processar pagamentos seletivos
   @Patch(':id/processar-pagamentos')
   @ApiOperation({ summary: 'Processar pagamentos seletivos de uma turma' })

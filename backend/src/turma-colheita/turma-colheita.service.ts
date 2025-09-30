@@ -1002,4 +1002,150 @@ export class TurmaColheitaService {
       throw error;
     }
   }
+
+  async getPagamentosEfetuadosTurma(turmaId: number): Promise<any> {
+    try {
+      // Verificar se a turma existe
+      const turma = await this.prisma.turmaColheita.findUnique({
+        where: { id: turmaId },
+        include: {
+          custosColheita: {
+            where: {
+              pagamentoEfetuado: true,
+              dataPagamento: {
+                not: null,
+              },
+            },
+            include: {
+              pedido: {
+                select: {
+                  numeroPedido: true,
+                  cliente: {
+                    select: {
+                      nome: true,
+                      razaoSocial: true,
+                    },
+                  },
+                },
+              },
+              fruta: {
+                select: {
+                  nome: true,
+                },
+              },
+            },
+            orderBy: {
+              dataPagamento: 'desc',
+            },
+          },
+        },
+      });
+
+      if (!turma) {
+        throw new Error('Turma de colheita não encontrada');
+      }
+
+      // Se não há pagamentos efetuados, retornar estrutura vazia
+      if (turma.custosColheita.length === 0) {
+        return {
+          turma: {
+            id: turma.id,
+            nomeColhedor: turma.nomeColhedor,
+            chavePix: turma.chavePix,
+            observacoes: turma.observacoes,
+            createdAt: turma.createdAt,
+          },
+          resumo: {
+            totalPago: 0,
+            quantidadeColheitas: 0,
+            quantidadePedidos: 0,
+            quantidadeFrutas: 0,
+          },
+          colheitas: [],
+        };
+      }
+
+      // Agrupar por data de pagamento
+      const pagamentosPorData = new Map();
+      const frutas = new Set();
+      const pedidos = new Set();
+
+      for (const custo of turma.custosColheita) {
+        if (!custo.dataPagamento) continue;
+        const dataPagamento = custo.dataPagamento.toISOString().split('T')[0];
+        const chave = `${dataPagamento}`;
+
+        if (!pagamentosPorData.has(chave)) {
+          pagamentosPorData.set(chave, {
+            dataPagamento: dataPagamento,
+            totalPago: 0,
+            quantidadePedidos: 0,
+            quantidadeFrutas: 0,
+            detalhes: [],
+            frutas: new Set(),
+            pedidos: new Set(),
+          });
+        }
+
+        const grupo = pagamentosPorData.get(chave);
+        grupo.totalPago += custo.valorColheita;
+        grupo.pedidos.add(custo.pedido.numeroPedido);
+        grupo.frutas.add(custo.fruta.nome);
+        pedidos.add(custo.pedido.numeroPedido);
+        frutas.add(custo.fruta.nome);
+
+        grupo.detalhes.push({
+          id: custo.id,
+          pedidoNumero: custo.pedido.numeroPedido,
+          cliente: custo.pedido.cliente.razaoSocial || custo.pedido.cliente.nome,
+          fruta: custo.fruta.nome,
+          quantidadeColhida: custo.quantidadeColhida,
+          unidadeMedida: custo.unidadeMedida,
+          valorColheita: custo.valorColheita,
+          dataColheita: custo.dataColheita?.toISOString(),
+          dataPagamento: custo.dataPagamento?.toISOString(),
+          observacoes: custo.observacoes,
+        });
+      }
+
+      // Converter Sets para números e preparar dados finais
+      const colheitas: any[] = [];
+      let totalPago = 0;
+
+      for (const grupo of pagamentosPorData.values()) {
+        grupo.quantidadePedidos = grupo.pedidos.size;
+        grupo.quantidadeFrutas = grupo.frutas.size;
+        delete grupo.pedidos;
+        delete grupo.frutas;
+        totalPago += grupo.totalPago;
+        colheitas.push(grupo);
+      }
+
+      // Ordenar por data de pagamento (mais recentes primeiro)
+      colheitas.sort((a: any, b: any) => 
+        new Date(b.dataPagamento).getTime() - new Date(a.dataPagamento).getTime()
+      );
+
+      return {
+        turma: {
+          id: turma.id,
+          nomeColhedor: turma.nomeColhedor,
+          chavePix: turma.chavePix,
+          observacoes: turma.observacoes,
+          createdAt: turma.createdAt,
+        },
+        resumo: {
+          totalPago,
+          quantidadeColheitas: colheitas.length,
+          quantidadePedidos: pedidos.size,
+          quantidadeFrutas: frutas.size,
+        },
+        colheitas,
+      };
+
+    } catch (error) {
+      console.error('Erro ao buscar pagamentos efetuados da turma:', error);
+      throw error;
+    }
+  }
 }

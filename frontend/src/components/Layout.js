@@ -22,6 +22,7 @@ import {
 import { LogoutOutlined } from "@ant-design/icons";
 import Sidebar from "./Sidebar";
 import { ProSidebarProvider } from "react-pro-sidebar";
+import useResponsive from "../hooks/useResponsive";
 
 import AccountCircle from "@mui/icons-material/AccountCircle";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -45,11 +46,21 @@ const getInitials = (name) => {
 };
 
 const Layout = ({ children }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const { isMobile, isTablet } = useResponsive();
+  const [isOpen, setIsOpen] = useState(!isMobile); // Iniciar fechado em mobile
   const [mode, setMode] = useState("light");
   const { user, logout, getTokenExpiration } = useAuth();
 
   const theme = React.useMemo(() => getTheme(mode), [mode]);
+
+  // Ajustar estado do sidebar quando o tamanho da tela mudar
+  useEffect(() => {
+    if (isMobile) {
+      setIsOpen(false); // Fechar em mobile
+    } else {
+      setIsOpen(true); // Abrir em desktop/tablet
+    }
+  }, [isMobile]);
 
   const handleLogout = () => {
     logout();
@@ -183,6 +194,10 @@ const Layout = ({ children }) => {
     setIsOpen(!isOpen);
   };
 
+  const handleSidebarCollapse = () => {
+    setIsOpen(false);
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <NotificacaoProvider>
@@ -193,11 +208,13 @@ const Layout = ({ children }) => {
             position="fixed"
             sx={{
               width: {
+                xs: `calc(100% - ${isOpen ? drawerWidth : collapsedDrawerWidth}px)`, // Mobile: sempre deixa espaço para sidebar
                 sm: `calc(100% - ${
                   isOpen ? drawerWidth : collapsedDrawerWidth
                 }px)`,
               },
               ml: {
+                xs: isOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`, // Mobile: sempre margem para sidebar
                 sm: isOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`,
               },
               zIndex: (theme) => theme.zIndex.drawer + 1,
@@ -242,8 +259,18 @@ const Layout = ({ children }) => {
                   flexGrow: 1,
                 }}
               >
-                <Typography variant="h6" noWrap component="div">
-                  Sistemas de Informações - AlencarFrutas
+                <Typography 
+                  variant="h6" 
+                  noWrap 
+                  component="div"
+                  sx={{
+                    fontSize: {
+                      xs: "1.5rem", // Mobile: fonte um pouco maior
+                      sm: "1.5rem", // Desktop: fonte normal
+                    }
+                  }}
+                >
+                  {isMobile ? "AlencarFrutas" : "Sistemas de Informações - AlencarFrutas"}
                 </Typography>
               </Box>
               <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -280,6 +307,7 @@ const Layout = ({ children }) => {
             <Sidebar
               isOpen={isOpen}
               handleDrawerToggle={handleDrawerToggle}
+              handleSidebarCollapse={handleSidebarCollapse}
               mode={mode}
               toggleTheme={toggleTheme}
             />
@@ -290,9 +318,14 @@ const Layout = ({ children }) => {
             sx={{
               flexGrow: 1,
               width: {
+                xs: "100%", // Mobile: largura total (acompanha AppBar)
                 sm: `calc(100% - ${
                   isOpen ? drawerWidth : collapsedDrawerWidth
                 }px)`,
+              },
+              ml: {
+                xs: 0, // Mobile: sem margem (acompanha AppBar)
+                sm: isOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`,
               },
               height: `calc(100vh - ${appBarHeight}px)`,
               mt: `${appBarHeight}px`,

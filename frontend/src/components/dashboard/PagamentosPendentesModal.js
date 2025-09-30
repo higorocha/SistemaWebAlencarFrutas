@@ -30,7 +30,6 @@ import {
   ClockCircleOutlined,
   UserOutlined,
   CreditCardOutlined,
-  PayCircleOutlined,
   InfoCircleOutlined,
   MessageOutlined
 } from "@ant-design/icons";
@@ -38,46 +37,13 @@ import styled from "styled-components";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { formatCurrency } from "../../utils/formatters";
+import useResponsive from "../../hooks/useResponsive";
+import ResponsiveTable from "../common/ResponsiveTable";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-// Styled components seguindo padrão do sistema
-const StyledTable = styled(Table)`
-  .ant-table-thead > tr > th {
-    background-color: #059669 !important;
-    color: #ffffff !important;
-    font-weight: 600;
-    padding: 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-tbody > tr:nth-child(even) {
-    background-color: #fafafa;
-  }
-
-  .ant-table-tbody > tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-
-  .ant-table-tbody > tr:hover {
-    background-color: #e6f7ff !important;
-  }
-
-  .ant-table-tbody > tr.ant-table-row-selected {
-    background-color: #d1fae5 !important;
-  }
-
-  .ant-table-tbody > tr > td {
-    padding: 12px 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-container {
-    border-radius: 8px;
-    overflow: hidden;
-  }
-`;
+// Styled components seguindo padrão do sistema - removido, usando ResponsiveTable
 
 // Styled component para o spinner com animação
 const SpinnerContainer = styled.div`
@@ -93,6 +59,8 @@ const SpinnerContainer = styled.div`
     100% { transform: rotate(360deg); }
   }
 `;
+
+// Container removido - usando ResponsiveTable component
 
 // Styled component para linha sendo paga (animação de saída)
 const LinhaComAnimacao = styled.tr`
@@ -146,6 +114,7 @@ const PagamentosPendentesModal = ({
   turmaNome,
   onPagamentosProcessados
 }) => {
+  const { isMobile, isTablet } = useResponsive();
   const [loading, setLoading] = useState(false);
   const [loadingPagamento, setLoadingPagamento] = useState(false);
   const [dados, setDados] = useState(null);
@@ -517,14 +486,14 @@ const PagamentosPendentesModal = ({
       }
       open={open}
       onCancel={fecharModal}
-      width={1400}
+      width={isMobile ? '95vw' : 1400}
       footer={null}
       styles={{
         body: {
           maxHeight: "calc(100vh - 200px)",
           overflowY: "auto",
           overflowX: "hidden",
-          padding: 20
+          padding: isMobile ? 12 : 20
         },
         header: {
           backgroundColor: "#059669",
@@ -582,11 +551,17 @@ const PagamentosPendentesModal = ({
             title={
               <Space>
                 <UserOutlined style={{ color: "#ffffff" }} />
-                <span style={{ color: "#ffffff", fontWeight: "600" }}>Informações da Turma</span>
+                <span style={{
+                  color: "#ffffff",
+                  fontWeight: "600",
+                  fontSize: isMobile ? "14px" : "16px"
+                }}>
+                  {isMobile ? "Turma" : "Informações da Turma"}
+                </span>
               </Space>
             }
             style={{
-              marginBottom: 16,
+              marginBottom: isMobile ? 12 : 16,
               border: "1px solid #e8e8e8",
               borderRadius: "8px",
               backgroundColor: "#f9f9f9",
@@ -597,44 +572,56 @@ const PagamentosPendentesModal = ({
                 borderBottom: "2px solid #047857",
                 color: "#ffffff",
                 borderRadius: "8px 8px 0 0",
-                padding: "8px 16px"
+                padding: isMobile ? "6px 12px" : "8px 16px"
               },
-              body: { padding: "16px" }
+              body: { padding: isMobile ? "12px" : "16px" }
             }}
           >
 
-            <Row gutter={[24, 16]}>
-              <Col xs={24} sm={12} lg={6}>
+            <Row gutter={isMobile ? [12, 12] : [24, 16]}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
-                  title="Total Pendente"
+                  title={isMobile ? "Pendente" : "Total Pendente"}
                   value={dados.resumo.totalPendente}
                   prefix={<DollarOutlined />}
                   formatter={value => formatCurrency(value)}
-                  valueStyle={{ color: '#fa8c16' }}
+                  valueStyle={{
+                    color: '#fa8c16',
+                    fontSize: isMobile ? '1rem' : '1.5rem'
+                  }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
-                  title="Colheitas Pendentes"
+                  title={isMobile ? "Colheitas" : "Colheitas Pendentes"}
                   value={dados.resumo.quantidadeColheitas}
                   prefix={<ClockCircleOutlined />}
-                  valueStyle={{ color: '#722ed1' }}
+                  valueStyle={{
+                    color: '#722ed1',
+                    fontSize: isMobile ? '1rem' : '1.5rem'
+                  }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Pedidos"
                   value={dados.resumo.quantidadePedidos}
                   prefix={<ShoppingCartOutlined />}
-                  valueStyle={{ color: '#1890ff' }}
+                  valueStyle={{
+                    color: '#1890ff',
+                    fontSize: isMobile ? '1rem' : '1.5rem'
+                  }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Frutas"
                   value={dados.resumo.quantidadeFrutas}
                   prefix={<AppleOutlined style={{ color: '#52c41a' }} />}
-                  valueStyle={{ color: '#52c41a' }}
+                  valueStyle={{
+                    color: '#52c41a',
+                    fontSize: isMobile ? '1rem' : '1.5rem'
+                  }}
                 />
               </Col>
             </Row>
@@ -661,11 +648,17 @@ const PagamentosPendentesModal = ({
             title={
               <Space>
                 <CalendarOutlined style={{ color: "#ffffff" }} />
-                <span style={{ color: "#ffffff", fontWeight: "600" }}>Colheitas Pendentes</span>
+                <span style={{
+                  color: "#ffffff",
+                  fontWeight: "600",
+                  fontSize: isMobile ? "14px" : "16px"
+                }}>
+                  {isMobile ? "Colheitas" : "Colheitas Pendentes"}
+                </span>
               </Space>
             }
             style={{
-              marginBottom: 16,
+              marginBottom: isMobile ? 12 : 16,
               border: "1px solid #e8e8e8",
               borderRadius: "8px",
               backgroundColor: "#f9f9f9",
@@ -676,26 +669,20 @@ const PagamentosPendentesModal = ({
                 borderBottom: "2px solid #047857",
                 color: "#ffffff",
                 borderRadius: "8px 8px 0 0",
-                padding: "8px 16px"
+                padding: isMobile ? "6px 12px" : "8px 16px"
               },
-              body: { padding: "16px" }
+              body: { padding: isMobile ? "12px" : "16px" }
             }}
           >
 
             {dados.colheitas.length > 0 ? (
               <>
-                <StyledTable
+                <ResponsiveTable
                   columns={colunas}
                   dataSource={dados.colheitas}
                   rowKey="id"
-                  pagination={false}
-                  size="middle"
-                  bordered={true}
-                  style={{
-                    backgroundColor: "#ffffff",
-                    borderRadius: "8px",
-                    overflow: "hidden",
-                  }}
+                  minWidthMobile={1200}
+                  showScrollHint={true}
                   components={{
                     body: {
                       row: ({ children, record, ...props }) => (
@@ -714,59 +701,85 @@ const PagamentosPendentesModal = ({
 
                 {/* Área de Pagamento - Sempre visível */}
                 <Divider />
-                <div style={{ backgroundColor: '#f6ffed', padding: '16px', borderRadius: '8px' }}>
-                  <Row gutter={[16, 16]} align="middle">
-                    <Col xs={24} md={8}>
+                <div style={{
+                  backgroundColor: '#f6ffed',
+                  padding: isMobile ? '12px' : '16px',
+                  borderRadius: '8px'
+                }}>
+                  <Row gutter={isMobile ? [8, 12] : [16, 16]} align="middle">
+                    <Col xs={12} md={8}>
                       <Statistic
-                        title={colheitasSelecionadas.length > 0 ? "Itens Selecionados" : "Total de Itens"}
+                        title={
+                          isMobile
+                            ? (colheitasSelecionadas.length > 0 ? "Selecionados" : "Total")
+                            : (colheitasSelecionadas.length > 0 ? "Itens Selecionados" : "Total de Itens")
+                        }
                         value={colheitasSelecionadas.length > 0 ? colheitasSelecionadas.length : dados.colheitas.length}
                         prefix={<CheckCircleOutlined />}
-                        valueStyle={{ color: '#52c41a' }}
+                        valueStyle={{
+                          color: '#52c41a',
+                          fontSize: isMobile ? '1rem' : '1.5rem'
+                        }}
                       />
                     </Col>
-                    <Col xs={24} md={8}>
+                    <Col xs={12} md={8}>
                       <Statistic
-                        title="Total a Pagar"
+                        title={isMobile ? "A Pagar" : "Total a Pagar"}
                         value={colheitasSelecionadas.length > 0 ? calcularTotalSelecionado() : dados.resumo.totalPendente}
-                        prefix={<PayCircleOutlined />}
+                        prefix={<DollarOutlined />}
                         formatter={value => formatCurrency(value)}
-                        valueStyle={{ color: '#059669', fontSize: '20px' }}
+                        valueStyle={{
+                          color: '#059669',
+                          fontSize: isMobile ? '1rem' : '1.25rem'
+                        }}
                       />
                     </Col>
                     <Col xs={24} md={8}>
                       <Button
                         type="primary"
-                        size="large"
-                        icon={<PayCircleOutlined />}
+                        size={isMobile ? "middle" : "large"}
+                        icon={<DollarOutlined />}
                         onClick={processarPagamentos}
                         loading={loadingPagamento}
                         style={{
                           backgroundColor: '#059669',
                           borderColor: '#059669',
-                          width: '100%'
+                          width: '100%',
+                          marginTop: isMobile ? '8px' : '0'
                         }}
                       >
-                        {colheitasSelecionadas.length > 0 ? 'Pagar Selecionados' : 'Pagar Todos'}
+                        {isMobile
+                          ? (colheitasSelecionadas.length > 0 ? 'Pagar Selecionados' : 'Pagar Todos')
+                          : (colheitasSelecionadas.length > 0 ? 'Pagar Selecionados' : 'Pagar Todos')
+                        }
                       </Button>
                     </Col>
                   </Row>
 
-                  <Row style={{ marginTop: '16px' }}>
+                  <Row style={{ marginTop: isMobile ? '12px' : '16px' }}>
                     <Col span={24}>
-                      <div style={{ marginBottom: '8px' }}>
+                      <div style={{ marginBottom: isMobile ? '6px' : '8px' }}>
                         <Space>
                           <MessageOutlined style={{ color: '#059669' }} />
-                          <span style={{ fontWeight: '700', color: '#333', fontSize: '14px' }}>
-                            Observações do Pagamento
+                          <span style={{
+                            fontWeight: '700',
+                            color: '#333',
+                            fontSize: isMobile ? '12px' : '14px'
+                          }}>
+                            {isMobile ? 'Observações' : 'Observações do Pagamento'}
                           </span>
                         </Space>
                       </div>
                       <TextArea
-                        rows={3}
-                        placeholder="Observações sobre o pagamento (opcional)"
+                        rows={isMobile ? 2 : 3}
+                        placeholder={isMobile ? "Observações (opcional)" : "Observações sobre o pagamento (opcional)"}
                         value={observacoesPagamento}
                         onChange={(e) => setObservacoesPagamento(e.target.value)}
-                        style={{ borderRadius: 6, borderColor: "#d9d9d9" }}
+                        style={{
+                          borderRadius: 6,
+                          borderColor: "#d9d9d9",
+                          fontSize: isMobile ? '14px' : '16px'
+                        }}
                       />
                     </Col>
                   </Row>

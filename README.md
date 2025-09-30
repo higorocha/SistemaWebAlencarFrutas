@@ -141,6 +141,17 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 - **Coluna de Observações**: Ícone de balão com tooltip para visualizar observações completas
 - **Coluna de Data**: Data de colheita formatada em português brasileiro
 
+**💰 Sistema de Pagamentos de Turmas:**
+- **Modal PagamentosPendentesModal**: Visualização e processamento de pagamentos pendentes por turma
+- **Modal PagamentosEfetuadosModal**: Visualização completa de todos os pagamentos efetuados de uma turma específica
+- **Integração com Dashboard**: Acesso direto aos modais via cards de pagamentos no dashboard principal
+- **Responsividade Completa**: Layout otimizado para mobile e desktop com scroll horizontal em tabelas
+- **Cores Consistentes**: Headers verdes (#059669) e elementos de sucesso (#52c41a) seguindo padrão do sistema
+- **Dados Agregados**: Estatísticas de total pago, quantidade de colheitas, pedidos e frutas por turma
+- **Tabela Detalhada**: Listagem completa de pagamentos com informações de pedido, cliente, fruta, quantidade e valores
+- **Agrupamento por Data**: Pagamentos organizados por data de pagamento com resumos consolidados
+- **Endpoint Específico**: `/api/turma-colheita/:id/pagamentos-efetuados` para buscar todos os pagamentos de uma turma
+
 **📊 Dados Agregados na Tabela:**
 - **Total Colhido**: Quantidade total com breakdown por unidade de medida
 - **Valor Total**: Valor total da turma com valor pago como informação secundária
@@ -271,8 +282,10 @@ SistemaWebAlencarFrutas/
 │   │   │   │   ├── search/             # Componentes de busca
 │   │   │   │   ├── modals/             # Modais reutilizáveis
 │   │   │   │   │   └── ConfirmCloseModal.js # Modal de confirmação de fechamento
-│   │   │   │   └── loaders/            # Componentes de loading
-│   │   │   │       └── CentralizedLoader.js # Loading global com z-index 99999
+│   │   │   │   ├── loaders/            # Componentes de loading
+│   │   │   │   │   └── CentralizedLoader.js # Loading global com z-index 99999
+│   │   │   │   ├── ResponsiveTable.js  # Tabela responsiva com scroll horizontal
+│   │   │   │   └── tables/             # Componentes de tabela reutilizáveis
 │   │   │   ├── producao/               # Componentes de produção
 │   │   │   ├── turma-colheita/         # Componentes de turmas de colheita
 │   │   │   │   ├── TurmaColheitaForm.js        # Formulário de turma
@@ -425,6 +438,11 @@ DELETE /api/turma-colheita/:id         # Excluir turma
 GET    /api/turma-colheita/:id/estatisticas     # Estatísticas detalhadas da turma
 # Retorna: totalGeral, totaisPorUnidade, detalhes (dados para gráficos)
 # Inclui: observacoes, dataColheita, pedido, fruta, quantidade, valor, status
+
+# Pagamentos de Turmas
+GET    /api/turma-colheita/:id/pagamentos-pendentes    # Pagamentos pendentes de uma turma
+GET    /api/turma-colheita/:id/pagamentos-efetuados    # Todos os pagamentos efetuados de uma turma
+# Retorna: turma, resumo (totalPago, quantidadeColheitas, quantidadePedidos, quantidadeFrutas), colheitas agrupadas por data
 
 # Colheitas de Pedidos
 POST   /api/turma-colheita/custo-colheita        # Criar colheita de pedido
@@ -642,6 +660,178 @@ GET    /api/config-whatsapp            # Configurações do WhatsApp
 - **Performance**: Redução de cálculos desnecessários
 - **UX Melhorada**: Feedback visual mais responsivo
 - **Sistema de Reload Inteligente**: Atualização específica por tipo de operação
+
+### **📱 Sistema de Responsividade Avançado**
+
+**🔧 Componente ResponsiveTable Implementado:**
+- **Localização**: `src/components/common/ResponsiveTable.js`
+- **Scroll Horizontal Automático**: No mobile (largura < 576px)
+- **Headers Padronizados**: Verde #059669 em todas as tabelas
+- **Scrollbar Estilizada**: Cores do sistema com efeito hover
+- **Indicador Visual**: Dica "Deslize para ver mais →" temporária
+- **Compatibilidade Total**: Aceita todas as props do Ant Design Table
+- **Correção de Bug**: Fix para linha branca no topo ao usar scroll horizontal
+
+**🎨 Características Técnicas:**
+- **Largura Mínima Configurável**: Default 1000px, personalizável via `minWidthMobile`
+- **Responsive Design**: Padding e font-size reduzidos no mobile
+- **Sticky Headers**: Headers fixos durante scroll vertical
+- **Overflow Otimizado**: Controle preciso de scroll horizontal/vertical
+- **Z-index Inteligente**: Headers sempre visíveis (z-index 10)
+
+**📋 Como Usar:**
+```jsx
+import ResponsiveTable from '../common/ResponsiveTable';
+
+<ResponsiveTable
+  columns={colunas}
+  dataSource={dados}
+  rowKey="id"
+  minWidthMobile={1200} // Largura mínima no mobile
+  showScrollHint={true} // Dica visual de scroll
+  // ... todas as outras props do Table funcionam normalmente
+/>
+```
+
+**🔄 Migração Simples:**
+- **Antes**: `<Table columns={...} dataSource={...} />`
+- **Depois**: `<ResponsiveTable columns={...} dataSource={...} />`
+- **Zero Breaking Changes**: Mantém todas as props existentes
+
+**🔧 Configurações Técnicas para Correção da Linha Branca:**
+
+O ResponsiveTable já inclui todas as correções necessárias para evitar a linha branca que aparecia entre o header e a primeira linha de dados. As principais correções implementadas são:
+
+```css
+/* Correções principais aplicadas automaticamente */
+.ant-table {
+  border-spacing: 0 !important;
+  border-collapse: separate !important;
+}
+
+.ant-table-thead, .ant-table-tbody {
+  margin: 0 !important;
+  border-spacing: 0 !important;
+}
+
+.ant-table-tbody > tr:first-child > td {
+  border-top: none !important;
+  margin: 0 !important;
+}
+
+.ant-table-container, .ant-table-content {
+  line-height: 1 !important;
+}
+```
+
+**📋 Para Tabelas com Componentes Customizados:**
+
+Se você precisar usar componentes customizados (como `LinhaComAnimacao`), use a prop `components`:
+
+```jsx
+<ResponsiveTable
+  columns={colunas}
+  dataSource={dados}
+  rowKey="id"
+  minWidthMobile={1200}
+  components={{
+    body: {
+      row: ({ children, record, ...props }) => (
+        <SeuComponenteCustomizado
+          {...props}
+          $propriedade={condicao}
+        >
+          {children}
+        </SeuComponenteCustomizado>
+      ),
+    },
+  }}
+/>
+```
+
+**⚠️ Importante:**
+- Todas as correções de linha branca são aplicadas automaticamente
+- Não é necessário adicionar CSS adicional
+- O componente funciona como drop-in replacement do Table do Ant Design
+
+**🔧 Correção da Sombra "Grudada" no Scroll Horizontal:**
+
+O ResponsiveTable também corrige um bug específico do Ant Design onde sombras de ping ficam "grudadas" nas colunas durante o scroll horizontal:
+
+```css
+/* Remove sombras de ping que ficam grudadas nas colunas */
+.ant-table.ant-table-ping-left:not(.ant-table-has-fix-left) > .ant-table-container::before,
+.ant-table.ant-table-ping-right:not(.ant-table-has-fix-right) > .ant-table-container::after {
+  box-shadow: none !important;
+}
+
+.ant-table-ping-right .ant-table-container::after {
+  box-shadow: none !important;
+  display: none !important;
+}
+
+.ant-table-ping-left .ant-table-container::before {
+  box-shadow: none !important;
+  display: none !important;
+}
+```
+
+**🎯 Resultado:**
+- Sombra não fica mais "grudada" na coluna Cliente
+- Scroll horizontal limpo sem sombras indesejadas
+- Comportamento consistente em mobile e desktop
+
+**🎨 Exemplo de Componente Customizado de Linha:**
+
+Para criar linhas com animações ou estilos especiais (como no PagamentosPendentesModal):
+
+```jsx
+// 1. Criar o styled component da linha
+const LinhaComAnimacao = styled.tr`
+  ${props => props.$sendoPago && `
+    animation: fadeOutPayment 0.8s ease-in-out;
+    background-color: #f6ffed !important;
+    
+    @keyframes fadeOutPayment {
+      0% { background-color: #ffffff; opacity: 1; transform: scale(1); }
+      50% { background-color: #52c41a; opacity: 0.8; transform: scale(1.02); }
+      100% { background-color: #f6ffed; opacity: 0.6; transform: scale(0.98); }
+    }
+  `}
+  
+  ${props => props.$itemPago && `
+    background-color: #f6ffed !important;
+    border-left: 4px solid #52c41a !important;
+    opacity: 0.85;
+  `}
+`;
+
+// 2. Usar no ResponsiveTable
+<ResponsiveTable
+  columns={colunas}
+  dataSource={dados}
+  rowKey="id"
+  components={{
+    body: {
+      row: ({ children, record, ...props }) => (
+        <LinhaComAnimacao
+          {...props}
+          $sendoPago={itensSendoPagos.includes(record?.id)}
+          $itemPago={record?.status === 'PAGO'}
+        >
+          {children}
+        </LinhaComAnimacao>
+      ),
+    },
+  }}
+/>
+```
+
+**🔑 Pontos Importantes:**
+- Use `styled.tr` para criar o componente de linha
+- Props customizadas devem começar com `$` (convenção do styled-components)
+- O componente recebe `children`, `record` e outras props do Ant Design
+- As correções de linha branca são mantidas automaticamente
 
 ### **🎯 Sistema de Reload Inteligente**
 
@@ -1142,6 +1332,22 @@ npx prisma db seed           # Popular com dados
 - [x] Validação customizável para diferentes tipos de modais
 - [x] Implementação completa em 5 formulários principais (Áreas, Clientes, Frutas, Fornecedores, Turma de Colheita)
 - [x] Validação específica por tipo de formulário (dados básicos, contato, pagamento, unidades, etc.)
+- [x] Sistema de responsividade avançado com componente ResponsiveTable reutilizável
+- [x] Scroll horizontal automático para tabelas no mobile com scrollbar estilizada
+- [x] Correção de bug da linha branca em tabelas com scroll horizontal
+- [x] Headers padronizados verde #059669 para todas as tabelas do sistema
+- [x] Indicador visual de scroll "Deslize para ver mais →" com animação temporária
+- [x] Sticky headers para melhor experiência de usuário em tabelas longas
+- [x] Modal PagamentosPendentesModal totalmente responsivo com layout otimizado
+- [x] Modal PagamentosEfetuadosModal com visualização completa de pagamentos efetuados por turma
+- [x] Endpoint específico para buscar todos os pagamentos efetuados de uma turma
+- [x] Integração completa entre Dashboard e modais de pagamentos de turmas
+- [x] Cards de estatísticas responsivos com títulos abreviados no mobile
+- [x] Área de pagamento reorganizada com botões em linha separada no mobile
+- [x] Área de observações otimizada com TextArea reduzido para mobile
+- [x] Modal com largura responsiva (95vw no mobile vs 1400px no desktop)
+- [x] Padding e margens otimizados para diferentes tamanhos de tela
+- [x] Cores consistentes seguindo padrão do sistema (#059669 para headers, #52c41a para elementos de sucesso)
 
 ### **🔄 Em Desenvolvimento**
 - [ ] Relatórios avançados
@@ -1160,21 +1366,29 @@ npx prisma db seed           # Popular com dados
 
 ### **Estrutura Padrão de Modals**
 
-Todos os modals do sistema seguem um padrão consistente para garantir uniformidade visual e experiência do usuário:
+**⚠️ IMPORTANTE: Todos os modals do sistema DEVEM seguir este padrão exato para manter consistência visual.**
 
-#### **🎯 Configuração Base do Modal**
+Todos os modals do sistema seguem um padrão consistente para garantir uniformidade visual e experiência do usuário. Este padrão é **OBRIGATÓRIO** e deve ser seguido em todos os novos modals criados.
+
+#### **🎯 Configuração Base do Modal (OBRIGATÓRIO)**
+
+**🔴 CORES FIXAS DO SISTEMA:**
+- **Header Background**: `#059669` (verde principal)
+- **Header Border**: `#047857` (verde escuro)
+- **Texto Header**: `#ffffff` (branco)
+
 ```jsx
 <Modal
   title={
     <span style={{
-      color: "#ffffff",
-      fontWeight: "600",
-      fontSize: "16px",
-      backgroundColor: "#059669",
-      padding: "12px 16px",
-      margin: "-20px -24px 0 -24px",
-      display: "block",
-      borderRadius: "8px 8px 0 0",
+      color: "#ffffff",                    // ✅ SEMPRE branco
+      fontWeight: "600",                   // ✅ SEMPRE 600
+      fontSize: "16px",                    // ✅ SEMPRE 16px
+      backgroundColor: "#059669",          // ✅ SEMPRE verde principal
+      padding: "12px 16px",                // ✅ SEMPRE este padding
+      margin: "-20px -24px 0 -24px",      // ✅ SEMPRE esta margem
+      display: "block",                    // ✅ SEMPRE block
+      borderRadius: "8px 8px 0 0",        // ✅ SEMPRE este border-radius
     }}>
       <IconeModal style={{ marginRight: 8 }} />
       Título do Modal
@@ -1182,51 +1396,58 @@ Todos os modals do sistema seguem um padrão consistente para garantir uniformid
   }
   open={open}
   onCancel={onClose}
-  footer={null} // Sempre null - footer customizado
+  footer={null} // ✅ SEMPRE null - footer customizado
   width={1000} // Ajustar conforme necessidade
   styles={{
     body: {
-      maxHeight: "calc(100vh - 200px)",
-      overflowY: "auto",
-      overflowX: "hidden",
-      padding: 20
+      maxHeight: "calc(100vh - 200px)",    // ✅ SEMPRE esta altura
+      overflowY: "auto",                   // ✅ SEMPRE auto
+      overflowX: "hidden",                 // ✅ SEMPRE hidden
+      padding: 20                          // ✅ SEMPRE 20px
     },
     header: {
-      backgroundColor: "#059669",
-      borderBottom: "2px solid #047857",
-      padding: 0
+      backgroundColor: "#059669",          // ✅ SEMPRE verde principal
+      borderBottom: "2px solid #047857",  // ✅ SEMPRE verde escuro
+      padding: 0                           // ✅ SEMPRE 0
     },
-    wrapper: { zIndex: 1000 } // Ajustar se necessário
+    wrapper: { zIndex: 1000 }              // Ajustar se necessário
   }}
-  centered
-  destroyOnClose
+  centered                                  // ✅ SEMPRE true
+  destroyOnClose                           // ✅ SEMPRE true
 >
 ```
 
-#### **🎨 Cards Internos Padrão**
+#### **🎨 Cards Internos Padrão (OBRIGATÓRIO)**
+
+**🔴 CORES FIXAS PARA CARDS:**
+- **Header Background**: `#059669` (verde principal)
+- **Header Border**: `#047857` (verde escuro)
+- **Texto Header**: `#ffffff` (branco)
+- **Fundo Card**: `#f9f9f9` (cinza claro)
+
 ```jsx
 <Card
   title={
     <Space>
-      <IconeCard style={{ color: "#ffffff" }} />
+      <IconeCard style={{ color: "#ffffff" }} />  {/* ✅ SEMPRE branco */}
       <span style={{ color: "#ffffff", fontWeight: "600" }}>Título da Seção</span>
     </Space>
   }
   style={{
-    marginBottom: 16,
-    border: "1px solid #e8e8e8",
-    borderRadius: "8px",
-    backgroundColor: "#f9f9f9",
+    marginBottom: 16,                              // ✅ SEMPRE 16px
+    border: "1px solid #e8e8e8",                  // ✅ SEMPRE esta borda
+    borderRadius: "8px",                          // ✅ SEMPRE 8px
+    backgroundColor: "#f9f9f9",                   // ✅ SEMPRE cinza claro
   }}
   styles={{
     header: {
-      backgroundColor: "#059669",
-      borderBottom: "2px solid #047857",
-      color: "#ffffff",
-      borderRadius: "8px 8px 0 0",
-      padding: "8px 16px" // Para cards internos
+      backgroundColor: "#059669",                 // ✅ SEMPRE verde principal
+      borderBottom: "2px solid #047857",         // ✅ SEMPRE verde escuro
+      color: "#ffffff",                          // ✅ SEMPRE branco
+      borderRadius: "8px 8px 0 0",              // ✅ SEMPRE este border-radius
+      padding: "8px 16px"                        // ✅ SEMPRE este padding
     },
-    body: { padding: "16px" }
+    body: { padding: "16px" }                     // ✅ SEMPRE 16px
   }}
 >
   {/* Conteúdo do card */}
@@ -1332,13 +1553,27 @@ const StyledTable = styled(Table)`
 )}
 ```
 
-#### **🎨 Cores do Sistema**
-- **Verde Principal**: `#059669` (headers, botões primários)
-- **Verde Escuro**: `#047857` (bordas, sombras)
-- **Fundo Cards**: `#f9f9f9`
-- **Bordas**: `#e8e8e8`
-- **Hover Tabelas**: `#e6f7ff`
-- **Seleção Tabelas**: `#d1fae5`
+#### **🎨 Cores do Sistema (OBRIGATÓRIAS)**
+
+**🔴 CORES PRINCIPAIS (NUNCA MUDAR):**
+- **Verde Principal**: `#059669` - Headers de modals, headers de cards, botões primários
+- **Verde Escuro**: `#047857` - Bordas de headers, sombras
+- **Verde de Sucesso**: `#52c41a` - Elementos de sucesso, linhas de pagamentos efetuados
+- **Verde Muito Claro**: `#f6ffed` - Fundos de elementos de sucesso
+- **Verde Claro**: `#b7eb8f` - Bordas de elementos de sucesso
+
+**🔵 CORES SECUNDÁRIAS:**
+- **Fundo Cards**: `#f9f9f9` - Fundo padrão de cards
+- **Bordas**: `#e8e8e8` - Bordas padrão
+- **Hover Tabelas**: `#e6f7ff` - Hover em linhas de tabela
+- **Seleção Tabelas**: `#d1fae5` - Linhas selecionadas
+- **Texto Header**: `#ffffff` - Texto em headers (sempre branco)
+
+**⚠️ REGRA IMPORTANTE:**
+- **TODOS os headers de modals e cards DEVEM usar `#059669`**
+- **TODAS as bordas de headers DEVEM usar `#047857`**
+- **TODOS os textos de headers DEVEM usar `#ffffff`**
+- **Elementos de sucesso DEVEM usar `#52c41a`**
 
 #### **📱 Responsividade**
 - **Mobile**: `xs={24}` (largura total)
@@ -1364,15 +1599,27 @@ ModalComponent.propTypes = {
 7. **Styled Components** - para tabelas e elementos customizados
 
 ### **📁 Exemplos de Implementação**
+
+**🎯 Modals de Pedidos:**
 - `frontend/src/components/pedidos/NovoPedidoModal.js`
 - `frontend/src/components/pedidos/LancarPagamentosModal.js`
 - `frontend/src/components/pedidos/PagamentoModal.js`
+
+**💰 Modals de Pagamentos de Turmas:**
+- `frontend/src/components/dashboard/PagamentosPendentesModal.js` - **Modal de pagamentos pendentes com processamento**
+- `frontend/src/components/dashboard/PagamentosEfetuadosModal.js` - **Modal de pagamentos efetuados com visualização completa**
+
+**📊 Modals de Estatísticas:**
 - `frontend/src/components/turma-colheita/EstatisticasTurmaModal.js`
+
+**📝 Modals de Formulários (com validação de fechamento):**
 - `frontend/src/components/areas/AddEditAreaDialog.js` - **Implementação com validação de fechamento**
 - `frontend/src/components/clientes/AddEditClienteDialog.js` - **Implementação com validação de fechamento**
 - `frontend/src/components/frutas/AddEditFrutaDialog.js` - **Implementação com validação de fechamento**
 - `frontend/src/components/fornecedores/AddEditFornecedorDialog.js` - **Implementação com validação de fechamento**
 - `frontend/src/components/turma-colheita/AddEditTurmaColheitaDialog.js` - **Implementação com validação de fechamento**
+
+**🔧 Componentes Reutilizáveis:**
 - `frontend/src/components/common/modals/ConfirmCloseModal.js` - **Modal de confirmação reutilizável**
 - `frontend/src/hooks/useConfirmClose.js` - **Hook para validação de fechamento**
 

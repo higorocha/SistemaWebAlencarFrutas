@@ -5,9 +5,25 @@ import { createBrowserHistory } from 'history';
 
 
 
+// Função para detectar automaticamente a URL do backend
+const getBackendUrl = () => {
+  // Se estiver acessando via IP da rede local, usar o mesmo IP para o backend
+  if (window.location.hostname === '192.168.1.143') {
+    return 'http://192.168.1.143:5002';
+  }
+  
+  // Se estiver em localhost, usar localhost
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5002';
+  }
+  
+  // Para produção, usar a URL do Render
+  return 'https://sistemawebalencarfrutas.onrender.com';
+};
+
 // Criar um objeto com as configurações de ambiente
 const config = {
-  development: 'http://localhost:5002',
+  development: getBackendUrl(),
   production: 'https://sistemawebalencarfrutas.onrender.com', // URL do backend no Render
   test: 'http://localhost:5002'
 };
@@ -21,6 +37,10 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Log para debug - mostrar qual URL está sendo usada
+console.log('🔧 Frontend URL:', window.location.href);
+console.log('🔧 Backend URL:', config[environment]);
 
 // Interceptor para tratamento global de erros
 // Adiciona o token em todas as requisições

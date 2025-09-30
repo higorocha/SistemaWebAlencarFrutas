@@ -20,8 +20,8 @@ async function bootstrap() {
     transform: true,
   }));
   
-  // Configurar CORS para permitir conexão com frontend
-  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3002';
+  // Configurar CORS para permitir conexão com frontend (local e rede)
+  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3002,http://192.168.1.143:3002';
   console.log('🔧 CORS_ORIGIN from env:', corsOrigin);
   
   const allowedOrigins = corsOrigin === '*' ? true : corsOrigin.split(',').map(origin => origin.trim());
@@ -46,11 +46,14 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
   
   const port = process.env.PORT || 5002;
-  await app.listen(port);
+  const host = process.env.HOST || '0.0.0.0'; // Permitir conexões de qualquer IP da rede
+  await app.listen(port, host);
   
   console.log(`🚀 Servidor NestJS rodando na porta ${port}`);
-  console.log(`📱 Frontend: http://localhost:3002`);
-  console.log(`🔧 Backend: http://localhost:${port}`);
-  console.log(`📚 Documentação: http://localhost:${port}/api`);
+  console.log(`📱 Frontend Local: http://localhost:3002`);
+  console.log(`📱 Frontend Rede: http://192.168.1.143:3002`);
+  console.log(`🔧 Backend Local: http://localhost:${port}`);
+  console.log(`🔧 Backend Rede: http://192.168.1.143:${port}`);
+  console.log(`📚 Documentação: http://192.168.1.143:${port}/api`);
 }
 bootstrap();

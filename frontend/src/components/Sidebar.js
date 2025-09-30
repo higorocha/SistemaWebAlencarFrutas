@@ -40,6 +40,7 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Typography, Box, useTheme, Tooltip } from "@mui/material";
+import useResponsive from "../hooks/useResponsive";
 import "./Sidebar.css";
 import logo from "./assets/img/logo.png";
 import EcoIcon from "./Icons/EcoIcon";
@@ -57,19 +58,25 @@ import EcoIcon from "./Icons/EcoIcon";
  *
  * Remove transições de submenu p/ minimizar "pulos".
  */
-const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
+const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
   const { collapseSidebar } = useProSidebar();
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
   const theme = useTheme();
+  const { isMobile, isTablet } = useResponsive();
 
   // ------------------------------------------------------------------
-  // (1) Controlar via a lib o (des)colapsar conforme "isOpen"
+  // (1) Controlar via a lib o (des)colapsar conforme "isOpen" e responsividade
   // ------------------------------------------------------------------
   useEffect(() => {
-    collapseSidebar(!isOpen);
-  }, [isOpen, collapseSidebar]);
+    // Em mobile, sempre recolher o sidebar
+    if (isMobile) {
+      collapseSidebar(true);
+    } else {
+      collapseSidebar(!isOpen);
+    }
+  }, [isOpen, collapseSidebar, isMobile]);
 
   // ------------------------------------------------------------------
   // (2) Estados de cada SubMenu (pai) => PEDIDOS, CADASTRO e PRODUCAO
@@ -150,17 +157,24 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
   //     - Se modo colapsado => fecha tudo
   //     - Se modo expandido => single open => fecha outros pais,
   //       deixa aberto só o pai do item
+  //     - Em mobile => sempre fecha tudo após navegar
   // ------------------------------------------------------------------
   const handleMenuItemClick = (path, parentKey, isTarifasItem = false) => {
     navigate(path);
 
-    if (!isOpen) {
-      // Modo colapsado => fecha tudo
+    if (!isOpen || isMobile) {
+      // Modo colapsado ou mobile => fecha tudo
       setOpenParents({
         PEDIDOS: false,
         CADASTRO: false,
         PRODUCAO: false,
       });
+      
+      // Em mobile, sempre colapsar o sidebar após selecionar uma opção
+      if (isMobile) {
+        collapseSidebar(true);
+        handleSidebarCollapse(); // Atualizar estado no Layout
+      }
     } else {
       // Modo expandido => single open
       // Fecha todos e deixa aberto só "parentKey"
@@ -179,6 +193,12 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
   const handleLogout = () => {
     logout();
     navigate("/login");
+    
+    // Em mobile, colapsar o sidebar após logout
+    if (isMobile) {
+      collapseSidebar(true);
+      handleSidebarCollapse(); // Atualizar estado no Layout
+    }
   };
 
   // ------------------------------------------------------------------
@@ -331,8 +351,8 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
         }}
       >
         <Menu
-          // closeOnClick => se colapsado, ao clicar num ITEM, fecha
-          closeOnClick={!isOpen}
+          // closeOnClick => se colapsado ou mobile, ao clicar num ITEM, fecha
+          closeOnClick={!isOpen || isMobile}
           menuItemStyles={{
             button: ({ level, active }) => ({
               backgroundColor: active
@@ -513,7 +533,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme }) => {
         }}
       >
         <Menu
-          closeOnClick={!isOpen}
+          closeOnClick={!isOpen || isMobile}
           menuItemStyles={{
             button: {
               color: theme.palette.text.primary,
