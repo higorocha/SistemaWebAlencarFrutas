@@ -209,7 +209,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     backgroundColor: theme.palette.background.paper,
     "& .ps-sidebar-container": {
       backgroundColor: "inherit",
-      height: "100vh",
+      height: "100svh", // Usa Small Viewport Height para mobile
       display: "flex",
       flexDirection: "column",
     },
@@ -344,6 +344,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
           flexGrow: 1,
           overflowY: "auto",
           overflowX: "hidden",
+          minHeight: 0, 
           px: 0.5,
           "& > nav": {
             padding: "8px 0",

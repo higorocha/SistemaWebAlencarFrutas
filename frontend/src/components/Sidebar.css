@@ -23,11 +23,20 @@
   width: 270px !important;
 }
 
+/* Ajuste para mobile - altura considerando AppBar */
+@media (max-width: 600px) {
+  .ps-sidebar-container {
+    height: calc(100vh - 64px) !important;
+    max-height: calc(100vh - 64px) !important;
+    overflow: hidden !important; /* Evita scroll no container principal */
+  }
+}
+
 /* Menu principal */
 .ps-menu-root {
   width: calc(270px + 12px) !important;
   padding-right: 12px !important;
-  overflow-y: auto !important;
+  /* overflow-y: auto !important; REMOVIDO - scroll controlado pelo Box do JSX */
   overflow-x: hidden !important;
   box-sizing: border-box;
 }

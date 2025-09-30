@@ -211,11 +211,11 @@ const Layout = ({ children }) => {
                 xs: `calc(100% - ${isOpen ? drawerWidth : collapsedDrawerWidth}px)`, // Mobile: sempre deixa espaço para sidebar
                 sm: `calc(100% - ${
                   isOpen ? drawerWidth : collapsedDrawerWidth
-                }px)`,
+                }px)`, // Desktop: empurrado pelo sidebar
               },
               ml: {
                 xs: isOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`, // Mobile: sempre margem para sidebar
-                sm: isOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`,
+                sm: isOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`, // Desktop: empurrado pelo sidebar
               },
               zIndex: (theme) => theme.zIndex.drawer + 1,
             }}
@@ -319,13 +319,11 @@ const Layout = ({ children }) => {
               flexGrow: 1,
               width: {
                 xs: "100%", // Mobile: largura total (acompanha AppBar)
-                sm: `calc(100% - ${
-                  isOpen ? drawerWidth : collapsedDrawerWidth
-                }px)`,
+                sm: "100%", // Desktop: largura total (conteúdo fica colado no sidebar)
               },
               ml: {
                 xs: 0, // Mobile: sem margem (acompanha AppBar)
-                sm: isOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`,
+                sm: 0, // Desktop: sem margem (conteúdo fica colado no sidebar)
               },
               height: `calc(100vh - ${appBarHeight}px)`,
               mt: `${appBarHeight}px`,
