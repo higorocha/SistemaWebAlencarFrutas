@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Modal, Button, Space, message, Form, Input, Select, DatePicker, InputNumber, Row, Col, Typography, Card, Divider, Tag, Tooltip } from "antd";
 import PropTypes from "prop-types";
+import useResponsive from "../../hooks/useResponsive";
 import { 
   SaveOutlined, 
   CloseOutlined, 
@@ -45,6 +46,7 @@ const ColheitaModal = ({
   onLoadingChange, // Callback para controlar CentralizedLoader
 }) => {
   const [form] = Form.useForm();
+  const { isMobile } = useResponsive();
 
   // Hook para notificações com z-index correto
   const { error, warning, success, contextHolder } = useNotificationWithContext();
@@ -194,27 +196,6 @@ const ColheitaModal = ({
     setVincularFitasModalOpen(true);
   };
 
-  // Funções para gerenciar mão de obra
-  const adicionarMaoObra = () => {
-    const maoObraAtual = form.getFieldValue('maoObra') || [];
-    form.setFieldsValue({
-      maoObra: [...maoObraAtual, {
-        turmaColheitaId: undefined,
-        quantidadeColhida: undefined,
-        unidadeMedida: undefined,
-        valorColheita: undefined,
-        observacoes: ''
-      }]
-    });
-  };
-
-  const removerMaoObra = (index) => {
-    const maoObraAtual = form.getFieldValue('maoObra') || [];
-    if (maoObraAtual.length > 1) {
-      const novaMaoObra = maoObraAtual.filter((_, i) => i !== index);
-      form.setFieldsValue({ maoObra: novaMaoObra });
-    }
-  };
 
   // Verificar se fruta é banana para mostrar botão de fitas
   const isBanana = (frutaNome) => {
@@ -613,32 +594,32 @@ const ColheitaModal = ({
         <span style={{ 
           color: "#ffffff", 
           fontWeight: "600", 
-          fontSize: "16px",
+          fontSize: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+          margin: "-1.25rem -1.5rem 0 -1.5rem",
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",
         }}>
-          <ShoppingOutlined style={{ marginRight: 8 }} />
-          Registrar Colheita
+          <ShoppingOutlined style={{ marginRight: "0.5rem" }} />
+          {isMobile ? 'Colheita' : 'Registrar Colheita'}
         </span>
       }
       open={open}
       onCancel={handleCancelar}
       footer={null}
-      width="95%"
-      style={{ maxWidth: 1400 }}
+      width={isMobile ? '95vw' : '90%'}
+      style={{ maxWidth: isMobile ? '95vw' : "85rem" }}
       styles={{
         body: {
-          maxHeight: "calc(100vh - 200px)",
+          maxHeight: "calc(100vh - 12.5rem)",
           overflowY: "auto",
           overflowX: "hidden",
-          padding: "20px",
+          padding: isMobile ? 12 : 20,
         },
         header: {
           backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
+          borderBottom: "0.125rem solid #047857",
           padding: 0,
         }
       }}
@@ -653,25 +634,29 @@ const ColheitaModal = ({
             title={
               <Space>
                 <ShoppingOutlined style={{ color: "#ffffff" }} />
-                <span style={{ color: "#ffffff", fontWeight: "600" }}>Informações do Pedido</span>
+                <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Informações do Pedido</span>
               </Space>
             }
             style={{ 
-              marginBottom: 16,
-              border: "1px solid #e8e8e8",
-              borderRadius: "8px",
+              marginBottom: isMobile ? 12 : 16,
+              border: "0.0625rem solid #e8e8e8",
+              borderRadius: "0.5rem",
               backgroundColor: "#f9f9f9",
             }}
             styles={{
               header: {
                 backgroundColor: "#059669",
-                borderBottom: "2px solid #047857",
+                borderBottom: "0.125rem solid #047857",
                 color: "#ffffff",
-                borderRadius: "8px 8px 0 0",
+                borderRadius: "0.5rem 0.5rem 0 0",
+                padding: isMobile ? "6px 12px" : "8px 16px"
+              },
+              body: { 
+                padding: isMobile ? "12px" : "16px"
               }
             }}
           >
-            <Row gutter={[16, 16]}>
+            <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
               <Col xs={24} md={6}>
                 <Text strong>Pedido:</Text>
                 <br />
@@ -700,7 +685,7 @@ const ColheitaModal = ({
       <Form
         form={form}
         layout="vertical"
-        size="large"
+        size={isMobile ? "small" : "large"}
         onFinish={handleSalvarColheita}
       >
         {/* Seção 1: Dados da Colheita */}
@@ -708,31 +693,35 @@ const ColheitaModal = ({
           title={
             <Space>
               <CalendarOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados da Colheita</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Dados da Colheita</span>
             </Space>
           }
           style={{ 
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem",
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             <Col xs={24} md={12}>
               <Form.Item
                 label={
                   <Space>
                     <CalendarOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>Data da Colheita</span>
+                    <span style={{ fontWeight: "700", color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Data da Colheita</span>
                   </Space>
                 }
                 name="dataColheita"
@@ -745,7 +734,9 @@ const ColheitaModal = ({
                      width: "100%",
                      borderRadius: "6px",
                      borderColor: "#d9d9d9",
+                     fontSize: isMobile ? "0.875rem" : "1rem"
                    }}
+                   size={isMobile ? "small" : "middle"}
                    format="DD/MM/YYYY"
                    placeholder="Selecione a data"
                    disabledDate={(current) => current && current > moment().endOf('day')}
@@ -760,17 +751,19 @@ const ColheitaModal = ({
                 label={
                   <Space>
                     <FileTextOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>Observações da Colheita</span>
+                    <span style={{ fontWeight: "700", color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Observações da Colheita</span>
                   </Space>
                 }
                 name="observacoesColheita"
               >
                 <TextArea
-                  rows={3}
+                  rows={isMobile ? 2 : 3}
+                  size={isMobile ? "small" : "middle"}
                   placeholder="Observações sobre a colheita (opcional)"
                   style={{
                     borderRadius: "6px",
                     borderColor: "#d9d9d9",
+                    fontSize: isMobile ? "0.875rem" : "1rem"
                   }}
                 />
               </Form.Item>
@@ -783,21 +776,25 @@ const ColheitaModal = ({
           title={
             <Space>
               <AppleOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Frutas da Colheita</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Frutas da Colheita</span>
             </Space>
           }
           style={{ 
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem",
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
@@ -813,46 +810,48 @@ const ColheitaModal = ({
                    });
                    
                    return (
-                     <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-                       <Col xs={24} md={temBanana ? 5 : 6}>
-                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                           <AppleOutlined style={{ marginRight: 8 }} />
-                           Fruta
-                         </span>
-                       </Col>
-                       <Col xs={24} md={temBanana ? 3 : 4}>
-                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                           <CalculatorOutlined style={{ marginRight: 8 }} />
-                           Prevista
-                         </span>
-                       </Col>
-                       <Col xs={24} md={temBanana ? 3 : 4}>
-                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                           <CalculatorOutlined style={{ marginRight: 8 }} />
-                           Colhida
-                         </span>
-                       </Col>
-                       <Col xs={24} md={temBanana ? 3 : 4}>
-                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                           <CalculatorOutlined style={{ marginRight: 8 }} />
-                           Colhida 2
-                         </span>
-                       </Col>
-                       <Col xs={24} md={temBanana ? 6 : 6}>
-                         <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                           <EnvironmentOutlined style={{ marginRight: 8 }} />
-                           Áreas
-                         </span>
-                       </Col>
-                       {temBanana && (
-                         <Col xs={24} md={4}>
-                           <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                             <TagOutlined style={{ marginRight: 8 }} />
-                             Fitas
+                     !isMobile && (
+                       <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
+                         <Col xs={24} md={temBanana ? 5 : 6}>
+                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                             <AppleOutlined style={{ marginRight: "0.5rem" }} />
+                             Fruta
                            </span>
                          </Col>
-                       )}
-                     </Row>
+                         <Col xs={24} md={temBanana ? 3 : 4}>
+                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                             <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                             Prevista
+                           </span>
+                         </Col>
+                         <Col xs={24} md={temBanana ? 4 : 5}>
+                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                             <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                             Colhida
+                           </span>
+                         </Col>
+                         <Col xs={24} md={temBanana ? 4 : 5}>
+                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                             <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                             Colhida 2
+                           </span>
+                         </Col>
+                         <Col xs={24} md={temBanana ? 4 : 4}>
+                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                             <EnvironmentOutlined style={{ marginRight: "0.5rem" }} />
+                             Áreas
+                           </span>
+                         </Col>
+                         {temBanana && (
+                           <Col xs={24} md={4}>
+                             <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                               <TagOutlined style={{ marginRight: "0.5rem" }} />
+                               Fitas
+                             </span>
+                           </Col>
+                         )}
+                       </Row>
+                     )
                    );
                  })()}
 
@@ -868,20 +867,62 @@ const ColheitaModal = ({
                   
                   return (
                     <div key={key}>
-                                             <Row gutter={[16, 16]} align="baseline">
+                      {isMobile && index > 0 && (
+                        <div style={{ 
+                          display: "flex", 
+                          alignItems: "center", 
+                          marginBottom: isMobile ? "12px" : "16px",
+                          padding: "8px 0"
+                        }}>
+                          <div style={{
+                            flex: 1,
+                            height: "1px",
+                            backgroundColor: "#e8e8e8"
+                          }} />
+                          <div style={{
+                            margin: "0 12px",
+                            padding: "4px 12px",
+                            backgroundColor: "#f0f9ff",
+                            borderRadius: "12px",
+                            border: "1px solid #bae6fd"
+                          }}>
+                            <Text style={{ 
+                              color: "#059669", 
+                              fontSize: "12px", 
+                              fontWeight: "600" 
+                            }}>
+                              Fruta {index + 1}
+                            </Text>
+                          </div>
+                          <div style={{
+                            flex: 1,
+                            height: "1px",
+                            backgroundColor: "#e8e8e8"
+                          }} />
+                        </div>
+                      )}
+                      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="baseline">
                                                  {/* Nome da Fruta */}
                          <Col xs={24} md={temBanana ? 5 : 6}>
                           <Form.Item
                             {...restField}
                             name={[name, 'frutaNome']}
+                            label={isMobile ? (
+                              <Space size="small">
+                                <AppleOutlined style={{ color: "#059669" }} />
+                                <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Fruta</span>
+                              </Space>
+                            ) : undefined}
                           >
                             <Input
                               disabled
+                              size={isMobile ? "small" : "middle"}
                               value={fruta?.frutaNome || fruta?.fruta?.nome || ''}
                               style={{
                                 borderRadius: "6px",
                                 borderColor: "#d9d9d9",
                                 backgroundColor: "#f5f5f5",
+                                fontSize: isMobile ? "0.875rem" : "1rem"
                               }}
                             />
                           </Form.Item>
@@ -891,24 +932,38 @@ const ColheitaModal = ({
                          <Col xs={24} md={temBanana ? 3 : 4}>
                            <Form.Item
                              {...restField}
+                             label={isMobile ? (
+                               <Space size="small">
+                                 <CalculatorOutlined style={{ color: "#059669" }} />
+                                 <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Prevista</span>
+                               </Space>
+                             ) : undefined}
                            >
                              <Input
                                disabled
+                               size={isMobile ? "small" : "middle"}
                                value={`${fruta?.quantidadePrevista || ''} ${fruta?.unidadeMedida1 || ''}`.trim()}
                                style={{
                                  borderRadius: "6px",
                                  borderColor: "#d9d9d9",
                                  backgroundColor: "#f5f5f5",
+                                 fontSize: isMobile ? "0.875rem" : "1rem"
                                }}
                              />
                            </Form.Item>
                          </Col>
 
                                                 {/* Quantidade Real */}
-                         <Col xs={24} md={temBanana ? 3 : 4}>
+                         <Col xs={24} md={temBanana ? 4 : 5}>
                                                        <Form.Item
                               {...restField}
                               name={[name, 'quantidadeReal']}
+                              label={isMobile ? (
+                                <Space size="small">
+                                  <CalculatorOutlined style={{ color: "#059669" }} />
+                                  <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Colhida *</span>
+                                </Space>
+                              ) : undefined}
                               rules={[
                                 { required: true, message: "Quantidade real é obrigatória" },
                                 {
@@ -928,16 +983,23 @@ const ColheitaModal = ({
                              <MonetaryInput
                                placeholder="Ex: 985,50"
                                addonAfter={fruta?.unidadeMedida1 || ''}
-                               size="large"
+                               size={isMobile ? "small" : "large"}
+                               style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
                              />
                           </Form.Item>
                         </Col>
 
                                                  {/* Quantidade Real 2 */}
-                         <Col xs={24} md={temBanana ? 3 : 4}>
+                         <Col xs={24} md={temBanana ? 4 : 5}>
                                                        <Form.Item
                               {...restField}
                               name={[name, 'quantidadeReal2']}
+                              label={isMobile ? (
+                                <Space size="small">
+                                  <CalculatorOutlined style={{ color: "#059669" }} />
+                                  <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Colhida 2</span>
+                                </Space>
+                              ) : undefined}
                               rules={[
                                 {
                                   validator: (_, value) => {
@@ -961,14 +1023,21 @@ const ColheitaModal = ({
                                 addonAfter={fruta?.unidadeMedida2 || ''}
                                 disabled={!fruta?.unidadeMedida2}
                                 className={!fruta?.unidadeMedida2 ? 'custom-disabled-visual' : ''}
-                                size="large"
+                                size={isMobile ? "small" : "large"}
+                                style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
                               />
                            </Form.Item>
                          </Col>
 
                         {/* Coluna de Áreas */}
-                        <Col xs={24} md={temBanana ? 6 : 6}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <Col xs={24} md={temBanana ? 4 : 4}>
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '8px', 
+                            flexWrap: 'wrap',
+                            justifyContent: isMobile ? 'center' : 'flex-start'
+                          }}>
                             {hasLinkedAreas(fruta) ? (
                               <>
                                   {/* Botão com apenas ícone */}
@@ -976,23 +1045,25 @@ const ColheitaModal = ({
                                     <FormButton
                                       icon={<LinkOutlined />}
                                       onClick={() => handleVincularAreas(fruta, index)}
+                                      size={isMobile ? "small" : "middle"}
                                       style={{ 
-                                        minWidth: '32px',
-                                        width: '32px',
+                                        minWidth: isMobile ? '28px' : '32px',
+                                        width: isMobile ? '28px' : '32px',
+                                        height: isMobile ? '28px' : '32px',
                                         padding: '0'
                                       }}
                                     />
                                   </Tooltip>
                                 
                                 {/* Badges das áreas */}
-                                {getLinkedAreasNames(fruta).slice(0, 2).map((area, idx) => (
+                                {getLinkedAreasNames(fruta).slice(0, isMobile ? 1 : 2).map((area, idx) => (
                                   <Tag 
                                     key={idx} 
                                     size="small" 
                                     color={area.tipo === 'propria' ? 'green' : 'blue'}
                                     style={{ 
-                                      fontSize: '11px',
-                                      maxWidth: '80px',
+                                      fontSize: isMobile ? '10px' : '11px',
+                                      maxWidth: isMobile ? '60px' : '80px',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
                                       whiteSpace: 'nowrap'
@@ -1003,9 +1074,9 @@ const ColheitaModal = ({
                                 ))}
                                 
                                 {/* Badge "+X" se houver mais áreas */}
-                                {getLinkedAreasNames(fruta).length > 2 && (
-                                  <Tag size="small" color="blue" style={{ fontSize: '11px' }}>
-                                    +{getLinkedAreasNames(fruta).length - 2}
+                                {getLinkedAreasNames(fruta).length > (isMobile ? 1 : 2) && (
+                                  <Tag size="small" color="blue" style={{ fontSize: isMobile ? '10px' : '11px' }}>
+                                    +{getLinkedAreasNames(fruta).length - (isMobile ? 1 : 2)}
                                   </Tag>
                                 )}
                               </>
@@ -1013,11 +1084,13 @@ const ColheitaModal = ({
                               <FormButton
                                 icon={<LinkOutlined />}
                                 onClick={() => handleVincularAreas(fruta, index)}
+                                size={isMobile ? "small" : "middle"}
                                 style={{ 
-                                  minWidth: '130px'
+                                  minWidth: isMobile ? '120px' : '130px',
+                                  width: isMobile ? '120px' : 'auto'
                                 }}
                               >
-                                Vincular Áreas
+                                {isMobile ? 'Vincular Áreas' : 'Vincular Áreas'}
                               </FormButton>
                             )}
                           </div>
@@ -1026,7 +1099,13 @@ const ColheitaModal = ({
                         {/* Coluna de Fitas - Só aparece para bananas */}
                         {isFrutaBanana && (
                           <Col xs={24} md={4}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '8px', 
+                              flexWrap: 'wrap',
+                              justifyContent: isMobile ? 'center' : 'flex-start'
+                            }}>
                               {hasLinkedFitas(fruta) ? (
                                 <>
                                     {/* Botão com apenas ícone */}
@@ -1034,9 +1113,11 @@ const ColheitaModal = ({
                                       <FormButton
                                         icon={<LinkOutlined />}
                                         onClick={() => handleVincularFitas(fruta, index)}
+                                        size={isMobile ? "small" : "middle"}
                                         style={{ 
-                                          minWidth: '32px',
-                                          width: '32px',
+                                          minWidth: isMobile ? '28px' : '32px',
+                                          width: isMobile ? '28px' : '32px',
+                                          height: isMobile ? '28px' : '32px',
                                           padding: '0'
                                         }}
                                       />
@@ -1048,11 +1129,11 @@ const ColheitaModal = ({
                                       key={idx} 
                                       size="small" 
                                       style={{ 
-                                        fontSize: '11px',
+                                        fontSize: isMobile ? '10px' : '11px',
                                         backgroundColor: fita.cor + '20',
                                         borderColor: fita.cor,
                                         color: '#333',
-                                        maxWidth: '60px',
+                                        maxWidth: isMobile ? '50px' : '60px',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap'
@@ -1064,7 +1145,7 @@ const ColheitaModal = ({
                                   
                                   {/* Badge "+X" se houver mais fitas */}
                                   {getLinkedFitasNames(fruta).length > 1 && (
-                                    <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
+                                    <Tag size="small" color="purple" style={{ fontSize: isMobile ? '10px' : '11px' }}>
                                       +{getLinkedFitasNames(fruta).length - 1}
                                     </Tag>
                                   )}
@@ -1073,21 +1154,19 @@ const ColheitaModal = ({
                                 <FormButton
                                   icon={<LinkOutlined />}
                                   onClick={() => handleVincularFitas(fruta, index)}
+                                  size={isMobile ? "small" : "middle"}
                                   style={{ 
-                                    minWidth: '120px'
+                                    minWidth: isMobile ? '120px' : '120px',
+                                    width: isMobile ? '120px' : 'auto'
                                   }}
                                 >
-                                  Vincular Fitas
+                                  {isMobile ? 'Vincular Fitas' : 'Vincular Fitas'}
                                 </FormButton>
                               )}
                             </div>
                           </Col>
                         )}
                       </Row>
-
-                      
-
-                                             {index < fields.length - 1 && <Divider style={{ margin: "8px 0" }} />}
                     </div>
                   );
                 })}
@@ -1101,31 +1180,35 @@ const ColheitaModal = ({
           title={
             <Space>
               <CarOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Informações de Frete</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Informações de Frete</span>
             </Space>
           }
           style={{ 
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem",
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
-                     <Row gutter={[16, 16]}>
+                     <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
              <Col xs={24} md={5}>
                <Form.Item
                  label={
                    <Space>
                      <CalculatorOutlined style={{ color: "#059669" }} />
-                     <span style={{ fontWeight: "700", color: "#333" }}>Pesagem</span>
+                     <span style={{ fontWeight: "700", color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Pesagem</span>
                    </Space>
                  }
                  name="pesagem"
@@ -1147,10 +1230,12 @@ const ColheitaModal = ({
                >
                                   <InputNumber
                     placeholder="Ex: 2500"
+                    size={isMobile ? "small" : "middle"}
                     style={{
                       width: "100%",
                       borderRadius: "6px",
                       borderColor: "#d9d9d9",
+                      fontSize: isMobile ? "0.875rem" : "1rem"
                     }}
                     min={1}
                     max={999999}
@@ -1166,16 +1251,18 @@ const ColheitaModal = ({
                  label={
                    <Space>
                      <CarOutlined style={{ color: "#059669" }} />
-                     <span style={{ fontWeight: "700", color: "#333" }}>Placa Principal</span>
+                     <span style={{ fontWeight: "700", color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Placa Principal</span>
                    </Space>
                  }
                  name="placaPrimaria"
                >
                  <Input
                    placeholder="Ex: ABC-1234"
+                   size={isMobile ? "small" : "middle"}
                    style={{
                      borderRadius: "6px",
                      borderColor: "#d9d9d9",
+                     fontSize: isMobile ? "0.875rem" : "1rem"
                    }}
                  />
                </Form.Item>
@@ -1186,16 +1273,18 @@ const ColheitaModal = ({
                  label={
                    <Space>
                      <CarOutlined style={{ color: "#059669" }} />
-                     <span style={{ fontWeight: "700", color: "#333" }}>Placa Secundária</span>
+                     <span style={{ fontWeight: "700", color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Placa Secundária</span>
                    </Space>
                  }
                  name="placaSecundaria"
                >
                  <Input
                    placeholder="Ex: XYZ-5678 (reboque)"
+                   size={isMobile ? "small" : "middle"}
                    style={{
                      borderRadius: "6px",
                      borderColor: "#d9d9d9",
+                     fontSize: isMobile ? "0.875rem" : "1rem"
                    }}
                  />
                </Form.Item>
@@ -1206,16 +1295,18 @@ const ColheitaModal = ({
                  label={
                    <Space>
                      <UserOutlined style={{ color: "#059669" }} />
-                     <span style={{ fontWeight: "700", color: "#333" }}>Motorista</span>
+                     <span style={{ fontWeight: "700", color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Motorista</span>
                    </Space>
                  }
                  name="nomeMotorista"
                >
                  <Input
                    placeholder="Nome do motorista"
+                   size={isMobile ? "small" : "middle"}
                    style={{
                      borderRadius: "6px",
                      borderColor: "#d9d9d9",
+                     fontSize: isMobile ? "0.875rem" : "1rem"
                    }}
                  />
                </Form.Item>
@@ -1228,21 +1319,25 @@ const ColheitaModal = ({
           title={
             <Space>
               <TeamOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Mão de Obra</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Mão de Obra</span>
             </Space>
           }
           style={{
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem",
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
@@ -1250,51 +1345,99 @@ const ColheitaModal = ({
             {(fields, { add, remove }) => (
               <>
                 {/* Cabeçalho das colunas */}
-                <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-                  <Col xs={24} md={6}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <TeamOutlined style={{ marginRight: 8 }} />
-                      Turma de Colheita
-                    </span>
-                  </Col>
-                  <Col xs={24} md={4}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <CalculatorOutlined style={{ marginRight: 8 }} />
-                      Quantidade
-                    </span>
-                  </Col>
-                  <Col xs={24} md={3}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <CalculatorOutlined style={{ marginRight: 8 }} />
-                      Unidade
-                    </span>
-                  </Col>
-                  <Col xs={24} md={4}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <CalculatorOutlined style={{ marginRight: 8 }} />
-                      Valor (R$)
-                    </span>
-                  </Col>
-                  <Col xs={24} md={5}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      <FileTextOutlined style={{ marginRight: 8 }} />
-                      Observações
-                    </span>
-                  </Col>
-                  <Col xs={24} md={2}>
-                    <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                      Ações
-                    </span>
-                  </Col>
-                </Row>
+                {!isMobile && (
+                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
+                    <Col xs={24} md={6}>
+                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                        <TeamOutlined style={{ marginRight: "0.5rem" }} />
+                        Turma de Colheita
+                      </span>
+                    </Col>
+                    <Col xs={24} md={4}>
+                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                        <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                        Quantidade
+                      </span>
+                    </Col>
+                    <Col xs={24} md={3}>
+                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                        <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                        Unidade
+                      </span>
+                    </Col>
+                    <Col xs={24} md={4}>
+                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                        <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                        Valor (R$)
+                      </span>
+                    </Col>
+                    <Col xs={24} md={5}>
+                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                        <FileTextOutlined style={{ marginRight: "0.5rem" }} />
+                        Observações
+                      </span>
+                    </Col>
+                    <Col xs={24} md={2}>
+                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                        Ações
+                      </span>
+                    </Col>
+                  </Row>
+                )}
 
-                {fields.map(({ key, name, ...restField }, index) => (
-                  <div key={key}>
-                    <Row gutter={[16, 16]} align="baseline">
+                {fields.map(({ key, name, ...restField }, index) => {
+                  // Obter dados da turma selecionada para exibir no identificador
+                  const maoObraItem = form.getFieldValue('maoObra')?.[index];
+                  const turmaSelecionada = turmasColheita.find(t => t.id === maoObraItem?.turmaColheitaId);
+                  const identificador = turmaSelecionada ? turmaSelecionada.nomeColhedor : `Colheitador ${index + 1}`;
+                  
+                  return (
+                    <div key={key}>
+                      {isMobile && index > 0 && (
+                        <div style={{ 
+                          display: "flex", 
+                          alignItems: "center", 
+                          marginBottom: isMobile ? "12px" : "16px",
+                          padding: "8px 0"
+                        }}>
+                          <div style={{
+                            flex: 1,
+                            height: "1px",
+                            backgroundColor: "#e8e8e8"
+                          }} />
+                          <div style={{
+                            margin: "0 12px",
+                            padding: "4px 12px",
+                            backgroundColor: "#f0f9ff",
+                            borderRadius: "12px",
+                            border: "1px solid #bae6fd"
+                          }}>
+                            <Text style={{ 
+                              color: "#059669", 
+                              fontSize: "12px", 
+                              fontWeight: "600" 
+                            }}>
+                              {identificador}
+                            </Text>
+                          </div>
+                          <div style={{
+                            flex: 1,
+                            height: "1px",
+                            backgroundColor: "#e8e8e8"
+                          }} />
+                        </div>
+                      )}
+                      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="baseline">
                       <Col xs={24} md={6}>
                         <Form.Item
                           {...restField}
                           name={[name, 'turmaColheitaId']}
+                          label={isMobile ? (
+                            <Space size="small">
+                              <TeamOutlined style={{ color: "#059669" }} />
+                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Turma de Colheita</span>
+                            </Space>
+                          ) : undefined}
                           rules={[
                             {
                               validator: (_, value) => {
@@ -1330,6 +1473,7 @@ const ColheitaModal = ({
                         >
                           <Select
                             placeholder="Selecione uma turma"
+                            size={isMobile ? "small" : "middle"}
                             showSearch
                             optionFilterProp="children"
                             filterOption={(input, option) =>
@@ -1338,6 +1482,7 @@ const ColheitaModal = ({
                             style={{
                               borderRadius: "6px",
                               borderColor: "#d9d9d9",
+                              fontSize: isMobile ? "0.875rem" : "1rem"
                             }}
                           >
                             {turmasColheita.map((turma) => (
@@ -1353,6 +1498,12 @@ const ColheitaModal = ({
                         <Form.Item
                           {...restField}
                           name={[name, 'quantidadeColhida']}
+                          label={isMobile ? (
+                            <Space size="small">
+                              <CalculatorOutlined style={{ color: "#059669" }} />
+                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Quantidade</span>
+                            </Space>
+                          ) : undefined}
                           rules={[
                             {
                               validator: (_, value) => {
@@ -1383,10 +1534,11 @@ const ColheitaModal = ({
                         >
                           <MonetaryInput
                             placeholder="Ex: 1.234,56"
-                            size="large"
+                            size={isMobile ? "small" : "large"}
                             style={{
                               borderRadius: "6px",
                               borderColor: "#d9d9d9",
+                              fontSize: isMobile ? "0.875rem" : "1rem"
                             }}
                           />
                         </Form.Item>
@@ -1396,6 +1548,12 @@ const ColheitaModal = ({
                         <Form.Item
                           {...restField}
                           name={[name, 'unidadeMedida']}
+                          label={isMobile ? (
+                            <Space size="small">
+                              <CalculatorOutlined style={{ color: "#059669" }} />
+                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Unidade</span>
+                            </Space>
+                          ) : undefined}
                           rules={[
                             {
                               validator: (_, value) => {
@@ -1418,9 +1576,11 @@ const ColheitaModal = ({
                         >
                           <Select
                             placeholder="Unidade"
+                            size={isMobile ? "small" : "middle"}
                             style={{
                               borderRadius: "6px",
                               borderColor: "#d9d9d9",
+                              fontSize: isMobile ? "0.875rem" : "1rem"
                             }}
                           >
                             {unidadesMedida.map((unidade) => (
@@ -1436,6 +1596,12 @@ const ColheitaModal = ({
                         <Form.Item
                           {...restField}
                           name={[name, 'valorColheita']}
+                          label={isMobile ? (
+                            <Space size="small">
+                              <CalculatorOutlined style={{ color: "#059669" }} />
+                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Valor (R$)</span>
+                            </Space>
+                          ) : undefined}
                           rules={[
                             {
                               validator: (_, value) => {
@@ -1464,10 +1630,11 @@ const ColheitaModal = ({
                           <MonetaryInput
                             placeholder="Ex: 150,00"
                             addonBefore="R$"
-                            size="large"
+                            size={isMobile ? "small" : "large"}
                             style={{
                               borderRadius: "6px",
                               borderColor: "#d9d9d9",
+                              fontSize: isMobile ? "0.875rem" : "1rem"
                             }}
                           />
                         </Form.Item>
@@ -1477,38 +1644,56 @@ const ColheitaModal = ({
                         <Form.Item
                           {...restField}
                           name={[name, 'observacoes']}
+                          label={isMobile ? (
+                            <Space size="small">
+                              <FileTextOutlined style={{ color: "#059669" }} />
+                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Observações</span>
+                            </Space>
+                          ) : undefined}
                         >
                           <Input
                             placeholder="Observações (opcional)"
+                            size={isMobile ? "small" : "middle"}
                             style={{
                               borderRadius: "6px",
                               borderColor: "#d9d9d9",
+                              fontSize: isMobile ? "0.875rem" : "1rem"
                             }}
                           />
                         </Form.Item>
                       </Col>
 
                       <Col xs={24} md={2}>
-                        <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                        <div style={{ 
+                          display: "flex", 
+                          gap: isMobile ? "8px" : "8px", 
+                          justifyContent: isMobile ? "center" : "center",
+                          flexDirection: isMobile ? "row" : "row",
+                          marginTop: isMobile ? "8px" : "0",
+                          paddingTop: isMobile ? "8px" : "0",
+                          borderTop: isMobile ? "1px solid #f0f0f0" : "none"
+                        }}>
                           {/* Botão de remover */}
                           <Button
                             type="text"
                             danger
                             icon={<DeleteOutlined />}
                             onClick={() => {
-                              remove(name);
-                              removerMaoObra(index);
+                              if (fields.length > 1) {
+                                remove(name);
+                              }
                             }}
-                            size="large"
+                            disabled={fields.length <= 1}
+                            size={isMobile ? "small" : "large"}
                             style={{
-                              borderRadius: "50px",
-                              height: "40px",
-                              width: "40px",
+                              borderRadius: "3.125rem",
+                              height: isMobile ? "32px" : "40px",
+                              width: isMobile ? "32px" : "40px",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
                               padding: 0,
-                              border: "2px solid #ff4d4f",
+                              border: "0.125rem solid #ff4d4f",
                               color: "#ff4d4f",
                               backgroundColor: "#ffffff",
                             }}
@@ -1519,15 +1704,23 @@ const ColheitaModal = ({
                             <Button
                               type="dashed"
                               icon={<PlusOutlined />}
-                              onClick={adicionarMaoObra}
-                              size="large"
+                              onClick={() => {
+                                add({
+                                  turmaColheitaId: undefined,
+                                  quantidadeColhida: undefined,
+                                  unidadeMedida: undefined,
+                                  valorColheita: undefined,
+                                  observacoes: ''
+                                });
+                              }}
+                              size={isMobile ? "small" : "large"}
                               style={{
-                                borderRadius: "50px",
+                                borderRadius: "3.125rem",
                                 borderColor: "#10b981",
                                 color: "#10b981",
-                                borderWidth: "2px",
-                                height: "40px",
-                                width: "40px",
+                                borderWidth: "0.125rem",
+                                height: isMobile ? "32px" : "40px",
+                                width: isMobile ? "32px" : "40px",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -1539,9 +1732,10 @@ const ColheitaModal = ({
                         </div>
                       </Col>
                     </Row>
-                    {index < fields.length - 1 && <Divider style={{ margin: "16px 0" }} />}
+                    {index < fields.length - 1 && <Divider style={{ margin: isMobile ? "12px 0" : "16px 0" }} />}
                   </div>
-                ))}
+                  );
+                })}
               </>
             )}
           </Form.List>
@@ -1552,9 +1746,9 @@ const ColheitaModal = ({
           style={{
             display: "flex",
             justifyContent: "flex-end",
-            gap: "12px",
-            marginTop: "24px",
-            paddingTop: "16px",
+            gap: isMobile ? "8px" : "12px",
+            marginTop: isMobile ? "1rem" : "1.5rem",
+            paddingTop: isMobile ? "12px" : "16px",
             borderTop: "1px solid #e8e8e8",
           }}
         >
@@ -1562,7 +1756,11 @@ const ColheitaModal = ({
             icon={<CloseOutlined />}
             onClick={handleCancelar}
             disabled={loading || isSaving}
-            size="large"
+            size={isMobile ? "small" : "middle"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
           >
             Cancelar
           </Button>
@@ -1571,10 +1769,12 @@ const ColheitaModal = ({
             icon={<SaveOutlined />}
             htmlType="submit"
             loading={loading || isSaving}
-            size="large"
+            size={isMobile ? "small" : "middle"}
             style={{
               backgroundColor: "#059669",
               borderColor: "#059669",
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
             }}
           >
             {isSaving ? "Registrando..." : "Registrar Colheita"}

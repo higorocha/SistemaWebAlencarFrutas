@@ -10,21 +10,25 @@ import {
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import PedidoCard from "./PedidoCard";
+import useResponsive from "../../../hooks/useResponsive";
 
 const { Title, Text } = Typography;
 
-const StatusSection = ({ 
-  title, 
-  pedidos = [], 
-  actionType, 
-  onAction, 
+const StatusSection = ({
+  title,
+  pedidos = [],
+  actionType,
+  onAction,
   onVisualizar,
-  icon, 
+  icon,
   color = "#059669",
   description,
   emptyText = "Nenhum pedido encontrado",
-  showProgress = false // Nova prop para controlar o progress circular
+  showProgress = false, // Nova prop para controlar o progress circular
+  mobileTitle // Título compacto para mobile
 }) => {
+  const { isMobile } = useResponsive();
+
   const sectionStyle = {
     height: "100%", // Para ocupar toda a altura do container pai
     display: "flex",
@@ -34,18 +38,20 @@ const StatusSection = ({
   const headerStyle = {
     backgroundColor: color,
     color: "#ffffff",
-    padding: "16px 24px",
+    padding: isMobile ? "0.75rem 1rem" : "1rem 1.5rem",
     margin: "-1px -1px 0 -1px",
-    borderRadius: "8px 8px 0 0",
+    borderRadius: "0.5rem 0.5rem 0 0",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     flexShrink: 0, // ✅ Não encolhe
+    flexWrap: isMobile ? "wrap" : "nowrap",
+    gap: isMobile ? "0.5rem" : "0",
   };
 
   const contentStyle = {
-    padding: "16px",
-    maxHeight: "430px", // ✅ Altura máxima fixa
+    padding: isMobile ? "0.75rem" : "1rem",
+    maxHeight: isMobile ? "21.875rem" : "26.875rem", // ✅ Altura máxima fixa
     overflowY: "auto", // ✅ Scroll vertical apenas aqui
     overflowX: "hidden",
     flex: 1, // ✅ Ocupa espaço disponível
@@ -55,12 +61,12 @@ const StatusSection = ({
     <Empty
       image={icon}
       imageStyle={{
-        height: 48,
+        height: "3rem",
         color: "#d9d9d9",
-        fontSize: "48px",
+        fontSize: "3rem",
       }}
       description={
-        <Text type="secondary" style={{ fontSize: "14px" }}>
+        <Text type="secondary" style={{ fontSize: "0.875rem" }}>
           {emptyText}
         </Text>
       }
@@ -71,14 +77,14 @@ const StatusSection = ({
     <div style={sectionStyle}>
       <Card
         style={{
-          borderRadius: "8px",
+          borderRadius: "0.5rem",
           border: `1px solid ${color}`,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-          height: "520px", // ✅ Altura fixa (será sobrescrita em mobile pelo CSS)
+          boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
+          height: "32.5rem", // ✅ Altura fixa (será sobrescrita em mobile pelo CSS)
           display: "flex",
           flexDirection: "column",
         }}
-        styles={{ 
+        styles={{
           body: {
             padding: 0,
             flex: 1,
@@ -89,16 +95,16 @@ const StatusSection = ({
       >
         {/* Header da seção */}
         <div style={headerStyle}>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <div style={{ marginRight: "12px" }}>
-              {icon}
+          <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
+            <div style={{ marginRight: isMobile ? "0.5rem" : "0.75rem" }}>
+              {React.cloneElement(icon, { style: { fontSize: isMobile ? "1.25rem" : "1.5rem" } })}
             </div>
-            <div>
-              <Title level={4} style={{ color: "#ffffff", margin: 0 }}>
-                {title}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Title level={isMobile ? 5 : 4} style={{ color: "#ffffff", margin: 0, fontSize: isMobile ? "0.875rem" : undefined }}>
+                {isMobile && mobileTitle ? mobileTitle : title}
               </Title>
-              {description && (
-                <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px" }}>
+              {!isMobile && description && (
+                <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.8125rem" }}>
                   {description}
                 </Text>
               )}
@@ -109,7 +115,7 @@ const StatusSection = ({
               <Progress
                 type="circle"
                 percent={75}
-                size={32}
+                size={isMobile ? 28 : 32}
                 strokeColor="#ffffff"
                 trailColor="rgba(255,255,255,0.1)"
                 showInfo={false}
@@ -132,7 +138,8 @@ const StatusSection = ({
                   position: "relative",
                   zIndex: 2,
                   boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                  border: "1px solid rgba(255,255,255,0.8)"
+                  border: "1px solid rgba(255,255,255,0.8)",
+                  fontSize: isMobile ? "10px" : undefined,
                 }}
               />
             </div>
@@ -143,6 +150,7 @@ const StatusSection = ({
                 backgroundColor: "rgba(255,255,255,0.9)",
                 color: color,
                 fontWeight: "600",
+                fontSize: isMobile ? "10px" : undefined,
               }}
             />
           )}
@@ -231,6 +239,7 @@ const StatusSection = ({
 export const AguardandoColheitaSection = ({ pedidos, onAction, onVisualizar, showProgress = false }) => (
   <StatusSection
     title="Aguardando Colheita"
+    mobileTitle="Colheita"
     description="Pedidos criados e aguardando colheita"
     pedidos={pedidos}
     actionType="colheita"
@@ -246,6 +255,7 @@ export const AguardandoColheitaSection = ({ pedidos, onAction, onVisualizar, sho
 export const AguardandoPrecificacaoSection = ({ pedidos, onAction, onVisualizar, showProgress = false }) => (
   <StatusSection
     title="Aguardando Precificação"
+    mobileTitle="Precificação"
     description="Colheitas realizadas aguardando precificação"
     pedidos={pedidos}
     actionType="precificacao"
@@ -261,6 +271,7 @@ export const AguardandoPrecificacaoSection = ({ pedidos, onAction, onVisualizar,
 export const AguardandoPagamentoSection = ({ pedidos, onAction, onVisualizar, showProgress = false }) => (
   <StatusSection
     title="Aguardando Pagamento"
+    mobileTitle="Pagamento"
     description="Pedidos precificados aguardando pagamento"
     pedidos={pedidos}
     actionType="pagamento"

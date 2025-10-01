@@ -12,10 +12,13 @@ import {
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../../utils/formatters";
+import useResponsive from "../../../hooks/useResponsive";
 
 const { Text } = Typography;
 
 const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
+  const { isMobile } = useResponsive();
+  
   // Configurações de ação baseadas no tipo
   const getActionConfig = (type, status) => {
     const configs = {
@@ -160,7 +163,28 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
           
           {/* Coluna 5: Ação */}
           <div className="pedido-action-button" style={{ flex: "0 0 60px", textAlign: "left", justifyContent: "flex-start" }}>
-            <Tooltip title={actionConfig.text}>
+            {!isMobile ? (
+              <Tooltip title={actionConfig.text}>
+                <Button
+                  type="primary"
+                  icon={actionConfig.icon}
+                  size="small"
+                  style={{
+                    backgroundColor: actionConfig.color,
+                    borderColor: actionConfig.color,
+                    minWidth: "36px",
+                    height: "32px"
+                  }}
+                  disabled={actionConfig.disabled}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAction(pedido);
+                  }}
+                >
+                  <span className="button-text-mobile">{actionConfig.text}</span>
+                </Button>
+              </Tooltip>
+            ) : (
               <Button
                 type="primary"
                 icon={actionConfig.icon}
@@ -179,7 +203,7 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
               >
                 <span className="button-text-mobile">{actionConfig.text}</span>
               </Button>
-            </Tooltip>
+            )}
           </div>
         </div>
       ) : (
@@ -229,7 +253,28 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
           
           {/* Coluna 5: Ação */}
           <div className="pedido-action-button" style={{ flex: "0 0 60px", textAlign: "left", justifyContent: "flex-start" }}>
-            <Tooltip title={actionConfig.text}>
+            {!isMobile ? (
+              <Tooltip title={actionConfig.text}>
+                <Button
+                  type="primary"
+                  icon={actionConfig.icon}
+                  size="small"
+                  style={{
+                    backgroundColor: actionConfig.color,
+                    borderColor: actionConfig.color,
+                    minWidth: "36px",
+                    height: "32px"
+                  }}
+                  disabled={actionConfig.disabled}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAction(pedido);
+                  }}
+                >
+                  <span className="button-text-mobile">{actionConfig.text}</span>
+                </Button>
+              </Tooltip>
+            ) : (
               <Button
                 type="primary"
                 icon={actionConfig.icon}
@@ -248,7 +293,7 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
               >
                 <span className="button-text-mobile">{actionConfig.text}</span>
               </Button>
-            </Tooltip>
+            )}
           </div>
         </div>
       )}

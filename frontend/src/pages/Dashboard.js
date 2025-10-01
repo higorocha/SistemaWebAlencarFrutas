@@ -440,7 +440,7 @@ const Dashboard = () => {
               textAlign: isMobile ? 'center' : 'left'
             }}
           >
-            {isMobile ? 'Gestão agrícola AlencarFrutas' : 'Visão geral do sistema AlencarFrutas - gestão agrícola completa'}
+            {isMobile ? '' : 'Visão geral do sistema AlencarFrutas - gestão agrícola completa'}
           </Typography.Text>
         </div>
 
@@ -469,85 +469,216 @@ const Dashboard = () => {
       </div>
 
       {/* Cards Principais - Responsivos */}
-      <Row gutter={isMobile ? [8, 8] : [16, 16]} style={{ marginBottom: isMobile ? '16px' : '32px' }}>
-        <Col xs={isSmallMobile ? 12 : 24} sm={12} md={8} lg={4}>
-          <CardStyled>
-            <Statistic
-              title="Faturamento Total"
-              value={dashboardData.faturamentoTotal}
-              prefix={<TrophyOutlined style={{ color: '#52c41a' }} />}
-              precision={2}
-              valueStyle={{
-                color: '#52c41a',
-                fontSize: '1.25rem',
-                fontWeight: 'bold'
-              }}
-              formatter={value => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-            />
-            {!isMobile && (
+      {isMobile ? (
+        /* Mobile: Grid Compacto 2x3 - Estilo consistente com desktop */
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '12px',
+          marginBottom: '16px'
+        }}>
+          {/* Card 1: Faturamento Total */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px',
+              minHeight: '100px'
+            }}>
+              <TrophyOutlined style={{ fontSize: '28px', color: '#52c41a', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#52c41a', lineHeight: 1.2, marginBottom: '6px' }}>
+                R$ {(dashboardData.faturamentoTotal / 1000).toFixed(0)}k
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
+                Faturamento Total
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 2: Faturamento Aberto */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px',
+              minHeight: '100px'
+            }}>
+              <ClockCircleOutlined style={{ fontSize: '28px', color: '#faad14', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#faad14', lineHeight: 1.2, marginBottom: '6px' }}>
+                R$ {(dashboardData.faturamentoAberto / 1000).toFixed(0)}k
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
+                Faturamento Aberto
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 3: Clientes Ativos */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px',
+              minHeight: '100px'
+            }}>
+              <TeamOutlined style={{ fontSize: '28px', color: '#1890ff', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#1890ff', lineHeight: 1.2, marginBottom: '6px' }}>
+                {dashboardData.totalClientes}
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
+                Clientes Ativos
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 4: Pedidos Ativos */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px',
+              minHeight: '100px'
+            }}>
+              <ShoppingCartOutlined style={{ fontSize: '28px', color: '#722ed1', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#722ed1', lineHeight: 1.2, marginBottom: '6px' }}>
+                {dashboardData.pedidosAtivos}
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
+                Pedidos Ativos
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 5: Áreas Produtivas */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px',
+              minHeight: '100px'
+            }}>
+              <EnvironmentOutlined style={{ fontSize: '28px', color: '#059669', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#059669', lineHeight: 1.2, marginBottom: '6px' }}>
+                {dashboardData.areasProdutivasHa.toFixed(1)} ha
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
+                Áreas Produtivas
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 6: Frutas Cadastradas */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px',
+              minHeight: '100px'
+            }}>
+              <img
+                src="/icons/frutas_64x64.png"
+                alt="Frutas"
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  marginBottom: '8px'
+                }}
+              />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#fa8c16', lineHeight: 1.2, marginBottom: '6px' }}>
+                {dashboardData.frutasCadastradas}
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
+                Frutas Cadastradas
+              </div>
+            </div>
+          </CardStyled>
+        </div>
+      ) : (
+        /* Desktop: Row tradicional */
+        <Row gutter={[16, 16]} style={{ marginBottom: '32px' }}>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <CardStyled>
+              <Statistic
+                title="Faturamento Total"
+                value={dashboardData.faturamentoTotal}
+                prefix={<TrophyOutlined style={{ color: '#52c41a' }} />}
+                precision={2}
+                valueStyle={{
+                  color: '#52c41a',
+                  fontSize: '1.25rem',
+                  fontWeight: 'bold'
+                }}
+                formatter={value => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+              />
               <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
                 Receita consolidada
               </Typography.Text>
-            )}
-          </CardStyled>
-        </Col>
+            </CardStyled>
+          </Col>
 
-        <Col xs={isSmallMobile ? 12 : 24} sm={12} md={8} lg={4}>
-          <CardStyled>
-            <Statistic
-              title="Faturamento Aberto"
-              value={dashboardData.faturamentoAberto}
-              prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
-              precision={2}
-              valueStyle={{
-                color: '#faad14',
-                fontSize: '1.25rem',
-                fontWeight: 'bold'
-              }}
-              formatter={value => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-            />
-            {!isMobile && (
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <CardStyled>
+              <Statistic
+                title="Faturamento Aberto"
+                value={dashboardData.faturamentoAberto}
+                prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
+                precision={2}
+                valueStyle={{
+                  color: '#faad14',
+                  fontSize: '1.25rem',
+                  fontWeight: 'bold'
+                }}
+                formatter={value => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+              />
               <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
                 Pedidos não pagos
               </Typography.Text>
-            )}
-          </CardStyled>
-        </Col>
+            </CardStyled>
+          </Col>
 
-        <Col xs={isSmallMobile ? 12 : 24} sm={12} md={8} lg={4}>
-          <CardStyled>
-            <Statistic
-              title="Clientes Ativos"
-              value={dashboardData.totalClientes}
-              prefix={<TeamOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{
-                color: '#1890ff',
-                fontSize: '1.25rem',
-                fontWeight: 'bold'
-              }}
-            />
-            {!isMobile && (
-              <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
-                Base de clientes
-              </Typography.Text>
-            )}
-          </CardStyled>
-        </Col>
-
-        <Col xs={isSmallMobile ? 12 : 24} sm={12} md={8} lg={4}>
-          <CardStyled>
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <CardStyled>
               <Statistic
-                title="Pedidos Ativos"
-                value={dashboardData.pedidosAtivos}
-                prefix={<ShoppingCartOutlined style={{ color: '#722ed1' }} />}
+                title="Clientes Ativos"
+                value={dashboardData.totalClientes}
+                prefix={<TeamOutlined style={{ color: '#1890ff' }} />}
                 valueStyle={{
-                  color: '#722ed1',
+                  color: '#1890ff',
                   fontSize: '1.25rem',
                   fontWeight: 'bold'
                 }}
               />
-              {!isMobile && (
+              <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
+                Base de clientes
+              </Typography.Text>
+            </CardStyled>
+          </Col>
+
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <CardStyled>
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Statistic
+                  title="Pedidos Ativos"
+                  value={dashboardData.pedidosAtivos}
+                  prefix={<ShoppingCartOutlined style={{ color: '#722ed1' }} />}
+                  valueStyle={{
+                    color: '#722ed1',
+                    fontSize: '1.25rem',
+                    fontWeight: 'bold'
+                  }}
+                />
                 <Badge
                   count={`${dashboardData.totalPedidos} total`}
                   style={{
@@ -556,63 +687,59 @@ const Dashboard = () => {
                     fontSize: '0.625rem'
                   }}
                 />
-              )}
-            </Space>
-          </CardStyled>
-        </Col>
+              </Space>
+            </CardStyled>
+          </Col>
 
-        <Col xs={isSmallMobile ? 12 : 24} sm={12} md={8} lg={4}>
-          <CardStyled>
-            <Statistic
-              title="Áreas Produtivas"
-              value={dashboardData.areasProdutivasHa}
-              suffix={<span style={{ fontSize: isMobile ? '1rem' : '1.25rem' }}>ha</span>}
-              prefix={<EnvironmentOutlined style={{ color: '#059669' }} />}
-              precision={1}
-              valueStyle={{
-                color: '#059669',
-                fontSize: isMobile ? '1rem' : '1.25rem',
-                fontWeight: 'bold'
-              }}
-            />
-            {!isMobile && (
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <CardStyled>
+              <Statistic
+                title="Áreas Produtivas"
+                value={dashboardData.areasProdutivasHa}
+                suffix={<span style={{ fontSize: '1.25rem' }}>ha</span>}
+                prefix={<EnvironmentOutlined style={{ color: '#059669' }} />}
+                precision={1}
+                valueStyle={{
+                  color: '#059669',
+                  fontSize: '1.25rem',
+                  fontWeight: 'bold'
+                }}
+              />
               <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
                 Hectares produtivos
               </Typography.Text>
-            )}
-          </CardStyled>
-        </Col>
+            </CardStyled>
+          </Col>
 
-        <Col xs={isSmallMobile ? 12 : 24} sm={12} md={8} lg={4}>
-          <CardStyled>
-            <Statistic
-              title="Frutas Cadastradas"
-              value={dashboardData.frutasCadastradas}
-              prefix={
-                <img
-                  src="/icons/frutas_64x64.png"
-                  alt="Frutas"
-                  style={{
-                    width: isMobile ? '16px' : '20px',
-                    height: isMobile ? '16px' : '20px',
-                    verticalAlign: 'middle'
-                  }}
-                />
-              }
-              valueStyle={{
-                color: '#fa8c16',
-                fontSize: '1.25rem',
-                fontWeight: 'bold'
-              }}
-            />
-            {!isMobile && (
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <CardStyled>
+              <Statistic
+                title="Frutas Cadastradas"
+                value={dashboardData.frutasCadastradas}
+                prefix={
+                  <img
+                    src="/icons/frutas_64x64.png"
+                    alt="Frutas"
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      verticalAlign: 'middle'
+                    }}
+                  />
+                }
+                valueStyle={{
+                  color: '#fa8c16',
+                  fontSize: '1.25rem',
+                  fontWeight: 'bold'
+                }}
+              />
               <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
                 Tipos de frutas
               </Typography.Text>
-            )}
-          </CardStyled>
-        </Col>
-      </Row>
+            </CardStyled>
+          </Col>
+        </Row>
+      )}
 
       {/* Seção de Gráficos - Responsivos */}
       <Row gutter={isMobile ? [8, 8] : [24, 24]} style={{ marginBottom: isMobile ? '16px' : '32px' }}>

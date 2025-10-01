@@ -17,6 +17,7 @@ import NotificacaoDetalheModal from "./NotificacaoDetalheModal";
 import { useNavigate } from "react-router-dom";
 import moment from "../config/momentConfig";
 import { formatarValorMonetario } from "../utils/formatters";
+import useResponsive from "../hooks/useResponsive";
 
 const NotificacaoMenu = () => {
   const {
@@ -31,6 +32,7 @@ const NotificacaoMenu = () => {
 
   const navigate = useNavigate();
   const theme = useTheme();
+  const { isMobile } = useResponsive();
 
   // Estados para controlar o modal
   const [modalAberto, setModalAberto] = useState(false);
@@ -114,7 +116,14 @@ const NotificacaoMenu = () => {
   );
 
   const content = (
-    <Box sx={{ width: 350, maxHeight: 400, overflow: "auto", p: 2 }}>
+    <Box
+      sx={{
+        width: isMobile ? 280 : 350,
+        maxHeight: isMobile ? 300 : 400,
+        overflow: "auto",
+        p: isMobile ? 1.5 : 2,
+      }}
+    >
       <Box
         sx={{
           display: "flex",
@@ -223,11 +232,18 @@ const NotificacaoMenu = () => {
         content={content}
         trigger="click"
         placement="bottomRight"
-        overlayStyle={{ width: 350 }}
+        overlayStyle={{ width: isMobile ? 280 : 350 }}
       >
-        <IconButton color="inherit" onClick={handleIconClick}>
+        <IconButton
+          color="inherit"
+          onClick={handleIconClick}
+          size={isMobile ? "small" : "medium"}
+          sx={{
+            padding: { xs: "6px", sm: "8px" },
+          }}
+        >
           <Badge badgeContent={badgeCount} color="error">
-            <NotificationsIcon />
+            <NotificationsIcon fontSize={isMobile ? "small" : "medium"} />
           </Badge>
         </IconButton>
       </Popover>

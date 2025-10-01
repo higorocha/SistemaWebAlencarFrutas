@@ -6,6 +6,7 @@ import { Typography, message, Button, Tooltip, Space, Badge } from "antd";
 const { Title, Text: AntText } = Typography;
 import { ReloadOutlined, ClockCircleOutlined, CheckCircleOutlined, ShoppingCartOutlined } from "@ant-design/icons";
 import axiosInstance from "../api/axiosConfig";
+import useResponsive from "../hooks/useResponsive";
 import { showNotification } from "../config/notificationConfig";
 import { validatePedido } from "../utils/validation";
 import { useClientesCache } from "../hooks/useClientesCache";
@@ -33,6 +34,9 @@ import LancarPagamentosModal from "../components/pedidos/LancarPagamentosModal";
 
 
 const PedidosDashboard = () => {
+  // Hook de responsividade
+  const { isMobile, isTablet } = useResponsive();
+
   // Estado para controlar loading inicial - será controlado pelos hooks
   const [loadingInicial, setLoadingInicial] = useState(true);
   const [loadingType, setLoadingType] = useState(null); // null, 'novo-pedido', 'colheita', 'precificacao', 'pagamento'
@@ -370,19 +374,49 @@ const PedidosDashboard = () => {
   return (
     <div className="dashboard-container">
       {/* Header */}
-      <div className="dashboard-header">
+      <div className="dashboard-header" style={{
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'center',
+        textAlign: isMobile ? 'center' : 'left',
+        gap: isMobile ? '12px' : '16px'
+      }}>
         <div>
-          <Title level={2} style={{ margin: 0, color: "#2E7D32", marginBottom: 8 }}>
+          <Title
+            level={isMobile ? 3 : 2}
+            style={{
+              margin: 0,
+              color: "#2E7D32",
+              marginBottom: 8,
+              fontSize: isMobile ? '1.25rem' : undefined
+            }}
+          >
             <ShoppingCartOutlined style={{ marginRight: 8 }} />
-            Dashboard de Pedidos
+            {isMobile ? 'Pedidos' : 'Dashboard de Pedidos'}
           </Title>
-          <AntText type="secondary" style={{ fontSize: "14px" }}>
-            Acompanhe o fluxo dos pedidos em tempo real: colheita, precificação e pagamentos
+          <AntText
+            type="secondary"
+            style={{
+              fontSize: isMobile ? '0.75rem' : '0.875rem',
+              display: 'block',
+              textAlign: isMobile ? 'center' : 'left'
+            }}
+          >
+            {isMobile
+              ? 'Acompanhe o fluxo dos pedidos'
+              : 'Acompanhe o fluxo dos pedidos em tempo real: colheita, precificação e pagamentos'
+            }
           </AntText>
         </div>
         
         {/* Botão Atualizar com Indicador de Cache */}
-        <Space size="small" align="center">
+        <Space
+          size="small"
+          align="center"
+          style={{
+            width: isMobile ? '100%' : 'auto',
+            justifyContent: isMobile ? 'center' : 'flex-start'
+          }}
+        >
           {(() => {
             const cacheStatus = getCacheStatus();
             const formatTimeSinceUpdate = (timeSinceUpdate) => {
@@ -392,19 +426,21 @@ const PedidosDashboard = () => {
             };
 
             return (
-              <Tooltip 
+              <Tooltip
                 title={
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                      {cacheStatus.isCacheValid ? 'Dados Atualizados' : 'Dados Desatualizados'}
+                  !isMobile && (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                        {cacheStatus.isCacheValid ? 'Dados Atualizados' : 'Dados Desatualizados'}
+                      </div>
+                      <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                        Última atualização: {formatTimeSinceUpdate(cacheStatus.timeSinceUpdate)}
+                      </div>
+                      <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '4px' }}>
+                        Clique para forçar atualização (ignora cache de 30s)
+                      </div>
                     </div>
-                    <div style={{ fontSize: '12px', opacity: 0.8 }}>
-                      Última atualização: {formatTimeSinceUpdate(cacheStatus.timeSinceUpdate)}
-                    </div>
-                    <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '4px' }}>
-                      Clique para forçar atualização (ignora cache de 30s)
-                    </div>
-                  </div>
+                  )
                 }
                 placement="bottomRight"
               >
@@ -412,7 +448,7 @@ const PedidosDashboard = () => {
                   icon={<ReloadOutlined />}
                   onClick={() => carregarDashboard(paginacaoFinalizados.page, true)}
                   loading={loading || operacaoLoading}
-                  size="middle"
+                  size={isMobile ? "small" : "middle"}
                   style={{
                     backgroundColor: cacheStatus.isCacheValid ? '#f6ffed' : '#fff2e8',
                     borderColor: cacheStatus.isCacheValid ? '#b7eb8f' : '#ffbb96',
@@ -423,11 +459,12 @@ const PedidosDashboard = () => {
                     transition: 'all 0.3s ease',
                     opacity: cacheStatus.isCacheValid ? 0.8 : 1,
                     borderWidth: '2px',
-                    height: '40px',
-                    padding: '0 16px',
+                    height: isMobile ? '32px' : '40px',
+                    padding: isMobile ? '0 12px' : '0 16px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: isMobile ? '4px' : '8px',
+                    fontSize: isMobile ? '0.75rem' : undefined
                   }}
                   onMouseEnter={(e) => {
                     if (!loading && !operacaoLoading) {
@@ -447,16 +484,16 @@ const PedidosDashboard = () => {
               </Tooltip>
             );
           })()}
-          
-          {/* Indicador de Status do Cache */}
-          {(() => {
+
+          {/* Indicador de Status do Cache - Oculto em mobile */}
+          {!isMobile && (() => {
             const cacheStatus = getCacheStatus();
             return (
               <Badge
                 status={cacheStatus.isCacheValid ? 'success' : 'warning'}
                 text={
-                  <AntText style={{ 
-                    fontSize: '12px', 
+                  <AntText style={{
+                    fontSize: '12px',
                     color: cacheStatus.isCacheValid ? '#52c41a' : '#fa8c16',
                     fontWeight: '500'
                   }}>

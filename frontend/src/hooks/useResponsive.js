@@ -9,11 +9,16 @@ const useResponsive = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
+  const [isSmallMobile, setIsSmallMobile] = useState(false);
+  const [isLargeMobile, setIsLargeMobile] = useState(false);
+  const [isSmallTablet, setIsSmallTablet] = useState(false);
+  const [isLargeTablet, setIsLargeTablet] = useState(false);
 
   useEffect(() => {
     const checkScreenSize = () => {
       const width = window.innerWidth;
-      
+
+      // Breakpoints principais
       if (width < 576) {
         setScreenSize('mobile');
         setIsMobile(true);
@@ -35,6 +40,12 @@ const useResponsive = () => {
         setIsTablet(false);
         setIsDesktop(true);
       }
+
+      // Breakpoints específicos - agora reativos
+      setIsSmallMobile(width < 375);
+      setIsLargeMobile(width >= 375 && width < 576);
+      setIsSmallTablet(width >= 576 && width < 768);
+      setIsLargeTablet(width >= 768 && width < 992);
     };
 
     // Verificar tamanho inicial
@@ -52,11 +63,11 @@ const useResponsive = () => {
     isMobile,
     isTablet,
     isDesktop,
-    // Breakpoints específicos
-    isSmallMobile: window.innerWidth < 375,
-    isLargeMobile: window.innerWidth >= 375 && window.innerWidth < 576,
-    isSmallTablet: window.innerWidth >= 576 && window.innerWidth < 768,
-    isLargeTablet: window.innerWidth >= 768 && window.innerWidth < 992,
+    // Breakpoints específicos - agora reativos
+    isSmallMobile,
+    isLargeMobile,
+    isSmallTablet,
+    isLargeTablet,
   };
 };
 

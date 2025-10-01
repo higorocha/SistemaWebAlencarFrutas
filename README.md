@@ -1625,6 +1625,659 @@ ModalComponent.propTypes = {
 
 ---
 
+## 📱 Plano de Responsividade para Modais
+
+### **🎯 Padrão de Responsividade Implementado**
+
+Baseado na análise dos modais já otimizados (`PagamentosEfetuadosModal.js`, `PagamentosPendentesModal.js` e `NovoPedidoModal.js`), foi criado um padrão consistente de responsividade que deve ser aplicado a todos os modais do sistema.
+
+**📚 Lições Aprendidas do NovoPedidoModal.js:**
+- **Conversão px → rem**: Aplicada gradualmente, mantendo layout estável
+- **Labels Mobile**: Configuração específica para mobile com ícones e espaçamento
+- **Botões de Ação**: Posicionamento e operação correta em mobile
+- **Form.List**: Funcionalidade nativa para adicionar/remover itens
+- **Espaçamentos**: Balanceamento entre responsividade e estabilidade visual
+
+### **📋 Estrutura Padrão do Modal Responsivo**
+
+#### **🔧 Configuração Base do Modal (OBRIGATÓRIO)**
+```jsx
+import useResponsive from '../hooks/useResponsive';
+
+const MeuModal = ({ open, onClose, ... }) => {
+  const { isMobile, isTablet } = useResponsive();
+  
+  return (
+    <Modal
+      title={
+        <span style={{
+          color: "#ffffff",
+          fontWeight: "600",
+          fontSize: isMobile ? "0.875rem" : "1rem",  // ✅ Responsivo em rem
+          backgroundColor: "#059669",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",  // ✅ Responsivo em rem
+          margin: "-1.25rem -1.5rem 0 -1.5rem",  // ✅ Convertido para rem
+          display: "block",
+          borderRadius: "0.5rem 0.5rem 0 0",  // ✅ Convertido para rem
+        }}>
+          <IconeModal style={{ marginRight: "0.5rem" }} />  {/* ✅ Convertido para rem */}
+          {isMobile ? 'Título Mobile' : 'Título Completo Desktop'}  // ✅ Responsivo
+        </span>
+      }
+      open={open}
+      onCancel={onClose}
+      width={isMobile ? '95vw' : '90%'}  // ✅ Largura responsiva otimizada
+      style={{ maxWidth: isMobile ? '95vw' : "75rem" }}  // ✅ MaxWidth em rem
+      footer={null}
+      styles={{
+        body: {
+          maxHeight: "calc(100vh - 12.5rem)",  // ✅ Convertido para rem
+          overflowY: "auto",
+          overflowX: "hidden",
+          padding: isMobile ? 12 : 20  // ✅ Manter px para layout estável
+        },
+        header: {
+          backgroundColor: "#059669",
+          borderBottom: "0.125rem solid #047857",  // ✅ Convertido para rem
+          padding: 0
+        },
+        wrapper: { zIndex: 1000 }
+      }}
+      centered
+      destroyOnClose
+    >
+```
+
+#### **🎨 Cards Internos Responsivos**
+```jsx
+<Card
+  title={
+    <Space>
+      <IconeCard style={{ color: "#ffffff" }} />
+      <span style={{ 
+        color: "#ffffff", 
+        fontWeight: "600",
+        fontSize: "0.875rem"  // ✅ Tamanho único para consistência
+      }}>
+        Título do Card
+      </span>
+    </Space>
+  }
+  style={{
+    marginBottom: isMobile ? 12 : 16,  // ✅ Margem responsiva (px para estabilidade)
+    border: "0.0625rem solid #e8e8e8",  // ✅ Convertido para rem
+    borderRadius: "0.5rem",  // ✅ Convertido para rem
+    backgroundColor: "#f9f9f9",
+  }}
+  styles={{
+    header: {
+      backgroundColor: "#059669",
+      borderBottom: "0.125rem solid #047857",  // ✅ Convertido para rem
+      color: "#ffffff",
+      borderRadius: "0.5rem 0.5rem 0 0",  // ✅ Convertido para rem
+      padding: isMobile ? "6px 12px" : "8px 16px"  // ✅ Padding responsivo (px para estabilidade)
+    },
+    body: { 
+      padding: isMobile ? "12px" : "16px"  // ✅ Padding responsivo (px para estabilidade)
+    }
+  }}
+>
+```
+
+#### **📊 Grid System Responsivo**
+```jsx
+<Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>  // ✅ Gutter responsivo (px para estabilidade)
+  <Col xs={24} sm={12} md={8} lg={6}>  // ✅ Sempre usar xs={24} para mobile
+    {/* Conteúdo */}
+  </Col>
+</Row>
+```
+
+#### **📝 Labels Mobile Específicos**
+```jsx
+// ✅ Padrão para labels de inputs em mobile (baseado em NovoPedidoModal.js)
+<Form.Item
+  label={isMobile ? (
+    <Space size="small">  {/* ✅ size="small" para espaçamento compacto */}
+      <AppleOutlined style={{ color: "#059669" }} />  {/* ✅ Ícone com cor do sistema */}
+      <span style={{ 
+        fontWeight: "700", 
+        color: "#059669",  // ✅ Cor do sistema
+        fontSize: "14px"   // ✅ Tamanho consistente
+      }}>
+        Fruta  {/* ✅ Texto do label */}
+      </span>
+    </Space>
+  ) : undefined}  {/* ✅ Desktop usa label padrão do Ant Design */}
+  required  // ✅ Asterisco obrigatório para mobile
+>
+  <Select />
+</Form.Item>
+```
+
+#### **🔘 Botões de Ação Mobile (Form.List)**
+```jsx
+// ✅ Padrão para botões adicionar/remover em mobile
+<Col xs={24} md={2}>
+  <div style={{
+    display: "flex",
+    gap: isMobile ? "8px" : "8px",
+    justifyContent: isMobile ? "center" : "center",  // ✅ Centralizado
+    flexDirection: isMobile ? "row" : "row",
+    marginTop: isMobile ? "8px" : "0",  // ✅ Espaçamento superior no mobile
+    paddingTop: isMobile ? "8px" : "0",
+    borderTop: isMobile ? "1px solid #f0f0f0" : "none"  // ✅ Separador visual
+  }}>
+    <Button
+      size={isMobile ? "small" : "large"}
+      style={{
+        borderRadius: "3.125rem",  // ✅ Convertido para rem (50px)
+        height: isMobile ? "32px" : "40px",  // ✅ Altura responsiva (px para estabilidade)
+        width: isMobile ? "32px" : "40px",
+        border: "0.125rem solid #ff4d4f",  // ✅ Convertido para rem (2px)
+        boxShadow: "0 0.125rem 0.5rem rgba(16, 185, 129, 0.15)",  // ✅ Convertido para rem
+      }}
+      onClick={() => {
+        if (fields.length > 1) {  // ✅ Validação para manter mínimo 1 item
+          remove(name);
+        }
+      }}
+      disabled={fields.length <= 1}  // ✅ Desabilitar quando só 1 item
+    >
+      <DeleteOutlined />
+    </Button>
+    
+    <Button
+      size={isMobile ? "small" : "large"}
+      onClick={() => {
+        add({
+          // ✅ Valores iniciais para novo item
+          campo1: undefined,
+          campo2: undefined,
+          campo3: undefined
+        });
+      }}
+      style={{
+        borderRadius: "3.125rem",
+        height: isMobile ? "32px" : "40px",
+        width: isMobile ? "32px" : "40px",
+        border: "0.125rem solid #52c41a",
+        boxShadow: "0 0.125rem 0.5rem rgba(82, 196, 26, 0.15)",
+      }}
+    >
+      <PlusOutlined />
+    </Button>
+  </div>
+</Col>
+```
+
+#### **🔘 Botões Responsivos (Footer)**
+```jsx
+<Button
+  size={isMobile ? "small" : "middle"}  // ✅ Tamanho responsivo
+  style={{
+    height: isMobile ? "32px" : "40px",  // ✅ Altura responsiva (px para estabilidade)
+    padding: isMobile ? "0 12px" : "0 16px",  // ✅ Padding responsivo (px para estabilidade)
+    fontSize: isMobile ? "0.75rem" : undefined,  // ✅ Fonte responsiva em rem
+    minWidth: isMobile ? "80px" : "100px"  // ✅ Largura mínima responsiva
+  }}
+>
+  Texto do Botão
+</Button>
+```
+
+#### **📝 Inputs e Formulários Responsivos**
+```jsx
+<Form.Item
+  label={
+    <span style={{
+      fontSize: isMobile ? "0.8125rem" : "0.875rem",  // ✅ Label responsivo em rem
+      fontWeight: "500"
+    }}>
+      Label do Campo
+    </span>
+  }
+>
+  <Input
+    size={isMobile ? "small" : "middle"}  // ✅ Tamanho responsivo
+    style={{
+      fontSize: isMobile ? "0.875rem" : "1rem"  // ✅ Fonte responsiva em rem
+    }}
+  />
+</Form.Item>
+
+// ✅ Para campos específicos (Select, DatePicker, etc.)
+<Select
+  size={isMobile ? "small" : "middle"}
+  style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
+/>
+
+<DatePicker
+  size={isMobile ? "small" : "middle"}
+  style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
+/>
+
+<TextArea
+  size={isMobile ? "small" : "middle"}
+  style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
+/>
+```
+
+#### **📊 Tabelas Responsivas**
+```jsx
+import ResponsiveTable from '../common/ResponsiveTable';
+
+<ResponsiveTable
+  columns={colunas}
+  dataSource={dados}
+  rowKey="id"
+  minWidthMobile={1200}  // ✅ Largura mínima no mobile
+  showScrollHint={true}  // ✅ Dica visual de scroll
+  pagination={{
+    pageSize: isMobile ? 5 : 10,  // ✅ Paginação responsiva
+    showSizeChanger: !isMobile,   // ✅ Ocultar em mobile
+    showQuickJumper: !isMobile    // ✅ Ocultar em mobile
+  }}
+/>
+```
+
+#### **📏 Regras de Conversão px → rem (Lições Aprendidas)**
+```javascript
+// ✅ CONVERSÕES APLICADAS (base: 16px = 1rem)
+const conversaoAplicada = {
+  // Fontes - SEMPRE converter para rem
+  '14px': '0.875rem',    // ✅ FontSize de inputs, labels
+  '16px': '1rem',        // ✅ FontSize principal
+  '13px': '0.8125rem',   // ✅ FontSize de labels menores
+  
+  // Bordas - SEMPRE converter para rem
+  '1px': '0.0625rem',    // ✅ Bordas de cards
+  '2px': '0.125rem',     // ✅ Bordas de headers
+  
+  // Border-radius - SEMPRE converter para rem
+  '8px': '0.5rem',       // ✅ Border-radius padrão
+  '50px': '3.125rem',    // ✅ Border-radius circular
+  
+  // Box-shadow - SEMPRE converter para rem
+  '0 2px 8px': '0 0.125rem 0.5rem',
+  '0 8px 32px': '0 0.5rem 2rem',
+  
+  // Max-width - SEMPRE converter para rem
+  '1200px': '75rem',     // ✅ Max-width de modais
+  
+  // Max-height - SEMPRE converter para rem
+  '200px': '12.5rem',    // ✅ Max-height de modal body
+  
+  // Margens negativas - SEMPRE converter para rem
+  '-20px -24px 0 -24px': '-1.25rem -1.5rem 0 -1.5rem'
+};
+
+// ⚠️ NÃO CONVERTER (manter px para estabilidade de layout)
+const manterPx = {
+  // Padding/Margin de componentes Ant Design
+  'padding: 12': 'padding: 12',        // ✅ styles.body.padding
+  'padding: 20': 'padding: 20',        // ✅ styles.body.padding
+  'marginBottom: 12': 'marginBottom: 12',  // ✅ Card marginBottom
+  'marginBottom: 16': 'marginBottom: 16',
+  
+  // Gutter de Row
+  'gutter={[8, 8]}': 'gutter={[8, 8]}',  // ✅ Row gutter
+  
+  // Altura/Largura de botões
+  'height: "32px"': 'height: "32px"',     // ✅ Button height
+  'width: "32px"': 'width: "32px"',       // ✅ Button width
+  
+  // Gap e espaçamentos de flexbox
+  'gap: "8px"': 'gap: "8px"',            // ✅ Flex gap
+  'gap: "12px"': 'gap: "12px"'
+};
+
+// 🎯 REGRA PRINCIPAL: 
+// - Converta rem: fontSize, borderWidth, borderRadius, boxShadow, maxWidth, maxHeight
+// - Mantenha px: padding, margin, height, width, gap, gutter (estabilidade de layout)
+```
+
+#### **🎨 Footer Responsivo**
+```jsx
+// ✅ Padrão de footer responsivo (baseado em NovoPedidoModal.js)
+<div style={{
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: isMobile ? "8px" : "12px",  // ✅ Gap responsivo (px para estabilidade)
+  marginTop: isMobile ? "1rem" : "1.5rem",  // ✅ MarginTop em rem
+  paddingTop: isMobile ? "12px" : "16px",  // ✅ PaddingTop (px para estabilidade)
+  borderTop: "1px solid #e8e8e8",  // ✅ BorderTop (px para estabilidade)
+}}>
+  <Button 
+    onClick={onClose} 
+    size={isMobile ? "small" : "middle"}
+    style={{
+      height: isMobile ? "32px" : "40px",  // ✅ Altura (px para estabilidade)
+      padding: isMobile ? "0 12px" : "0 16px",  // ✅ Padding (px para estabilidade)
+    }}
+  >
+    Cancelar
+  </Button>
+  <Button
+    type="primary"
+    size={isMobile ? "small" : "middle"}
+    style={{
+      backgroundColor: "#059669",
+      borderColor: "#059669",
+      height: isMobile ? "32px" : "40px",  // ✅ Altura (px para estabilidade)
+      padding: isMobile ? "0 12px" : "0 16px",  // ✅ Padding (px para estabilidade)
+    }}
+  >
+    Salvar
+  </Button>
+</div>
+```
+
+#### **🎨 Espaçamentos Responsivos (usando rem)**
+```jsx
+const stylesResponsivos = {
+  // ✅ Espaçamentos em rem (conversão aplicada)
+  marginSmall: isMobile ? "0.5rem" : "0.75rem",    // 8px → 12px
+  marginMedium: isMobile ? "0.75rem" : "1rem",     // 12px → 16px
+  marginLarge: isMobile ? "1rem" : "1.5rem",       // 16px → 24px
+  marginXLarge: isMobile ? "1.25rem" : "2rem",     // 20px → 32px
+  
+  // ✅ Padding em rem (quando aplicável)
+  paddingSmall: isMobile ? "0.5rem" : "0.75rem",   // 8px → 12px
+  paddingMedium: isMobile ? "0.75rem" : "1rem",    // 12px → 16px
+  paddingLarge: isMobile ? "1rem" : "1.25rem",     // 16px → 20px
+  
+  // ✅ Fontes em rem (SEMPRE aplicar)
+  fontSizeSmall: isMobile ? "0.75rem" : "0.875rem", // 12px → 14px
+  fontSizeMedium: isMobile ? "0.875rem" : "1rem",   // 14px → 16px
+  fontSizeLarge: isMobile ? "1rem" : "1.125rem",    // 16px → 18px
+  fontSizeXLarge: isMobile ? "1.125rem" : "1.25rem" // 18px → 20px
+};
+```
+
+### **📋 Checklist de Responsividade (Atualizado)**
+
+#### **✅ Configuração Base**
+- [ ] Importar `useResponsive` hook
+- [ ] Configurar largura do modal: `width={isMobile ? '95vw' : '90%'}`
+- [ ] Configurar `style={{ maxWidth: isMobile ? '95vw' : "75rem" }}`
+- [ ] Configurar padding do body: `padding: isMobile ? 12 : 20` (manter px)
+- [ ] Configurar título responsivo com fonte em rem
+- [ ] Configurar `maxHeight: "calc(100vh - 12.5rem)"` (converter para rem)
+
+#### **✅ Componentes Internos**
+- [ ] Cards com padding responsivo (manter px para estabilidade)
+- [ ] Títulos de cards com `fontSize: "0.875rem"` (tamanho único)
+- [ ] Botões com tamanho e altura responsivos (manter px para estabilidade)
+- [ ] Inputs com `size={isMobile ? "small" : "middle"}`
+- [ ] Labels com fonte responsiva em rem
+- [ ] Grid system com `xs={24}` para mobile
+- [ ] Gutter responsivo: `gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}` (manter px)
+
+#### **✅ Labels Mobile Específicos**
+- [ ] Labels mobile com `<Space size="small">`
+- [ ] Ícones com `color: "#059669"`
+- [ ] Texto com `fontSize: "14px"` e `color: "#059669"`
+- [ ] Asterisco obrigatório para mobile (`required`)
+
+#### **✅ Botões de Ação (Form.List)**
+- [ ] Posicionamento centralizado: `justifyContent: "center"`
+- [ ] Espaçamento superior: `marginTop: "8px"` no mobile
+- [ ] Separador visual: `borderTop: "1px solid #f0f0f0"` no mobile
+- [ ] Validação de mínimo 1 item: `if (fields.length > 1)`
+- [ ] Botão desabilitado: `disabled={fields.length <= 1}`
+- [ ] Usar funções nativas: `add()` e `remove()` do Form.List
+
+#### **✅ Tabelas**
+- [ ] Usar `ResponsiveTable` em vez de `Table` comum
+- [ ] Configurar `minWidthMobile` apropriado
+- [ ] Paginação responsiva (ocultar controles em mobile)
+
+#### **✅ Conversão px → rem**
+- [ ] Converter para rem: `fontSize`, `borderWidth`, `borderRadius`, `boxShadow`, `maxWidth`, `maxHeight`
+- [ ] Manter px: `padding`, `margin`, `height`, `width`, `gap`, `gutter` (estabilidade)
+- [ ] Aplicar conversões de acordo com tabela de conversão
+
+#### **✅ Footer Responsivo**
+- [ ] Gap responsivo: `gap: isMobile ? "8px" : "12px"`
+- [ ] MarginTop em rem: `marginTop: isMobile ? "1rem" : "1.5rem"`
+- [ ] PaddingTop em px: `paddingTop: isMobile ? "12px" : "16px"`
+- [ ] Botões com altura responsiva: `height: isMobile ? "32px" : "40px"`
+
+#### **✅ Estados de Loading**
+- [ ] Loading states responsivos
+- [ ] Overlays com padding responsivo
+- [ ] Mensagens com fonte responsiva
+
+### **🎯 Modais Prioritários para Atualização**
+
+#### **✅ Concluído**
+1. **✅ NovoPedidoModal.js** - Modal principal de criação (CONCLUÍDO)
+
+#### **🔴 Alta Prioridade (Sistema de Pedidos)**
+2. **ColheitaModal.js** - Modal complexo com múltiplas seções
+3. **PrecificacaoModal.js** - Modal com tabelas e cálculos
+4. **PagamentoModal.js** - Modal de gestão de pagamentos
+5. **VisualizarPedidoModal.js** - Modal de visualização completa
+
+#### **🟡 Média Prioridade**
+6. **LancarPagamentosModal.js** - Modal de pagamentos em lote
+7. **VincularAreasModal.js** - Modal de vinculação de áreas
+8. **VincularFitasModal.js** - Modal de vinculação de fitas
+9. **VisualizarAreasFitasModal.js** - Modal de visualização
+10. **FrutasPedidoModal.js** - Modal de frutas
+
+#### **🟢 Baixa Prioridade (Outros Módulos)**
+11. Modais de áreas agrícolas
+12. Modais de clientes
+13. Modais de fornecedores
+14. Modais de turmas de colheita
+15. Modais de configurações
+
+### **📊 Padrões de Conversão px → rem**
+
+```javascript
+// ✅ Tabela de conversão (base: 16px = 1rem)
+const conversaoRem = {
+  // Pequenos
+  '8px': '0.5rem',
+  '10px': '0.625rem',
+  '12px': '0.75rem',
+  
+  // Médios
+  '14px': '0.875rem',
+  '16px': '1rem',
+  '18px': '1.125rem',
+  
+  // Grandes
+  '20px': '1.25rem',
+  '24px': '1.5rem',
+  '32px': '2rem',
+  
+  // Extra grandes
+  '40px': '2.5rem',
+  '48px': '3rem'
+};
+```
+
+### **🔧 Hook useResponsive (Já Implementado)**
+
+```javascript
+import useResponsive from '../hooks/useResponsive';
+
+const { isMobile, isTablet, isDesktop } = useResponsive();
+
+// Breakpoints:
+// isMobile: < 576px
+// isTablet: 576px - 992px  
+// isDesktop: > 992px
+```
+
+### **📝 Exemplo Completo de Implementação**
+
+```jsx
+import React from 'react';
+import { Modal, Button, Card, Row, Col, Space } from 'antd';
+import useResponsive from '../hooks/useResponsive';
+import ResponsiveTable from '../common/ResponsiveTable';
+
+const ExemploModalResponsivo = ({ open, onClose }) => {
+  const { isMobile } = useResponsive();
+  
+  return (
+    <Modal
+      title={
+        <span style={{
+          color: "#ffffff",
+          fontWeight: "600",
+          fontSize: isMobile ? "14px" : "16px",
+          backgroundColor: "#059669",
+          padding: isMobile ? "10px 12px" : "12px 16px",
+          margin: "-20px -24px 0 -24px",
+          display: "block",
+          borderRadius: "8px 8px 0 0",
+        }}>
+          <IconOutlined style={{ marginRight: 8 }} />
+          {isMobile ? 'Título Mobile' : 'Título Completo Desktop'}
+        </span>
+      }
+      open={open}
+      onCancel={onClose}
+      width={isMobile ? '95vw' : 1400}
+      footer={null}
+      styles={{
+        body: {
+          maxHeight: "calc(100vh - 200px)",
+          overflowY: "auto",
+          overflowX: "hidden",
+          padding: isMobile ? 12 : 20
+        },
+        header: {
+          backgroundColor: "#059669",
+          borderBottom: "2px solid #047857",
+          padding: 0
+        },
+        wrapper: { zIndex: 1000 }
+      }}
+      centered
+      destroyOnClose
+    >
+      <Card
+        title={
+          <Space>
+            <IconCard style={{ color: "#ffffff" }} />
+            <span style={{ 
+              color: "#ffffff", 
+              fontWeight: "600",
+              fontSize: isMobile ? "13px" : "14px"
+            }}>
+              Seção do Modal
+            </span>
+          </Space>
+        }
+        style={{
+          marginBottom: isMobile ? 12 : 16,
+          border: "1px solid #e8e8e8",
+          borderRadius: "8px",
+          backgroundColor: "#f9f9f9",
+        }}
+        styles={{
+          header: {
+            backgroundColor: "#059669",
+            borderBottom: "2px solid #047857",
+            color: "#ffffff",
+            borderRadius: "8px 8px 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: { 
+            padding: isMobile ? "12px" : "16px"
+          }
+        }}
+      >
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+          <Col xs={24} sm={12} md={8}>
+            <Button
+              size={isMobile ? "small" : "middle"}
+              style={{
+                height: isMobile ? "32px" : "40px",
+                padding: isMobile ? "0 12px" : "0 16px",
+                fontSize: isMobile ? "0.75rem" : undefined,
+                width: "100%"
+              }}
+            >
+              Botão Responsivo
+            </Button>
+          </Col>
+        </Row>
+        
+        <ResponsiveTable
+          columns={colunas}
+          dataSource={dados}
+          rowKey="id"
+          minWidthMobile={1200}
+          showScrollHint={true}
+          pagination={{
+            pageSize: isMobile ? 5 : 10,
+            showSizeChanger: !isMobile,
+            showQuickJumper: !isMobile
+          }}
+        />
+      </Card>
+      
+      <div style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: isMobile ? "8px" : "12px",
+        marginTop: isMobile ? "1rem" : "1.5rem",
+        paddingTop: isMobile ? "12px" : "16px",
+        borderTop: "1px solid #e8e8e8",
+      }}>
+        <Button 
+          onClick={onClose} 
+          size={isMobile ? "small" : "middle"}
+          style={{
+            height: isMobile ? "32px" : "40px",
+            padding: isMobile ? "0 12px" : "0 16px",
+          }}
+        >
+          Fechar
+        </Button>
+        <Button
+          type="primary"
+          size={isMobile ? "small" : "middle"}
+          style={{
+            backgroundColor: "#059669",
+            borderColor: "#059669",
+            height: isMobile ? "32px" : "40px",
+            padding: isMobile ? "0 12px" : "0 16px",
+          }}
+        >
+          Salvar
+        </Button>
+      </div>
+    </Modal>
+  );
+};
+```
+
+### **⚠️ Regras Importantes (Atualizadas)**
+
+1. **SEMPRE importar `useResponsive`** antes de implementar responsividade
+2. **SEMPRE usar `width={isMobile ? '95vw' : '90%'}`** e `maxWidth: "75rem"` para modais
+3. **SEMPRE usar `xs={24}`** no grid system para mobile
+4. **SEMPRE usar `ResponsiveTable`** em vez de `Table` comum
+5. **SEMPRE aplicar padding/margin responsivos** em cards e seções (manter px para estabilidade)
+6. **CONVERTER rem seletivamente**: fontSize, borderWidth, borderRadius, boxShadow, maxWidth, maxHeight
+7. **MANTER px para**: padding, margin, height, width, gap, gutter (estabilidade de layout)
+8. **SEMPRE testar em mobile** após implementação
+9. **MANTER consistência** com padrões já estabelecidos
+10. **USAR Form.List nativo** para botões adicionar/remover (não criar funções customizadas)
+11. **CENTRALIZAR botões de ação** no mobile com separador visual
+12. **VALIDAR mínimo 1 item** em listas dinâmicas
+13. **APLICAR labels mobile específicos** com ícones e espaçamento compacto
+
+---
+
 ## 📝 Documentação
 
 - **CLAUDE.md**: Documentação técnica completa

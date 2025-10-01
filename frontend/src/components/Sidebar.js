@@ -209,9 +209,11 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     backgroundColor: theme.palette.background.paper,
     "& .ps-sidebar-container": {
       backgroundColor: "inherit",
-      height: "100svh", // Usa Small Viewport Height para mobile
+      height: "100dvh", // Usa Dynamic Viewport Height - ajusta com barra de navegação
+      maxHeight: "100dvh", // Garante que não exceda a altura da viewport
       display: "flex",
       flexDirection: "column",
+      overflow: "hidden", // Previne scroll duplo
     },
     "& .ps-menuitem-root": {
       marginBottom: "4px",
@@ -344,8 +346,20 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
           flexGrow: 1,
           overflowY: "auto",
           overflowX: "hidden",
-          minHeight: 0, 
+          minHeight: 0,
+          maxHeight: "100%", // Garante que não exceda o container pai
           px: 0.5,
+          WebkitOverflowScrolling: "touch", // Scroll suave em iOS
+          "&::-webkit-scrollbar": {
+            width: "6px",
+          },
+          "&::-webkit-scrollbar-track": {
+            backgroundColor: "transparent",
+          },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: theme.palette.divider,
+            borderRadius: "3px",
+          },
           "& > nav": {
             padding: "8px 0",
           },

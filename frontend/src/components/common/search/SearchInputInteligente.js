@@ -225,7 +225,10 @@ const SearchInputInteligente = ({
 
   // Função para buscar sugestões em tempo real do backend
   const fetchSuggestions = useCallback(async (term) => {
-    if (!term || term.length < 2) {
+    // Remover espaços no início e fim da string antes de validar
+    const trimmedTerm = term?.trim() || '';
+    
+    if (!trimmedTerm || trimmedTerm.length < 2) {
       setSuggestions([]);
       setIsOpen(false);
       setIsLoading(false);
@@ -238,8 +241,8 @@ const SearchInputInteligente = ({
       setSearchStatus('loading');
       setIsOpen(true); // Mostrar dropdown com loading
 
-      // Buscar sugestões do backend
-      const response = await axiosInstance.get(`/api/pedidos/busca-inteligente?term=${encodeURIComponent(term)}`);
+      // Buscar sugestões do backend com termo limpo
+      const response = await axiosInstance.get(`/api/pedidos/busca-inteligente?term=${encodeURIComponent(trimmedTerm)}`);
       const backendSuggestions = response.data || [];
 
       setSuggestions(backendSuggestions);
@@ -250,10 +253,10 @@ const SearchInputInteligente = ({
         setSuggestions([{
           type: 'no-results',
           label: 'Sem resultados',
-          value: term,
+          value: trimmedTerm,
           icon: '🔍',
           color: '#999',
-          description: `Nenhum resultado encontrado para "${term}"`
+          description: `Nenhum resultado encontrado para "${trimmedTerm}"`
         }]);
       } else {
         setSearchStatus('success');
@@ -268,7 +271,7 @@ const SearchInputInteligente = ({
       setSuggestions([{
         type: 'error',
         label: 'Erro',
-        value: term,
+        value: trimmedTerm,
         icon: '⚠️',
         color: '#f5222d',
         description: 'Erro ao buscar sugestões. Tente novamente.'

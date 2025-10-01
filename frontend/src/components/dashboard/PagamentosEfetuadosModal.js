@@ -262,7 +262,10 @@ const PagamentosEfetuadosModal = ({
       centered
       destroyOnClose
     >
-      <div style={{ position: 'relative' }}>
+      <div style={{ 
+        position: 'relative',
+        minHeight: loading ? '400px' : 'auto'
+      }}>
         {/* Overlay de Loading */}
         {loading && (
           <div style={{
@@ -276,7 +279,8 @@ const PagamentosEfetuadosModal = ({
             justifyContent: 'center',
             alignItems: 'center',
             zIndex: 1000,
-            borderRadius: '8px'
+            borderRadius: '8px',
+            minHeight: '400px'
           }}>
             <div style={{
               display: 'flex',

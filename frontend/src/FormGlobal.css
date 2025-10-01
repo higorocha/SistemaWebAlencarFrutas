@@ -414,20 +414,53 @@
     color: #333333 !important;
   }
 
-  /* Responsivo */
+  /* Responsivo - Paginação sempre horizontal */
   @media (max-width: 768px) {
     .ant-pagination {
-      flex-direction: column !important;
-      gap: 12px !important;
+      display: flex !important;
+      flex-direction: row !important;           /* ✅ HORIZONTAL */
+      flex-wrap: nowrap !important;             /* ✅ SEM QUEBRA */
+      white-space: nowrap !important;           /* ✅ TEXTO EM LINHA */
+      overflow-x: auto !important;              /* ✅ SCROLL HORIZONTAL SE NECESSÁRIO */
+      -webkit-overflow-scrolling: touch !important; /* ✅ SCROLL SUAVE iOS */
+      max-width: 100% !important;
+      justify-content: center !important;
+      align-items: center !important;
+      gap: 0.25rem !important;                  /* ✅ ESPAÇAMENTO REDUZIDO (4px) */
+      padding: 0.25rem 0 !important;
     }
 
+    /* Garante que itens não encolham ou quebrem */
+    .ant-pagination-item,
+    .ant-pagination-prev,
+    .ant-pagination-next {
+      flex-shrink: 0 !important;                /* ✅ PREVINE ENCOLHIMENTO */
+      min-width: 1.75rem !important;            /* ✅ LARGURA MÍNIMA (28px) */
+    }
+
+    /* Ocultar texto total em mobile para economizar espaço */
     .ant-pagination-total-text {
-      order: -1 !important;
-      margin-right: 0 !important;
+      display: none !important;
     }
 
+    /* Ocultar options (select de tamanho de página) em mobile */
     .ant-pagination-options {
-      margin-left: 0 !important;
+      display: none !important;
+    }
+
+    /* Scrollbar customizada para mobile */
+    .ant-pagination::-webkit-scrollbar {
+      height: 0.25rem;
+    }
+
+    .ant-pagination::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 0.125rem;
+    }
+
+    .ant-pagination::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 0.125rem;
     }
   }
 

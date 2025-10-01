@@ -5,39 +5,43 @@ import { Card, Typography, Row, Col, Empty, Badge, Button, Tag, Tooltip, Paginat
 import { CheckCircleOutlined, EyeOutlined, UserOutlined, CalendarOutlined } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../../utils/formatters";
+import useResponsive from "../../../hooks/useResponsive";
 
 const { Title, Text } = Typography;
 
 const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, onAction }) => {
+  const { isMobile } = useResponsive();
 
   const sectionStyle = {
-    marginBottom: "32px",
+    marginBottom: isMobile ? "1rem" : "2rem",
   };
 
   const headerStyle = {
     backgroundColor: "#52c41a",
     color: "#ffffff",
-    padding: "16px 24px",
+    padding: isMobile ? "0.75rem 1rem" : "1rem 1.5rem",
     margin: "-1px -1px 0 -1px",
-    borderRadius: "8px 8px 0 0",
+    borderRadius: "0.5rem 0.5rem 0 0",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: isMobile ? "wrap" : "nowrap",
+    gap: isMobile ? "0.5rem" : "0",
   };
 
   const contentStyle = {
-    padding: "24px",
-    minHeight: "120px",
-    maxHeight: "400px", // Altura máxima
+    padding: isMobile ? "0.75rem" : "1.5rem",
+    minHeight: isMobile ? "5rem" : "7.5rem",
+    maxHeight: isMobile ? "18.75rem" : "25rem", // Altura máxima
     overflowY: "auto", // Scroll vertical
     overflowX: "hidden",
   };
 
   const cardStyle = {
-    borderRadius: "8px",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
+    borderRadius: "0.5rem",
+    boxShadow: "0 0.125rem 0.25rem rgba(0,0,0,0.06)",
     border: "1px solid #f0f0f0",
-    marginBottom: "12px",
+    marginBottom: "0.75rem",
     transition: "all 0.2s ease",
     cursor: "pointer"
   };
@@ -107,14 +111,14 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
     <div style={sectionStyle}>
       <Card
         style={{
-          borderRadius: "8px",
+          borderRadius: "0.5rem",
           border: "1px solid #52c41a",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-          maxHeight: "500px", // Altura máxima para consistência
+          boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
+          maxHeight: "31.25rem", // Altura máxima para consistência
           display: "flex",
           flexDirection: "column",
         }}
-        styles={{ 
+        styles={{
           body: {
             padding: 0,
             flex: 1,
@@ -125,17 +129,19 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
       >
         {/* Header da seção */}
         <div style={headerStyle}>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <div style={{ marginRight: "12px" }}>
-              <CheckCircleOutlined style={{ fontSize: "24px" }} />
+          <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
+            <div style={{ marginRight: isMobile ? "0.5rem" : "0.75rem" }}>
+              <CheckCircleOutlined style={{ fontSize: isMobile ? "1.25rem" : "1.5rem" }} />
             </div>
-            <div>
-              <Title level={4} style={{ color: "#ffffff", margin: 0 }}>
-                Pedidos Finalizados
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Title level={isMobile ? 5 : 4} style={{ color: "#ffffff", margin: 0, fontSize: isMobile ? "0.875rem" : undefined }}>
+                {isMobile ? "Finalizados" : "Pedidos Finalizados"}
               </Title>
-              <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px" }}>
-                Pedidos concluídos e cancelados
-              </Text>
+              {!isMobile && (
+                <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.8125rem" }}>
+                  Pedidos concluídos e cancelados
+                </Text>
+              )}
             </div>
           </div>
           <Badge
@@ -144,6 +150,7 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
               backgroundColor: "rgba(255,255,255,0.9)",
               color: "#52c41a",
               fontWeight: "600",
+              fontSize: isMobile ? "0.625rem" : undefined,
             }}
           />
         </div>
@@ -349,35 +356,48 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
 
         {/* Paginação */}
         {paginacao.total > 0 && (
-          <div style={{ 
-            padding: "16px 24px", 
+          <div style={{
+            padding: isMobile ? "0.5rem 0.75rem" : "1rem 1.5rem",
             borderTop: "1px solid #f0f0f0",
-            display: "flex", 
-            justifyContent: "flex-end" 
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: isMobile ? "center" : "space-between",
+            gap: isMobile ? "0.5rem" : "0"
           }}>
-            <Pagination
-              current={paginacao.page}
-              pageSize={paginacao.limit}
-              total={paginacao.total}
-              onChange={(page, size) => {
-                if (onPaginacaoChange) {
-                  onPaginacaoChange(page, size);
-                }
-              }}
-              onShowSizeChange={(current, size) => {
-                if (onPaginacaoChange) {
-                  onPaginacaoChange(1, size);
-                }
-              }}
-              showSizeChanger
-              showQuickJumper
-              showTotal={(total, range) => 
-                `${range[0]}-${range[1]} de ${total} pedidos finalizados`
-              }
-              pageSizeOptions={['10', '20', '50', '100']}
-              style={{ margin: 0 }}
-              size="small"
-            />
+            {!isMobile && (
+              <Text style={{ fontSize: "0.75rem", color: "#666" }}>
+                {`${(paginacao.page - 1) * paginacao.limit + 1}-${Math.min(paginacao.page * paginacao.limit, paginacao.total)} de ${paginacao.total} pedidos`}
+              </Text>
+            )}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <Pagination
+                current={paginacao.page}
+                pageSize={paginacao.limit}
+                total={paginacao.total}
+                onChange={(page, size) => {
+                  if (onPaginacaoChange) {
+                    onPaginacaoChange(page, size);
+                  }
+                }}
+                onShowSizeChange={(current, size) => {
+                  if (onPaginacaoChange) {
+                    onPaginacaoChange(1, size);
+                  }
+                }}
+                showSizeChanger={!isMobile}
+                showQuickJumper={false}
+                showTotal={false}
+                responsive={false}
+                pageSizeOptions={['10', '20', '50', '100']}
+                style={{ margin: 0 }}
+                size="small"
+              />
+            </div>
           </div>
         )}
       </Card>

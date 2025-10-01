@@ -32,6 +32,7 @@ import {
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
+import useResponsive from "../../hooks/useResponsive";
 import moment from "moment";
 import { 
   consolidarUsoFitas, 
@@ -61,6 +62,9 @@ const VincularFitasModal = ({
 
   // Hook para notificações com z-index correto
   const { error, warning, contextHolder } = useNotificationWithContext();
+  
+  // Hook para responsividade
+  const { isMobile } = useResponsive();
   
   // ✅ COMPATIBILIDADE: Dados originais do EditarPedidoDialog (quando disponível) ou fallback para dados atuais
   const fitasOriginaisBank = fruta?.fitasOriginaisBanco || fruta?.fitas || [];
@@ -570,31 +574,32 @@ const VincularFitasModal = ({
         <span style={{ 
           color: "#ffffff", 
           fontWeight: "600", 
-          fontSize: "16px",
+          fontSize: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+          margin: "-1.25rem -1.5rem 0 -1.5rem",
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",
         }}>
-          <TagOutlined style={{ marginRight: 8 }} />
-          Vincular Fitas - {fruta?.frutaNome || 'Banana'}
+          <TagOutlined style={{ marginRight: "0.5rem" }} />
+          {isMobile ? 'Vincular Fitas' : `Vincular Fitas - ${fruta?.frutaNome || 'Banana'}`}
         </span>
       }
       open={open}
       onCancel={onClose}
       footer={null}
-      width={1200}
+      width={isMobile ? '95vw' : '90%'}
+      style={{ maxWidth: isMobile ? '95vw' : "75rem" }}
       styles={{
         body: { 
-          maxHeight: "calc(100vh - 200px)", 
+          maxHeight: "calc(100vh - 12.5rem)", 
           overflowY: "auto", 
           overflowX: "hidden", 
-          padding: 20 
+          padding: isMobile ? 12 : 20 
         },
         header: { 
           backgroundColor: "#059669", 
-          borderBottom: "2px solid #047857", 
+          borderBottom: "0.125rem solid #047857", 
           padding: 0 
         },
       }}
@@ -606,27 +611,45 @@ const VincularFitasModal = ({
         title={
           <Space>
             <AppleOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Informações da Fruta</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Informações da Fruta</span>
           </Space>
         }
-        style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-        styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+        style={{ 
+          marginBottom: isMobile ? 12 : 16, 
+          border: "0.0625rem solid #e8e8e8", 
+          borderRadius: "0.5rem", 
+          backgroundColor: "#f9f9f9" 
+        }}
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            borderBottom: "0.125rem solid #047857", 
+            color: "#ffffff", 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
+        }}
       >
-        <Row gutter={16}>
-          <Col span={8}>
-            <Text strong>Fruta:</Text>
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+          <Col xs={24} sm={8}>
+            <Text strong style={{ fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Fruta:</Text>
             <br />
-            <Text>{fruta?.frutaNome}</Text>
+            <Text style={{ fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>{fruta?.frutaNome}</Text>
           </Col>
-          <Col span={8}>
-            <Text strong>Quantidade Prevista:</Text>
+          <Col xs={24} sm={8}>
+            <Text strong style={{ fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Qtd. Prevista:</Text>
             <br />
-            <Text>{fruta?.quantidadePrevista} {fruta?.unidadeMedida1}</Text>
+            <Text style={{ fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>{fruta?.quantidadePrevista} {fruta?.unidadeMedida1}</Text>
           </Col>
-          <Col span={8}>
-            <Text strong>Seleções:</Text>
+          <Col xs={24} sm={8}>
+            <Text strong style={{ fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Lotes:</Text>
             <br />
-            <Tag color="blue">{lotesSelecionados.length} lote(s) selecionado(s)</Tag>
+            <Tag color="blue" size={isMobile ? "small" : "default"}>
+              {lotesSelecionados.length} selecionado{lotesSelecionados.length !== 1 ? 's' : ''}
+            </Tag>
           </Col>
         </Row>
       </Card>
@@ -637,12 +660,12 @@ const VincularFitasModal = ({
           message="⚠️ Conflitos de Estoque Detectados"
           description={
             <div>
-              <Text strong style={{ color: '#d32f2f' }}>
+              <Text strong style={{ color: '#d32f2f', fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>
                 As seleções atuais extrapolam o estoque disponível:
               </Text>
               <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
                 {alertasEstoque.map((alerta, index) => (
-                  <li key={index} style={{ marginBottom: 4, color: '#d32f2f' }}>
+                  <li key={index} style={{ marginBottom: 4, color: '#d32f2f', fontSize: isMobile ? "0.75rem" : "0.8125rem" }}>
                     {alerta}
                   </li>
                 ))}
@@ -653,8 +676,8 @@ const VincularFitasModal = ({
           showIcon
           icon={<WarningOutlined />}
           style={{ 
-            marginBottom: 16,
-            border: '2px solid #ff4d4f',
+            marginBottom: isMobile ? 12 : 16,
+            border: '0.125rem solid #ff4d4f',
             backgroundColor: '#fff2f0'
           }}
           closable={false}
@@ -666,11 +689,29 @@ const VincularFitasModal = ({
         title={
           <Space>
             <TagOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Selecionar Lotes de Fitas por Área</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+              {isMobile ? 'Selecionar Lotes' : 'Selecionar Lotes de Fitas por Área'}
+            </span>
           </Space>
         }
-        style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-        styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+        style={{ 
+          marginBottom: isMobile ? 12 : 16, 
+          border: "0.0625rem solid #e8e8e8", 
+          borderRadius: "0.5rem", 
+          backgroundColor: "#f9f9f9" 
+        }}
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            borderBottom: "0.125rem solid #047857", 
+            color: "#ffffff", 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
+        }}
         loading={loadingDados}
       >
         {fitasComAreas.length > 0 ? (
@@ -958,21 +999,39 @@ const VincularFitasModal = ({
           title={
             <Space>
               <EditOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Lotes Selecionados - Definir Quantidades</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                {isMobile ? 'Lotes Selecionados' : 'Lotes Selecionados - Definir Quantidades'}
+              </span>
               <Tag 
                 color="green" 
                 size="small"
                 style={{ 
-                  fontSize: '11px',
+                  fontSize: isMobile ? '10px' : '11px',
                   fontWeight: '600'
                 }}
               >
-                {lotesSelecionados.length} lote(s) selecionado(s)
+                {lotesSelecionados.length} lote(s)
               </Tag>
             </Space>
           }
-          style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-          styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+          style={{ 
+            marginBottom: isMobile ? 12 : 16, 
+            border: "0.0625rem solid #e8e8e8", 
+            borderRadius: "0.5rem", 
+            backgroundColor: "#f9f9f9" 
+          }}
+          styles={{ 
+            header: { 
+              backgroundColor: "#059669", 
+              borderBottom: "0.125rem solid #047857", 
+              color: "#ffffff", 
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
+            }
+          }}
         >
           <Space direction="vertical" style={{ width: '100%' }}>
             {lotesSelecionados.map((item, index) => {
@@ -1005,31 +1064,39 @@ const VincularFitasModal = ({
                   <div style={{
                     background: `linear-gradient(135deg, ${item.fitaCor} 0%, ${corEscurecida} 100%)`,
                     margin: '-12px -12px 12px -12px',
-                    padding: '8px 12px',
+                    padding: isMobile ? '6px 10px' : '8px 12px',
                     color: '#fff',
                     fontWeight: '600',
                     textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                    fontSize: '13px',
+                    fontSize: isMobile ? '12px' : '13px',
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    flexWrap: isMobile ? 'wrap' : 'nowrap',
+                    gap: isMobile ? '8px' : '0'
                   }}>
-                    <span>{item.fitaNome} - {item.areaNome}</span>
+                    <span style={{ 
+                      flex: isMobile ? '1 1 100%' : 'initial',
+                      marginBottom: isMobile ? '4px' : '0'
+                    }}>
+                      {item.fitaNome} - {item.areaNome}
+                    </span>
                     <div style={{
                       backgroundColor: 'rgba(255,255,255,0.2)',
                       color: '#fff',
-                      fontSize: '11px',
+                      fontSize: isMobile ? '10px' : '11px',
                       fontWeight: '600',
                       padding: '2px 8px',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
+                      whiteSpace: 'nowrap'
                     }}>
-                      Marcado em {moment(item.dataRegistro).format('DD/MM/YY')}
+                      {isMobile ? moment(item.dataRegistro).format('DD/MM/YY') : `Marcado em ${moment(item.dataRegistro).format('DD/MM/YY')}`}
                     </div>
                   </div>
                     
-                  {/* Conteúdo inline - Quantidade e Observações na mesma linha */}
-                  <Row gutter={16} align="middle">
-                    <Col span={8}>
+                  {/* Conteúdo inline - Quantidade e Observações */}
+                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="middle">
+                    <Col xs={24} md={8}>
                       <div>
                         {(() => {
                           if (isModoEdicao) {
@@ -1043,9 +1110,14 @@ const VincularFitasModal = ({
                             const estoqueRealDisponivel = item.maxDisponivel + quantidadeJaVinculada;
                             
                             return (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                <Text style={{ fontSize: '12px', color: '#333', whiteSpace: 'nowrap', fontWeight: 700 }}>
-                                  Quantidade (máx: {estoqueRealDisponivel}):
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
+                                <Text style={{ 
+                                  fontSize: isMobile ? '11px' : '12px', 
+                                  color: '#333', 
+                                  fontWeight: 700,
+                                  whiteSpace: isMobile ? 'normal' : 'nowrap'
+                                }}>
+                                  {isMobile ? `Quantidade (máx: ${estoqueRealDisponivel}):` : `Quantidade (máx: ${estoqueRealDisponivel}):`}
                                 </Text>
                                 {quantidadeJaVinculada > 0 && (
                                   <Tag 
@@ -1067,8 +1139,14 @@ const VincularFitasModal = ({
                           } else {
                             // MODO CRIAÇÃO: Mostrar apenas o estoque disponível
                             return (
-                              <Text style={{ fontSize: '12px', display: 'block', marginBottom: 4, color: '#333', fontWeight: 700 }}>
-                                Quantidade (máx: {item.maxDisponivel}):
+                              <Text style={{ 
+                                fontSize: isMobile ? '11px' : '12px', 
+                                display: 'block', 
+                                marginBottom: 4, 
+                                color: '#333', 
+                                fontWeight: 700 
+                              }}>
+                                {isMobile ? `Quantidade (máx: ${item.maxDisponivel}):` : `Quantidade (máx: ${item.maxDisponivel}):`}
                               </Text>
                             );
                           }
@@ -1079,13 +1157,14 @@ const VincularFitasModal = ({
                           style={{ marginBottom: 0 }}
                         >
                           <InputNumber
-                            size="large"
+                            size={isMobile ? "middle" : "large"}
                             min={0}
                             value={item.quantidade}
                             onChange={(value) => handleQuantidadeChange(item.chave, value || 0)}
                             style={{ 
                               width: '100%',
-                              borderColor: item.fitaCor
+                              borderColor: item.fitaCor,
+                              fontSize: isMobile ? "0.875rem" : "1rem"
                             }}
                             placeholder="0"
                           />
@@ -1093,19 +1172,26 @@ const VincularFitasModal = ({
                       </div>
                     </Col>
                     
-                    <Col span={16}>
+                    <Col xs={24} md={16}>
                       <div>
-                        <Text style={{ fontSize: '12px', display: 'block', marginBottom: 4, color: '#333', fontWeight: 700 }}>
+                        <Text style={{ 
+                          fontSize: isMobile ? '11px' : '12px', 
+                          display: 'block', 
+                          marginBottom: 4, 
+                          color: '#333', 
+                          fontWeight: 700 
+                        }}>
                           Observações (opcional):
                         </Text>
                         <Input
-                          size="large"
-                          placeholder="Ex: Fita para banana premium"
+                          size={isMobile ? "middle" : "large"}
+                          placeholder={isMobile ? "Ex: Premium" : "Ex: Fita para banana premium"}
                           value={item.observacoes}
                           onChange={(e) => handleObservacoesChange(item.chave, e.target.value)}
                           style={{ 
                             width: '100%',
-                            borderColor: `${item.fitaCor}60`
+                            borderColor: `${item.fitaCor}60`,
+                            fontSize: isMobile ? "0.875rem" : "1rem"
                           }}
                         />
                       </div>
@@ -1120,12 +1206,23 @@ const VincularFitasModal = ({
 
 
       {/* Botões de Ação */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24, paddingTop: 16, borderTop: "1px solid #e8e8e8" }}>
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "flex-end", 
+        gap: isMobile ? "8px" : "12px", 
+        marginTop: isMobile ? "1rem" : "1.5rem", 
+        paddingTop: isMobile ? "12px" : "16px", 
+        borderTop: "1px solid #e8e8e8" 
+      }}>
         <Button 
           icon={<CloseOutlined />}
           onClick={onClose} 
           disabled={loading}
-          size="large"
+          size={isMobile ? "small" : "middle"}
+          style={{
+            height: isMobile ? "32px" : "40px",
+            padding: isMobile ? "0 12px" : "0 16px",
+          }}
         >
           Cancelar
         </Button>
@@ -1134,13 +1231,15 @@ const VincularFitasModal = ({
           icon={<SaveOutlined />}
           onClick={handleSave}
           loading={loading}
-          size="large"
+          size={isMobile ? "small" : "middle"}
           style={{
             backgroundColor: "#059669",
             borderColor: "#059669",
+            height: isMobile ? "32px" : "40px",
+            padding: isMobile ? "0 12px" : "0 16px",
           }}
         >
-          Confirmar Vinculação
+          {isMobile ? 'Confirmar' : 'Confirmar Vinculação'}
         </Button>
       </div>
       </Modal>

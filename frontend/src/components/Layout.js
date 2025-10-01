@@ -218,6 +218,7 @@ const Layout = ({ children }) => {
                 sm: isOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`, // Desktop: empurrado pelo sidebar
               },
               zIndex: (theme) => theme.zIndex.drawer + 1,
+              overflow: "hidden", // Previne extrapolação
             }}
           >
             <Toolbar
@@ -226,7 +227,12 @@ const Layout = ({ children }) => {
                 alignItems: "center",
                 justifyContent: "space-between",
                 width: "100%",
-                padding: "0 16px",
+                minHeight: { xs: "56px", sm: "64px" }, // Altura mínima responsiva
+                padding: {
+                  xs: "0 8px", // Reduz padding em mobile
+                  sm: "0 16px", // Padding normal em desktop
+                },
+                overflow: "hidden", // Previne extrapolação dos filhos
               }}
             >
               <Tooltip title="Abrir/Fechar menu lateral" placement="bottom">
@@ -255,36 +261,53 @@ const Layout = ({ children }) => {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 2,
+                  gap: { xs: 1, sm: 2 }, // Reduz gap em mobile
                   flexGrow: 1,
+                  minWidth: 0, // Permite encolhimento
+                  overflow: "hidden", // Previne extrapolação
                 }}
               >
-                <Typography 
-                  variant="h6" 
-                  noWrap 
+                <Typography
+                  variant="h6"
+                  noWrap
                   component="div"
                   sx={{
                     fontSize: {
-                      xs: "1.5rem", // Mobile: fonte um pouco maior
-                      sm: "1.5rem", // Desktop: fonte normal
-                    }
+                      xs: "1rem", // Mobile: fonte menor para caber
+                      sm: "1.25rem", // Tablet: fonte média
+                      md: "1.5rem", // Desktop: fonte normal
+                    },
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {isMobile ? "AlencarFrutas" : "Sistemas de Informações - AlencarFrutas"}
                 </Typography>
               </Box>
-              <Box sx={{ display: "flex", alignItems: "center" }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: { xs: 0.25, sm: 0.5 }, // Reduz espaçamento entre ícones em mobile
+                  flexShrink: 0, // Não permite encolhimento dos ícones
+                }}
+              >
                 <Tooltip title="Alternar tema claro/escuro" placement="bottom">
                   <IconButton
-                    sx={{ ml: 1 }}
+                    sx={{
+                      ml: { xs: 0, sm: 1 },
+                      padding: { xs: "6px", sm: "8px" }, // Menor em mobile
+                    }}
                     onClick={toggleTheme}
                     color="inherit"
+                    size={isMobile ? "small" : "medium"}
                   >
-                    {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
+                    {mode === "dark" ? <Brightness7Icon fontSize={isMobile ? "small" : "medium"} /> : <Brightness4Icon fontSize={isMobile ? "small" : "medium"} />}
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Notificações do sistema" placement="bottom">
-                  <span>
+                  <span style={{ display: "flex", alignItems: "center" }}>
                     <NotificacaoMenu />
                   </span>
                 </Tooltip>
@@ -294,8 +317,14 @@ const Layout = ({ children }) => {
                     trigger="click"
                     placement="bottomRight"
                   >
-                    <IconButton color="inherit">
-                      <AccountCircle />
+                    <IconButton
+                      color="inherit"
+                      size={isMobile ? "small" : "medium"}
+                      sx={{
+                        padding: { xs: "6px", sm: "8px" }, // Menor em mobile
+                      }}
+                    >
+                      <AccountCircle fontSize={isMobile ? "small" : "medium"} />
                     </IconButton>
                   </Popover>
                 </Tooltip>

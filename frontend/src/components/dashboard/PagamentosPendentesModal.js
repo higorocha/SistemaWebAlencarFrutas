@@ -505,7 +505,10 @@ const PagamentosPendentesModal = ({
       centered
       destroyOnClose
     >
-      <div style={{ position: 'relative' }}>
+      <div style={{ 
+        position: 'relative',
+        minHeight: loading ? '400px' : 'auto'
+      }}>
         {/* Overlay de Loading */}
         {(loading || loadingPagamento) && (
           <div style={{
@@ -519,7 +522,8 @@ const PagamentosPendentesModal = ({
             justifyContent: 'center',
             alignItems: 'center',
             zIndex: 1000,
-            borderRadius: '8px'
+            borderRadius: '8px',
+            minHeight: '400px'
           }}>
             <div style={{
               display: 'flex',
@@ -538,7 +542,7 @@ const PagamentosPendentesModal = ({
                 fontSize: '16px',
                 fontWeight: '600'
               }}>
-                {loading ? 'Carregando dados da turma...' : 'Processando pagamentos...'}
+                {loading ? 'Carregando pagamentos pendentes...' : 'Processando pagamentos...'}
               </div>
             </div>
           </div>

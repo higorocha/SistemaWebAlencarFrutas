@@ -25,6 +25,7 @@ import {
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
+import useResponsive from "../../hooks/useResponsive";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -44,6 +45,9 @@ const VincularAreasModal = ({
 
   // Hook para notificações com z-index correto
   const { error, warning, contextHolder } = useNotificationWithContext();
+  
+  // Hook para responsividade
+  const { isMobile } = useResponsive();
 
   // Buscar dados quando modal abrir
   useEffect(() => {
@@ -152,31 +156,32 @@ const VincularAreasModal = ({
           <span style={{
             color: "#ffffff",
             fontWeight: "600",
-            fontSize: "16px",
+            fontSize: isMobile ? "0.875rem" : "1rem",
             backgroundColor: "#059669",
-            padding: "12px 16px",
-            margin: "-20px -24px 0 -24px",
+            padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+            margin: "-1.25rem -1.5rem 0 -1.5rem",
             display: "block",
-            borderRadius: "8px 8px 0 0",
+            borderRadius: "0.5rem 0.5rem 0 0",
           }}>
-            <LinkOutlined style={{ marginRight: 8 }} />
-            Vincular Áreas - {fruta?.frutaNome || 'Fruta'}
+            <LinkOutlined style={{ marginRight: "0.5rem" }} />
+            {isMobile ? 'Vincular Áreas' : `Vincular Áreas - ${fruta?.frutaNome || 'Fruta'}`}
           </span>
         }
       open={open}
       onCancel={onClose}
       footer={null}
-      width={800}
+      width={isMobile ? '95vw' : '90%'}
+      style={{ maxWidth: isMobile ? '95vw' : "50rem" }}
       styles={{
         body: { 
-          maxHeight: "calc(100vh - 200px)", 
+          maxHeight: "calc(100vh - 12.5rem)", 
           overflowY: "auto", 
           overflowX: "hidden", 
-          padding: 20 
+          padding: isMobile ? 12 : 20 
         },
         header: { 
           backgroundColor: "#059669", 
-          borderBottom: "2px solid #047857", 
+          borderBottom: "0.125rem solid #047857", 
           padding: 0 
         },
       }}
@@ -188,13 +193,29 @@ const VincularAreasModal = ({
         title={
           <Space>
             <EnvironmentOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Informações da Fruta</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Informações da Fruta</span>
           </Space>
         }
-        style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-        styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+        style={{ 
+          marginBottom: isMobile ? 12 : 16, 
+          border: "0.0625rem solid #e8e8e8", 
+          borderRadius: "0.5rem", 
+          backgroundColor: "#f9f9f9" 
+        }}
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            borderBottom: "0.125rem solid #047857", 
+            color: "#ffffff", 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
+        }}
       >
-        <Row gutter={16}>
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
           <Col span={8}>
             <Text strong>Fruta:</Text>
             <br />
@@ -217,13 +238,18 @@ const VincularAreasModal = ({
       {(!fruta?.areas || fruta.areas.length === 0) && (
         <Card
           style={{ 
-            marginBottom: 16, 
-            border: "1px solid #f59e0b", 
-            borderRadius: 8, 
+            marginBottom: isMobile ? 12 : 16, 
+            border: "0.0625rem solid #f59e0b", 
+            borderRadius: "0.5rem", 
             backgroundColor: "#fef3c7" 
           }}
+          styles={{
+            body: {
+              padding: isMobile ? "12px" : "16px"
+            }
+          }}
         >
-          <Text style={{ color: "#92400e", fontSize: "14px" }}>
+          <Text style={{ color: "#92400e", fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>
             <strong>ℹ️ Status:</strong> Esta fruta possui uma área pendente de definição. 
             Selecione uma ou mais áreas abaixo para substituir a área pendente. 
             Se não selecionar nenhuma área, a área pendente será mantida.
@@ -236,15 +262,31 @@ const VincularAreasModal = ({
         title={
           <Space>
             <EnvironmentOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Áreas Próprias</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Áreas Próprias</span>
           </Space>
         }
-        style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-        styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+        style={{ 
+          marginBottom: isMobile ? 12 : 16, 
+          border: "0.0625rem solid #e8e8e8", 
+          borderRadius: "0.5rem", 
+          backgroundColor: "#f9f9f9" 
+        }}
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            borderBottom: "0.125rem solid #047857", 
+            color: "#ffffff", 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
+        }}
         loading={loadingDados}
       >
         {areasProprias.length > 0 ? (
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             {areasProprias.map((area) => (
               <Col xs={24} sm={12} md={8} key={`propria-${area.id}`}>
                 <Card 
@@ -306,15 +348,31 @@ const VincularAreasModal = ({
         title={
           <Space>
             <UserOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Áreas de Fornecedores</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Áreas de Fornecedores</span>
           </Space>
         }
-        style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-        styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+        style={{ 
+          marginBottom: isMobile ? 12 : 16, 
+          border: "0.0625rem solid #e8e8e8", 
+          borderRadius: "0.5rem", 
+          backgroundColor: "#f9f9f9" 
+        }}
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            borderBottom: "0.125rem solid #047857", 
+            color: "#ffffff", 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
+        }}
         loading={loadingDados}
       >
         {areasFornecedores.length > 0 ? (
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             {areasFornecedores.map((area) => (
               <Col xs={24} sm={12} md={8} key={`fornecedor-${area.id}`}>
                 <Card 
@@ -351,31 +409,60 @@ const VincularAreasModal = ({
         title={
           <Space>
             <EnvironmentOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Observações</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Observações</span>
           </Space>
         }
-        style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-        styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+        style={{ 
+          marginBottom: isMobile ? 12 : 16, 
+          border: "0.0625rem solid #e8e8e8", 
+          borderRadius: "0.5rem", 
+          backgroundColor: "#f9f9f9" 
+        }}
+        styles={{ 
+          header: { 
+            backgroundColor: "#059669", 
+            borderBottom: "0.125rem solid #047857", 
+            color: "#ffffff", 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
+        }}
       >
         <TextArea
-          rows={3}
+          rows={isMobile ? 2 : 3}
+          size={isMobile ? "small" : "middle"}
           placeholder="Observações sobre as áreas selecionadas (opcional)"
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
           style={{
-            borderRadius: "6px",
+            borderRadius: "0.375rem",
             borderColor: "#d9d9d9",
+            fontSize: isMobile ? "0.875rem" : "1rem"
           }}
         />
       </Card>
 
       {/* Botões de Ação */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24, paddingTop: 16, borderTop: "1px solid #e8e8e8" }}>
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "flex-end", 
+        gap: isMobile ? "8px" : "12px", 
+        marginTop: isMobile ? "1rem" : "1.5rem", 
+        paddingTop: isMobile ? "12px" : "16px", 
+        borderTop: "1px solid #e8e8e8" 
+      }}>
         <Button 
           icon={<CloseOutlined />}
           onClick={onClose} 
           disabled={loading}
-          size="large"
+          size={isMobile ? "small" : "middle"}
+          style={{
+            height: isMobile ? "32px" : "40px",
+            padding: isMobile ? "0 12px" : "0 16px",
+          }}
         >
           Cancelar
         </Button>
@@ -384,13 +471,15 @@ const VincularAreasModal = ({
           icon={<SaveOutlined />}
           onClick={handleSave}
           loading={loading}
-          size="large"
+          size={isMobile ? "small" : "middle"}
           style={{
             backgroundColor: "#059669",
             borderColor: "#059669",
+            height: isMobile ? "32px" : "40px",
+            padding: isMobile ? "0 12px" : "0 16px",
           }}
         >
-          Confirmar Vinculação
+          {isMobile ? 'Confirmar' : 'Confirmar Vinculação'}
         </Button>
       </div>
       </Modal>

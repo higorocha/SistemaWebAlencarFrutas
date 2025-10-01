@@ -323,3 +323,4 @@ Módulo específico para produção de bananas com controle visual por fitas col
 ---
 
 > **Sistema especializado em gestão agrícola para comercialização de frutas com foco em pedidos sequenciais, múltiplas áreas de produção e controle visual por fitas coloridas.**
+- sempre atualize @README.md quando finalizar alterações que achar que a documentação precisa ser atualizada

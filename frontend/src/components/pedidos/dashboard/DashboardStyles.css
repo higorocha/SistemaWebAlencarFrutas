@@ -21,6 +21,13 @@
   flex-wrap: wrap;
   gap: 16px;
   flex-shrink: 0; /* ✅ Não encolhe */
+  overflow: hidden; /* ✅ Previne extrapolação */
+}
+
+.dashboard-header > div:first-child {
+  flex: 1;
+  min-width: 0; /* ✅ Permite encolhimento do texto */
+  overflow: hidden; /* ✅ Previne extrapolação do texto */
 }
 
 /* Cards de pedidos - layout vertical responsivo */
@@ -211,21 +218,30 @@
 /* Responsividade para mobile */
 @media (max-width: 576px) {
   .dashboard-container {
-    padding: 8px;
+    padding: 12px;
     height: auto; /* ✅ Altura automática em mobile pequeno */
     min-height: 100vh;
   }
-  
+
   .dashboard-header {
     flex-direction: column;
     align-items: stretch;
     text-align: center;
-    gap: 8px;
+    gap: 12px;
+    margin-bottom: 16px;
   }
-  
+
+  .dashboard-header > div:first-child {
+    width: 100%;
+  }
+
   .dashboard-header h2 {
     font-size: 18px !important;
-    margin-bottom: 8px;
+    margin-bottom: 6px !important;
+  }
+
+  .dashboard-header .ant-typography {
+    font-size: 12px !important;
   }
   
   /* Ocultar cabeçalho da tabela em mobile */
@@ -294,9 +310,29 @@
   }
   
   .pedido-data::before {
-    content: "Data:";
+    content: "Data Pedido:";
   }
-  
+
+  .pedido-data-colheita::before {
+    content: "Data Colheita:";
+  }
+
+  .pedido-valor::before {
+    content: "Valor Final:";
+  }
+
+  .pedido-valor-recebido::before {
+    content: "Valor Recebido:";
+  }
+
+  .pedido-data-pagamento::before {
+    content: "Último Pagto:";
+  }
+
+  .pedido-status::before {
+    content: "Status:";
+  }
+
   /* Corrigir ícone da data em mobile */
   .pedido-data .anticon {
     margin-left: 0 !important; /* ✅ Remove margin negativo em mobile */
@@ -492,13 +528,12 @@
   background: #a8a8a8;
 }
 
-/* Cards de estatísticas - força uma linha */
+/* Cards de estatísticas - Desktop: linha horizontal */
 .status-cards-row {
   display: flex !important;
   flex-wrap: nowrap !important;
   gap: 8px;
   margin-bottom: 24px;
-  overflow-x: auto; /* Scroll horizontal se necessário em mobile */
   flex-shrink: 0; /* ✅ Não encolhe */
 }
 
@@ -508,7 +543,7 @@
   max-width: none;
 }
 
-/* Responsividade específica para os cards */
+/* Responsividade específica para os cards - Desktop/Tablet */
 @media (max-width: 992px) {
   .status-cards-col {
     min-width: 110px;
@@ -519,22 +554,14 @@
   .status-cards-row {
     gap: 6px;
   }
-  
+
   .status-cards-col {
     min-width: 100px;
   }
 }
 
-@media (max-width: 576px) {
-  .status-cards-row {
-    gap: 4px;
-    padding-bottom: 4px;
-  }
-  
-  .status-cards-col {
-    min-width: 90px;
-  }
-}
+/* Mobile: Grid 2x3 é gerenciado diretamente no componente StatusCards.js */
+/* Não aplicar estilos de .status-cards-row em mobile pois usa grid inline */
 
 /* Container das seções lado a lado */
 .status-sections-container {
@@ -633,5 +660,89 @@
   }
   100% {
     transform: rotate(360deg);
+  }
+}
+
+/* Estilos para paginação compacta em mobile - REFORÇADO */
+@media (max-width: 576px) {
+  /* FORÇAR layout horizontal em mobile pequeno */
+  .ant-pagination {
+    display: flex !important;
+    flex-direction: row !important;           /* ✅ SEMPRE HORIZONTAL */
+    flex-wrap: nowrap !important;             /* ✅ NUNCA QUEBRA LINHA */
+    white-space: nowrap !important;           /* ✅ TEXTO NÃO QUEBRA */
+    overflow-x: auto !important;              /* ✅ SCROLL HORIZONTAL */
+    -webkit-overflow-scrolling: touch !important; /* ✅ SCROLL SUAVE iOS */
+    align-items: center !important;
+    justify-content: center !important;
+    max-width: 100% !important;
+    padding: 0.25rem 0 !important;            /* ✅ 4px padding vertical */
+    gap: 0.125rem !important;                 /* ✅ 2px entre itens */
+  }
+
+  /* Botões de página compactos */
+  .ant-pagination-item {
+    min-width: 1.75rem !important;            /* ✅ 28px */
+    height: 1.75rem !important;               /* ✅ 28px */
+    line-height: 1.625rem !important;         /* ✅ 26px */
+    font-size: 0.75rem !important;            /* ✅ 12px */
+    margin: 0 0.125rem !important;            /* ✅ 2px */
+    flex-shrink: 0 !important;                /* ✅ NÃO ENCOLHE */
+  }
+
+  /* Botões prev/next compactos */
+  .ant-pagination-prev,
+  .ant-pagination-next {
+    min-width: 1.75rem !important;            /* ✅ 28px */
+    height: 1.75rem !important;               /* ✅ 28px */
+    line-height: 1.625rem !important;         /* ✅ 26px */
+    margin: 0 0.125rem !important;            /* ✅ 2px */
+    flex-shrink: 0 !important;                /* ✅ NÃO ENCOLHE */
+  }
+
+  /* Ícones dos botões prev/next */
+  .ant-pagination-prev button,
+  .ant-pagination-next button {
+    height: 1.75rem !important;               /* ✅ 28px */
+    font-size: 0.6875rem !important;          /* ✅ 11px */
+  }
+
+  /* Jump prev/next (reticências) */
+  .ant-pagination-jump-prev,
+  .ant-pagination-jump-next {
+    min-width: 1.75rem !important;            /* ✅ 28px */
+    height: 1.75rem !important;               /* ✅ 28px */
+    line-height: 1.625rem !important;         /* ✅ 26px */
+    margin: 0 0.125rem !important;            /* ✅ 2px */
+    flex-shrink: 0 !important;                /* ✅ NÃO ENCOLHE */
+  }
+
+  /* Ocultar options (select de itens por página) */
+  .ant-pagination-options {
+    display: none !important;
+  }
+
+  /* Ocultar texto total se existir */
+  .ant-pagination-total-text {
+    display: none !important;
+  }
+
+  /* Scrollbar customizada para paginação */
+  .ant-pagination::-webkit-scrollbar {
+    height: 0.25rem;                          /* ✅ 4px */
+  }
+
+  .ant-pagination::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 0.125rem;                  /* ✅ 2px */
+  }
+
+  .ant-pagination::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 0.125rem;                  /* ✅ 2px */
+  }
+
+  .ant-pagination::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
   }
 }

@@ -19,7 +19,8 @@ import {
   Statistic,
   Alert,
   Popover,
-  Tooltip
+  Tooltip,
+  ConfigProvider
 } from "antd";
 import {
   SaveOutlined,
@@ -43,94 +44,13 @@ import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import SearchInputInteligente from "../common/search/SearchInputInteligente";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import ResponsiveTable from "../common/ResponsiveTable";
+import useResponsive from "../../hooks/useResponsive";
 import styled from "styled-components";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
-
-// Styled components para tabela com tema personalizado
-const StyledTable = styled(Table)`
-  .ant-table-thead > tr > th {
-    background-color: #059669 !important;
-    color: #ffffff !important;
-    font-weight: 600;
-    padding: 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-tbody > tr:nth-child(even) {
-    background-color: #fafafa;
-  }
-
-  .ant-table-tbody > tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-
-  .ant-table-tbody > tr:hover {
-    background-color: #e6f7ff !important;
-    cursor: pointer;
-  }
-
-  .ant-table-tbody > tr.ant-table-row-selected {
-    background-color: #d1fae5 !important;
-  }
-
-  .ant-table-tbody > tr > td {
-    padding: 12px 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-container {
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .ant-table-cell-fix-left,
-  .ant-table-cell-fix-right {
-    background-color: inherit !important;
-  }
-
-  .ant-empty {
-    padding: 40px 20px;
-  }
-
-  .ant-empty-description {
-    color: #8c8c8c;
-    font-size: 14px;
-  }
-
-  /* LAYOUT FIXO PARA RESOLVER SCROLL HORIZONTAL */
-  .ant-table-wrapper {
-    width: 100%;
-  }
-
-  .ant-table {
-    width: 100% !important;
-    table-layout: fixed;
-  }
-
-  .ant-table-container {
-    width: 100% !important;
-  }
-
-  .ant-table-thead > tr > th {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .ant-table-tbody > tr > td {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* CORREÇÃO ESPECÍFICA: Esconder linha de medida */
-  .ant-table-measure-row {
-    display: none !important;
-  }
-`;
 
 const LancarPagamentosModal = ({
   open,
@@ -139,6 +59,7 @@ const LancarPagamentosModal = ({
   onSuccess,
   loading
 }) => {
+  const { isMobile } = useResponsive();
   const [form] = Form.useForm();
   const [submitLoading, setSubmitLoading] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
@@ -382,7 +303,7 @@ const LancarPagamentosModal = ({
       key: 'dataPedido',
       width: 90,
       render: (date) => (
-        <Text style={{ fontSize: '13px' }}>
+        <Text style={{ fontSize: isMobile ? '13px' : '14px' }}>
           {moment(date).format('DD/MM/YY')}
         </Text>
       )
@@ -393,11 +314,11 @@ const LancarPagamentosModal = ({
       width: 180,
       render: (_, record) => (
         <div>
-          <Text strong style={{ fontSize: '13px', display: 'block' }}>
+          <Text strong style={{ fontSize: isMobile ? '13px' : '14px', display: 'block' }}>
             {record.cliente?.nome || '-'}
           </Text>
-          {record.cliente?.documento && (
-            <Text type="secondary" style={{ fontSize: '11px' }}>
+          {record.cliente?.documento && record.cliente.documento !== 'N/A' && (
+            <Text type="secondary" style={{ fontSize: isMobile ? '11px' : '12px' }}>
               {record.cliente.documento}
             </Text>
           )}
@@ -414,7 +335,7 @@ const LancarPagamentosModal = ({
         const resumo = frutas.slice(0, 2).map(fp => fp.fruta?.nome).join(', ');
         const extras = frutas.length > 2 ? ` +${frutas.length - 2}` : '';
         return (
-          <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: true }}>
+          <Text style={{ fontSize: isMobile ? '12px' : '14px' }} ellipsis={{ tooltip: true }}>
             {resumo}{extras}
           </Text>
         );
@@ -426,7 +347,7 @@ const LancarPagamentosModal = ({
       key: 'valorFinal',
       width: 110,
       render: (valor) => (
-        <Text strong style={{ color: '#333', fontSize: '13px' }}>
+        <Text strong style={{ color: '#333', fontSize: isMobile ? '13px' : '14px' }}>
           {formatarValorMonetario(valor || 0)}
         </Text>
       )
@@ -437,7 +358,7 @@ const LancarPagamentosModal = ({
       key: 'valorRecebido',
       width: 110,
       render: (valor) => (
-        <Text style={{ color: '#52c41a', fontSize: '13px' }}>
+        <Text style={{ color: '#52c41a', fontSize: isMobile ? '13px' : '14px' }}>
           {formatarValorMonetario(valor || 0)}
         </Text>
       )
@@ -472,22 +393,20 @@ const LancarPagamentosModal = ({
         const hasError = validacaoPedido?.hasValue && !validacaoPedido?.isValid;
 
         return (
-          <Form.Item
-            name={`valorPagar_${record.id}`}
-            style={{ margin: 0 }}
-            validateStatus={hasError ? 'error' : ''}
-            help={hasError ? validacaoPedido?.error : ''}
-          >
-            <MonetaryInput
-              value={valorAtual}
-              onChange={(value) => {
-                handleValorChange(record.id, value);
-              }}
-              placeholder="0,00"
-              size="small"
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
+          <MonetaryInput
+            value={valorAtual}
+            onChange={(value) => {
+              handleValorChange(record.id, value);
+            }}
+            placeholder="0,00"
+            size="small"
+            className="monetary-input"
+            status={hasError ? 'error' : ''}
+            style={{ 
+              width: '100%',
+              borderColor: hasError ? '#ff4d4f' : undefined
+            }}
+          />
         );
       }
     },
@@ -548,53 +467,129 @@ const LancarPagamentosModal = ({
   const totalPagamentos = totalValido;
   const totalPedidos = quantidadeValida;
 
-  return (
-    <Modal
-      title={
-        <span style={{
-          color: "#ffffff",
-          fontWeight: "600",
-          fontSize: "16px",
-          backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
-          display: "block",
-          borderRadius: "8px 8px 0 0",
-        }}>
-          <CreditCardOutlined style={{ marginRight: 8 }} />
-          Lançar Pagamentos em Lote
-        </span>
+  // Tema para controlar espaçamento no mobile
+  const mobileTheme = isMobile ? {
+    components: {
+      Form: {
+        itemMarginBottom: 12,
+        verticalLabelPadding: 0
       }
-      open={open}
-      onCancel={handleCancel}
-      footer={null}
-      width={1400}
-      styles={{
-        body: { maxHeight: "calc(100vh - 120px)", overflowY: "auto", overflowX: "hidden", padding: 20 },
-        header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", padding: 0 },
-        wrapper: { zIndex: 1100 }
-      }}
-      centered
-      destroyOnClose
-    >
+    }
+  } : {};
+
+  return (
+    <ConfigProvider theme={mobileTheme}>
+      {isMobile && (
+        <style>{`
+          .ant-form-item {
+            margin-bottom: 12px !important;
+          }
+          .ant-form-item-row {
+            margin-bottom: 12px !important;
+          }
+          .ant-form-item-explain,
+          .ant-form-item-extra {
+            display: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .ant-form-item-margin-offset {
+            margin-bottom: 0 !important;
+          }
+          .ant-form-item-control {
+            margin-bottom: 0 !important;
+          }
+          .ant-form-item-with-help .ant-form-item-explain {
+            display: none !important;
+          }
+          .ant-col-24 > .ant-form-item {
+            margin-bottom: 12px !important;
+          }
+          .ant-table-cell .ant-input,
+          .ant-table-cell .ant-input-number-input,
+          .ant-table-cell .monetary-input input {
+            padding: 6px 8px !important;
+            min-height: 32px !important;
+          }
+          .ant-table-cell .ant-form-item {
+            margin-bottom: 0 !important;
+          }
+          .ant-picker,
+          .ant-select,
+          .ant-input {
+            padding: 6px 8px !important;
+          }
+          /* Adicionar asterisco invisível para alinhar label de Observações Gerais */
+          .observacoes-label::before {
+            content: '*';
+            color: transparent;
+            margin-right: 6px;
+          }
+        `}</style>
+      )}
+      <Modal
+        title={
+          <span style={{
+            color: "#ffffff",
+            fontWeight: "600",
+            fontSize: isMobile ? "0.875rem" : "1rem",
+            backgroundColor: "#059669",
+            padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+            margin: "-1.25rem -1.5rem 0 -1.5rem",
+            display: "block",
+            borderRadius: "0.5rem 0.5rem 0 0",
+          }}>
+            <CreditCardOutlined style={{ marginRight: "0.5rem" }} />
+            {isMobile ? 'Lançar Pagamentos' : 'Lançar Pagamentos em Lote'}
+          </span>
+        }
+        open={open}
+        onCancel={handleCancel}
+        footer={null}
+        width={isMobile ? '95vw' : '90%'}
+        style={{ maxWidth: isMobile ? '95vw' : "87.5rem" }}
+        styles={{
+          body: {
+            maxHeight: "calc(100vh - 12.5rem)",
+            overflowY: "auto",
+            overflowX: "hidden",
+            padding: isMobile ? 12 : 20
+          },
+          header: {
+            backgroundColor: "#059669",
+            borderBottom: "0.125rem solid #047857",
+            padding: 0
+          },
+          wrapper: { zIndex: 1100 }
+        }}
+        centered
+        destroyOnClose
+      >
       {/* Busca de Cliente */}
       <Card
         title={
           <Space>
             <UserOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Selecionar Cliente</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Selecionar Cliente</span>
           </Space>
         }
-        style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
+        style={{
+          marginBottom: isMobile ? 12 : 16,
+          border: "0.0625rem solid #e8e8e8",
+          borderRadius: "0.5rem",
+          backgroundColor: "#f9f9f9"
+        }}
         styles={{
           header: {
             backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
+            borderBottom: "0.125rem solid #047857",
             color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
-            padding: "8px 16px"
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
           },
-          body: { padding: "16px" }
+          body: { padding: isMobile ? "12px" : "16px" }
         }}
       >
         <SearchInputInteligente
@@ -609,7 +604,7 @@ const LancarPagamentosModal = ({
               <Space>
                 <Text strong>Cliente selecionado:</Text>
                 <Text>{clienteSelecionado.nome}</Text>
-                {clienteSelecionado.documento && (
+                {clienteSelecionado.documento && clienteSelecionado.documento !== 'N/A' && (
                   <Text type="secondary">({clienteSelecionado.documento})</Text>
                 )}
               </Space>
@@ -623,15 +618,19 @@ const LancarPagamentosModal = ({
 
       {/* Lista de Pedidos ou Empty State */}
       {!clienteSelecionado ? (
-        <Card style={{ marginBottom: 16, textAlign: 'center', padding: '40px 20px' }}>
+        <Card style={{
+          marginBottom: isMobile ? 12 : 16,
+          textAlign: 'center',
+          padding: isMobile ? '20px 12px' : '40px 20px'
+        }}>
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
               <Space direction="vertical" size={4}>
-                <Text type="secondary" style={{ fontSize: '16px' }}>
+                <Text type="secondary" style={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
                   Selecione um cliente para visualizar os pedidos
                 </Text>
-                <Text type="secondary" style={{ fontSize: '14px' }}>
+                <Text type="secondary" style={{ fontSize: isMobile ? '0.8125rem' : '0.875rem' }}>
                   Utilize o campo de busca acima para encontrar o cliente desejado
                 </Text>
               </Space>
@@ -645,7 +644,7 @@ const LancarPagamentosModal = ({
           <Form
             form={form}
             layout="vertical"
-            size="large"
+            size={isMobile ? "small" : "large"}
             onFinish={handleSubmit}
             disabled={loading || submitLoading}
           >
@@ -654,49 +653,46 @@ const LancarPagamentosModal = ({
               title={
                 <Space>
                   <ShoppingCartOutlined style={{ color: "#ffffff" }} />
-                  <span style={{ color: "#ffffff", fontWeight: "600" }}>
-                    Pedidos Pendentes ({pedidos.length})
+                  <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                    {isMobile ? `Pedidos (${pedidos.length})` : `Pedidos Pendentes (${pedidos.length})`}
                   </span>
                 </Space>
               }
-              style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
+              style={{
+                marginBottom: isMobile ? 12 : 16,
+                border: "0.0625rem solid #e8e8e8",
+                borderRadius: "0.5rem",
+                backgroundColor: "#f9f9f9"
+              }}
               styles={{
                 header: {
                   backgroundColor: "#059669",
-                  borderBottom: "2px solid #047857",
+                  borderBottom: "0.125rem solid #047857",
                   color: "#ffffff",
-                  borderRadius: "8px 8px 0 0",
-                  padding: "8px 16px"
+                  borderRadius: "0.5rem 0.5rem 0 0",
+                  padding: isMobile ? "6px 12px" : "8px 16px"
                 },
-                body: { padding: "16px" }
+                body: { padding: isMobile ? "12px" : "16px" }
               }}
             >
               {pedidos.length === 0 ? (
                 <Empty
                   description="Este cliente não possui pedidos pendentes de pagamento"
-                  style={{ padding: '20px 0' }}
+                  style={{ padding: isMobile ? '12px 0' : '20px 0' }}
                 />
               ) : (
                 <div style={{
-                  border: "1px solid #e8e8e8",
-                  borderRadius: "8px",
+                  border: "0.0625rem solid #e8e8e8",
+                  borderRadius: "0.5rem",
                   overflow: "hidden",
-                  marginBottom: 16
+                  marginBottom: isMobile ? 12 : 16
                 }}>
-                  <StyledTable
+                  <ResponsiveTable
                     columns={columns}
                     dataSource={pedidos}
                     rowKey="id"
                     loading={loadingPedidos}
-                    pagination={false}
-                    scroll={{ x: 1200 }}
-                    size="middle"
-                    bordered={true}
-                    style={{
-                      backgroundColor: "#ffffff",
-                      borderRadius: "8px",
-                      overflow: "hidden",
-                    }}
+                    minWidthMobile={1200}
                   />
                 </div>
               )}
@@ -709,38 +705,56 @@ const LancarPagamentosModal = ({
                 title={
                   <Space>
                     <DollarOutlined style={{ color: "#ffffff" }} />
-                    <span style={{ color: "#ffffff", fontWeight: "600" }}>Resumo dos Pagamentos</span>
+                    <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                      {isMobile ? 'Resumo' : 'Resumo dos Pagamentos'}
+                    </span>
                   </Space>
                 }
-                style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
+                style={{
+                  marginBottom: isMobile ? 12 : 16,
+                  border: "0.0625rem solid #e8e8e8",
+                  borderRadius: "0.5rem",
+                  backgroundColor: "#f9f9f9"
+                }}
                 styles={{
                   header: {
                     backgroundColor: "#059669",
-                    borderBottom: "2px solid #047857",
+                    borderBottom: "0.125rem solid #047857",
                     color: "#ffffff",
-                    borderRadius: "8px 8px 0 0",
-                    padding: "8px 16px"
+                    borderRadius: "0.5rem 0.5rem 0 0",
+                    padding: isMobile ? "6px 12px" : "8px 16px"
                   },
-                  body: { padding: "20px" }
+                  body: { padding: isMobile ? "12px" : "20px" }
                 }}
               >
-                <Row gutter={[24, 16]} align="middle">
-                  <Col span={8}>
+                <Row gutter={[isMobile ? 8 : 24, isMobile ? 8 : 16]} align="middle">
+                  <Col xs={24} sm={8}>
                     <div style={{
                       backgroundColor: "#fef2f2",
-                      border: "2px solid #ef4444",
-                      borderRadius: "12px",
-                      padding: "20px",
+                      border: "0.125rem solid #ef4444",
+                      borderRadius: "0.75rem",
+                      padding: isMobile ? "12px" : "20px",
                       textAlign: "center",
-                      boxShadow: "0 2px 8px rgba(239, 68, 68, 0.15)"
+                      boxShadow: "0 0.125rem 0.5rem rgba(239, 68, 68, 0.15)"
                     }}>
-                      <div style={{ marginBottom: "8px" }}>
-                        <DollarOutlined style={{ fontSize: "32px", color: "#ef4444" }} />
+                      <div style={{ marginBottom: isMobile ? "4px" : "8px" }}>
+                        <DollarOutlined style={{ fontSize: isMobile ? "24px" : "32px", color: "#ef4444" }} />
                       </div>
-                      <Text style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        SALDO DEVEDOR TOTAL
+                      <Text style={{
+                        fontSize: isMobile ? "11px" : "14px",
+                        color: "#64748b",
+                        fontWeight: "600",
+                        display: "block",
+                        marginBottom: "4px"
+                      }}>
+                        {isMobile ? 'SALDO DEVEDOR' : 'SALDO DEVEDOR TOTAL'}
                       </Text>
-                      <Text style={{ fontSize: "28px", fontWeight: "700", color: "#dc2626", display: "block" }}>
+                      <Text style={{
+                        fontSize: isMobile ? "20px" : "28px",
+                        fontWeight: "700",
+                        color: "#dc2626",
+                        display: "block"
+                      }}>
                         {formatarValorMonetario(pedidos.reduce((total, pedido) => {
                           const saldo = (pedido.valorFinal || 0) - (pedido.valorRecebido || 0);
                           return total + saldo;
@@ -748,42 +762,64 @@ const LancarPagamentosModal = ({
                       </Text>
                     </div>
                   </Col>
-                  <Col span={8}>
+                  <Col xs={24} sm={8}>
                     <div style={{
                       backgroundColor: "#f0f9ff",
-                      border: "2px solid #0ea5e9",
-                      borderRadius: "12px",
-                      padding: "20px",
+                      border: "0.125rem solid #0ea5e9",
+                      borderRadius: "0.75rem",
+                      padding: isMobile ? "12px" : "20px",
                       textAlign: "center",
-                      boxShadow: "0 2px 8px rgba(14, 165, 233, 0.15)"
+                      boxShadow: "0 0.125rem 0.5rem rgba(14, 165, 233, 0.15)"
                     }}>
-                      <div style={{ marginBottom: "8px" }}>
-                        <DollarOutlined style={{ fontSize: "32px", color: "#0ea5e9" }} />
+                      <div style={{ marginBottom: isMobile ? "4px" : "8px" }}>
+                        <DollarOutlined style={{ fontSize: isMobile ? "24px" : "32px", color: "#0ea5e9" }} />
                       </div>
-                      <Text style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        QUANTIDADE DE PAGAMENTOS
+                      <Text style={{
+                        fontSize: isMobile ? "11px" : "14px",
+                        color: "#64748b",
+                        fontWeight: "600",
+                        display: "block",
+                        marginBottom: "4px"
+                      }}>
+                        {isMobile ? 'QTD. PAGAMENTOS' : 'QUANTIDADE DE PAGAMENTOS'}
                       </Text>
-                      <Text style={{ fontSize: "28px", fontWeight: "700", color: "#0f172a", display: "block" }}>
+                      <Text style={{
+                        fontSize: isMobile ? "20px" : "28px",
+                        fontWeight: "700",
+                        color: "#0f172a",
+                        display: "block"
+                      }}>
                         {totalPedidos}
                       </Text>
                     </div>
                   </Col>
-                  <Col span={8}>
+                  <Col xs={24} sm={8}>
                     <div style={{
                       backgroundColor: "#f0fdf4",
-                      border: "2px solid #22c55e",
-                      borderRadius: "12px",
-                      padding: "20px",
+                      border: "0.125rem solid #22c55e",
+                      borderRadius: "0.75rem",
+                      padding: isMobile ? "12px" : "20px",
                       textAlign: "center",
-                      boxShadow: "0 2px 8px rgba(34, 197, 94, 0.15)"
+                      boxShadow: "0 0.125rem 0.5rem rgba(34, 197, 94, 0.15)"
                     }}>
-                      <div style={{ marginBottom: "8px" }}>
-                        <CreditCardOutlined style={{ fontSize: "32px", color: "#22c55e" }} />
+                      <div style={{ marginBottom: isMobile ? "4px" : "8px" }}>
+                        <CreditCardOutlined style={{ fontSize: isMobile ? "24px" : "32px", color: "#22c55e" }} />
                       </div>
-                      <Text style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        VALOR TOTAL DOS PAGAMENTOS
+                      <Text style={{
+                        fontSize: isMobile ? "11px" : "14px",
+                        color: "#64748b",
+                        fontWeight: "600",
+                        display: "block",
+                        marginBottom: "4px"
+                      }}>
+                        {isMobile ? 'VALOR TOTAL' : 'VALOR TOTAL DOS PAGAMENTOS'}
                       </Text>
-                      <Text style={{ fontSize: "28px", fontWeight: "700", color: "#15803d", display: "block" }}>
+                      <Text style={{
+                        fontSize: isMobile ? "20px" : "28px",
+                        fontWeight: "700",
+                        color: "#15803d",
+                        display: "block"
+                      }}>
                         {formatarValorMonetario(totalPagamentos)}
                       </Text>
                     </div>
@@ -798,37 +834,57 @@ const LancarPagamentosModal = ({
                 title={
                   <Space>
                     <CreditCardOutlined style={{ color: "#ffffff" }} />
-                    <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Comuns dos Pagamentos</span>
+                    <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                      {isMobile ? 'Dados Comuns' : 'Dados Comuns dos Pagamentos'}
+                    </span>
                   </Space>
                 }
-                style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
+                style={{
+                  marginBottom: isMobile ? 12 : 16,
+                  border: "0.0625rem solid #e8e8e8",
+                  borderRadius: "0.5rem",
+                  backgroundColor: "#f9f9f9"
+                }}
                 styles={{
                   header: {
                     backgroundColor: "#059669",
-                    borderBottom: "2px solid #047857",
+                    borderBottom: "0.125rem solid #047857",
                     color: "#ffffff",
-                    borderRadius: "8px 8px 0 0",
-                    padding: "8px 16px"
+                    borderRadius: "0.5rem 0.5rem 0 0",
+                    padding: isMobile ? "6px 12px" : "8px 16px"
                   },
-                  body: { padding: "16px" }
+                  body: { padding: isMobile ? "12px" : "16px" }
                 }}
               >
-              <Row gutter={[16, 16]}>
-                <Col span={8}>
+              {/* Todos os campos dentro de uma ÚNICA Row para espaçamento consistente */}
+              <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+                <Col xs={24} sm={8}>
                   <Form.Item
                     label={
-                      <Space>
-                        <CalendarOutlined style={{ color: "#059669" }} />
-                        <Text strong style={{ color: "#333" }}>Data do Pagamento</Text>
-                      </Space>
+                      isMobile ? (
+                        <Space size="small">
+                          <CalendarOutlined style={{ color: "#059669" }} />
+                          <Text strong style={{ color: "#059669", fontSize: "14px" }}>Data do Pagamento</Text>
+                        </Space>
+                      ) : (
+                        <Space>
+                          <CalendarOutlined style={{ color: "#059669" }} />
+                          <Text strong style={{ color: "#333" }}>Data do Pagamento</Text>
+                        </Space>
+                      )
                     }
                     name="dataPagamento"
                     rules={[
-                      { required: true, message: "Por favor, selecione a data do pagamento" },
+                      { required: true, message: isMobile ? "" : "Por favor, selecione a data do pagamento" },
                     ]}
                   >
                     <DatePicker
-                      style={{ width: "100%", borderRadius: 6 }}
+                      size={isMobile ? "small" : "middle"}
+                      style={{
+                        width: "100%",
+                        borderRadius: "0.375rem",
+                        fontSize: isMobile ? "0.875rem" : "1rem"
+                      }}
                       format="DD/MM/YYYY"
                       placeholder="Selecione a data"
                       disabledDate={(current) => current && current > moment().endOf('day')}
@@ -836,20 +892,34 @@ const LancarPagamentosModal = ({
                   </Form.Item>
                 </Col>
 
-                <Col span={8}>
+                <Col xs={24} sm={8}>
                   <Form.Item
                     label={
-                      <Space>
-                        <CreditCardOutlined style={{ color: "#059669" }} />
-                        <Text strong style={{ color: "#333" }}>Método de Pagamento</Text>
-                      </Space>
+                      isMobile ? (
+                        <Space size="small">
+                          <CreditCardOutlined style={{ color: "#059669" }} />
+                          <Text strong style={{ color: "#059669", fontSize: "14px" }}>Método de Pagamento</Text>
+                        </Space>
+                      ) : (
+                        <Space>
+                          <CreditCardOutlined style={{ color: "#059669" }} />
+                          <Text strong style={{ color: "#333" }}>Método de Pagamento</Text>
+                        </Space>
+                      )
                     }
                     name="metodoPagamento"
                     rules={[
-                      { required: true, message: "Por favor, selecione o método de pagamento" },
+                      { required: true, message: isMobile ? "" : "Por favor, selecione o método de pagamento" },
                     ]}
                   >
-                    <Select placeholder="Selecione o método" style={{ borderRadius: 6 }}>
+                    <Select
+                      size={isMobile ? "small" : "middle"}
+                      placeholder="Selecione o método"
+                      style={{
+                        borderRadius: "0.375rem",
+                        fontSize: isMobile ? "0.875rem" : "1rem"
+                      }}
+                    >
                       {metodosPagamento.map((metodo) => (
                         <Option key={metodo.value} value={metodo.value}>
                           <Space>
@@ -866,20 +936,34 @@ const LancarPagamentosModal = ({
                   </Form.Item>
                 </Col>
 
-                <Col span={8}>
+                <Col xs={24} sm={8}>
                   <Form.Item
                     label={
-                      <Space>
-                        <BankOutlined style={{ color: "#059669" }} />
-                        <Text strong style={{ color: "#333" }}>Conta Destino</Text>
-                      </Space>
+                      isMobile ? (
+                        <Space size="small">
+                          <BankOutlined style={{ color: "#059669" }} />
+                          <Text strong style={{ color: "#059669", fontSize: "14px" }}>Conta Destino</Text>
+                        </Space>
+                      ) : (
+                        <Space>
+                          <BankOutlined style={{ color: "#059669" }} />
+                          <Text strong style={{ color: "#333" }}>Conta Destino</Text>
+                        </Space>
+                      )
                     }
                     name="contaDestino"
                     rules={[
-                      { required: true, message: "Por favor, selecione a conta destino" },
+                      { required: true, message: isMobile ? "" : "Por favor, selecione a conta destino" },
                     ]}
                   >
-                    <Select placeholder="Selecione a conta" style={{ borderRadius: 6 }}>
+                    <Select
+                      size={isMobile ? "small" : "middle"}
+                      placeholder="Selecione a conta"
+                      style={{
+                        borderRadius: "0.375rem",
+                        fontSize: isMobile ? "0.875rem" : "1rem"
+                      }}
+                    >
                       {contasDestino.map((conta) => (
                         <Option key={conta.value} value={conta.value}>
                           {conta.label}
@@ -888,22 +972,37 @@ const LancarPagamentosModal = ({
                     </Select>
                   </Form.Item>
                 </Col>
-              </Row>
 
-              <Row gutter={[16, 16]}>
+                {/* Observações Gerais agora dentro da mesma Row */}
                 <Col span={24}>
                   <Form.Item
                     label={
-                      <Space>
-                        <FileTextOutlined style={{ color: "#059669" }} />
-                        <Text strong style={{ color: "#333" }}>Observações Gerais</Text>
-                      </Space>
+                      isMobile ? (
+                        <span className="observacoes-label">
+                          <Space size="small">
+                            <FileTextOutlined style={{ color: "#059669" }} />
+                            <Text strong style={{ color: "#059669", fontSize: "14px" }}>Observações Gerais</Text>
+                          </Space>
+                        </span>
+                      ) : (
+                        <span className="observacoes-label">
+                          <Space>
+                            <FileTextOutlined style={{ color: "#059669" }} />
+                            <Text strong style={{ color: "#333" }}>Observações Gerais</Text>
+                          </Space>
+                        </span>
+                      )
                     }
                     name="observacoesGlobal"
                   >
                     <Input
-                      placeholder="Observações que serão aplicadas aos pagamentos sem observação específica"
-                      style={{ borderRadius: 6, borderColor: "#d9d9d9" }}
+                      size={isMobile ? "small" : "middle"}
+                      placeholder={isMobile ? "Observações gerais" : "Observações que serão aplicadas aos pagamentos sem observação específica"}
+                      style={{
+                        borderRadius: "0.375rem",
+                        borderColor: "#d9d9d9",
+                        fontSize: isMobile ? "0.875rem" : "1rem"
+                      }}
                     />
                   </Form.Item>
                 </Col>
@@ -915,26 +1014,19 @@ const LancarPagamentosModal = ({
             <div style={{
               display: "flex",
               justifyContent: "flex-end",
-              gap: 16,
-              marginTop: 32,
-              paddingTop: 20,
-              borderTop: "2px solid #e8e8e8",
-              backgroundColor: "#fafafa",
-              margin: "32px -20px -20px -20px",
-              padding: "20px 20px",
-              borderRadius: "0 0 8px 8px"
+              gap: isMobile ? "8px" : "12px",
+              marginTop: isMobile ? "1rem" : "1.5rem",
+              paddingTop: isMobile ? "12px" : "16px",
+              borderTop: "1px solid #e8e8e8"
             }}>
               <Button
                 icon={<CloseOutlined />}
                 onClick={handleCancel}
                 disabled={loading || submitLoading}
-                size="large"
+                size={isMobile ? "small" : "middle"}
                 style={{
-                  height: "48px",
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  borderRadius: "6px",
-                  minWidth: "120px"
+                  height: isMobile ? "32px" : "40px",
+                  padding: isMobile ? "0 12px" : "0 16px"
                 }}
               >
                 Cancelar
@@ -944,26 +1036,23 @@ const LancarPagamentosModal = ({
                 icon={<SaveOutlined />}
                 htmlType="submit"
                 loading={loading || submitLoading}
-                size="large"
+                size={isMobile ? "small" : "middle"}
                 disabled={!podeSalvar}
                 style={{
                   backgroundColor: '#059669',
                   borderColor: '#059669',
-                  height: "48px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  borderRadius: "6px",
-                  minWidth: "200px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)"
+                  height: isMobile ? "32px" : "40px",
+                  padding: isMobile ? "0 12px" : "0 16px"
                 }}
               >
-                {submitLoading ? "Processando..." : `Lançar ${totalPedidos} Pagamento${totalPedidos !== 1 ? 's' : ''}`}
+                {submitLoading ? "Processando..." : (isMobile ? `Lançar (${totalPedidos})` : `Lançar ${totalPedidos} Pagamento${totalPedidos !== 1 ? 's' : ''}`)}
               </Button>
             </div>
           </Form>
         </>
       )}
     </Modal>
+    </ConfigProvider>
   );
 };
 
