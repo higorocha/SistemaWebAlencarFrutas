@@ -28,7 +28,7 @@ const CardStyled = styled(Card)`
 `;
 
 const StatusCards = ({ stats = {} }) => {
-  const { isMobile } = useResponsive();
+  const { isMobile, isTablet, isSmallTablet, isLargeTablet } = useResponsive();
 
   const {
     totalPedidos = 0,
@@ -39,21 +39,42 @@ const StatusCards = ({ stats = {} }) => {
     pedidosVencidos = 0,
   } = stats;
 
-  const formatarValor = (valor) => {
-    if (valor >= 1000) {
-      return `R$ ${(valor / 1000).toFixed(0)}k`;
-    }
-    return formatarValorMonetario(valor);
+
+  // Determinar configurações baseadas no tamanho da tela
+  const gridConfig = isMobile
+    ? { columns: '1fr 1fr', gap: '0.75rem', iconSize: '1.75rem', valueSize: '1.125rem', labelSize: '0.6875rem', padding: '0.5rem', minHeight: '6.25rem' }
+    : isTablet
+    ? { columns: 'repeat(3, 1fr)', gap: '0.875rem', iconSize: '1.875rem', valueSize: '1.1875rem', labelSize: '0.75rem', padding: '0.625rem', minHeight: '7rem' }
+    : null;
+
+  // Labels abreviados para tablets (evitar quebra de linha)
+  const getLabel = (fullLabel, shortLabel) => {
+    if (isMobile) return fullLabel; // Mobile usa labels completos (espaço 2x3)
+    if (isTablet) return shortLabel; // TODOS os tablets usam abreviações (576px-992px)
+    return fullLabel; // Desktop usa completos (>= 992px)
+  };
+
+  // Estilo comum para labels (evitar quebra de linha)
+  const labelStyle = {
+    fontSize: gridConfig?.labelSize || '0.6875rem',
+    color: '#8c8c8c',
+    textAlign: 'center',
+    fontWeight: '400',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '100%',
+    padding: '0 4px'
   };
 
   return (
     <>
-      {isMobile ? (
-        /* Mobile: Grid Compacto 2x3 - Estilo consistente com Dashboard principal */
+      {isLargeTablet ? (
+        /* Large Tablet (768px-992px) - Grid 3x2 Compacto */
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '0.75rem',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '0.625rem',
           marginBottom: '1rem'
         }}>
           {/* Card 1: Total de Pedidos */}
@@ -63,11 +84,187 @@ const StatusCards = ({ stats = {} }) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '0.5rem',
-              minHeight: '6.25rem'
+              padding: '0.75rem',
+              minHeight: '5.5rem'
             }}>
-              <ShoppingOutlined style={{ fontSize: '1.75rem', color: '#059669', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#059669', lineHeight: 1.2, marginBottom: '0.375rem' }}>
+              <ShoppingOutlined style={{ fontSize: '1.5rem', color: '#059669', marginBottom: '0.375rem' }} />
+              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#059669', lineHeight: 1, marginBottom: '0.25rem' }}>
+                {totalPedidos}
+              </div>
+              <div style={{
+                fontSize: '0.6875rem',
+                color: '#8c8c8c',
+                textAlign: 'center',
+                fontWeight: '500',
+                lineHeight: 1.2
+              }}>
+                Total de Pedidos
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 2: Pedidos Ativos */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0.75rem',
+              minHeight: '5.5rem'
+            }}>
+              <ClockCircleOutlined style={{ fontSize: '1.5rem', color: '#1890ff', marginBottom: '0.375rem' }} />
+              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#1890ff', lineHeight: 1, marginBottom: '0.25rem' }}>
+                {pedidosAtivos}
+              </div>
+              <div style={{
+                fontSize: '0.6875rem',
+                color: '#8c8c8c',
+                textAlign: 'center',
+                fontWeight: '500',
+                lineHeight: 1.2
+              }}>
+                Pedidos Ativos
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 3: Pedidos Finalizados */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0.75rem',
+              minHeight: '5.5rem'
+            }}>
+              <CheckCircleOutlined style={{ fontSize: '1.5rem', color: '#52c41a', marginBottom: '0.375rem' }} />
+              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#52c41a', lineHeight: 1, marginBottom: '0.25rem' }}>
+                {pedidosFinalizados}
+              </div>
+              <div style={{
+                fontSize: '0.6875rem',
+                color: '#8c8c8c',
+                textAlign: 'center',
+                fontWeight: '500',
+                lineHeight: 1.2
+              }}>
+                Pedidos Finalizados
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 4: Aguardando Pagamento */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0.75rem',
+              minHeight: '5.5rem'
+            }}>
+              <DollarOutlined style={{ fontSize: '1.5rem', color: '#faad14', marginBottom: '0.375rem' }} />
+              <div style={{ fontSize: '0.9375rem', fontWeight: '700', color: '#faad14', lineHeight: 1, marginBottom: '0.25rem' }}>
+                {formatarValorMonetario(valorTotalAberto)}
+              </div>
+              <div style={{
+                fontSize: '0.6875rem',
+                color: '#8c8c8c',
+                textAlign: 'center',
+                fontWeight: '500',
+                lineHeight: 1.2
+              }}>
+                Aguardando Pagamento
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 5: Valor Recebido */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0.75rem',
+              minHeight: '5.5rem'
+            }}>
+              <CheckCircleOutlined style={{ fontSize: '1.5rem', color: '#52c41a', marginBottom: '0.375rem' }} />
+              <div style={{ fontSize: '0.9375rem', fontWeight: '700', color: '#52c41a', lineHeight: 1, marginBottom: '0.25rem' }}>
+                {formatarValorMonetario(valorRecebido)}
+              </div>
+              <div style={{
+                fontSize: '0.6875rem',
+                color: '#8c8c8c',
+                textAlign: 'center',
+                fontWeight: '500',
+                lineHeight: 1.2
+              }}>
+                Valor Recebido
+              </div>
+            </div>
+          </CardStyled>
+
+          {/* Card 6: Pedidos Vencidos */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0.75rem',
+              minHeight: '5.5rem'
+            }}>
+              <WarningOutlined
+                style={{
+                  fontSize: '1.5rem',
+                  color: pedidosVencidos > 0 ? '#ff4d4f' : '#d9d9d9',
+                  marginBottom: '0.375rem'
+                }}
+              />
+              <div style={{
+                fontSize: '1.25rem',
+                fontWeight: '700',
+                color: pedidosVencidos > 0 ? '#ff4d4f' : '#d9d9d9',
+                lineHeight: 1,
+                marginBottom: '0.25rem'
+              }}>
+                {pedidosVencidos}
+              </div>
+              <div style={{
+                fontSize: '0.6875rem',
+                color: '#8c8c8c',
+                textAlign: 'center',
+                fontWeight: '500',
+                lineHeight: 1.2
+              }}>
+                Pedidos Vencidos
+              </div>
+            </div>
+          </CardStyled>
+        </div>
+      ) : isMobile || isTablet ? (
+        /* Mobile e Small Tablet (< 768px) - Grid 2x3 igual Dashboard.js */
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '12px',
+          marginBottom: '16px'
+        }}>
+          {/* Card 1: Total de Pedidos */}
+          <CardStyled style={{ margin: 0 }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px',
+              minHeight: '100px'
+            }}>
+              <ShoppingOutlined style={{ fontSize: '28px', color: '#059669', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#059669', lineHeight: 1.2, marginBottom: '6px' }}>
                 {totalPedidos}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
@@ -83,11 +280,11 @@ const StatusCards = ({ stats = {} }) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '0.5rem',
-              minHeight: '6.25rem'
+              padding: '8px',
+              minHeight: '100px'
             }}>
-              <ClockCircleOutlined style={{ fontSize: '1.75rem', color: '#1890ff', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#1890ff', lineHeight: 1.2, marginBottom: '0.375rem' }}>
+              <ClockCircleOutlined style={{ fontSize: '28px', color: '#1890ff', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#1890ff', lineHeight: 1.2, marginBottom: '6px' }}>
                 {pedidosAtivos}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
@@ -103,11 +300,11 @@ const StatusCards = ({ stats = {} }) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '0.5rem',
-              minHeight: '6.25rem'
+              padding: '8px',
+              minHeight: '100px'
             }}>
-              <CheckCircleOutlined style={{ fontSize: '1.75rem', color: '#52c41a', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#52c41a', lineHeight: 1.2, marginBottom: '0.375rem' }}>
+              <CheckCircleOutlined style={{ fontSize: '28px', color: '#52c41a', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#52c41a', lineHeight: 1.2, marginBottom: '6px' }}>
                 {pedidosFinalizados}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
@@ -123,12 +320,12 @@ const StatusCards = ({ stats = {} }) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '0.5rem',
-              minHeight: '6.25rem'
+              padding: '8px',
+              minHeight: '100px'
             }}>
-              <DollarOutlined style={{ fontSize: '1.75rem', color: '#faad14', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '1rem', fontWeight: '700', color: '#faad14', lineHeight: 1.2, marginBottom: '0.375rem' }}>
-                {formatarValor(valorTotalAberto)}
+              <DollarOutlined style={{ fontSize: '28px', color: '#faad14', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1rem', fontWeight: '700', color: '#faad14', lineHeight: 1.2, marginBottom: '6px' }}>
+                {formatarValorMonetario(valorTotalAberto).replace('R$ ', '')}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
                 Aguardando Pagamento
@@ -143,12 +340,12 @@ const StatusCards = ({ stats = {} }) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '0.5rem',
-              minHeight: '6.25rem'
+              padding: '8px',
+              minHeight: '100px'
             }}>
-              <CheckCircleOutlined style={{ fontSize: '1.75rem', color: '#52c41a', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '1rem', fontWeight: '700', color: '#52c41a', lineHeight: 1.2, marginBottom: '0.375rem' }}>
-                {formatarValor(valorRecebido)}
+              <CheckCircleOutlined style={{ fontSize: '28px', color: '#52c41a', marginBottom: '8px' }} />
+              <div style={{ fontSize: '1rem', fontWeight: '700', color: '#52c41a', lineHeight: 1.2, marginBottom: '6px' }}>
+                {formatarValorMonetario(valorRecebido).replace('R$ ', '')}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
                 Valor Recebido
@@ -163,14 +360,14 @@ const StatusCards = ({ stats = {} }) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '0.5rem',
-              minHeight: '6.25rem'
+              padding: '8px',
+              minHeight: '100px'
             }}>
               <WarningOutlined
                 style={{
-                  fontSize: '1.75rem',
+                  fontSize: '28px',
                   color: pedidosVencidos > 0 ? '#ff4d4f' : '#d9d9d9',
-                  marginBottom: '0.5rem'
+                  marginBottom: '8px'
                 }}
               />
               <div style={{
@@ -178,7 +375,7 @@ const StatusCards = ({ stats = {} }) => {
                 fontWeight: '700',
                 color: pedidosVencidos > 0 ? '#ff4d4f' : '#d9d9d9',
                 lineHeight: 1.2,
-                marginBottom: '0.375rem'
+                marginBottom: '6px'
               }}>
                 {pedidosVencidos}
               </div>

@@ -419,28 +419,30 @@ const Dashboard = () => {
           gap: isMobile ? '12px' : '0'
         }}
       >
-        <div style={{ textAlign: isMobile ? 'center' : 'left' }}>
+        <div style={{ textAlign: 'left' }}> {/* ✅ Sempre alinhado à esquerda como desktop */}
           <Title
-            level={isMobile ? 3 : 2}
+            level={2} // ✅ Exatamente igual ao desktop
             style={{
               margin: 0,
               color: "#2E7D32",
               marginBottom: 8,
-              fontSize: '1.25rem'
+              textAlign: 'left', // ✅ Sempre alinhado à esquerda
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap' // ✅ Permite quebra de linha se necessário
             }}
           >
-            <DashboardOutlined style={{ marginRight: 8 }} />
-            {isMobile ? 'Dashboard' : 'Dashboard Geral'}
+            <DashboardOutlined style={{ marginRight: 8 }} /> {/* ✅ Exatamente igual ao desktop */}
+            Dashboard Geral {/* ✅ Exatamente igual ao desktop */}
           </Title>
           <Typography.Text
             type="secondary"
             style={{
-              fontSize: '0.875rem',
               display: 'block',
-              textAlign: isMobile ? 'center' : 'left'
+              textAlign: 'left' // ✅ Sempre alinhado à esquerda
             }}
           >
-            {isMobile ? '' : 'Visão geral do sistema AlencarFrutas - gestão agrícola completa'}
+            Visão geral do sistema AlencarFrutas - gestão agrícola completa {/* ✅ Exatamente igual ao desktop */}
           </Typography.Text>
         </div>
 
@@ -487,9 +489,9 @@ const Dashboard = () => {
               padding: '8px',
               minHeight: '100px'
             }}>
-              <TrophyOutlined style={{ fontSize: '28px', color: '#52c41a', marginBottom: '8px' }} />
+              <DollarOutlined style={{ fontSize: '28px', color: '#52c41a', marginBottom: '8px' }} />
               <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#52c41a', lineHeight: 1.2, marginBottom: '6px' }}>
-                R$ {(dashboardData.faturamentoTotal / 1000).toFixed(0)}k
+                {dashboardData.faturamentoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
                 Faturamento Total
@@ -507,9 +509,9 @@ const Dashboard = () => {
               padding: '8px',
               minHeight: '100px'
             }}>
-              <ClockCircleOutlined style={{ fontSize: '28px', color: '#faad14', marginBottom: '8px' }} />
+              <DollarOutlined style={{ fontSize: '28px', color: '#faad14', marginBottom: '8px' }} />
               <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#faad14', lineHeight: 1.2, marginBottom: '6px' }}>
-                R$ {(dashboardData.faturamentoAberto / 1000).toFixed(0)}k
+                {dashboardData.faturamentoAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
                 Faturamento Aberto
@@ -613,14 +615,14 @@ const Dashboard = () => {
               <Statistic
                 title="Faturamento Total"
                 value={dashboardData.faturamentoTotal}
-                prefix={<TrophyOutlined style={{ color: '#52c41a' }} />}
+                prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
                 precision={2}
                 valueStyle={{
                   color: '#52c41a',
                   fontSize: '1.25rem',
                   fontWeight: 'bold'
                 }}
-                formatter={value => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                formatter={value => value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               />
               <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
                 Receita consolidada
@@ -633,14 +635,14 @@ const Dashboard = () => {
               <Statistic
                 title="Faturamento Aberto"
                 value={dashboardData.faturamentoAberto}
-                prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
+                prefix={<DollarOutlined style={{ color: '#faad14' }} />}
                 precision={2}
                 valueStyle={{
                   color: '#faad14',
                   fontSize: '1.25rem',
                   fontWeight: 'bold'
                 }}
-                formatter={value => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                formatter={value => value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               />
               <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
                 Pedidos não pagos

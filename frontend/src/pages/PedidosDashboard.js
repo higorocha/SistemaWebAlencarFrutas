@@ -34,8 +34,8 @@ import LancarPagamentosModal from "../components/pedidos/LancarPagamentosModal";
 
 
 const PedidosDashboard = () => {
-  // Hook de responsividade
-  const { isMobile, isTablet } = useResponsive();
+  // Hook de responsividade - importar todos os breakpoints necessários
+  const { isMobile, isTablet, isSmallTablet, isLargeTablet } = useResponsive();
 
   // Estado para controlar loading inicial - será controlado pelos hooks
   const [loadingInicial, setLoadingInicial] = useState(true);
@@ -375,36 +375,35 @@ const PedidosDashboard = () => {
     <div className="dashboard-container">
       {/* Header */}
       <div className="dashboard-header" style={{
-        flexDirection: isMobile ? 'column' : 'row',
-        alignItems: isMobile ? 'stretch' : 'center',
-        textAlign: isMobile ? 'center' : 'left',
-        gap: isMobile ? '12px' : '16px'
+        flexDirection: isMobile ? 'column' : (isTablet ? 'column' : 'row'),
+        alignItems: isMobile ? 'stretch' : (isTablet ? 'stretch' : 'center'),
+        textAlign: 'left', // ✅ Sempre alinhado à esquerda como desktop
+        gap: isMobile ? '12px' : (isTablet ? '14px' : '16px')
       }}>
-        <div>
+        <div style={{ textAlign: 'left' }}> {/* ✅ Força alinhamento à esquerda */}
           <Title
-            level={isMobile ? 3 : 2}
+            level={2} // ✅ Exatamente igual ao desktop
             style={{
               margin: 0,
               color: "#2E7D32",
               marginBottom: 8,
-              fontSize: isMobile ? '1.25rem' : undefined
+              textAlign: 'left', // ✅ Sempre alinhado à esquerda
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap' // ✅ Permite quebra de linha se necessário
             }}
           >
-            <ShoppingCartOutlined style={{ marginRight: 8 }} />
-            {isMobile ? 'Pedidos' : 'Dashboard de Pedidos'}
+            <ShoppingCartOutlined style={{ marginRight: 8 }} /> {/* ✅ Exatamente igual ao desktop */}
+            Dashboard de Pedidos {/* ✅ Exatamente igual ao desktop */}
           </Title>
           <AntText
             type="secondary"
             style={{
-              fontSize: isMobile ? '0.75rem' : '0.875rem',
               display: 'block',
-              textAlign: isMobile ? 'center' : 'left'
+              textAlign: 'left' // ✅ Sempre alinhado à esquerda
             }}
           >
-            {isMobile
-              ? 'Acompanhe o fluxo dos pedidos'
-              : 'Acompanhe o fluxo dos pedidos em tempo real: colheita, precificação e pagamentos'
-            }
+            Acompanhe o fluxo dos pedidos em tempo real: colheita, precificação e pagamentos {/* ✅ Exatamente igual ao desktop */}
           </AntText>
         </div>
         
@@ -448,7 +447,7 @@ const PedidosDashboard = () => {
                   icon={<ReloadOutlined />}
                   onClick={() => carregarDashboard(paginacaoFinalizados.page, true)}
                   loading={loading || operacaoLoading}
-                  size={isMobile ? "small" : "middle"}
+                  size={isMobile ? "small" : (isTablet ? "small" : "middle")}
                   style={{
                     backgroundColor: cacheStatus.isCacheValid ? '#f6ffed' : '#fff2e8',
                     borderColor: cacheStatus.isCacheValid ? '#b7eb8f' : '#ffbb96',
@@ -459,12 +458,12 @@ const PedidosDashboard = () => {
                     transition: 'all 0.3s ease',
                     opacity: cacheStatus.isCacheValid ? 0.8 : 1,
                     borderWidth: '2px',
-                    height: isMobile ? '32px' : '40px',
-                    padding: isMobile ? '0 12px' : '0 16px',
+                    height: isMobile ? '32px' : (isTablet ? '36px' : '40px'),
+                    padding: isMobile ? '0 12px' : (isTablet ? '0 14px' : '0 16px'),
                     display: 'flex',
                     alignItems: 'center',
-                    gap: isMobile ? '4px' : '8px',
-                    fontSize: isMobile ? '0.75rem' : undefined
+                    gap: isMobile ? '4px' : (isTablet ? '6px' : '8px'),
+                    fontSize: isMobile ? '0.75rem' : (isTablet ? '0.8125rem' : undefined)
                   }}
                   onMouseEnter={(e) => {
                     if (!loading && !operacaoLoading) {

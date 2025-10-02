@@ -10,29 +10,29 @@ import useResponsive from "../../../hooks/useResponsive";
 const { Title, Text } = Typography;
 
 const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, onAction }) => {
-  const { isMobile } = useResponsive();
+  const { isMobile, isTablet, isSmallTablet } = useResponsive();
 
   const sectionStyle = {
-    marginBottom: isMobile ? "1rem" : "2rem",
+    marginBottom: isMobile ? "1rem" : (isTablet ? "1.5rem" : "2rem"),
   };
 
   const headerStyle = {
     backgroundColor: "#52c41a",
     color: "#ffffff",
-    padding: isMobile ? "0.75rem 1rem" : "1rem 1.5rem",
+    padding: isMobile ? "0.75rem 1rem" : (isTablet ? "0.875rem 1.25rem" : "1rem 1.5rem"),
     margin: "-1px -1px 0 -1px",
     borderRadius: "0.5rem 0.5rem 0 0",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    flexWrap: isMobile ? "wrap" : "nowrap",
-    gap: isMobile ? "0.5rem" : "0",
+    flexWrap: isMobile ? "wrap" : (isTablet ? "wrap" : "nowrap"),
+    gap: isMobile ? "0.5rem" : (isTablet ? "0.375rem" : "0"),
   };
 
   const contentStyle = {
-    padding: isMobile ? "0.75rem" : "1.5rem",
-    minHeight: isMobile ? "5rem" : "7.5rem",
-    maxHeight: isMobile ? "18.75rem" : "25rem", // Altura máxima
+    padding: isMobile ? "0.75rem" : (isTablet ? "1rem" : "1.5rem"),
+    minHeight: isMobile ? "5rem" : (isTablet ? "6.25rem" : "7.5rem"),
+    maxHeight: isMobile ? "18.75rem" : (isTablet ? "21.875rem" : "25rem"), // Altura máxima
     overflowY: "auto", // Scroll vertical
     overflowX: "hidden",
   };
@@ -357,15 +357,15 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
         {/* Paginação */}
         {paginacao.total > 0 && (
           <div style={{
-            padding: isMobile ? "0.5rem 0.75rem" : "1rem 1.5rem",
+            padding: isMobile ? "0.5rem 0.75rem" : (isTablet ? "0.75rem 1rem" : "1rem 1.5rem"),
             borderTop: "1px solid #f0f0f0",
             display: "flex",
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: isMobile ? "center" : "space-between",
-            gap: isMobile ? "0.5rem" : "0"
+            justifyContent: isMobile ? "center" : (isTablet ? "center" : "space-between"),
+            gap: isMobile ? "0.5rem" : (isTablet ? "0.375rem" : "0")
           }}>
-            {!isMobile && (
+            {!isMobile && !isSmallTablet && (
               <Text style={{ fontSize: "0.75rem", color: "#666" }}>
                 {`${(paginacao.page - 1) * paginacao.limit + 1}-${Math.min(paginacao.page * paginacao.limit, paginacao.total)} de ${paginacao.total} pedidos`}
               </Text>
@@ -389,13 +389,13 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
                     onPaginacaoChange(1, size);
                   }
                 }}
-                showSizeChanger={!isMobile}
+                showSizeChanger={!isMobile && !isSmallTablet}
                 showQuickJumper={false}
                 showTotal={false}
                 responsive={false}
                 pageSizeOptions={['10', '20', '50', '100']}
                 style={{ margin: 0 }}
-                size="small"
+                size={isTablet ? "small" : "default"}
               />
             </div>
           </div>

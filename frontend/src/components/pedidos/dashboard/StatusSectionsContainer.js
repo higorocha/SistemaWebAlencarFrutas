@@ -20,7 +20,7 @@ const StatusSectionsContainer = ({
     <div className="status-sections-container">
       <Row gutter={[16, 16]} style={{ height: "100%" }}>
         {/* Aguardando Colheita */}
-        <Col xs={24} lg={8} style={{ height: "100%" }}>
+        <Col xs={24} sm={24} md={24} lg={8} xl={8} style={{ height: "100%" }}>
           <AguardandoColheitaSection
             pedidos={dashboardData.aguardandoColheita}
             onAction={onColheita}
@@ -30,7 +30,7 @@ const StatusSectionsContainer = ({
         </Col>
 
         {/* Aguardando Precificação */}
-        <Col xs={24} lg={8} style={{ height: "100%" }}>
+        <Col xs={24} sm={24} md={24} lg={8} xl={8} style={{ height: "100%" }}>
           <AguardandoPrecificacaoSection
             pedidos={dashboardData.aguardandoPrecificacao}
             onAction={onPrecificacao}
@@ -40,7 +40,7 @@ const StatusSectionsContainer = ({
         </Col>
 
         {/* Aguardando Pagamento */}
-        <Col xs={24} lg={8} style={{ height: "100%" }}>
+        <Col xs={24} sm={24} md={24} lg={8} xl={8} style={{ height: "100%" }}>
           <AguardandoPagamentoSection
             pedidos={dashboardData.aguardandoPagamento}
             onAction={onPagamento}

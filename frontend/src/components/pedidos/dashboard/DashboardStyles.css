@@ -226,22 +226,35 @@
   .dashboard-header {
     flex-direction: column;
     align-items: stretch;
-    text-align: center;
+    text-align: left !important; /* ✅ Força alinhamento à esquerda */
     gap: 12px;
     margin-bottom: 16px;
   }
 
   .dashboard-header > div:first-child {
     width: 100%;
+    text-align: left !important; /* ✅ Força alinhamento à esquerda */
   }
 
   .dashboard-header h2 {
-    font-size: 18px !important;
-    margin-bottom: 6px !important;
+    text-align: left !important; /* ✅ Força alinhamento à esquerda */
+    /* ✅ Removido font-size para usar tamanho padrão do desktop */
   }
 
   .dashboard-header .ant-typography {
-    font-size: 12px !important;
+    text-align: left !important; /* ✅ Força alinhamento à esquerda */
+    /* ✅ Removido font-size para usar tamanho padrão do desktop */
+  }
+
+  /* ✅ Garantir que títulos e textos fiquem à esquerda */
+  .dashboard-header .ant-typography-caption,
+  .dashboard-header .ant-typography-secondary {
+    text-align: left !important;
+  }
+
+  /* ✅ Garantir que ícones fiquem à esquerda */
+  .dashboard-header .anticon {
+    margin-right: 6px !important;
   }
   
   /* Ocultar cabeçalho da tabela em mobile */
@@ -543,25 +556,20 @@
   max-width: none;
 }
 
-/* Responsividade específica para os cards - Desktop/Tablet */
-@media (max-width: 992px) {
-  .status-cards-col {
-    min-width: 110px;
-  }
-}
-
-@media (max-width: 768px) {
+/* Responsividade específica para os cards - Desktop */
+/* Desktop (>= 992px) - Cards em linha horizontal */
+@media (min-width: 992px) {
   .status-cards-row {
-    gap: 6px;
+    gap: 12px;
   }
 
   .status-cards-col {
-    min-width: 100px;
+    min-width: 120px;
   }
 }
 
-/* Mobile: Grid 2x3 é gerenciado diretamente no componente StatusCards.js */
-/* Não aplicar estilos de .status-cards-row em mobile pois usa grid inline */
+/* Mobile e Tablets: Grid 2x3 ou 3x2 é gerenciado diretamente no componente StatusCards.js */
+/* Não aplicar estilos de .status-cards-row para < 992px pois usa grid inline */
 
 /* Container das seções lado a lado */
 .status-sections-container {
@@ -571,24 +579,32 @@
 }
 
 /* Responsividade para as seções lado a lado */
-@media (max-width: 992px) {
+/* Tablets e "Site para computador" (576px - 992px) - Layout Mobile (1 coluna) */
+@media (min-width: 576px) and (max-width: 992px) {
   .dashboard-container {
-    height: auto; /* ✅ Altura automática em tablets */
+    height: auto;
     min-height: 100vh;
   }
-  
+
   .status-sections-container {
-    height: 520px; /* ✅ Mantém altura fixa em tablets */
+    height: auto !important; /* Altura automática para permitir scroll da página */
+    overflow: visible !important;
   }
-  
+
   .status-section-scroll {
-    height: 350px !important;
+    height: 300px !important; /* Altura reduzida para caber 3 seções */
   }
 }
 
-@media (max-width: 768px) {
+/* Desktop (>= 992px) - 3 colunas lado a lado */
+@media (min-width: 992px) {
+  .status-sections-container {
+    height: 520px; /* Altura fixa */
+    overflow: hidden;
+  }
+
   .status-section-scroll {
-    height: 300px !important;
+    height: 350px !important;
   }
 }
 

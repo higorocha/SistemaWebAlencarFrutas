@@ -8,8 +8,8 @@ import { createBrowserHistory } from 'history';
 // Função para detectar automaticamente a URL do backend
 const getBackendUrl = () => {
   // Se estiver acessando via IP da rede local, usar o mesmo IP para o backend
-  if (window.location.hostname === '192.168.1.143') {
-    return 'http://192.168.1.143:5002';
+  if (window.location.hostname === '192.168.1.145') {
+    return 'http://192.168.1.145:5002';
   }
   
   // Se estiver em localhost, usar localhost
