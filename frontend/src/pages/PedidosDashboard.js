@@ -382,7 +382,7 @@ const PedidosDashboard = () => {
       }}>
         <div style={{ textAlign: 'left' }}> {/* ✅ Força alinhamento à esquerda */}
           <Title
-            level={2} // ✅ Exatamente igual ao desktop
+            level={isMobile ? 3 : 2} // ✅ level={3} no mobile para consistência
             style={{
               margin: 0,
               color: "#2E7D32",
@@ -449,14 +449,13 @@ const PedidosDashboard = () => {
                   loading={loading || operacaoLoading}
                   size={isMobile ? "small" : (isTablet ? "small" : "middle")}
                   style={{
-                    backgroundColor: cacheStatus.isCacheValid ? '#f6ffed' : '#fff2e8',
-                    borderColor: cacheStatus.isCacheValid ? '#b7eb8f' : '#ffbb96',
-                    color: cacheStatus.isCacheValid ? '#52c41a' : '#fa8c16',
+                    backgroundColor: '#f6ffed', // ✅ Verde fixo como Dashboard.js
+                    borderColor: '#b7eb8f', // ✅ Verde fixo como Dashboard.js
+                    color: '#52c41a', // ✅ Verde fixo como Dashboard.js
                     fontWeight: '500',
                     borderRadius: '8px',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     transition: 'all 0.3s ease',
-                    opacity: cacheStatus.isCacheValid ? 0.8 : 1,
                     borderWidth: '2px',
                     height: isMobile ? '32px' : (isTablet ? '36px' : '40px'),
                     padding: isMobile ? '0 12px' : (isTablet ? '0 14px' : '0 16px'),
@@ -484,24 +483,6 @@ const PedidosDashboard = () => {
             );
           })()}
 
-          {/* Indicador de Status do Cache - Oculto em mobile */}
-          {!isMobile && (() => {
-            const cacheStatus = getCacheStatus();
-            return (
-              <Badge
-                status={cacheStatus.isCacheValid ? 'success' : 'warning'}
-                text={
-                  <AntText style={{
-                    fontSize: '12px',
-                    color: cacheStatus.isCacheValid ? '#52c41a' : '#fa8c16',
-                    fontWeight: '500'
-                  }}>
-                    {cacheStatus.isCacheValid ? 'Atualizado' : 'Desatualizado'}
-                  </AntText>
-                }
-              />
-            );
-          })()}
         </Space>
       </div>
 

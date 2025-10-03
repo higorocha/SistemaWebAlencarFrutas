@@ -1,7 +1,7 @@
 // src/components/pedidos/tabs/DadosBasicosTab.js
 
 import React, { useState, useEffect, useRef } from "react";
-import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider } from "antd";
+import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag } from "antd";
 import PropTypes from "prop-types";
 import {
   SaveOutlined,
@@ -433,6 +433,24 @@ const DadosBasicosTab = ({
 
           {pedidoAtual.frutas.map((fruta, index) => (
             <div key={index}>
+              {/* 🆕 INDICADOR: Nova fruta adicionada durante edição */}
+              {!fruta.frutaPedidoId && (
+                <div style={{ marginBottom: 8 }}>
+                  <Tag color="blue" style={{ fontSize: '13px', padding: '4px 8px' }}>
+                    🆕 Nova Fruta - Preencher dados de {
+                      pedidoAtual.status === 'PRECIFICACAO_REALIZADA' ||
+                      pedidoAtual.status === 'AGUARDANDO_PAGAMENTO' ||
+                      pedidoAtual.status === 'PAGAMENTO_PARCIAL' ||
+                      pedidoAtual.status === 'PAGAMENTO_REALIZADO'
+                        ? 'colheita e precificação'
+                        : pedidoAtual.status === 'COLHEITA_REALIZADA' ||
+                          pedidoAtual.status === 'AGUARDANDO_PRECIFICACAO'
+                        ? 'colheita'
+                        : 'básicos'
+                    }
+                  </Tag>
+                </div>
+              )}
               <Row gutter={[16, 16]} align="baseline">
                 <Col xs={24} md={6}>
                   <Form.Item>

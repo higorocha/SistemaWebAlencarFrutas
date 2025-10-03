@@ -220,6 +220,7 @@ const Dashboard = () => {
   });
   const theme = useTheme();
 
+
   // Função para buscar dados reais do backend
   const fetchDashboardData = async () => {
     try {
@@ -261,6 +262,7 @@ const Dashboard = () => {
 
       // Atualizar previsões de banana com dados do backend
       setBananaPrevisoes(backendData.previsoesBanana || []);
+
 
       setLoading(false);
 
@@ -421,7 +423,7 @@ const Dashboard = () => {
       >
         <div style={{ textAlign: 'left' }}> {/* ✅ Sempre alinhado à esquerda como desktop */}
           <Title
-            level={2} // ✅ Exatamente igual ao desktop
+            level={isMobile ? 3 : 2} // ✅ level={3} no mobile para consistência
             style={{
               margin: 0,
               color: "#2E7D32",
@@ -442,7 +444,6 @@ const Dashboard = () => {
               textAlign: 'left' // ✅ Sempre alinhado à esquerda
             }}
           >
-            Visão geral do sistema AlencarFrutas - gestão agrícola completa {/* ✅ Exatamente igual ao desktop */}
           </Typography.Text>
         </div>
 
@@ -466,7 +467,7 @@ const Dashboard = () => {
             fontSize: '0.875rem'
           }}
         >
-          {isMobile ? 'Atualizar' : 'Atualizar'}
+          Atualizar
         </Button>
       </div>
 

@@ -15,6 +15,7 @@ import {
   Popconfirm,
   Empty,
 } from "antd";
+import ResponsiveTable from "../common/ResponsiveTable";
 import FrutasPedidoModal from "./FrutasPedidoModal";
 import VisualizarPedidoModal from "./VisualizarPedidoModal";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
@@ -495,10 +496,11 @@ const PedidosTable = ({
     {
       title: 'Ações',
       key: 'actions',
-      width: 120,
+      width: 140, /* ✅ Aumentado para acomodar múltiplos botões */
+      minWidth: 120, /* ✅ Largura mínima garantida */
       align: 'center',
       render: (_, record) => (
-        <Space size="small">
+        <Space size="small" wrap={false}> {/* ✅ wrap={false} evita quebra de linha */}
           {getActionsForStatus(record)}
         </Space>
       ),
@@ -519,12 +521,13 @@ const PedidosTable = ({
 
   return (
     <>
-      <StyledTable
+      <ResponsiveTable
         columns={columns}
         dataSource={pedidos}
         loading={loading}
         rowKey="id"
-        scroll={false}
+        minWidthMobile={1400}
+        showScrollHint={true}
         pagination={false}
         size="middle"
         bordered={true}

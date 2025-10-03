@@ -27,7 +27,7 @@ import {
   InfoCircleOutlined,
   EditOutlined,
 } from "@ant-design/icons";
-import { formatarValorMonetario } from "../../utils/formatters";
+import { formatarValorMonetario, formataLeitura } from "../../utils/formatters";
 import { PrimaryButton } from "../common/buttons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
@@ -36,6 +36,7 @@ import NovoPagamentoModal from "./NovoPagamentoModal";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import styled from "styled-components";
 import getTheme from "../../theme";
+import useResponsive from "../../hooks/useResponsive";
 
 const { Title, Text } = Typography;
 
@@ -187,6 +188,9 @@ const PagamentoModal = ({
   onNovoPagamento,
   onRemoverPagamento,
 }) => {
+  // Hook de responsividade
+  const { isMobile } = useResponsive();
+
   const [novoPagamentoModalOpen, setNovoPagamentoModalOpen] = useState(false);
 
   // Hook para notificações com z-index correto
@@ -460,7 +464,8 @@ const PagamentoModal = ({
     return pedido.frutasPedidos.map((fp) => {
       const unidadePrec = fp.unidadePrecificada || fp.unidadeMedida1;
       const quantidade = unidadePrec === fp.unidadeMedida2 ? fp.quantidadeReal2 : fp.quantidadeReal;
-      return `${fp.fruta?.nome}: ${quantidade} ${unidadePrec}`;
+      const quantidadeFormatada = formataLeitura(quantidade);
+      return `${fp.fruta?.nome}: ${quantidadeFormatada} ${unidadePrec}`;
     }).join(", ");
   };
 
@@ -472,24 +477,34 @@ const PagamentoModal = ({
           <span style={{ 
             color: "#ffffff", 
             fontWeight: "600", 
-            fontSize: "16px",
+            fontSize: isMobile ? "0.875rem" : "1rem",
             backgroundColor: "#059669",
-            padding: "12px 16px",
-            margin: "-20px -24px 0 -24px",
+            padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+            margin: "-1.25rem -1.5rem 0 -1.5rem",
             display: "block",
-            borderRadius: "8px 8px 0 0",
+            borderRadius: "0.5rem 0.5rem 0 0",
           }}>
-            <CreditCardOutlined style={{ marginRight: 8 }} />
-            Gestão de Pagamentos
+            <CreditCardOutlined style={{ marginRight: "0.5rem" }} />
+            {isMobile ? "Pagamentos" : "Gestão de Pagamentos"}
           </span>
         }
         open={open}
         onCancel={onClose}
         footer={null}
-        width={1000}
+        width={isMobile ? '95vw' : '90%'}
+        style={{ maxWidth: isMobile ? '95vw' : "62.5rem" }}
         styles={{
-          body: { maxHeight: "calc(100vh - 200px)", overflowY: "auto", overflowX: "hidden", padding: 20 },
-          header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", padding: 0 },
+          body: { 
+            maxHeight: "calc(100vh - 12.5rem)", 
+            overflowY: "auto", 
+            overflowX: "hidden", 
+            padding: isMobile ? 12 : 20 
+          },
+          header: { 
+            backgroundColor: "#059669", 
+            borderBottom: "0.125rem solid #047857", 
+            padding: 0 
+          },
           wrapper: { zIndex: 1000 }
         }}
         centered
@@ -541,32 +556,50 @@ const PagamentoModal = ({
               title={
                 <Space>
                   <EyeOutlined style={{ color: "#ffffff" }} />
-                  <span style={{ color: "#ffffff", fontWeight: "600" }}>Informações do Pedido</span>
+                  <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                    Informações do Pedido
+                  </span>
                 </Space>
               }
-              style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-              styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+              style={{ 
+                marginBottom: isMobile ? 12 : 16, 
+                border: "0.0625rem solid #e8e8e8", 
+                borderRadius: "0.5rem", 
+                backgroundColor: "#f9f9f9" 
+              }}
+              styles={{ 
+                header: { 
+                  backgroundColor: "#059669", 
+                  borderBottom: "0.125rem solid #047857", 
+                  color: "#ffffff", 
+                  borderRadius: "0.5rem 0.5rem 0 0",
+                  padding: isMobile ? "6px 12px" : "8px 16px"
+                },
+                body: { 
+                  padding: isMobile ? "12px" : "16px" 
+                }
+              }}
             >
-              <Row gutter={16}>
-                <Col span={6}>
+              <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+                <Col xs={24} sm={12} md={6}>
                   <Text strong>Pedido:</Text>
                   <br />
                   <Text>{pedido.numeroPedido}</Text>
                 </Col>
-                <Col span={6}>
+                <Col xs={24} sm={12} md={6}>
                   <Text strong>Cliente:</Text>
                   <br />
                   <Text>{pedido.cliente?.nome}</Text>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={24} md={12}>
                   <Text strong>Frutas (Unidade de Precificação):</Text>
                   <br />
                   <Text>{getFrutasInfo()}</Text>
                 </Col>
               </Row>
-              <Divider style={{ margin: '12px 0' }} />
-              <Row gutter={16}>
-                <Col span={8}>
+              <Divider style={{ margin: isMobile ? '8px 0' : '12px 0' }} />
+              <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+                <Col xs={24} sm={12} md={8}>
                   <Text strong>Status:</Text>
                   <br />
                   <Tag 
@@ -583,12 +616,12 @@ const PagamentoModal = ({
                     {getStatusText(statusLocal)}
                   </Tag>
                 </Col>
-                <Col span={8}>
+                <Col xs={24} sm={12} md={8}>
                   <Text strong>Data do Pedido:</Text>
                   <br />
                   <Text>{formatarData(pedido.createdAt)}</Text>
                 </Col>
-                <Col span={8}>
+                <Col xs={24} sm={12} md={8}>
                   <Text strong>Última Atualização:</Text>
                   <br />
                   <Text>{formatarData(pedido.updatedAt)}</Text>
@@ -601,23 +634,30 @@ const PagamentoModal = ({
               title={
                 <Space>
                   <DollarOutlined style={{ color: "#ffffff" }} />
-                  <span style={{ color: "#ffffff", fontWeight: "600" }}>Resumo Financeiro</span>
+                  <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                    Resumo Financeiro
+                  </span>
                 </Space>
               }
-              style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
+              style={{ 
+                marginBottom: isMobile ? 12 : 16, 
+                border: "0.0625rem solid #e8e8e8", 
+                borderRadius: "0.5rem", 
+                backgroundColor: "#f9f9f9" 
+              }}
               styles={{ 
                 header: { 
                   backgroundColor: "#059669", 
-                  borderBottom: "2px solid #047857", 
+                  borderBottom: "0.125rem solid #047857", 
                   color: "#ffffff", 
-                  borderRadius: "8px 8px 0 0",
-                  padding: "12px 20px"
+                  borderRadius: "0.5rem 0.5rem 0 0",
+                  padding: isMobile ? "6px 12px" : "12px 20px"
                 },
-                body: { padding: "20px" }
+                body: { padding: isMobile ? "12px" : "20px" }
               }}
             >
-              <Row gutter={[20, 16]} align="middle">
-                <Col span={6}>
+              <Row gutter={[isMobile ? 8 : 20, isMobile ? 8 : 16]} align="middle">
+                <Col xs={24} sm={12} md={6}>
                   <div style={{ 
                     backgroundColor: "#f0f9ff", 
                     border: "2px solid #0ea5e9", 
@@ -638,11 +678,11 @@ const PagamentoModal = ({
                   </div>
                 </Col>
                 
-                <Col span={6}>
+                <Col xs={24} sm={12} md={6}>
                   <div style={{ 
                     backgroundColor: "#f0fdf4", 
-                    border: "2px solid #22c55e", 
-                    borderRadius: "12px", 
+                    border: "0.125rem solid #22c55e", 
+                    borderRadius: "0.75rem", 
                     padding: "16px",
                     textAlign: "center",
                     boxShadow: "0 2px 8px rgba(34, 197, 94, 0.15)"
@@ -659,11 +699,11 @@ const PagamentoModal = ({
                   </div>
                 </Col>
                 
-                <Col span={6}>
+                <Col xs={24} sm={12} md={6}>
                   <div style={{ 
                     backgroundColor: valorRestante > 0 ? "#fef2f2" : "#f0fdf4", 
-                    border: valorRestante > 0 ? "2px solid #ef4444" : "2px solid #22c55e", 
-                    borderRadius: "12px", 
+                    border: valorRestante > 0 ? "0.125rem solid #ef4444" : "0.125rem solid #22c55e", 
+                    borderRadius: "0.75rem", 
                     padding: "16px",
                     textAlign: "center",
                     boxShadow: valorRestante > 0 ? "0 2px 8px rgba(239, 68, 68, 0.15)" : "0 2px 8px rgba(34, 197, 94, 0.15)"
@@ -688,11 +728,11 @@ const PagamentoModal = ({
                   </div>
                 </Col>
                 
-                <Col span={6}>
+                <Col xs={24} sm={12} md={6}>
                   <div style={{ 
                     backgroundColor: percentualPago >= 100 ? "#f0fdf4" : percentualPago >= 50 ? "#fffbeb" : "#fef2f2", 
-                    border: percentualPago >= 100 ? "2px solid #22c55e" : percentualPago >= 50 ? "2px solid #f59e0b" : "2px solid #ef4444", 
-                    borderRadius: "12px", 
+                    border: percentualPago >= 100 ? "0.125rem solid #22c55e" : percentualPago >= 50 ? "0.125rem solid #f59e0b" : "0.125rem solid #ef4444", 
+                    borderRadius: "0.75rem", 
                     padding: "16px",
                     textAlign: "center",
                     boxShadow: percentualPago >= 100 
@@ -728,31 +768,54 @@ const PagamentoModal = ({
               title={
                 <Space>
                   <CalendarOutlined style={{ color: "#ffffff" }} />
-                  <span style={{ color: "#ffffff", fontWeight: "600" }}>Pagamentos Realizados</span>
+                  <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                    Pagamentos Realizados
+                  </span>
                 </Space>
               }
-              style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
+              style={{ 
+                marginBottom: isMobile ? 12 : 16, 
+                border: "0.0625rem solid #e8e8e8", 
+                borderRadius: "0.5rem", 
+                backgroundColor: "#f9f9f9" 
+              }}
               styles={{ 
                 header: { 
                   backgroundColor: "#059669", 
-                  borderBottom: "2px solid #047857", 
+                  borderBottom: "0.125rem solid #047857", 
                   color: "#ffffff", 
-                  borderRadius: "8px 8px 0 0",
-                  padding: "8px 16px"
+                  borderRadius: "0.5rem 0.5rem 0 0",
+                  padding: isMobile ? "6px 12px" : "8px 16px"
                 },
-                body: { padding: "12px 16px" }
+                body: { padding: isMobile ? "8px" : "12px 16px" }
               }}
               extra={
+                !isMobile && (
+                  <PrimaryButton
+                    icon={<PlusCircleOutlined />}
+                    onClick={() => setNovoPagamentoModalOpen(true)}
+                    disabled={valorRestante <= 0}
+                    size="middle"
+                  >
+                    Novo Pagamento
+                  </PrimaryButton>
+                )
+              }
+            >
+              {/* Botão Mobile para Novo Pagamento */}
+              {isMobile && (
                 <PrimaryButton
                   icon={<PlusCircleOutlined />}
                   onClick={() => setNovoPagamentoModalOpen(true)}
                   disabled={valorRestante <= 0}
                   size="middle"
+                  block
+                  style={{ marginBottom: 12 }}
                 >
                   Novo Pagamento
                 </PrimaryButton>
-              }
-            >
+              )}
+
               {pagamentos.length > 0 ? (
                 <StyledTable
                   columns={columns}
@@ -764,9 +827,10 @@ const PagamentoModal = ({
                   bordered={true}
                   style={{
                     backgroundColor: "#ffffff",
-                    borderRadius: "8px",
+                    borderRadius: "0.5rem",
                     overflow: "hidden",
                   }}
+                  scroll={{ x: isMobile ? 800 : undefined }}
                 />
               ) : (
                 <Empty
@@ -777,11 +841,22 @@ const PagamentoModal = ({
             </Card>
 
             {/* Botões de Ação */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24, paddingTop: 16, borderTop: "1px solid #e8e8e8" }}>
+            <div style={{ 
+              display: "flex", 
+              justifyContent: "flex-end", 
+              gap: isMobile ? "8px" : "12px", 
+              marginTop: isMobile ? "1rem" : "1.5rem", 
+              paddingTop: isMobile ? "12px" : "16px", 
+              borderTop: "0.0625rem solid #e8e8e8" 
+            }}>
               <Button 
                 onClick={onClose} 
                 disabled={loading}
-                size="large"
+                size={isMobile ? "small" : "large"}
+                style={{
+                  height: isMobile ? "32px" : "40px",
+                  padding: isMobile ? "0 12px" : "0 16px",
+                }}
               >
                 Fechar
               </Button>

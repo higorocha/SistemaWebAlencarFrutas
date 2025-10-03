@@ -1,7 +1,7 @@
 // src/components/pedidos/tabs/ColheitaTab.js
 
 import React, { useState, useEffect, useRef } from "react";
-import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag, Tooltip, Modal } from "antd";
+import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag, Tooltip, Modal, Alert } from "antd";
 import PropTypes from "prop-types";
 import {
   SaveOutlined,
@@ -631,6 +631,19 @@ const ColheitaTab = ({
           
           return (
           <div key={index}>
+            {/* 🆕 ALERTA: Nova fruta adicionada durante edição */}
+            {!fruta.frutaPedidoId && (
+              <Alert
+                message="Nova Fruta Adicionada"
+                description={
+                  `Esta fruta foi adicionada durante a edição. ` +
+                  `Complete os dados de colheita obrigatórios (quantidade real, áreas${isFrutaBanana ? ' e fitas' : ''}).`
+                }
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+            )}
             <Row gutter={[8, 8]} align="baseline">
               {/* Nome da Fruta */}
               <Col xs={24} md={temBanana ? 5 : 6}>

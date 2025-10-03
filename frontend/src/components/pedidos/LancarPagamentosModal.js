@@ -516,11 +516,6 @@ const LancarPagamentosModal = ({
           .ant-table-cell .ant-form-item {
             margin-bottom: 0 !important;
           }
-          .ant-picker,
-          .ant-select,
-          .ant-input {
-            padding: 6px 8px !important;
-          }
           /* Adicionar asterisco invisível para alinhar label de Observações Gerais */
           .observacoes-label::before {
             content: '*';
@@ -856,7 +851,7 @@ const LancarPagamentosModal = ({
                   body: { padding: isMobile ? "12px" : "16px" }
                 }}
               >
-              {/* Todos os campos dentro de uma ÚNICA Row para espaçamento consistente */}
+              {/* Primeira Row: Data do Pagamento */}
               <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
                 <Col xs={24} sm={8}>
                   <Form.Item
@@ -882,8 +877,7 @@ const LancarPagamentosModal = ({
                       size={isMobile ? "small" : "middle"}
                       style={{
                         width: "100%",
-                        borderRadius: "0.375rem",
-                        fontSize: isMobile ? "0.875rem" : "1rem"
+                        borderRadius: "0.375rem"
                       }}
                       format="DD/MM/YYYY"
                       placeholder="Selecione a data"
@@ -915,10 +909,7 @@ const LancarPagamentosModal = ({
                     <Select
                       size={isMobile ? "small" : "middle"}
                       placeholder="Selecione o método"
-                      style={{
-                        borderRadius: "0.375rem",
-                        fontSize: isMobile ? "0.875rem" : "1rem"
-                      }}
+                      style={{ borderRadius: "0.375rem" }}
                     >
                       {metodosPagamento.map((metodo) => (
                         <Option key={metodo.value} value={metodo.value}>
@@ -959,10 +950,7 @@ const LancarPagamentosModal = ({
                     <Select
                       size={isMobile ? "small" : "middle"}
                       placeholder="Selecione a conta"
-                      style={{
-                        borderRadius: "0.375rem",
-                        fontSize: isMobile ? "0.875rem" : "1rem"
-                      }}
+                      style={{ borderRadius: "0.375rem" }}
                     >
                       {contasDestino.map((conta) => (
                         <Option key={conta.value} value={conta.value}>
@@ -972,8 +960,10 @@ const LancarPagamentosModal = ({
                     </Select>
                   </Form.Item>
                 </Col>
+              </Row>
 
-                {/* Observações Gerais agora dentro da mesma Row */}
+              {/* Segunda Row: Observações Gerais */}
+              <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
                 <Col span={24}>
                   <Form.Item
                     label={
@@ -998,11 +988,7 @@ const LancarPagamentosModal = ({
                     <Input
                       size={isMobile ? "small" : "middle"}
                       placeholder={isMobile ? "Observações gerais" : "Observações que serão aplicadas aos pagamentos sem observação específica"}
-                      style={{
-                        borderRadius: "0.375rem",
-                        borderColor: "#d9d9d9",
-                        fontSize: isMobile ? "0.875rem" : "1rem"
-                      }}
+                      style={{ borderRadius: "0.375rem" }}
                     />
                   </Form.Item>
                 </Col>

@@ -22,6 +22,7 @@ import { CentralizedLoader } from "components/common/loaders";
 import { PrimaryButton, SecondaryButton } from "components/common/buttons";
 import { SearchInput, SearchInputInteligente } from "components/common/search";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../components/Icons/PaymentIcons";
+import useResponsive from "../hooks/useResponsive";
 import moment from "moment";
 
 const PedidosTable = lazy(() => import("../components/pedidos/PedidosTable"));
@@ -38,6 +39,7 @@ const { Option } = Select;
 const { RangePicker } = DatePicker;
 
 const Pedidos = () => {
+  const { isMobile, isTablet } = useResponsive();
   const [pedidos, setPedidos] = useState([]);
   const [pedidosFiltrados, setPedidosFiltrados] = useState([]);
   
@@ -432,19 +434,39 @@ const Pedidos = () => {
     >
       {/* Header com título */}
       <Box sx={{ mb: 3 }}>
-        <Title level={2} style={{ margin: 0, color: "#2E7D32", marginBottom: 8 }}>
-          <ShoppingCartOutlined style={{ marginRight: 8 }} />
-          Sistema de Pedidos
-        </Title>
-        <Text type="secondary" style={{ fontSize: "14px" }}>
-          Gerencie o fluxo completo dos pedidos: criação, colheita, precificação e pagamento
-        </Text>
+        <div style={{ textAlign: 'left' }}>
+          <Title
+            level={isMobile ? 3 : 2} /* ✅ level={3} no mobile para evitar quebra de linha */
+            style={{
+              margin: 0,
+              color: "#2E7D32",
+              marginBottom: 8,
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap'
+            }}
+          >
+            <ShoppingCartOutlined style={{ marginRight: 8 }} />
+            Sistema de Pedidos
+          </Title>
+          <Text
+            type="secondary"
+            style={{
+              fontSize: "14px",
+              display: 'block',
+              textAlign: 'left'
+            }}
+          >
+            Gerencie o fluxo completo dos pedidos: criação, colheita, precificação e pagamento
+          </Text>
+        </div>
       </Box>
 
              {/* Seção de Filtros Reorganizada */}
-       <Box 
-         sx={{ 
-           p: 3,
+       <Box
+         sx={{
+           p: isMobile ? 2 : 3,
            bgcolor: "#f9f9f9",
            borderRadius: 2,
            border: "1px solid #e8e8e8",
@@ -452,46 +474,64 @@ const Pedidos = () => {
          }}
        >
         <Box sx={{ mb: 2 }}>
-          <Text strong style={{ color: "#2E7D32", fontSize: "16px" }}>
+          <Text strong style={{ color: "#2E7D32", fontSize: isMobile ? "0.875rem" : "1rem" }}>
             <FilterOutlined style={{ marginRight: 8 }} />
             Filtros de Busca
           </Text>
         </Box>
 
                  {/* Linha de Filtros */}
-                  <Box 
-            sx={{ 
-              display: "flex", 
-              gap: 2, 
+                  <Box
+            sx={{
+              display: "flex",
+              gap: isMobile ? 1 : 2,
               mb: 0,
-              flexWrap: "wrap"
-              // alignItems removido para comportamento padrão (stretch)
+              flexWrap: "wrap",
+              flexDirection: isMobile ? 'column' : 'row'
             }}
           >
           <Box sx={{ flex: { xs: "1 1 100%", md: "1 1 250px" } }}>
-            <Text style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
+            <Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
               Buscar pedidos:
             </Text>
             <SearchInputInteligente
-              placeholder="Digite nome, número, vale, motorista ou placa..."
+              placeholder={isMobile ? "Buscar..." : "Digite nome, número, vale, motorista ou placa..."}
               value={searchTerm}
               onChange={handleSearch}
               onSuggestionSelect={handleSuggestionSelect}
+              size={isMobile ? "small" : "middle"}
               style={{
                 width: "100%",
-                marginBottom: "0"
+                marginBottom: "0",
+                fontSize: isMobile ? '0.875rem' : '1rem'
               }}
             />
           </Box>
 
           <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 220px" } }}>
-            <Text style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
+            <Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
               Status:
             </Text>
             <Select
               value={statusFilter}
               onChange={handleStatusFilter}
-              style={{ width: "100%", height: "32px", marginBottom: "0" }}
+              size={isMobile ? "small" : "middle"}
+              style={{
+                width: "100%",
+                height: isMobile ? "32px" : "40px",
+                marginBottom: "0",
+                fontSize: isMobile ? '0.875rem' : '1rem'
+              }}
             >
               <Option value="">
                 <EyeOutlined style={{ marginRight: 8, color: '#666' }} />
@@ -541,7 +581,12 @@ const Pedidos = () => {
           </Box>
 
           <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 240px" } }}>
-            <Text style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
+            <Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
               Data de Criação:
             </Text>
                          <RangePicker
@@ -549,18 +594,29 @@ const Pedidos = () => {
                onChange={handleDateRangeChange}
                placeholder={["Início", "Fim"]}
                format="DD/MM/YYYY"
-               style={{ width: "100%", height: "32px", marginBottom: "0" }} // <-- ADICIONADO PARA NEUTRALIZAR MARGEM INLINE
+               size={isMobile ? "small" : "middle"}
+               style={{
+                 width: "100%",
+                 height: isMobile ? "32px" : "40px",
+                 marginBottom: "0",
+                 fontSize: isMobile ? '0.875rem' : '1rem'
+               }}
              />
           </Box>
 
                      <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
              {/* Text invisível para criar estrutura idêntica aos outros campos */}
              <Text style={{ display: "block", marginBottom: 8 }}>&nbsp;</Text>
-             
+
                            <SecondaryButton
                 icon={<FilterOutlined />}
                 onClick={handleClearFilters}
-                style={{ height: "32px" }}
+                size={isMobile ? "small" : "middle"}
+                style={{
+                  height: isMobile ? "32px" : "40px",
+                  padding: isMobile ? '0 12px' : '0 16px',
+                  fontSize: isMobile ? '0.75rem' : undefined
+                }}
               >
                 Limpar
               </SecondaryButton>
@@ -569,18 +625,21 @@ const Pedidos = () => {
 
         {/* Resumo dos filtros ativos */}
         {(appliedFilters.length > 0 || statusFilter || dateRange.length > 0) && (
-          <Box 
-            sx={{ 
-              mt: 2, 
-              pt: 2, 
+          <Box
+            sx={{
+              mt: 2,
+              pt: 2,
               borderTop: "1px solid #e8e8e8",
               display: "flex",
               flexWrap: "wrap",
-              gap: 1,
+              gap: isMobile ? 0.5 : 1,
               alignItems: "center"
             }}
           >
-            <Text strong style={{ fontSize: "12px", color: "#666" }}>
+            <Text strong style={{
+              fontSize: isMobile ? "0.6875rem" : "0.75rem",
+              color: "#666"
+            }}>
               Filtros ativos:
             </Text>
             {appliedFilters.map((filter, index) => (
@@ -595,22 +654,39 @@ const Pedidos = () => {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "4px",
-                  fontSize: "12px",
-                  fontWeight: "500"
+                  gap: isMobile ? "2px" : "4px",
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  fontWeight: "500",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
                 }}
               >
-                <span style={{ fontSize: "14px" }}>{filter.icon}</span>
+                <span style={{ fontSize: isMobile ? "0.75rem" : "0.875rem" }}>{filter.icon}</span>
                 {filter.label}: {filter.displayValue || filter.value}
               </Tag>
             ))}
             {statusFilter && (
-              <Tag color="green" closable onClose={() => setStatusFilter("")}>
+              <Tag
+                color="green"
+                closable
+                onClose={() => setStatusFilter("")}
+                style={{
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
+                }}
+              >
                 Status: {statusFilter.replace(/_/g, ' ')}
               </Tag>
             )}
             {dateRange.length > 0 && (
-              <Tag color="orange" closable onClose={() => setDateRange([])}>
+              <Tag
+                color="orange"
+                closable
+                onClose={() => setDateRange([])}
+                style={{
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
+                }}
+              >
                 Período: {dateRange[0]?.format('DD/MM/YYYY')} - {dateRange[1]?.format('DD/MM/YYYY')}
               </Tag>
             )}
@@ -623,9 +699,14 @@ const Pedidos = () => {
                  <PrimaryButton
            icon={<PlusCircleOutlined />}
            onClick={handleOpenCreateModal}
-           size="large"
+           size={isMobile ? "small" : (isTablet ? "small" : "large")}
+           style={{
+             height: isMobile ? '32px' : (isTablet ? '36px' : '40px'),
+             padding: isMobile ? '0 12px' : (isTablet ? '0 14px' : '0 16px'),
+             fontSize: isMobile ? '0.75rem' : undefined
+           }}
          >
-           Novo Pedido
+           {isMobile ? 'Novo' : 'Novo Pedido'}
          </PrimaryButton>
       </Box>
 
@@ -661,11 +742,15 @@ const Pedidos = () => {
                 setCurrentPage(1);
                 setPageSize(size);
               }}
-              showSizeChanger
+              showSizeChanger={!isMobile}
+              showQuickJumper={!isMobile}
               showTotal={(total, range) =>
-                `${range[0]}-${range[1]} de ${total} pedidos`
+                isMobile
+                  ? `${range[0]}-${range[1]}/${total}`
+                  : `${range[0]}-${range[1]} de ${total} pedidos`
               }
               pageSizeOptions={['10', '20', '50', '100']}
+              size={isMobile ? "small" : "default"}
             />
           </Box>
         )}

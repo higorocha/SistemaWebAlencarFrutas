@@ -2003,6 +2003,196 @@ export class PedidosService {
             continue;
           }
 
+          // ========================================
+          // 🆕 LÓGICA DE CREATE: Nova fruta adicionada durante edição
+          // ========================================
+          if (fruta.frutaId && !fruta.frutaPedidoId) {
+            console.log(`🆕 Detectada nova fruta para criar no pedido ${id}:`, {
+              frutaId: fruta.frutaId,
+              quantidadePrevista: fruta.quantidadePrevista,
+              unidadeMedida1: fruta.unidadeMedida1,
+            });
+
+            // ✅ Validações obrigatórias
+            if (!fruta.quantidadePrevista || fruta.quantidadePrevista <= 0) {
+              throw new BadRequestException(
+                `Nova fruta (ID ${fruta.frutaId}) deve ter quantidade prevista válida`
+              );
+            }
+            if (!fruta.unidadeMedida1) {
+              throw new BadRequestException(
+                `Nova fruta (ID ${fruta.frutaId}) deve ter unidade de medida principal`
+              );
+            }
+
+            // ✅ Verificar se fruta já existe no pedido
+            const frutaExistente = await prisma.frutasPedidos.findFirst({
+              where: {
+                pedidoId: id,
+                frutaId: fruta.frutaId
+              }
+            });
+
+            if (frutaExistente) {
+              throw new BadRequestException(
+                `Fruta ${fruta.frutaId} já existe no pedido. Use frutaPedidoId para atualizar.`
+              );
+            }
+
+            // ========================================
+            // ✅ VALIDAÇÃO POR FASE: Verificar se nova fruta tem dados obrigatórios para a fase atual
+            // ========================================
+            const pedidoAtual = await prisma.pedido.findUnique({
+              where: { id },
+              select: { status: true }
+            });
+
+            const requereColheita = [
+              'COLHEITA_REALIZADA',
+              'AGUARDANDO_PRECIFICACAO',
+              'PRECIFICACAO_REALIZADA',
+              'AGUARDANDO_PAGAMENTO',
+              'PAGAMENTO_PARCIAL',
+              'PAGAMENTO_REALIZADO'
+            ].includes(pedidoAtual.status);
+
+            const requerePrecificacao = [
+              'PRECIFICACAO_REALIZADA',
+              'AGUARDANDO_PAGAMENTO',
+              'PAGAMENTO_PARCIAL',
+              'PAGAMENTO_REALIZADO'
+            ].includes(pedidoAtual.status);
+
+            console.log(`🔍 Validando nova fruta para fase ${pedidoAtual.status}:`, {
+              requereColheita,
+              requerePrecificacao,
+              temQuantidadeReal: !!fruta.quantidadeReal,
+              temAreas: fruta.areas?.length > 0,
+              temValorUnitario: !!fruta.valorUnitario
+            });
+
+            // Validar dados de colheita se fase requer
+            if (requereColheita) {
+              if (!fruta.quantidadeReal || fruta.quantidadeReal <= 0) {
+                throw new BadRequestException(
+                  `Nova fruta (ID ${fruta.frutaId}) requer quantidade real porque pedido está em fase ${pedidoAtual.status}. ` +
+                  `Acesse a aba de Colheita para preencher os dados obrigatórios.`
+                );
+              }
+
+              if (!fruta.areas || fruta.areas.length === 0) {
+                throw new BadRequestException(
+                  `Nova fruta (ID ${fruta.frutaId}) requer pelo menos uma área de origem porque pedido está em fase ${pedidoAtual.status}. ` +
+                  `Acesse a aba de Colheita para vincular áreas.`
+                );
+              }
+
+              console.log(`✅ Nova fruta possui dados de colheita obrigatórios`);
+            }
+
+            // Validar dados de precificação se fase requer
+            if (requerePrecificacao) {
+              if (!fruta.valorUnitario || fruta.valorUnitario <= 0) {
+                throw new BadRequestException(
+                  `Nova fruta (ID ${fruta.frutaId}) requer valor unitário porque pedido está em fase ${pedidoAtual.status}. ` +
+                  `Acesse a aba de Precificação para preencher os dados obrigatórios.`
+                );
+              }
+
+              if (!fruta.unidadePrecificada) {
+                throw new BadRequestException(
+                  `Nova fruta (ID ${fruta.frutaId}) requer unidade de precificação porque pedido está em fase ${pedidoAtual.status}. ` +
+                  `Acesse a aba de Precificação para definir a unidade.`
+                );
+              }
+
+              if (!fruta.quantidadePrecificada || fruta.quantidadePrecificada <= 0) {
+                throw new BadRequestException(
+                  `Nova fruta (ID ${fruta.frutaId}) requer quantidade precificada porque pedido está em fase ${pedidoAtual.status}. ` +
+                  `Acesse a aba de Precificação para definir a quantidade.`
+                );
+              }
+
+              console.log(`✅ Nova fruta possui dados de precificação obrigatórios`);
+            }
+
+            // ✅ Criar registro FrutasPedidos
+            const novaFrutaPedido = await prisma.frutasPedidos.create({
+              data: {
+                pedidoId: id,
+                frutaId: fruta.frutaId,
+                quantidadePrevista: fruta.quantidadePrevista,
+                unidadeMedida1: fruta.unidadeMedida1,
+                unidadeMedida2: fruta.unidadeMedida2 || null,
+                quantidadeReal: fruta.quantidadeReal || null,
+                quantidadeReal2: fruta.quantidadeReal2 || null,
+                valorUnitario: fruta.valorUnitario || 0,
+                unidadePrecificada: fruta.unidadePrecificada || fruta.unidadeMedida1,
+                quantidadePrecificada: fruta.quantidadePrecificada || 0,
+                valorTotal: fruta.valorTotal || 0,
+              },
+            });
+
+            console.log(`✅ Nova fruta criada com ID: ${novaFrutaPedido.id}`);
+
+            // ✅ Criar FrutasPedidosAreas (se fornecidas)
+            if (fruta.areas && fruta.areas.length > 0) {
+              console.log(`📍 Criando ${fruta.areas.length} áreas para fruta ${novaFrutaPedido.id}`);
+
+              for (const area of fruta.areas) {
+                if (area.areaPropriaId || area.areaFornecedorId) {
+                  await prisma.frutasPedidosAreas.create({
+                    data: {
+                      frutaPedidoId: novaFrutaPedido.id,
+                      areaPropriaId: area.areaPropriaId || null,
+                      areaFornecedorId: area.areaFornecedorId || null,
+                      observacoes: area.observacoes || ''
+                    }
+                  });
+                }
+              }
+            }
+
+            // ✅ Criar FrutasPedidosFitas (se fornecidas)
+            if (fruta.fitas && fruta.fitas.length > 0) {
+              console.log(`🍌 Criando fitas para fruta ${novaFrutaPedido.id}`);
+
+              // Validar estoque antes de processar
+              await this.validarEstoqueParaEdicao(fruta.fitas, id, prisma);
+
+              for (const fita of fruta.fitas) {
+                if (fita.fitaBananaId && fita.detalhesAreas && fita.detalhesAreas.length > 0) {
+                  for (const detalheArea of fita.detalhesAreas) {
+                    // Criar relacionamento de fita
+                    await prisma.frutasPedidosFitas.create({
+                      data: {
+                        frutaPedidoId: novaFrutaPedido.id,
+                        fitaBananaId: detalheArea.fitaBananaId,
+                        controleBananaId: detalheArea.controleBananaId,
+                        quantidadeFita: detalheArea.quantidade,
+                        observacoes: fita.observacoes || ''
+                      }
+                    });
+
+                    // Subtrair do estoque
+                    await this.controleBananaService.subtrairEstoquePorControle(
+                      detalheArea.controleBananaId,
+                      detalheArea.quantidade,
+                      usuarioId,
+                      prisma
+                    );
+
+                    console.log(`✅ Fita ${detalheArea.fitaBananaId} vinculada (${detalheArea.quantidade} unidades)`);
+                  }
+                }
+              }
+            }
+
+            console.log(`🎯 Nova fruta completamente criada no pedido ${id}`);
+            houveAlteracaoFrutas = true;
+            continue;
+          }
+
           // Atualização por frutaId (compatibilidade)
           if (fruta.frutaId) {
             await prisma.frutasPedidos.updateMany({

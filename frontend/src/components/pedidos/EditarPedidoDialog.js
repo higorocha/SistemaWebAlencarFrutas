@@ -430,6 +430,122 @@ const EditarPedidoDialog = ({
     }
   };
 
+  // ========================================
+  // 🆕 VALIDAÇÃO: Novas frutas por fase do pedido
+  // ========================================
+  const validarNovasFrutasPorFase = (frutas, statusPedido) => {
+    const novosErros = {};
+    const frutasNovas = frutas.filter(f => !f.frutaPedidoId);
+
+    if (frutasNovas.length === 0) return { valido: true, erros: {}, quantidadeNovasFrutas: 0 };
+
+    console.log(`🔍 Validando ${frutasNovas.length} novas frutas para fase ${statusPedido}`);
+
+    // Determinar quais dados são obrigatórios baseado na fase
+    const requereColheita = [
+      'COLHEITA_REALIZADA',
+      'AGUARDANDO_PRECIFICACAO',
+      'PRECIFICACAO_REALIZADA',
+      'AGUARDANDO_PAGAMENTO',
+      'PAGAMENTO_PARCIAL',
+      'PAGAMENTO_REALIZADO'
+    ].includes(statusPedido);
+
+    const requerePrecificacao = [
+      'PRECIFICACAO_REALIZADA',
+      'AGUARDANDO_PAGAMENTO',
+      'PAGAMENTO_PARCIAL',
+      'PAGAMENTO_REALIZADO'
+    ].includes(statusPedido);
+
+    for (let i = 0; i < frutas.length; i++) {
+      const fruta = frutas[i];
+
+      // Pular frutas existentes
+      if (fruta.frutaPedidoId) continue;
+
+      const frutaInfo = frutas.find(f => f.id === fruta.frutaId);
+      const nomeFruta = frutaInfo?.nome || `Nova Fruta ${i + 1}`;
+
+      console.log(`  📝 Validando nova fruta: ${nomeFruta}`, {
+        requereColheita,
+        requerePrecificacao,
+        quantidadeReal: fruta.quantidadeReal,
+        areas: fruta.areas?.length,
+        fitas: fruta.fitas?.length,
+        valorUnitario: fruta.valorUnitario
+      });
+
+      // ✅ Validar dados de colheita se fase requer
+      if (requereColheita) {
+        if (!fruta.quantidadeReal || fruta.quantidadeReal <= 0) {
+          novosErros[`nova_fruta_colheita_${i}`] =
+            `"${nomeFruta}" é uma nova fruta e o pedido está em fase ${statusPedido}. ` +
+            `Informe a quantidade real colhida antes de salvar.`;
+          console.log(`  ❌ Falta quantidade real para ${nomeFruta}`);
+        }
+
+        // Validar áreas
+        const areasValidas = fruta.areas?.filter(a =>
+          a.areaPropriaId || a.areaFornecedorId
+        ) || [];
+
+        if (areasValidas.length === 0) {
+          novosErros[`nova_fruta_areas_${i}`] =
+            `"${nomeFruta}" é uma nova fruta e deve ter pelo menos uma área de origem vinculada.`;
+          console.log(`  ❌ Falta área de origem para ${nomeFruta}`);
+        }
+
+        // Validar fitas se for banana
+        const isBanana = nomeFruta.toLowerCase().includes('banana');
+        if (isBanana) {
+          const fitasValidas = fruta.fitas?.filter(f =>
+            f.fitaBananaId && f.quantidadeFita > 0
+          ) || [];
+
+          if (fitasValidas.length === 0) {
+            novosErros[`nova_fruta_fitas_${i}`] =
+              `"${nomeFruta}" é uma banana e deve ter pelo menos uma fita vinculada.`;
+            console.log(`  ❌ Falta fita para banana ${nomeFruta}`);
+          }
+        }
+      }
+
+      // ✅ Validar dados de precificação se fase requer
+      if (requerePrecificacao) {
+        if (!fruta.valorUnitario || fruta.valorUnitario <= 0) {
+          novosErros[`nova_fruta_preco_${i}`] =
+            `"${nomeFruta}" é uma nova fruta e o pedido está em fase ${statusPedido}. ` +
+            `Informe o valor unitário antes de salvar.`;
+          console.log(`  ❌ Falta valor unitário para ${nomeFruta}`);
+        }
+
+        if (!fruta.unidadePrecificada) {
+          novosErros[`nova_fruta_unidade_prec_${i}`] =
+            `"${nomeFruta}" é uma nova fruta e deve ter unidade de precificação definida.`;
+          console.log(`  ❌ Falta unidade de precificação para ${nomeFruta}`);
+        }
+
+        if (!fruta.quantidadePrecificada || fruta.quantidadePrecificada <= 0) {
+          novosErros[`nova_fruta_qtd_prec_${i}`] =
+            `"${nomeFruta}" é uma nova fruta e deve ter quantidade precificada definida.`;
+          console.log(`  ❌ Falta quantidade precificada para ${nomeFruta}`);
+        }
+      }
+    }
+
+    const resultado = {
+      valido: Object.keys(novosErros).length === 0,
+      erros: novosErros,
+      quantidadeNovasFrutas: frutasNovas.length,
+      requereColheita,
+      requerePrecificacao
+    };
+
+    console.log(`✅ Validação de novas frutas concluída:`, resultado);
+    return resultado;
+  };
+
   const validarFormulario = () => {
     const novosErros = {};
     let temInconsistenciaUnidades = false;
@@ -502,6 +618,37 @@ const EditarPedidoDialog = ({
           
           novosErros[`unidades_duplicadas_${i}`] = `Unidades duplicadas para ${nomeFruta}`;
           temInconsistenciaUnidades = true;
+        }
+      }
+    }
+
+    // ========================================
+    // ✅ NOVA VALIDAÇÃO: Validar novas frutas baseado na fase do pedido
+    // ========================================
+    if (pedidoAtual.frutas && pedidoAtual.frutas.length > 0) {
+      const validacaoNovasFrutas = validarNovasFrutasPorFase(
+        pedidoAtual.frutas,
+        pedido.status
+      );
+
+      if (!validacaoNovasFrutas.valido) {
+        Object.assign(novosErros, validacaoNovasFrutas.erros);
+
+        // Notificação específica para novas frutas
+        if (validacaoNovasFrutas.quantidadeNovasFrutas > 0) {
+          const mensagemDetalhada =
+            `Você adicionou ${validacaoNovasFrutas.quantidadeNovasFrutas} nova(s) fruta(s) em um pedido na fase "${pedido.status}". ` +
+            (validacaoNovasFrutas.requerePrecificacao
+              ? `Complete os dados de colheita e precificação antes de salvar.`
+              : validacaoNovasFrutas.requereColheita
+              ? `Complete os dados de colheita antes de salvar.`
+              : `Complete os dados básicos antes de salvar.`);
+
+          showNotification(
+            "warning",
+            "Novas Frutas Requerem Dados Adicionais",
+            mensagemDetalhada
+          );
         }
       }
     }

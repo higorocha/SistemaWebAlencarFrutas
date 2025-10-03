@@ -34,6 +34,7 @@ import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
 import { MonetaryInput } from "../../components/common/inputs";
 import axiosInstance from "../../api/axiosConfig";
+import useResponsive from "../../hooks/useResponsive";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -46,6 +47,9 @@ const PrecificacaoModal = ({
   loading,
   onLoadingChange, // Callback para controlar CentralizedLoader
 }) => {
+  // Hook de responsividade
+  const { isMobile } = useResponsive();
+
   const [form] = Form.useForm();
   const [submitLoading, setSubmitLoading] = useState(false);
   const [valores, setValores] = useState({
@@ -280,34 +284,35 @@ const PrecificacaoModal = ({
         <span style={{ 
           color: "#ffffff", 
           fontWeight: "600", 
-          fontSize: "16px",
+          fontSize: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+          margin: "-1.25rem -1.5rem 0 -1.5rem",
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",
         }}>
-          <DollarOutlined style={{ marginRight: 8 }} />
-          Definir Precificação
+          <DollarOutlined style={{ marginRight: "0.5rem" }} />
+          {isMobile ? "Precificação" : "Definir Precificação"}
         </span>
       }
       open={open}
       onCancel={handleCancel}
       footer={null}
-      width="95%"
-      style={{ maxWidth: 1400 }}
+      width={isMobile ? '95vw' : '90%'}
+      style={{ maxWidth: isMobile ? '95vw' : "87.5rem" }}
       styles={{
         body: {
-          maxHeight: "calc(100vh - 200px)",
+          maxHeight: "calc(100vh - 12.5rem)",
           overflowY: "auto",
           overflowX: "hidden",
-          padding: "20px",
+          padding: isMobile ? 12 : 20,
         },
         header: {
           backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
+          borderBottom: "0.125rem solid #047857",
           padding: 0,
-        }
+        },
+        wrapper: { zIndex: 1000 }
       }}
       centered
       destroyOnClose
@@ -319,41 +324,47 @@ const PrecificacaoModal = ({
             title={
               <Space>
                 <DollarOutlined style={{ color: "#ffffff" }} />
-                <span style={{ color: "#ffffff", fontWeight: "600" }}>Informações do Pedido</span>
+                <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                  Informações do Pedido
+                </span>
               </Space>
             }
             style={{ 
-              marginBottom: 16,
-              border: "1px solid #e8e8e8",
-              borderRadius: "8px",
+              marginBottom: isMobile ? 12 : 16,
+              border: "0.0625rem solid #e8e8e8",
+              borderRadius: "0.5rem",
               backgroundColor: "#f9f9f9",
             }}
             styles={{
               header: {
                 backgroundColor: "#059669",
-                borderBottom: "2px solid #047857",
+                borderBottom: "0.125rem solid #047857",
                 color: "#ffffff",
-                borderRadius: "8px 8px 0 0",
+                borderRadius: "0.5rem 0.5rem 0 0",
+                padding: isMobile ? "6px 12px" : "8px 16px"
+              },
+              body: { 
+                padding: isMobile ? "12px" : "16px" 
               }
             }}
           >
-            <Row gutter={[16, 16]}>
-              <Col xs={24} md={6}>
+            <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+              <Col xs={24} sm={12} md={6}>
                 <Text strong>Pedido:</Text>
                 <br />
                 <Text style={{ color: "#059669", fontWeight: "600" }}>{pedido.numeroPedido}</Text>
               </Col>
-              <Col xs={24} md={6}>
+              <Col xs={24} sm={12} md={6}>
                 <Text strong>Cliente:</Text>
                 <br />
                 <Text>{pedido.cliente?.nome}</Text>
               </Col>
-              <Col xs={24} md={6}>
+              <Col xs={24} sm={12} md={6}>
                 <Text strong>Data Colheita:</Text>
                 <br />
                 <Text>{pedido.dataColheita ? moment(pedido.dataColheita).format('DD/MM/YYYY') : '-'}</Text>
               </Col>
-              <Col xs={24} md={6}>
+              <Col xs={24} sm={12} md={6}>
                 <Text strong>Status:</Text>
                 <br />
                 <Text style={{ color: "#52c41a", fontWeight: "600" }}>Colheita Realizada</Text>
@@ -375,86 +386,104 @@ const PrecificacaoModal = ({
           title={
             <Space>
               <AppleOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Frutas da Precificação</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                Frutas da Precificação
+              </span>
             </Space>
           }
           style={{ 
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem",
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px" 
             }
           }}
         >
           <Form.List name="frutas">
             {(fields) => (
                 <>
-                  {/* Cabeçalho das colunas */}
-                  <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-                    <Col xs={24} md={7}>
-                      <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                        <AppleOutlined style={{ marginRight: 8 }} />
-                        Fruta
-                      </span>
-                    </Col>
-                    <Col xs={24} md={3}>
-                      <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                        <CalculatorOutlined style={{ marginRight: 8 }} />
-                        Prevista
-                      </span>
-                    </Col>
-                    <Col xs={24} md={3}>
-                      <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                        <CalculatorOutlined style={{ marginRight: 8 }} />
-                        Colhida
-                      </span>
-                    </Col>
-                    <Col xs={24} md={4}>
-                      <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                        <CalculatorOutlined style={{ marginRight: 8 }} />
-                        Quant. Precificada
-                      </span>
-                    </Col>
-                    <Col xs={24} md={4}>
-                      <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                        <DollarOutlined style={{ marginRight: 8 }} />
-                        Valor Unit.
-                      </span>
-                    </Col>
-                    <Col xs={24} md={3}>
-                      <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                        <CalculatorOutlined style={{ marginRight: 8 }} />
-                        Total
-                      </span>
-                    </Col>
-                  </Row>
+                  {/* Cabeçalho das colunas - apenas desktop */}
+                  {!isMobile && (
+                    <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
+                      <Col md={7}>
+                        <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                          <AppleOutlined style={{ marginRight: 8 }} />
+                          Fruta
+                        </span>
+                      </Col>
+                      <Col md={3}>
+                        <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                          <CalculatorOutlined style={{ marginRight: 8 }} />
+                          Prevista
+                        </span>
+                      </Col>
+                      <Col md={3}>
+                        <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                          <CalculatorOutlined style={{ marginRight: 8 }} />
+                          Colhida
+                        </span>
+                      </Col>
+                      <Col md={4}>
+                        <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                          <CalculatorOutlined style={{ marginRight: 8 }} />
+                          Quant. Precificada
+                        </span>
+                      </Col>
+                      <Col md={4}>
+                        <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                          <DollarOutlined style={{ marginRight: 8 }} />
+                          Valor Unit.
+                        </span>
+                      </Col>
+                      <Col md={3}>
+                        <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                          <CalculatorOutlined style={{ marginRight: 8 }} />
+                          Total
+                        </span>
+                      </Col>
+                    </Row>
+                  )}
 
                 {fields.map(({ key, name, ...restField }, index) => {
                   const fruta = form.getFieldValue('frutas')?.[index];
 
                   return (
                     <div key={key}>
-                      <Row gutter={[16, 16]} align="baseline">
+                      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="baseline">
                         {/* Nome da Fruta */}
                         <Col xs={24} md={7}>
                           <Form.Item
                             {...restField}
                             name={[name, 'frutaNome']}
+                            label={isMobile ? (
+                              <Space size="small">
+                                <AppleOutlined style={{ color: "#059669" }} />
+                                <span style={{ fontWeight: "700", color: "#059669", fontSize: "0.875rem" }}>
+                                  Fruta
+                                </span>
+                              </Space>
+                            ) : undefined}
                           >
                             <Tooltip title={fruta?.frutaNome || ''} placement="top">
                               <Input
                                 disabled
                                 value={fruta?.frutaNome || ''}
                                 style={{
-                                  borderRadius: "6px",
+                                  borderRadius: "0.375rem",
+                                  fontSize: isMobile ? "0.875rem" : undefined
                                 }}
+                                size={isMobile ? "small" : "middle"}
                               />
                             </Tooltip>
                           </Form.Item>
@@ -462,18 +491,32 @@ const PrecificacaoModal = ({
 
                         {/* Quantidade Prevista */}
                         <Col xs={24} md={3}>
+                          {isMobile && (
+                            <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700", display: "block", marginBottom: "4px" }}>
+                              <CalculatorOutlined style={{ marginRight: 4 }} />
+                              Prevista
+                            </span>
+                          )}
                           <Input
                             disabled
                             value={`${fruta?.quantidadePrevista || '0'} ${fruta?.unidadeMedida1 || ''}`.trim()}
                             style={{
-                              borderRadius: "6px",
-                              textAlign: "center"
+                              borderRadius: "0.375rem",
+                              textAlign: "center",
+                              fontSize: isMobile ? "0.875rem" : undefined
                             }}
+                            size={isMobile ? "small" : "middle"}
                           />
                         </Col>
 
                         {/* Quantidade Colhida */}
                         <Col xs={24} md={3}>
+                          {isMobile && (
+                            <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700", display: "block", marginBottom: "4px" }}>
+                              <CalculatorOutlined style={{ marginRight: 4 }} />
+                              Colhida
+                            </span>
+                          )}
                           <Input
                             disabled
                             value={(() => {
@@ -492,11 +535,13 @@ const PrecificacaoModal = ({
                               return `${fruta?.quantidadeReal || '0'} ${fruta?.unidadeMedida1 || ''}`;
                             })()}
                             style={{
-                              borderRadius: "6px",
+                              borderRadius: "0.375rem",
                               textAlign: "center",
                               color: "#10b981",
-                              fontWeight: "600"
+                              fontWeight: "600",
+                              fontSize: isMobile ? "0.875rem" : undefined
                             }}
+                            size={isMobile ? "small" : "middle"}
                           />
                         </Col>
 
@@ -505,6 +550,15 @@ const PrecificacaoModal = ({
                           <Form.Item
                             {...restField}
                             name={[name, 'quantidadePrecificada']}
+                            label={isMobile ? (
+                              <Space size="small">
+                                <CalculatorOutlined style={{ color: "#059669" }} />
+                                <span style={{ fontWeight: "700", color: "#059669", fontSize: "0.875rem" }}>
+                                  Quant. Precificada
+                                </span>
+                              </Space>
+                            ) : undefined}
+                            required={isMobile}
                             rules={[
                               { required: true, message: 'Quantidade obrigatória' },
                               {
@@ -524,7 +578,7 @@ const PrecificacaoModal = ({
                             <MonetaryInput
                               placeholder="Ex: 1.250,00"
                               addonAfter={fruta?.unidadePrecificada || fruta?.unidadeMedida1 || 'UND'}
-                              size="large"
+                              size={isMobile ? "small" : "large"}
                             />
                           </Form.Item>
                         </Col>
@@ -534,6 +588,15 @@ const PrecificacaoModal = ({
                           <Form.Item
                             {...restField}
                             name={[name, 'valorUnitario']}
+                            label={isMobile ? (
+                              <Space size="small">
+                                <DollarOutlined style={{ color: "#059669" }} />
+                                <span style={{ fontWeight: "700", color: "#059669", fontSize: "0.875rem" }}>
+                                  Valor Unit.
+                                </span>
+                              </Space>
+                            ) : undefined}
+                            required={isMobile}
                             rules={[
                               { required: true, message: 'Valor obrigatório' },
                               {
@@ -566,29 +629,37 @@ const PrecificacaoModal = ({
                                   {fruta?.unidadePrecificada || fruta?.unidadeMedida1 || 'UND'}
                                 </span>
                               }
-                              size="large"
+                              size={isMobile ? "small" : "large"}
                             />
                           </Form.Item>
                         </Col>
 
                         {/* Valor Total */}
                         <Col xs={24} md={3}>
+                          {isMobile && (
+                            <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700", display: "block", marginBottom: "4px" }}>
+                              <CalculatorOutlined style={{ marginRight: 4 }} />
+                              Total
+                            </span>
+                          )}
                           <Input
                             disabled
                             value={formatarValorMonetario(fruta?.valorTotal || 0)}
                             style={{
-                              borderRadius: "6px",
+                              borderRadius: "0.375rem",
                               borderColor: "#d9d9d9",
                               backgroundColor: "#f0fdf4",
                               textAlign: "left",
                               fontWeight: "600",
                               color: "#15803d",
+                              fontSize: isMobile ? "0.875rem" : undefined
                             }}
+                            size={isMobile ? "small" : "middle"}
                           />
                         </Col>
                       </Row>
 
-                      {index < fields.length - 1 && <Divider style={{ margin: "8px 0" }} />}
+                      {index < fields.length - 1 && <Divider style={{ margin: isMobile ? "12px 0" : "8px 0" }} />}
                     </div>
                   );
                 })}
@@ -602,26 +673,32 @@ const PrecificacaoModal = ({
           title={
             <Space>
               <DollarOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Valores Consolidados</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                Valores Consolidados
+              </span>
             </Space>
           }
           style={{ 
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem",
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px" 
             }
           }}
         >
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={6}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+            <Col xs={24} sm={12} md={6}>
               <Form.Item
                 label={
                   <Space>
@@ -656,7 +733,7 @@ const PrecificacaoModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={6}>
+            <Col xs={24} sm={12} md={6}>
               <Form.Item
                 label={
                   <Space>
@@ -691,7 +768,7 @@ const PrecificacaoModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={6}>
+            <Col xs={24} sm={12} md={6}>
               <Form.Item
                 label={
                   <Space>
@@ -726,7 +803,7 @@ const PrecificacaoModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={6}>
+            <Col xs={24} sm={12} md={6}>
               <Form.Item
                 label={
                   <Space>
@@ -769,31 +846,37 @@ const PrecificacaoModal = ({
             title={
               <Space>
                 <BuildOutlined style={{ color: "#ffffff" }} />
-                <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Complementares</span>
+                <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                  Dados Complementares
+                </span>
               </Space>
             }
             style={{ 
-              marginBottom: 16,
-              border: "1px solid #e8e8e8",
-              borderRadius: "8px",
+              marginBottom: isMobile ? 12 : 16,
+              border: "0.0625rem solid #e8e8e8",
+              borderRadius: "0.5rem",
               backgroundColor: "#f9f9f9",
             }}
             styles={{
               header: {
                 backgroundColor: "#059669",
-                borderBottom: "2px solid #047857",
+                borderBottom: "0.125rem solid #047857",
                 color: "#ffffff",
-                borderRadius: "8px 8px 0 0",
+                borderRadius: "0.5rem 0.5rem 0 0",
+                padding: isMobile ? "6px 12px" : "8px 16px"
+              },
+              body: { 
+                padding: isMobile ? "12px" : "16px" 
               }
             }}
           >
-            <Row gutter={[16, 16]}>
-              <Col xs={24} md={5}>
+            <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+              <Col xs={24} sm={12} md={5}>
                 <Form.Item
                   label={
                     <Space>
                       <CalendarOutlined style={{ color: "#059669" }} />
-                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Data Entrada</span>
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "0.75rem" }}>Data Entrada</span>
                     </Space>
                   }
                   name="indDataEntrada"
@@ -827,12 +910,12 @@ const PrecificacaoModal = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={5}>
+              <Col xs={24} sm={12} md={5}>
                 <Form.Item
                   label={
                     <Space>
                       <CalendarOutlined style={{ color: "#059669" }} />
-                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Data Descarga</span>
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "0.75rem" }}>Data Descarga</span>
                     </Space>
                   }
                   name="indDataDescarga"
@@ -866,12 +949,12 @@ const PrecificacaoModal = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={4}>
+              <Col xs={24} sm={12} md={4}>
                 <Form.Item
                   label={
                     <Space>
                       <CalculatorOutlined style={{ color: "#059669" }} />
-                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Peso Médio</span>
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "0.75rem" }}>Peso Médio</span>
                     </Space>
                   }
                   name="indPesoMedio"
@@ -901,12 +984,12 @@ const PrecificacaoModal = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={4}>
+              <Col xs={24} sm={12} md={4}>
                 <Form.Item
                   label={
                     <Space>
                       <CalculatorOutlined style={{ color: "#059669" }} />
-                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Média ML</span>
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "0.75rem" }}>Média ML</span>
                     </Space>
                   }
                   name="indMediaMililitro"
@@ -936,12 +1019,12 @@ const PrecificacaoModal = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={6}>
+              <Col xs={24} sm={24} md={6}>
                 <Form.Item
                   label={
                     <Space>
                       <NumberOutlined style={{ color: "#059669" }} />
-                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Número NF</span>
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "0.75rem" }}>Número NF</span>
                     </Space>
                   }
                   name="indNumeroNf"
@@ -988,88 +1071,94 @@ const PrecificacaoModal = ({
           title={
             <Space>
               <CalculatorOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Resumo Financeiro</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                Resumo Financeiro
+              </span>
             </Space>
           }
           style={{ 
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem",
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px" 
             }
           }}
         >
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={6}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{ 
                 backgroundColor: "#f8fafc", 
-                border: "1px solid #e2e8f0", 
-                borderRadius: "8px", 
+                border: "0.0625rem solid #e2e8f0", 
+                borderRadius: "0.5rem", 
                 padding: "16px",
                 textAlign: "center"
               }}>
-                <Text style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px", display: "block" }}>
+                <Text style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "4px", display: "block" }}>
                   Valor Total Frutas
                 </Text>
-                <Text style={{ fontSize: "18px", fontWeight: "700", color: "#334155" }}>
+                <Text style={{ fontSize: "1.125rem", fontWeight: "700", color: "#334155" }}>
                   {formatarValorMonetario(valores.valorTotalFrutas)}
                 </Text>
               </div>
             </Col>
 
-            <Col xs={24} md={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{ 
                 backgroundColor: "#fefce8", 
-                border: "1px solid #fde047", 
-                borderRadius: "8px", 
+                border: "0.0625rem solid #fde047", 
+                borderRadius: "0.5rem", 
                 padding: "16px",
                 textAlign: "center"
               }}>
-                <Text style={{ fontSize: "12px", color: "#a16207", marginBottom: "4px", display: "block" }}>
+                <Text style={{ fontSize: "0.75rem", color: "#a16207", marginBottom: "4px", display: "block" }}>
                   Adicionais
                 </Text>
-                <Text style={{ fontSize: "18px", fontWeight: "700", color: "#ca8a04" }}>
+                <Text style={{ fontSize: "1.125rem", fontWeight: "700", color: "#ca8a04" }}>
                   +{formatarValorMonetario(valores.frete + valores.icms)}
                 </Text>
               </div>
             </Col>
 
-            <Col xs={24} md={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{ 
                 backgroundColor: "#fef2f2", 
-                border: "1px solid #fecaca", 
-                borderRadius: "8px", 
+                border: "0.0625rem solid #fecaca", 
+                borderRadius: "0.5rem", 
                 padding: "16px",
                 textAlign: "center"
               }}>
-                <Text style={{ fontSize: "12px", color: "#dc2626", marginBottom: "4px", display: "block" }}>
+                <Text style={{ fontSize: "0.75rem", color: "#dc2626", marginBottom: "4px", display: "block" }}>
                   Descontos
                 </Text>
-                <Text style={{ fontSize: "18px", fontWeight: "700", color: "#ef4444" }}>
+                <Text style={{ fontSize: "1.125rem", fontWeight: "700", color: "#ef4444" }}>
                   -{formatarValorMonetario(valores.desconto + valores.avaria)}
                 </Text>
               </div>
             </Col>
 
-            <Col xs={24} md={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{ 
                 backgroundColor: "#f0fdf4", 
-                border: "1px solid #bbf7d0", 
-                borderRadius: "8px", 
+                border: "0.0625rem solid #bbf7d0", 
+                borderRadius: "0.5rem", 
                 padding: "16px",
                 textAlign: "center"
               }}>
-                <Text style={{ fontSize: "12px", color: "#16a34a", marginBottom: "4px", display: "block" }}>
+                <Text style={{ fontSize: "0.75rem", color: "#16a34a", marginBottom: "4px", display: "block" }}>
                   VALOR FINAL
                 </Text>
-                <Text style={{ fontSize: "20px", fontWeight: "800", color: "#15803d" }}>
+                <Text style={{ fontSize: "1.25rem", fontWeight: "800", color: "#15803d" }}>
                   {formatarValorMonetario(valores.valorFinal)}
                 </Text>
               </div>
@@ -1082,17 +1171,21 @@ const PrecificacaoModal = ({
           style={{
             display: "flex",
             justifyContent: "flex-end",
-            gap: "12px",
-            marginTop: "24px",
-            paddingTop: "16px",
-            borderTop: "1px solid #e8e8e8",
+            gap: isMobile ? "8px" : "12px",
+            marginTop: isMobile ? "1rem" : "1.5rem",
+            paddingTop: isMobile ? "12px" : "16px",
+            borderTop: "0.0625rem solid #e8e8e8",
           }}
         >
           <Button
             icon={<CloseOutlined />}
             onClick={handleCancel}
             disabled={loading || submitLoading}
-            size="large"
+            size={isMobile ? "small" : "large"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
           >
             Cancelar
           </Button>
@@ -1101,10 +1194,12 @@ const PrecificacaoModal = ({
             icon={<SaveOutlined />}
             htmlType="submit"
             loading={loading || submitLoading}
-            size="large"
+            size={isMobile ? "small" : "large"}
             style={{
               backgroundColor: "#059669",
               borderColor: "#059669",
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
             }}
           >
             {submitLoading ? "Confirmando..." : "Confirmar Precificação"}

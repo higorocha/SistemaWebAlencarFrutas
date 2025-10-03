@@ -74,7 +74,7 @@ const StatusSection = ({
   );
 
   return (
-    <div style={sectionStyle}>
+    <div style={sectionStyle} className="status-section" data-action-type={actionType}>
       <Card
         style={{
           borderRadius: "0.5rem",

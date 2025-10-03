@@ -31,6 +31,7 @@ import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
 import { MonetaryInput } from "../../components/common/inputs";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
+import useResponsive from "../../hooks/useResponsive";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -45,6 +46,9 @@ const NovoPagamentoModal = ({
   loading,
   pagamentoEditando,
 }) => {
+  // Hook de responsividade
+  const { isMobile } = useResponsive();
+
   const [form] = Form.useForm();
   const [submitLoading, setSubmitLoading] = useState(false);
   
@@ -211,24 +215,34 @@ const NovoPagamentoModal = ({
         <span style={{ 
           color: "#ffffff", 
           fontWeight: "600", 
-          fontSize: "16px",
+          fontSize: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+          margin: "-1.25rem -1.5rem 0 -1.5rem",
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",
         }}>
-          <CreditCardOutlined style={{ marginRight: 8 }} />
-          {pagamentoEditando ? "Editar Pagamento" : "Novo Pagamento"}
+          <CreditCardOutlined style={{ marginRight: "0.5rem" }} />
+          {pagamentoEditando ? (isMobile ? "Editar" : "Editar Pagamento") : (isMobile ? "Novo" : "Novo Pagamento")}
         </span>
       }
       open={open}
       onCancel={handleCancel}
       footer={null}
-      width={600}
+      width={isMobile ? '95vw' : '90%'}
+      style={{ maxWidth: isMobile ? '95vw' : "37.5rem" }}
       styles={{
-        body: { maxHeight: "calc(100vh - 200px)", overflowY: "auto", overflowX: "hidden", padding: 20 },
-        header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", padding: 0 },
+        body: { 
+          maxHeight: "calc(100vh - 12.5rem)", 
+          overflowY: "auto", 
+          overflowX: "hidden", 
+          padding: isMobile ? 12 : 20 
+        },
+        header: { 
+          backgroundColor: "#059669", 
+          borderBottom: "0.125rem solid #047857", 
+          padding: 0 
+        },
         wrapper: { zIndex: 1100 }
       }}
       centered
@@ -241,35 +255,42 @@ const NovoPagamentoModal = ({
             title={
               <Space>
                 <DollarOutlined style={{ color: "#ffffff" }} />
-                <span style={{ color: "#ffffff", fontWeight: "600" }}>Resumo do Pedido</span>
+                <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                  Resumo do Pedido
+                </span>
               </Space>
             }
-            style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
+            style={{ 
+              marginBottom: isMobile ? 12 : 16, 
+              border: "0.0625rem solid #e8e8e8", 
+              borderRadius: "0.5rem", 
+              backgroundColor: "#f9f9f9" 
+            }}
             styles={{ 
               header: { 
                 backgroundColor: "#059669", 
-                borderBottom: "2px solid #047857", 
+                borderBottom: "0.125rem solid #047857", 
                 color: "#ffffff", 
-                borderRadius: "8px 8px 0 0",
-                padding: "8px 16px"
+                borderRadius: "0.5rem 0.5rem 0 0",
+                padding: isMobile ? "6px 12px" : "8px 16px"
               },
-              body: { padding: "12px 16px" }
+              body: { padding: isMobile ? "8px 12px" : "12px 16px" }
             }}
           >
-            <Row gutter={12} align="middle">
-              <Col span={12}>
+            <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]} align="middle">
+              <Col xs={24} sm={12}>
                 <Statistic
                   title={<Text strong style={{ fontSize: "12px" }}>Pedido</Text>}
                   value={pedido.numeroPedido}
                   valueStyle={{ fontSize: "14px" }}
                 />
               </Col>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Statistic
-                  title={<Text strong style={{ fontSize: "12px" }}>Valor Restante</Text>}
+                  title={<Text strong style={{ fontSize: "0.75rem" }}>Valor Restante</Text>}
                   value={formatarValorMonetario(valorRestante)}
                   valueStyle={{ 
-                    fontSize: "14px", 
+                    fontSize: "0.875rem", 
                     color: valorRestante > 0 ? "#cf1322" : "#059669",
                     fontWeight: "bold"
                   }}
@@ -303,14 +324,32 @@ const NovoPagamentoModal = ({
           title={
             <Space>
               <CreditCardOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados do Pagamento</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                Dados do Pagamento
+              </span>
             </Space>
           }
-          style={{ marginBottom: 16, border: "1px solid #e8e8e8", borderRadius: 8, backgroundColor: "#f9f9f9" }}
-          styles={{ header: { backgroundColor: "#059669", borderBottom: "2px solid #047857", color: "#ffffff", borderRadius: "8px 8px 0 0" } }}
+          style={{ 
+            marginBottom: isMobile ? 12 : 16, 
+            border: "0.0625rem solid #e8e8e8", 
+            borderRadius: "0.5rem", 
+            backgroundColor: "#f9f9f9" 
+          }}
+          styles={{ 
+            header: { 
+              backgroundColor: "#059669", 
+              borderBottom: "0.125rem solid #047857", 
+              color: "#ffffff", 
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px" 
+            }
+          }}
         >
-          <Row gutter={[16, 16]}>
-            <Col span={12}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label={
                   <Space>
@@ -355,7 +394,7 @@ const NovoPagamentoModal = ({
               </Form.Item>
             </Col>
 
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label={
                   <Space>
@@ -369,19 +408,20 @@ const NovoPagamentoModal = ({
                 ]}
               >
                 <DatePicker
-                  style={{ width: "100%", borderRadius: 6 }}
+                  style={{ width: "100%", borderRadius: "0.375rem" }}
                   format="DD/MM/YYYY"
                   placeholder="Selecione a data"
                   disabledDate={(current) => current && current > moment().endOf('day')}
                   onFocus={handleDataPagamentoFocus}
                   onBlur={handleDataPagamentoBlur}
+                  size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>
             </Col>
           </Row>
 
-          <Row gutter={[16, 16]}>
-            <Col span={12}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label={
                   <Space>
@@ -394,7 +434,11 @@ const NovoPagamentoModal = ({
                   { required: true, message: "Por favor, selecione o método de pagamento" },
                 ]}
               >
-                <Select placeholder="Selecione o método" style={{ borderRadius: 6 }}>
+                <Select 
+                  placeholder="Selecione o método" 
+                  style={{ borderRadius: "0.375rem" }}
+                  size={isMobile ? "middle" : "large"}
+                >
                   {metodosPagamento.map((metodo) => (
                     <Option key={metodo.value} value={metodo.value}>
                       <Space>
@@ -411,7 +455,7 @@ const NovoPagamentoModal = ({
               </Form.Item>
             </Col>
 
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label={
                   <Space>
@@ -424,7 +468,11 @@ const NovoPagamentoModal = ({
                   { required: true, message: "Por favor, selecione a conta destino" },
                 ]}
               >
-                <Select placeholder="Selecione a conta" style={{ borderRadius: 6 }}>
+                <Select 
+                  placeholder="Selecione a conta" 
+                  style={{ borderRadius: "0.375rem" }}
+                  size={isMobile ? "middle" : "large"}
+                >
                   {contasDestino.map((conta) => (
                     <Option key={conta.value} value={conta.value}>
                       {conta.label}
@@ -445,9 +493,9 @@ const NovoPagamentoModal = ({
             name="observacoesPagamento"
           >
             <TextArea
-              rows={3}
+              rows={isMobile ? 2 : 3}
               placeholder="Observações sobre o pagamento (opcional)"
-              style={{ borderRadius: 6, borderColor: "#d9d9d9" }}
+              style={{ borderRadius: "0.375rem", borderColor: "#d9d9d9" }}
             />
           </Form.Item>
 
@@ -462,18 +510,30 @@ const NovoPagamentoModal = ({
           >
             <Input
               placeholder="Campo opcional"
-              style={{ borderRadius: 6, borderColor: "#d9d9d9" }}
+              style={{ borderRadius: "0.375rem", borderColor: "#d9d9d9" }}
+              size={isMobile ? "middle" : "large"}
             />
           </Form.Item>
         </Card>
 
         {/* Botões de Ação */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24, paddingTop: 16, borderTop: "1px solid #e8e8e8" }}>
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "flex-end", 
+          gap: isMobile ? "8px" : "12px", 
+          marginTop: isMobile ? "1rem" : "1.5rem", 
+          paddingTop: isMobile ? "12px" : "16px", 
+          borderTop: "0.0625rem solid #e8e8e8" 
+        }}>
           <Button 
             icon={<CloseOutlined />} 
             onClick={handleCancel} 
             disabled={loading || submitLoading} 
-            size="large"
+            size={isMobile ? "small" : "large"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
           >
             Cancelar
           </Button>
@@ -482,9 +542,14 @@ const NovoPagamentoModal = ({
             icon={<SaveOutlined />}
             htmlType="submit"
             loading={loading || submitLoading}
-            size="large"
+            size={isMobile ? "small" : "large"}
             disabled={valorRestante <= 0}
-            style={{ backgroundColor: '#059669', borderColor: '#059669' }}
+            style={{ 
+              backgroundColor: '#059669', 
+              borderColor: '#059669',
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
           >
             {submitLoading ? (pagamentoEditando ? "Atualizando..." : "Registrando...") : (pagamentoEditando ? "Atualizar Pagamento" : "Registrar Pagamento")}
           </Button>

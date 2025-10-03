@@ -326,6 +326,11 @@
     content: "Data Pedido:";
   }
 
+  /* Label específico para seção de colheita no mobile */
+  .status-section[data-action-type="colheita"] .pedido-data::before {
+    content: "Prev. Colheita:";
+  }
+
   .pedido-data-colheita::before {
     content: "Data Colheita:";
   }

@@ -37,92 +37,10 @@ import { PDFButton } from "../common/buttons";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
-import styled from "styled-components";
+import useResponsive from "../../hooks/useResponsive";
+import ResponsiveTable from "../common/ResponsiveTable";
 
 const { Title, Text, Paragraph } = Typography;
-
-// Styled components para tabela com tema personalizado (copiado do PagamentoModal)
-const StyledTable = styled(Table)`
-  .ant-table-thead > tr > th {
-    background-color: #059669 !important;
-    color: #ffffff !important;
-    font-weight: 600;
-    padding: 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-tbody > tr:nth-child(even) {
-    background-color: #fafafa;
-  }
-
-  .ant-table-tbody > tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-
-  .ant-table-tbody > tr:hover {
-    background-color: #e6f7ff !important;
-    cursor: pointer;
-  }
-
-  .ant-table-tbody > tr.ant-table-row-selected {
-    background-color: #d1fae5 !important;
-  }
-
-  .ant-table-tbody > tr > td {
-    padding: 12px 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-container {
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .ant-table-cell-fix-left,
-  .ant-table-cell-fix-right {
-    background-color: inherit !important;
-  }
-
-  .ant-empty {
-    padding: 40px 20px;
-  }
-
-  .ant-empty-description {
-    color: #8c8c8c;
-    font-size: 14px;
-  }
-
-  /* LAYOUT FIXO PARA RESOLVER SCROLL HORIZONTAL */
-  .ant-table-wrapper {
-    width: 100%;
-  }
-
-  .ant-table {
-    width: 100% !important;
-    table-layout: fixed;
-  }
-
-  .ant-table-container {
-    width: 100% !important;
-  }
-
-  .ant-table-thead > tr > th {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .ant-table-tbody > tr > td {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* CORREÇÃO ESPECÍFICA: Esconder linha de medida */
-  .ant-table-measure-row {
-    display: none !important;
-  }
-`;
 
 const VisualizarPedidoModal = ({
   open,
@@ -130,6 +48,9 @@ const VisualizarPedidoModal = ({
   pedido,
   loading = false,
 }) => {
+  // Hook de responsividade
+  const { isMobile } = useResponsive();
+
   // Função para formatar datas
   const formatarData = (data) => {
     if (!data) return "-";
@@ -393,48 +314,69 @@ const VisualizarPedidoModal = ({
         <span style={{ 
           color: "#ffffff", 
           fontWeight: "600", 
-          fontSize: "16px",
+          fontSize: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+          margin: "-1.25rem -1.5rem 0 -1.5rem",
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",
         }}>
-          <EyeOutlined style={{ marginRight: 8 }} />
-          Visualizar Pedido #{pedido.numeroPedido}
+          <EyeOutlined style={{ marginRight: "0.5rem" }} />
+          {isMobile ? `Pedido #${pedido.numeroPedido}` : `Visualizar Pedido #${pedido.numeroPedido}`}
         </span>
       }
       open={open}
       onCancel={onClose}
       footer={
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center",
+          gap: isMobile ? "8px" : "12px",
+          flexWrap: isMobile ? "wrap" : "nowrap"
+        }}>
           <PDFButton
             onClick={handleExportPDF}
-            size="large"
+            size={isMobile ? "small" : "large"}
             tooltip="Exportar pedido para PDF"
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+              fontSize: isMobile ? "0.75rem" : undefined,
+            }}
           >
             Exportar PDF
           </PDFButton>
-          <Button onClick={onClose} size="large">
+          <Button 
+            onClick={onClose} 
+            size={isMobile ? "small" : "large"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
+          >
             Fechar
           </Button>
         </div>
       }
-      width={1200}
+      width={isMobile ? '95vw' : '90%'}
+      style={{ maxWidth: isMobile ? '95vw' : "75rem" }}
       centered
       destroyOnClose
       loading={loading}
       styles={{
         body: { 
-          maxHeight: "calc(100vh - 200px)", 
-          overflowY: "auto", 
-          padding: "20px" 
+          maxHeight: "calc(100vh - 12.5rem)", 
+          overflowY: "auto",
+          overflowX: "hidden",
+          padding: isMobile ? 12 : 20
         },
         header: { 
           backgroundColor: "#059669", 
-          borderBottom: "2px solid #047857", 
+          borderBottom: "0.125rem solid #047857", 
           padding: 0 
-        }
+        },
+        wrapper: { zIndex: 1000 }
       }}
     >
       {/* Seção 1: Dados Básicos */}
@@ -442,67 +384,75 @@ const VisualizarPedidoModal = ({
         title={
           <Space>
             <UserOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Básicos do Pedido</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+              Dados Básicos do Pedido
+            </span>
           </Space>
         }
-        style={{ marginBottom: 16 }}
+        style={{ 
+          marginBottom: isMobile ? 12 : 16,
+          border: "0.0625rem solid #e8e8e8",
+          borderRadius: "0.5rem"
+        }}
         styles={{ 
           header: { 
             backgroundColor: "#059669", 
             color: "#ffffff", 
-            borderRadius: "8px 8px 0 0" 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            borderBottom: "0.125rem solid #047857",
+            padding: isMobile ? "6px 12px" : "8px 16px"
           },
           body: { 
-            padding: "16px 20px" 
+            padding: isMobile ? "12px" : "16px" 
           }
         }}
       >
-        <Row gutter={[16, 12]}>
-          <Col span={6}>
-            <Text strong style={{ color: "#059669", fontSize: "13px" }}>Número do Pedido:</Text>
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
+          <Col xs={24} sm={12} md={6}>
+            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>Número do Pedido:</Text>
             <br />
-            <Text style={{ fontSize: "16px", fontWeight: "600", color: "#059669", marginTop: "4px" }}>
+            <Text style={{ fontSize: isMobile ? "0.875rem" : "1rem", fontWeight: "600", color: "#059669", marginTop: "4px" }}>
               #{pedido.numeroPedido}
             </Text>
           </Col>
-          <Col span={6}>
-            <Text strong style={{ color: "#059669", fontSize: "13px" }}>Status:</Text>
+          <Col xs={24} sm={12} md={6}>
+            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>Status:</Text>
             <br />
-            <Tag color={statusConfig.color} style={{ fontSize: "12px", padding: "4px 10px", fontWeight: "500", marginTop: "4px" }}>
+            <Tag color={statusConfig.color} style={{ fontSize: "0.75rem", padding: "4px 10px", fontWeight: "500", marginTop: "4px" }}>
               {statusConfig.text}
             </Tag>
           </Col>
-          <Col span={6}>
-            <Text strong style={{ color: "#059669", fontSize: "13px" }}>
+          <Col xs={24} sm={12} md={6}>
+            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
               <CalendarOutlined style={{ marginRight: 4 }} />
               Data do Pedido:
             </Text>
             <br />
-            <Text style={{ fontSize: "14px", marginTop: "4px" }}>{formatarData(pedido.dataPedido)}</Text>
+            <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>{formatarData(pedido.dataPedido)}</Text>
           </Col>
-          <Col span={6}>
-            <Text strong style={{ color: "#059669", fontSize: "13px" }}>
+          <Col xs={24} sm={12} md={6}>
+            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
               <CalendarOutlined style={{ marginRight: 4 }} />
               Data Prevista Colheita:
             </Text>
             <br />
-            <Text style={{ fontSize: "14px", marginTop: "4px" }}>{formatarData(pedido.dataPrevistaColheita)}</Text>
+            <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>{formatarData(pedido.dataPrevistaColheita)}</Text>
           </Col>
         </Row>
-        <Divider style={{ margin: "12px 0" }} />
-        <Row gutter={[16, 12]}>
-          <Col span={12}>
-            <Text strong style={{ color: "#059669", fontSize: "13px" }}>
+        <Divider style={{ margin: isMobile ? "8px 0" : "12px 0" }} />
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
+          <Col xs={24} sm={24} md={12}>
+            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
               <UserOutlined style={{ marginRight: 4 }} />
               Cliente:
             </Text>
             <br />
-            <Text style={{ fontSize: "15px", fontWeight: "500", color: "#333", marginTop: "4px" }}>
+            <Text style={{ fontSize: isMobile ? "0.875rem" : "0.9375rem", fontWeight: "500", color: "#333", marginTop: "4px" }}>
               {pedido.cliente?.nome || '-'}
             </Text>
           </Col>
-          <Col span={12}>
-            <Text strong style={{ color: "#059669", fontSize: "13px" }}>
+          <Col xs={24} sm={24} md={12}>
+            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
               <FileTextOutlined style={{ marginRight: 4 }} />
               Observações:
             </Text>
@@ -510,7 +460,7 @@ const VisualizarPedidoModal = ({
             <Paragraph style={{ 
               margin: "4px 0 0 0", 
               color: "#666", 
-              fontSize: "14px",
+              fontSize: "0.875rem",
               fontStyle: pedido.observacoes ? "normal" : "italic"
             }}>
               {pedido.observacoes || "Nenhuma observação registrada"}
@@ -524,16 +474,27 @@ const VisualizarPedidoModal = ({
         title={
           <Space>
             <AppleOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Frutas do Pedido</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+              Frutas do Pedido
+            </span>
           </Space>
         }
-        style={{ marginBottom: 16 }}
+        style={{ 
+          marginBottom: isMobile ? 12 : 16,
+          border: "0.0625rem solid #e8e8e8",
+          borderRadius: "0.5rem"
+        }}
         styles={{ 
           header: { 
             backgroundColor: "#059669", 
             color: "#ffffff", 
-            borderRadius: "8px 8px 0 0" 
-          } 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            borderBottom: "0.125rem solid #047857",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: { 
+            padding: isMobile ? "12px" : "16px" 
+          }
         }}
       >
         {pedido.frutasPedidos && pedido.frutasPedidos.length > 0 ? (
@@ -544,18 +505,15 @@ const VisualizarPedidoModal = ({
               Valores
             </Title>
             <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-            <StyledTable
+            <ResponsiveTable
               columns={frutasColumns}
               dataSource={pedido.frutasPedidos}
               rowKey="id"
               pagination={false}
-              size="middle"
-              bordered={true}
+              minWidthMobile={1000}
+              showScrollHint={true}
               style={{
-                backgroundColor: "#ffffff",
-                borderRadius: "8px",
-                overflow: "hidden",
-                marginBottom: "24px"
+                marginBottom: isMobile ? "16px" : "24px"
               }}
             />
 
@@ -579,10 +537,10 @@ const VisualizarPedidoModal = ({
                     {frutaPedido.fruta?.nome}
                   </Text>
                   
-                  <Row gutter={[16, 16]}>
+                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
                     {/* Áreas */}
-                    <Col span={12}>
-                      <Text strong style={{ color: "#059669", fontSize: "14px", display: "block", marginBottom: "8px" }}>
+                    <Col xs={24} sm={24} md={12}>
+                      <Text strong style={{ color: "#059669", fontSize: "0.875rem", display: "block", marginBottom: "8px" }}>
                         <EnvironmentOutlined style={{ marginRight: 4 }} />
                         Áreas ({frutaPedido.areas?.length || 0})
                       </Text>
@@ -634,8 +592,8 @@ const VisualizarPedidoModal = ({
                     </Col>
 
                     {/* Fitas */}
-                    <Col span={12}>
-                      <Text strong style={{ color: "#059669", fontSize: "14px", display: "block", marginBottom: "8px" }}>
+                    <Col xs={24} sm={24} md={12}>
+                      <Text strong style={{ color: "#059669", fontSize: "0.875rem", display: "block", marginBottom: "8px" }}>
                         <TagOutlined style={{ marginRight: 4 }} />
                         Fitas ({frutaPedido.fitas?.length || 0})
                       </Text>
@@ -717,21 +675,32 @@ const VisualizarPedidoModal = ({
           title={
             <Space>
               <CalendarOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados de Colheita</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                Dados de Colheita
+              </span>
             </Space>
           }
-          style={{ marginBottom: 16 }}
+          style={{ 
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem"
+          }}
           styles={{ 
             header: { 
               backgroundColor: "#059669", 
               color: "#ffffff", 
-              borderRadius: "8px 8px 0 0" 
-            } 
+              borderRadius: "0.5rem 0.5rem 0 0",
+              borderBottom: "0.125rem solid #047857",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px" 
+            }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             {/* Data da Colheita */}
-            <Col span={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{
                 backgroundColor: "#f0f9ff",
                 border: "1px solid #bfdbfe",
@@ -753,7 +722,7 @@ const VisualizarPedidoModal = ({
             </Col>
 
             {/* Pesagem */}
-            <Col span={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{
                 backgroundColor: "#f0fdf4",
                 border: "1px solid #bbf7d0",
@@ -775,7 +744,7 @@ const VisualizarPedidoModal = ({
             </Col>
 
             {/* Motorista */}
-            <Col span={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{
                 backgroundColor: "#fefbef",
                 border: "1px solid #fde68a",
@@ -806,7 +775,7 @@ const VisualizarPedidoModal = ({
             </Col>
 
             {/* Placas - Card combinado */}
-            <Col span={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{
                 backgroundColor: "#fdf2f8",
                 border: "1px solid #fbcfe8",
@@ -878,16 +847,27 @@ const VisualizarPedidoModal = ({
           title={
             <Space>
               <CreditCardOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Pagamentos e Precificação</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                Pagamentos e Precificação
+              </span>
             </Space>
           }
-          style={{ marginBottom: 16 }}
+          style={{ 
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem"
+          }}
           styles={{ 
             header: { 
               backgroundColor: "#059669", 
               color: "#ffffff", 
-              borderRadius: "8px 8px 0 0" 
-            } 
+              borderRadius: "0.5rem 0.5rem 0 0",
+              borderBottom: "0.125rem solid #047857",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px" 
+            }
           }}
         >
           {/* Subseção: Resumo Financeiro */}
@@ -898,8 +878,8 @@ const VisualizarPedidoModal = ({
                 Resumo Financeiro
               </Title>
               <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-              <Row gutter={[20, 16]} align="middle" style={{ marginBottom: "24px" }}>
-                <Col span={6}>
+              <Row gutter={[isMobile ? 8 : 20, isMobile ? 8 : 16]} align="middle" style={{ marginBottom: isMobile ? "16px" : "24px" }}>
+                <Col xs={24} sm={12} md={6}>
                   <div style={{ 
                     backgroundColor: "#f0f9ff", 
                     border: "2px solid #0ea5e9", 
@@ -920,7 +900,7 @@ const VisualizarPedidoModal = ({
                   </div>
                 </Col>
                 
-                <Col span={6}>
+                <Col xs={24} sm={12} md={6}>
                   <div style={{ 
                     backgroundColor: "#f0fdf4", 
                     border: "2px solid #22c55e", 
@@ -941,7 +921,7 @@ const VisualizarPedidoModal = ({
                   </div>
                 </Col>
                 
-                <Col span={6}>
+                <Col xs={24} sm={12} md={6}>
                   <div style={{ 
                     backgroundColor: ((pedido?.valorFinal || 0) - (pedido?.valorRecebido || 0)) > 0 ? "#fef2f2" : "#f0fdf4", 
                     border: ((pedido?.valorFinal || 0) - (pedido?.valorRecebido || 0)) > 0 ? "2px solid #ef4444" : "2px solid #22c55e", 
@@ -970,7 +950,7 @@ const VisualizarPedidoModal = ({
                   </div>
                 </Col>
                 
-                <Col span={6}>
+                <Col xs={24} sm={12} md={6}>
                   <div style={{ 
                     backgroundColor: (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 1) ? "#f0fdf4" : (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 0.5) ? "#fffbeb" : "#fef2f2", 
                     border: (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 1) ? "2px solid #22c55e" : (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 0.5) ? "2px solid #f59e0b" : "2px solid #ef4444", 
@@ -1014,31 +994,13 @@ const VisualizarPedidoModal = ({
                 Histórico de Pagamentos
               </Title>
               <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-              <Table
+              <ResponsiveTable
                 columns={pagamentosColumns}
                 dataSource={pedido.pagamentosPedidos}
                 rowKey="id"
                 pagination={false}
-                size="small"
-                style={{ border: "1px solid #e8e8e8", borderRadius: "8px" }}
-                components={{
-                  header: {
-                    cell: (props) => (
-                      <th
-                        {...props}
-                        style={{
-                          ...props.style,
-                          backgroundColor: '#059669',
-                          color: '#ffffff',
-                          fontWeight: 600,
-                          padding: '12px 16px',
-                          fontSize: '14px',
-                          borderBottom: 'none',
-                        }}
-                      />
-                    ),
-                  },
-                }}
+                minWidthMobile={900}
+                showScrollHint={true}
               />
             </>
           ) : (
@@ -1059,21 +1021,32 @@ const VisualizarPedidoModal = ({
           title={
             <Space>
               <BuildOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Complementares</span>
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                Dados Complementares
+              </span>
             </Space>
           }
-          style={{ marginBottom: 16 }}
+          style={{ 
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem"
+          }}
           styles={{ 
             header: { 
               backgroundColor: "#059669", 
               color: "#ffffff", 
-              borderRadius: "8px 8px 0 0" 
-            } 
+              borderRadius: "0.5rem 0.5rem 0 0",
+              borderBottom: "0.125rem solid #047857",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px" 
+            }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             {/* Data de Entrada */}
-            <Col span={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{
                 backgroundColor: "#f0f9ff",
                 border: "1px solid #bfdbfe",
@@ -1095,7 +1068,7 @@ const VisualizarPedidoModal = ({
             </Col>
 
             {/* Data de Descarga */}
-            <Col span={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{
                 backgroundColor: "#f0fdf4",
                 border: "1px solid #bbf7d0",
@@ -1117,7 +1090,7 @@ const VisualizarPedidoModal = ({
             </Col>
 
             {/* Peso Médio */}
-            <Col span={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{
                 backgroundColor: "#fefbef",
                 border: "1px solid #fde68a",
@@ -1139,7 +1112,7 @@ const VisualizarPedidoModal = ({
             </Col>
 
             {/* Média em Mililitros */}
-            <Col span={6}>
+            <Col xs={24} sm={12} md={6}>
               <div style={{
                 backgroundColor: "#fdf2f8",
                 border: "1px solid #fbcfe8",
@@ -1211,35 +1184,46 @@ const VisualizarPedidoModal = ({
         title={
           <Space>
             <FileTextOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Informações do Sistema</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+              Informações do Sistema
+            </span>
           </Space>
         }
+        style={{ 
+          border: "0.0625rem solid #e8e8e8",
+          borderRadius: "0.5rem"
+        }}
         styles={{ 
           header: { 
             backgroundColor: "#059669", 
             color: "#ffffff", 
-            borderRadius: "8px 8px 0 0" 
-          } 
+            borderRadius: "0.5rem 0.5rem 0 0",
+            borderBottom: "0.125rem solid #047857",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: { 
+            padding: isMobile ? "12px" : "16px" 
+          }
         }}
       >
-        <Row gutter={[16, 16]}>
-          <Col span={8}>
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+          <Col xs={24} sm={12} md={8}>
             <Text strong style={{ color: "#059669" }}>
               <CalendarOutlined style={{ marginRight: 4 }} />
               Criado em:
             </Text>
             <br />
-            <Text style={{ fontSize: "14px" }}>{formatarDataHora(pedido.createdAt)}</Text>
+            <Text style={{ fontSize: "0.875rem" }}>{formatarDataHora(pedido.createdAt)}</Text>
           </Col>
-          <Col span={8}>
+          <Col xs={24} sm={12} md={8}>
             <Text strong style={{ color: "#059669" }}>
               <CalendarOutlined style={{ marginRight: 4 }} />
               Última atualização:
             </Text>
             <br />
-            <Text style={{ fontSize: "14px" }}>{formatarDataHora(pedido.updatedAt)}</Text>
+            <Text style={{ fontSize: "0.875rem" }}>{formatarDataHora(pedido.updatedAt)}</Text>
           </Col>
-          <Col span={8}>
+          <Col xs={24} sm={24} md={8}>
             <Text strong style={{ color: "#059669" }}>
               <FileTextOutlined style={{ marginRight: 4 }} />
               ID do Pedido:

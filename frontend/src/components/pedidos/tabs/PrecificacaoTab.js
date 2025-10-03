@@ -1,7 +1,7 @@
 // src/components/pedidos/tabs/PrecificacaoTab.js
 
 import React, { useState, useEffect } from "react";
-import { Button, Space, Form, Input, Row, Col, Typography, Card, Divider, Tooltip, DatePicker, InputNumber } from "antd";
+import { Button, Space, Form, Input, Row, Col, Typography, Card, Divider, Tooltip, DatePicker, InputNumber, Alert } from "antd";
 import PropTypes from "prop-types";
 import {
   SaveOutlined,
@@ -296,6 +296,16 @@ const PrecificacaoTab = ({
         {pedidoAtual.frutas.map((fruta, index) => {
           return (
             <div key={index}>
+              {/* 🆕 ALERTA: Nova fruta adicionada durante edição */}
+              {!fruta.frutaPedidoId && (
+                <Alert
+                  message="Nova Fruta - Precificação Obrigatória"
+                  description="Esta fruta foi adicionada durante a edição. Complete os dados de precificação obrigatórios (valor unitário, unidade de precificação, quantidade precificada)."
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+              )}
               <Row gutter={[16, 16]} align="baseline">
                 {/* Nome da Fruta */}
                 <Col xs={24} md={7}>
