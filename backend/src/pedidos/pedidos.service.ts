@@ -2047,6 +2047,10 @@ export class PedidosService {
               select: { status: true }
             });
 
+            if (!pedidoAtual) {
+              throw new BadRequestException('Pedido não encontrado');
+            }
+
             const requereColheita = [
               'COLHEITA_REALIZADA',
               'AGUARDANDO_PRECIFICACAO',
@@ -2067,7 +2071,7 @@ export class PedidosService {
               requereColheita,
               requerePrecificacao,
               temQuantidadeReal: !!fruta.quantidadeReal,
-              temAreas: fruta.areas?.length > 0,
+              temAreas: fruta.areas?.length && fruta.areas.length > 0,
               temValorUnitario: !!fruta.valorUnitario
             });
 
@@ -2178,8 +2182,7 @@ export class PedidosService {
                     await this.controleBananaService.subtrairEstoquePorControle(
                       detalheArea.controleBananaId,
                       detalheArea.quantidade,
-                      usuarioId,
-                      prisma
+                      usuarioId
                     );
 
                     console.log(`✅ Fita ${detalheArea.fitaBananaId} vinculada (${detalheArea.quantidade} unidades)`);
