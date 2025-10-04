@@ -6,6 +6,7 @@ import {
   OrderedListOutlined,
   PartitionOutlined,
   PlusCircleOutlined,
+  AppleOutlined,
 } from "@ant-design/icons";
 import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
@@ -15,13 +16,17 @@ import { CentralizedLoader } from "components/common/loaders";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
 import { PrimaryButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
+import useResponsive from "../hooks/useResponsive";
 
 const FrutasTable = lazy(() => import("../components/frutas/FrutasTable"));
 const AddEditFrutaDialog = lazy(() =>
   import("../components/frutas/AddEditFrutaDialog")
 );
 
+const { Title } = Typography;
+
 const Frutas = () => {
+  const { isMobile, isTablet } = useResponsive();
   const [frutas, setFrutas] = useState([]);
   const [frutasFiltradas, setFrutasFiltradas] = useState([]);
   
@@ -306,54 +311,98 @@ const Frutas = () => {
   }, [frutas, searchQuery]);
 
   return (
-    <div style={{ padding: 16 }}>
-      <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
-        Frutas
-      </Typography.Title>
+    <Box
+      sx={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        p: 2
+      }}
+    >
+      {/* Header com título */}
+      <Box sx={{ mb: 0 }}>
+        <Title
+          level={isMobile ? 3 : 2}
+          style={{
+            margin: 0,
+            color: "#059669",
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap'
+          }}
+        >
+          <AppleOutlined style={{ marginRight: 8 }} />
+          Catálogo de Frutas
+        </Title>
+      </Box>
 
-      <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+      {/* Botão Adicionar Fruta */}
+      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
         <PrimaryButton
           onClick={handleOpenDialog}
           icon={<PlusCircleOutlined />}
         >
           Adicionar Fruta
         </PrimaryButton>
-      </div>
-      <div style={{ marginBottom: "24px" }}>
+      </Box>
+
+      {/* Busca */}
+      <Box sx={{ mb: 2 }}>
         <SearchInput
-          placeholder="Buscar frutas por nome, código ou categoria..."
+          placeholder={isMobile ? "Buscar..." : "Buscar frutas por nome, código ou categoria..."}
           value={searchQuery}
           onChange={(value) => setSearchQuery(value)}
-          style={{ marginTop: "8px" }}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            width: "100%",
+            fontSize: isMobile ? '0.875rem' : '1rem'
+          }}
         />
-      </div>
-      <Suspense fallback={<LoadingFallback />}>
-        <FrutasTable
-          frutas={frutasFiltradas}
-          loading={false}
-          onEdit={handleEditarFruta}
-          onDelete={handleExcluirFruta}
-          currentPage={currentPage}
-          pageSize={pageSize}
-          onPageChange={handlePageChange}
-          onShowSizeChange={handleShowSizeChange}
-        />
-      </Suspense>
-      {frutasFiltradas.length > 0 && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
-          <Pagination
-            current={currentPage}
+      </Box>
+
+      {/* Tabela de Frutas */}
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <Suspense fallback={<LoadingFallback />}>
+          <FrutasTable
+            frutas={frutasFiltradas}
+            loading={false}
+            onEdit={handleEditarFruta}
+            onDelete={handleExcluirFruta}
+            currentPage={currentPage}
             pageSize={pageSize}
-            total={frutasFiltradas.length}
-            onChange={handlePageChange}
+            onPageChange={handlePageChange}
             onShowSizeChange={handleShowSizeChange}
-            showSizeChanger
-            showTotal={(total, range) => `${range[0]}-${range[1]} de ${total} frutas`}
-            pageSizeOptions={["10", "20", "50", "100"]}
           />
-        </div>
-      )}
-      <Suspense fallback={<LoadingFallback />}>
+        </Suspense>
+
+        {/* Paginação */}
+        {frutasFiltradas.length > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0 }}>
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={frutasFiltradas.length}
+              onChange={handlePageChange}
+              onShowSizeChange={handleShowSizeChange}
+              showSizeChanger={!isMobile}
+              showQuickJumper={!isMobile}
+              showTotal={(total, range) =>
+                isMobile
+                  ? `${range[0]}-${range[1]}/${total}`
+                  : `${range[0]}-${range[1]} de ${total} frutas`
+              }
+              pageSizeOptions={['10', '20', '50', '100']}
+              size={isMobile ? "small" : "default"}
+            />
+          </Box>
+        )}
+      </Box>
+
+      {/* Modais */}
+      <Suspense fallback={<Spin size="large" />}>
         <AddEditFrutaDialog
           open={openDialog}
           onClose={handleCloseDialog}
@@ -366,14 +415,14 @@ const Frutas = () => {
           handleSalvarFruta={handleSalvarFruta}
         />
       </Suspense>
-      
+
       {/* CentralizedLoader */}
       <CentralizedLoader
         visible={centralizedLoading}
         message={loadingMessage}
         subMessage="Aguarde enquanto processamos sua solicitação..."
       />
-    </div>
+    </Box>
   );
 };
 

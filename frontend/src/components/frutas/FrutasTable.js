@@ -1,7 +1,7 @@
 // src/components/frutas/FrutasTable.js
 
 import React from "react";
-import { Table, Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
+import { Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -9,160 +9,10 @@ import {
   InfoCircleOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
-import styled from "styled-components";
 import { showNotification } from "../../config/notificationConfig";
+import ResponsiveTable from "../common/ResponsiveTable";
 
 const { Text } = Typography;
-
-// Styled components para tabela com tema personalizado
-const StyledTable = styled(Table)`
-  .ant-table-thead > tr > th {
-    background-color: #059669 !important;
-    color: #ffffff !important;
-    font-weight: 600;
-    border-bottom: 2px solid #047857;
-    padding: 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-tbody > tr:nth-child(even) {
-    background-color: #fafafa;
-  }
-
-  .ant-table-tbody > tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-
-  .ant-table-tbody > tr:hover {
-    background-color: #e6f7ff !important;
-    cursor: pointer;
-  }
-
-  .ant-table-tbody > tr.ant-table-row-selected {
-    background-color: #d1fae5 !important;
-  }
-
-  .ant-table-tbody > tr > td {
-    border-bottom: 1px solid #e0e0e0;
-    padding: 12px 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-container {
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .ant-table-cell-fix-left,
-  .ant-table-cell-fix-right {
-    background-color: inherit !important;
-  }
-
-  .ant-empty {
-    padding: 40px 20px;
-  }
-
-  .ant-empty-description {
-    color: #8c8c8c;
-    font-size: 14px;
-  }
-
-  /* CORREÇÃO ESPECÍFICA: Esconder linha de medida */
-  .ant-table-measure-row {
-    display: none !important;
-  }
-
-  /* LAYOUT COMPACTO E PROFISSIONAL DA PAGINAÇÃO */
-  .ant-pagination {
-    margin-top: 8px !important;
-    display: flex !important;
-    justify-content: flex-end !important;
-    align-items: center !important;
-    padding: 8px 0 !important;
-    border-top: 1px solid #f0f0f0 !important;
-    gap: 8px !important;
-  }
-
-  .ant-pagination-total-text {
-    color: #666 !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    margin: 0 !important;
-    margin-right: 16px !important;
-  }
-
-  /* Items de página - DESIGN LIMPO */
-  .ant-pagination-item {
-    min-width: 32px !important;
-    height: 32px !important;
-    line-height: 30px !important;
-    border-radius: 6px !important;
-    border: 1px solid #d9d9d9 !important;
-    background-color: #ffffff !important;
-    color: #333333 !important;
-    font-weight: 500 !important;
-    transition: all 0.2s ease !important;
-  }
-
-  .ant-pagination-prev .ant-pagination-item-link,
-  .ant-pagination-next .ant-pagination-item-link {
-    height: 32px !important;
-    line-height: 30px !important;
-    border-radius: 6px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  .ant-pagination-prev.ant-pagination-disabled .ant-pagination-item-link,
-  .ant-pagination-next.ant-pagination-disabled .ant-pagination-item-link {
-    color: #bfbfbf !important;
-    border-color: #f0f0f0 !important;
-    background: #f5f5f5 !important;
-    cursor: not-allowed !important;
-  }
-
-  /* Select de tamanho da página */
-  .ant-pagination-options {
-    margin-left: 16px !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
-  }
-
-  .ant-pagination-options-size-changer .ant-select-selector {
-    height: 32px !important;
-    border-radius: 6px !important;
-    border: 1px solid #d9d9d9 !important;
-  }
-
-  .ant-pagination-options-size-changer .ant-select-selection-item {
-    line-height: 30px !important;
-  }
-
-  /* Input de jump */
-  .ant-pagination-options-quick-jumper {
-    margin-left: 16px !important;
-  }
-
-  .ant-pagination-options-quick-jumper input {
-    border-radius: 6px !important;
-    border: 1px solid #d9d9d9 !important;
-    background-color: #ffffff !important;
-    width: 50px !important;
-    text-align: center !important;
-  }
-
-  .ant-pagination-options-quick-jumper input:hover {
-    border-color: #059669 !important;
-  }
-
-  .ant-pagination-options-quick-jumper input:focus {
-    border-color: #059669 !important;
-    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.1) !important;
-  }
-`;
 
 function capitalizeName(name) {
   return name
@@ -338,44 +188,38 @@ const FrutasTable = ({
         </Space>
       ),
       width: 80,
-      fixed: "right",
     },
   ];
 
-  const assignRowClassName = (record, index) => {
-    return index % 2 === 0 ? "even-row" : "odd-row";
-  };
-
-  const paginationConfig = {
-    // Removido: vamos usar paginação externa nas páginas
-  };
+  // Paginação interna dos dados exibidos
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedData = frutas.slice(startIndex, endIndex);
 
   return (
-    <div>
-      <StyledTable
-        columns={columns}
-        dataSource={frutas}
-        rowKey="id"
-        loading={loading}
-        pagination={false}
-        rowClassName={assignRowClassName}
-        scroll={{ x: 800 }}
-        size="middle"
-        bordered={true}
-        locale={{
-          emptyText: (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <span style={{ color: "#8c8c8c" }}>
-                  Nenhuma fruta encontrada
-                </span>
-              }
-            />
-          ),
-        }}
-      />
-    </div>
+    <ResponsiveTable
+      columns={columns}
+      dataSource={paginatedData}
+      rowKey="id"
+      loading={loading}
+      pagination={false}
+      minWidthMobile={1000}
+      showScrollHint={true}
+      size="middle"
+      bordered={true}
+      locale={{
+        emptyText: (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <span style={{ color: "#8c8c8c" }}>
+                Nenhuma fruta encontrada
+              </span>
+            }
+          />
+        ),
+      }}
+    />
   );
 };
 

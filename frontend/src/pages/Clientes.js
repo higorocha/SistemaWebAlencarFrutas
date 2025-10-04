@@ -1,11 +1,12 @@
 // src/pages/Clientes.js
 
 import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
-import { Typography, Button, Space, Modal } from "antd";
+import { Typography, Button, Space, Modal, Spin } from "antd";
 import {
   OrderedListOutlined,
   PartitionOutlined,
   PlusCircleOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
@@ -15,6 +16,7 @@ import { CentralizedLoader } from "components/common/loaders";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
 import { PrimaryButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
+import useResponsive from "../hooks/useResponsive";
 
 const ClientesTable = lazy(() => import("../components/clientes/ClientesTable"));
 const AddEditClienteDialog = lazy(() =>
@@ -24,10 +26,13 @@ const PedidosClienteModal = lazy(() =>
   import("../components/clientes/PedidosClienteModal")
 );
 
+const { Title } = Typography;
+
 const Clientes = () => {
+  const { isMobile, isTablet } = useResponsive();
   const [clientes, setClientes] = useState([]);
   const [clientesFiltrados, setClientesFiltrados] = useState([]);
-  
+
   // Estados para paginação controlada
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -35,11 +40,11 @@ const Clientes = () => {
   // Estados da aplicação
   const [loading, setLoading] = useState(false);
   const [totalClientes, setTotalClientes] = useState(0);
-  
+
   // Estado para loading centralizado
   const [centralizedLoading, setCentralizedLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Carregando...");
-  
+
   // Estados para busca
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState(""); // Novo estado para filtro de status
@@ -48,12 +53,10 @@ const Clientes = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
   const [dadosTemporarios, setDadosTemporarios] = useState(null); // Para manter dados em caso de erro
-  
+
   // Estados do modal de pedidos
   const [pedidosModalOpen, setPedidosModalOpen] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
-
-  const { Title } = Typography;
 
   // Função para buscar clientes da API com parâmetros
   const fetchClientes = useCallback(async (page = 1, limit = 20, search = "", status = "") => {
@@ -240,92 +243,123 @@ const Clientes = () => {
   }, [fetchClientes, currentPage, pageSize, searchTerm, statusFilter]);
 
   return (
-         <div style={{ padding: 16 }}>
-      {/* Título */}
-      <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
-        Gestão de Clientes
-      </Typography.Title>
+    <Box
+      sx={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        p: 2
+      }}
+    >
+      {/* Header com título */}
+      <Box sx={{ mb: 0 }}>
+        <Title
+          level={isMobile ? 3 : 2}
+          style={{
+            margin: 0,
+            color: "#059669",
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap'
+          }}
+        >
+          <UserOutlined style={{ marginRight: 8 }} />
+          Gestão de Clientes
+        </Title>
+      </Box>
 
-      {/* Botão */}
-      <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+      {/* Botão Novo Cliente */}
+      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
         <PrimaryButton
           onClick={handleOpenCreateModal}
           icon={<PlusCircleOutlined />}
         >
           Novo Cliente
         </PrimaryButton>
-      </div>
+      </Box>
 
-      {/* Campo de Busca */}
-      <div style={{ marginBottom: "24px" }}>
-                 <SearchInput
-           placeholder="Buscar clientes por nome ou CPF/CNPJ..."
-           value={searchTerm}
-           onChange={(value) => setSearchTerm(value)}
-           style={{ marginTop: "8px" }}
-         />
-      </div>
+      {/* Busca */}
+      <Box sx={{ mb: 2 }}>
+        <SearchInput
+          placeholder={isMobile ? "Buscar..." : "Buscar clientes por nome ou CPF/CNPJ..."}
+          value={searchTerm}
+          onChange={(value) => setSearchTerm(value)}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            width: "100%",
+            fontSize: isMobile ? '0.875rem' : '1rem'
+          }}
+        />
+      </Box>
 
-             {/* Tabela */}
-         <Suspense fallback={<LoadingFallback />}>
-           <ClientesTable
-             clientes={clientesFiltrados}
-             loading={false}
-             onEdit={handleOpenEditModal}
-             onDelete={handleDeleteCliente}
-             onViewPedidos={handleOpenPedidosModal}
-             onStatusFilter={handleStatusFilter}
-             currentStatusFilter={statusFilter}
-           />
-         </Suspense>
+      {/* Tabela de Clientes */}
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <Suspense fallback={<LoadingFallback />}>
+          <ClientesTable
+            clientes={clientesFiltrados}
+            loading={false}
+            onEdit={handleOpenEditModal}
+            onDelete={handleDeleteCliente}
+            onViewPedidos={handleOpenPedidosModal}
+            onStatusFilter={handleStatusFilter}
+            currentStatusFilter={statusFilter}
+          />
+        </Suspense>
 
-       {/* Paginação */}
-       {totalClientes > 0 && (
-         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
-           <Pagination
-             current={currentPage}
-             pageSize={pageSize}
-             total={totalClientes}
-             onChange={handlePageChange}
-             onShowSizeChange={handlePageChange}
-             showSizeChanger
-             showTotal={(total, range) =>
-               `${range[0]}-${range[1]} de ${total} clientes`
-             }
-             pageSizeOptions={['10', '20', '50', '100']}
-           />
-         </div>
-       )}
+        {/* Paginação */}
+        {totalClientes > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0 }}>
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={totalClientes}
+              onChange={handlePageChange}
+              onShowSizeChange={handlePageChange}
+              showSizeChanger={!isMobile}
+              showQuickJumper={!isMobile}
+              showTotal={(total, range) =>
+                isMobile
+                  ? `${range[0]}-${range[1]}/${total}`
+                  : `${range[0]}-${range[1]} de ${total} clientes`
+              }
+              pageSizeOptions={['10', '20', '50', '100']}
+              size={isMobile ? "small" : "default"}
+            />
+          </Box>
+        )}
+      </Box>
 
-             {/* Modal de Criação/Edição */}
-         <Suspense fallback={<LoadingFallback />}>
-           <AddEditClienteDialog
-             open={modalOpen}
-             onClose={handleCloseModal}
-             onSave={handleSaveCliente}
-             cliente={clienteEditando}
-             loading={false}
-           />
-         </Suspense>
+      {/* Modais */}
+      <Suspense fallback={<Spin size="large" />}>
+        <AddEditClienteDialog
+          open={modalOpen}
+          onClose={handleCloseModal}
+          onSave={handleSaveCliente}
+          cliente={clienteEditando}
+          loading={false}
+        />
+      </Suspense>
 
-       {/* Modal de Pedidos do Cliente */}
-         <Suspense fallback={<LoadingFallback />}>
-           <PedidosClienteModal
-             open={pedidosModalOpen}
-             onClose={handleClosePedidosModal}
-             cliente={clienteSelecionado}
-             loading={false}
-           />
-         </Suspense>
+      <Suspense fallback={<Spin size="large" />}>
+        <PedidosClienteModal
+          open={pedidosModalOpen}
+          onClose={handleClosePedidosModal}
+          cliente={clienteSelecionado}
+          loading={false}
+        />
+      </Suspense>
 
-       {/* Loading Centralizado */}
-       <CentralizedLoader
-         visible={centralizedLoading}
-         message={loadingMessage}
-         subMessage="Aguarde enquanto processamos sua solicitação..."
-       />
-     </div>
-   );
- };
+      {/* CentralizedLoader */}
+      <CentralizedLoader
+        visible={centralizedLoading}
+        message={loadingMessage}
+        subMessage="Aguarde enquanto processamos sua solicitação..."
+      />
+    </Box>
+  );
+};
 
 export default Clientes;
