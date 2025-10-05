@@ -1,8 +1,8 @@
-import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsInt, IsNotEmpty } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 // Definindo os tipos dos enums
-type CategoriaFruta = 'CITRICOS' | 'TROPICAIS' | 'TEMPERADAS' | 'SECAS' | 'EXOTICAS' | 'VERMELHAS' | 'VERDES';
 type StatusFruta = 'ATIVA' | 'INATIVA';
 
 export class CreateFrutaDto {
@@ -12,6 +12,7 @@ export class CreateFrutaDto {
     maxLength: 100,
   })
   @IsString()
+  @IsNotEmpty()
   nome: string;
 
   @ApiPropertyOptional({
@@ -22,14 +23,15 @@ export class CreateFrutaDto {
   @IsString()
   codigo?: string;
 
-  @ApiPropertyOptional({
-    description: 'Categoria da fruta',
-    enum: ['CITRICOS', 'TROPICAIS', 'TEMPERADAS', 'SECAS', 'EXOTICAS', 'VERMELHAS', 'VERDES'],
-    example: 'TEMPERADAS',
+  @ApiProperty({
+    description: 'ID da cultura associada à fruta',
+    example: 1,
+    type: 'integer',
   })
-  @IsOptional()
-  @IsEnum(['CITRICOS', 'TROPICAIS', 'TEMPERADAS', 'SECAS', 'EXOTICAS', 'VERMELHAS', 'VERDES'])
-  categoria?: CategoriaFruta;
+  @IsInt()
+  @IsNotEmpty()
+  @Type(() => Number)
+  culturaId: number;
 
   @ApiPropertyOptional({
     description: 'Descrição da fruta',

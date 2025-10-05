@@ -22,11 +22,20 @@ export class FrutasService {
         }
       }
 
+      // Valida se a cultura existe
+      const cultura = await this.prisma.cultura.findUnique({
+        where: { id: createFrutaDto.culturaId },
+      });
+
+      if (!cultura) {
+        throw new NotFoundException(`Cultura com ID ${createFrutaDto.culturaId} não encontrada`);
+      }
+
       const fruta = await this.prisma.fruta.create({
         data: {
           nome: createFrutaDto.nome,
           codigo: createFrutaDto.codigo,
-          categoria: createFrutaDto.categoria,
+          culturaId: createFrutaDto.culturaId,
           descricao: createFrutaDto.descricao,
           status: createFrutaDto.status,
           nomeCientifico: createFrutaDto.nomeCientifico,
@@ -34,11 +43,14 @@ export class FrutasService {
           epocaColheita: createFrutaDto.epocaColheita,
           observacoes: createFrutaDto.observacoes,
         },
+        include: {
+          cultura: true, // Incluir cultura na resposta
+        },
       });
 
       return this.mapToResponseDto(fruta);
     } catch (error) {
-      if (error instanceof ConflictException) {
+      if (error instanceof ConflictException || error instanceof NotFoundException) {
         throw error;
       }
       throw new Error('Erro ao criar fruta');
@@ -52,7 +64,7 @@ export class FrutasService {
     page: number = 1,
     limit: number = 10,
     search?: string,
-    categoria?: string,
+    culturaId?: number,
     status?: string,
   ): Promise<{ data: FrutaResponseDto[]; total: number; page: number; limit: number }> {
     const skip = (page - 1) * limit;
@@ -68,8 +80,8 @@ export class FrutasService {
       ];
     }
 
-    if (categoria) {
-      where.categoria = categoria;
+    if (culturaId) {
+      where.culturaId = culturaId;
     }
 
     if (status) {
@@ -82,6 +94,9 @@ export class FrutasService {
         skip,
         take: limit,
         orderBy: { nome: 'asc' },
+        include: {
+          cultura: true, // Incluir cultura na resposta
+        },
       }),
       this.prisma.fruta.count({ where }),
     ]);
@@ -100,6 +115,9 @@ export class FrutasService {
   async findOne(id: number): Promise<FrutaResponseDto> {
     const fruta = await this.prisma.fruta.findUnique({
       where: { id },
+      include: {
+        cultura: true, // Incluir cultura na resposta
+      },
     });
 
     if (!fruta) {
@@ -133,18 +151,32 @@ export class FrutasService {
       }
     }
 
+    // Valida se a cultura existe (se fornecida)
+    if (updateFrutaDto.culturaId) {
+      const cultura = await this.prisma.cultura.findUnique({
+        where: { id: updateFrutaDto.culturaId },
+      });
+
+      if (!cultura) {
+        throw new NotFoundException(`Cultura com ID ${updateFrutaDto.culturaId} não encontrada`);
+      }
+    }
+
     const fruta = await this.prisma.fruta.update({
       where: { id },
       data: {
         nome: updateFrutaDto.nome,
         codigo: updateFrutaDto.codigo,
-        categoria: updateFrutaDto.categoria,
+        culturaId: updateFrutaDto.culturaId,
         descricao: updateFrutaDto.descricao,
         status: updateFrutaDto.status,
         nomeCientifico: updateFrutaDto.nomeCientifico,
         corPredominante: updateFrutaDto.corPredominante,
         epocaColheita: updateFrutaDto.epocaColheita,
         observacoes: updateFrutaDto.observacoes,
+      },
+      include: {
+        cultura: true, // Incluir cultura na resposta
       },
     });
 
@@ -175,6 +207,9 @@ export class FrutasService {
     const frutas = await this.prisma.fruta.findMany({
       where: { status: 'ATIVA' },
       orderBy: { nome: 'asc' },
+      include: {
+        cultura: true, // Incluir cultura na resposta
+      },
     });
 
     return frutas.map(fruta => this.mapToResponseDto(fruta));
@@ -188,7 +223,11 @@ export class FrutasService {
       id: fruta.id,
       nome: fruta.nome,
       codigo: fruta.codigo,
-      categoria: fruta.categoria,
+      culturaId: fruta.culturaId,
+      cultura: fruta.cultura ? {
+        id: fruta.cultura.id,
+        descricao: fruta.cultura.descricao,
+      } : undefined,
       descricao: fruta.descricao,
       status: fruta.status,
       nomeCientifico: fruta.nomeCientifico,

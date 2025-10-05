@@ -44,7 +44,12 @@ export class PedidosService {
               select: {
                 id: true,
                 nome: true,
-                categoria: true
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                }
               }
             },
             areas: {
@@ -172,7 +177,12 @@ export class PedidosService {
                 select: {
                   id: true,
                   nome: true,
-                  categoria: true
+                  cultura: {
+                    select: {
+                      id: true,
+                      descricao: true
+                    }
+                  }
                 }
               }
             }
@@ -3326,7 +3336,12 @@ export class PedidosService {
             id: true,
             nome: true,
             codigo: true,
-            categoria: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
             _count: {
               select: { frutasPedidos: true }
             }
@@ -3342,11 +3357,11 @@ export class PedidosService {
             value: fruta.nome,
             icon: '🍎',
             color: '#f5222d',
-            description: `${fruta.nome}${fruta.categoria ? ` (${fruta.categoria})` : ''} - ${fruta._count.frutasPedidos} pedidos`,
+            description: `${fruta.nome}${fruta.cultura ? ` (${fruta.cultura.descricao})` : ''} - ${fruta._count.frutasPedidos} pedidos`,
             metadata: {
               id: fruta.id,
               codigo: fruta.codigo,
-              categoria: fruta.categoria,
+              culturaDescricao: fruta.cultura?.descricao,
               totalPedidos: fruta._count.frutasPedidos
             }
           });

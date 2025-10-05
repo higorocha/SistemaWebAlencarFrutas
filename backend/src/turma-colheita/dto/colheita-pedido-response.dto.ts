@@ -111,6 +111,9 @@ export class TurmaColheitaPedidoCustoResponseDto {
   })
   fruta?: {
     nome: string;
-    categoria: string | null;
+    cultura?: {
+      id: number;
+      descricao: string;
+    };
   };
 }

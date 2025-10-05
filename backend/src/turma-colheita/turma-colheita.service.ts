@@ -36,7 +36,12 @@ export class TurmaColheitaService {
             fruta: {
               select: {
                 nome: true,
-                categoria: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                },
               },
             },
           },
@@ -65,7 +70,12 @@ export class TurmaColheitaService {
             fruta: {
               select: {
                 nome: true,
-                categoria: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                },
               },
             },
           },
@@ -113,7 +123,12 @@ export class TurmaColheitaService {
             fruta: {
               select: {
                 nome: true,
-                categoria: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                },
               },
             },
           },
@@ -161,7 +176,12 @@ export class TurmaColheitaService {
             fruta: {
               select: {
                 nome: true,
-                categoria: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                },
               },
             },
           },
@@ -261,7 +281,12 @@ export class TurmaColheitaService {
         fruta: {
           select: {
             nome: true,
-            categoria: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
           },
         },
       },
@@ -290,7 +315,12 @@ export class TurmaColheitaService {
         fruta: {
           select: {
             nome: true,
-            categoria: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
           },
         },
       },
@@ -323,7 +353,12 @@ export class TurmaColheitaService {
         fruta: {
           select: {
             nome: true,
-            categoria: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
           },
         },
       },
@@ -371,7 +406,12 @@ export class TurmaColheitaService {
         fruta: {
           select: {
             nome: true,
-            categoria: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
           },
         },
       },
@@ -427,7 +467,12 @@ export class TurmaColheitaService {
         fruta: {
           select: {
             nome: true,
-            categoria: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
           },
         },
       },
@@ -468,7 +513,12 @@ export class TurmaColheitaService {
         fruta: {
           select: {
             nome: true,
-            categoria: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
           },
         },
       },
@@ -518,7 +568,12 @@ export class TurmaColheitaService {
             fruta: {
               select: {
                 nome: true,
-                categoria: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                },
               },
             },
           },
@@ -569,7 +624,12 @@ export class TurmaColheitaService {
             fruta: {
               select: {
                 nome: true,
-                categoria: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                },
               },
             },
           },
@@ -593,7 +653,12 @@ export class TurmaColheitaService {
         fruta: {
           select: {
             nome: true,
-            categoria: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
           },
         },
         pedido: {

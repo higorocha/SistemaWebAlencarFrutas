@@ -42,7 +42,7 @@ export class FrutasController {
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número da página' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Itens por página' })
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Termo de busca' })
-  @ApiQuery({ name: 'categoria', required: false, type: String, description: 'Filtrar por categoria' })
+  @ApiQuery({ name: 'culturaId', required: false, type: Number, description: 'Filtrar por ID da cultura' })
   @ApiQuery({ name: 'status', required: false, type: String, description: 'Filtrar por status' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -64,10 +64,10 @@ export class FrutasController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
-    @Query('categoria') categoria?: string,
+    @Query('culturaId') culturaId?: number,
     @Query('status') status?: string,
   ) {
-    return this.frutasService.findAll(page, limit, search, categoria, status);
+    return this.frutasService.findAll(page, limit, search, culturaId, status);
   }
 
   @Get('ativas')

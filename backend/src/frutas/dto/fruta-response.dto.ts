@@ -1,8 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // Definindo os tipos dos enums
-type CategoriaFruta = 'CITRICOS' | 'TROPICAIS' | 'TEMPERADAS' | 'SECAS' | 'EXOTICAS' | 'VERMELHAS' | 'VERDES';
 type StatusFruta = 'ATIVA' | 'INATIVA';
+
+// DTO para cultura aninhada
+class CulturaNestedDto {
+  @ApiProperty({
+    description: 'ID da cultura',
+    example: 1,
+  })
+  id: number;
+
+  @ApiProperty({
+    description: 'Descrição da cultura',
+    example: 'Frutíferas Temperadas',
+  })
+  descricao: string;
+}
 
 export class FrutaResponseDto {
   @ApiProperty({
@@ -23,11 +37,17 @@ export class FrutaResponseDto {
   })
   codigo?: string;
 
-  @ApiPropertyOptional({
-    description: 'Categoria da fruta',
-    example: 'TEMPERADAS',
+  @ApiProperty({
+    description: 'ID da cultura associada',
+    example: 1,
   })
-  categoria?: CategoriaFruta;
+  culturaId: number;
+
+  @ApiPropertyOptional({
+    description: 'Cultura associada à fruta',
+    type: CulturaNestedDto,
+  })
+  cultura?: CulturaNestedDto;
 
   @ApiPropertyOptional({
     description: 'Descrição da fruta',

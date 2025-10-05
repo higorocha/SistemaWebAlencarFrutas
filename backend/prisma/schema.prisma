@@ -215,8 +215,9 @@ model Cultura {
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
-  // Relação com LotesCulturas
+  // Relações
   lotesCulturas     LotesCulturas[]
+  frutas            Fruta[]              // Relação 1:N com Frutas
 
   @@map("culturas")
 }
@@ -258,16 +259,6 @@ model LotesCulturas {
 }
 
 // Enums para o módulo de frutas
-enum CategoriaFruta {
-  CITRICOS
-  TROPICAIS
-  TEMPERADAS
-  SECAS
-  EXOTICAS
-  VERMELHAS
-  VERDES
-}
-
 enum StatusFruta {
   ATIVA
   INATIVA
@@ -280,7 +271,7 @@ model Fruta {
   
   // Campos opcionais (nullable)
   codigo                String?          @unique
-  categoria             CategoriaFruta?
+  culturaId             Int              @map("cultura_id") // FK para Cultura (OBRIGATÓRIO)
   descricao             String?          @db.Text
   status                StatusFruta?     @default(ATIVA)
   nomeCientifico        String?          @map("nome_cientifico")
@@ -293,6 +284,7 @@ model Fruta {
   updatedAt             DateTime         @updatedAt @map("updated_at")
   
   // Relações
+  cultura               Cultura          @relation(fields: [culturaId], references: [id]) // Relação com Cultura
   frutasPedidos         FrutasPedidos[]  // Nova relação 1:N
   custosColheita        TurmaColheitaPedidoCusto[] // Custos de colheita por fruta
 

@@ -73,7 +73,10 @@ export class TurmaColheitaResponseDto {
     };
     fruta?: {
       nome: string;
-      categoria: string | null;
+      cultura?: {
+        id: number;
+        descricao: string;
+      };
     };
   }>;
 }
