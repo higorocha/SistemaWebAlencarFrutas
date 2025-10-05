@@ -20,6 +20,7 @@ import Configuracoes from "./pages/Configuracoes";
 import AreasAgricolas from "./pages/AreasAgricolas";
 import Frutas from "./pages/Frutas";
 import Clientes from "./pages/Clientes";
+import Culturas from "./pages/Culturas";
 import Pedidos from "./pages/Pedidos";
 import PedidosDashboard from "./pages/PedidosDashboard";
 import Fornecedores from "./pages/FornecedoresPage";
@@ -74,6 +75,7 @@ const App = () => {
                         <Route path="/areas-agricolas" element={<AreasAgricolas />} />
                         <Route path="/frutas" element={<Frutas />} />
                         <Route path="/clientes" element={<Clientes />} />
+                        <Route path="/culturas" element={<Culturas />} />
                         <Route path="/pedidos" element={<Pedidos />} />
                         <Route path="/pedidos/dashboard" element={<PedidosDashboard />} />
                         <Route path="/fornecedores" element={<Fornecedores />} />

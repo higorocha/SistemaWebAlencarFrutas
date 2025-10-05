@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Row, Col, Spin, message, Button } from 'antd';
+import { Card, Typography, Row, Col, Spin, message, Button, Tooltip } from 'antd';
 import { PlusOutlined, SettingOutlined, SwapOutlined } from '@ant-design/icons';
 import axiosInstance from '../../api/axiosConfig';
 import { showNotification } from '../../config/notificationConfig';
@@ -11,12 +11,16 @@ import MapaBanana from '../../components/producao/MapaBanana';
 import DetalhamentoModal from '../../components/producao/DetalhamentoModal';
 import StatusCardsBanana from '../../components/producao/StatusCardsBanana';
 import CalendarioColheitaBanana from '../../components/producao/CalendarioColheitaBanana';
+import useResponsive from '../../hooks/useResponsive';
 import './ControleBanana.css';
 import '../../components/pedidos/dashboard/DashboardStyles.css';
 
 const { Title } = Typography;
 
 const ControleBanana = () => {
+  // Hook de responsividade
+  const { isMobile } = useResponsive();
+
   const [loading, setLoading] = useState(true);
   const [centralizedLoading, setCentralizedLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Carregando...");
@@ -26,7 +30,7 @@ const ControleBanana = () => {
   const [registrarModalVisible, setRegistrarModalVisible] = useState(false);
   const [gerenciarModalVisible, setGerenciarModalVisible] = useState(false);
   const [modoExibicao, setModoExibicao] = useState('fitas'); // 'fitas' ou 'areas'
-  
+
   // Estados para o modal de detalhamento
   const [modalDetalhamento, setModalDetalhamento] = useState({
     visible: false,
@@ -38,6 +42,7 @@ const ControleBanana = () => {
   useEffect(() => {
     carregarDados();
   }, []);
+
 
   const carregarDados = async (showCentralizedLoading = true) => {
     try {
@@ -74,7 +79,12 @@ const ControleBanana = () => {
         });
       });
       
-      setListagemFitas(Array.from(fitasMap.values()));
+      // ✅ FILTRAR fitas com quantidade > 0 para ocultar lotes vazios
+      const fitasComQuantidade = Array.from(fitasMap.values()).filter(fita => 
+        fita.quantidadeFitas > 0
+      );
+      
+      setListagemFitas(fitasComQuantidade);
       
       // Processar áreas com fitas para o modo áreas
       const areasComFitas = dashboardResponse.data.areasComFitas
@@ -155,30 +165,53 @@ const ControleBanana = () => {
     <div className="controle-banana-container">
       {/* Header com título e botões */}
       <Card className="header-card" size="small">
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Title level={2} style={{ margin: 0, color: '#059669' }}>
-              🍌 Controle de Produção - Banana
-            </Title>
-          </Col>
-          <Col>
-            <PrimaryButton
-              icon={<PlusOutlined />}
-              onClick={handleRegistrarFita}
-              style={{ marginRight: 8 }}
-            >
-              Marcar Fita
-            </PrimaryButton>
-            <PrimaryButton
-              icon={<SettingOutlined />}
-              onClick={handleGerenciarFitas}
+        <Row
+          justify="space-between"
+          align="middle"
+          gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}
+        >
+          <Col xs={24} sm={12} md={14}>
+            <Title
+              level={2}
               style={{
-                backgroundColor: '#1890ff',
-                borderColor: '#1890ff'
+                margin: 0,
+                color: '#059669',
+                fontSize: isMobile ? '1.25rem' : '1.5rem' // 20px vs 24px
               }}
             >
-              Gerenciar Fitas
-            </PrimaryButton>
+              {isMobile ? '🍌 Controle de Produção' : '🍌 Controle de Produção - Banana'}
+            </Title>
+          </Col>
+          <Col xs={24} sm={12} md={10}>
+            <div style={{
+              display: 'flex',
+              gap: isMobile ? '8px' : '12px',
+              justifyContent: isMobile ? 'flex-start' : 'flex-end',
+              flexWrap: 'wrap'
+            }}>
+              <PrimaryButton
+                icon={<PlusOutlined />}
+                onClick={handleRegistrarFita}
+                size={isMobile ? 'small' : 'middle'}
+                style={{
+                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                }}
+              >
+                {isMobile ? 'Marcar' : 'Marcar Fita'}
+              </PrimaryButton>
+              <PrimaryButton
+                icon={<SettingOutlined />}
+                onClick={handleGerenciarFitas}
+                size={isMobile ? 'small' : 'middle'}
+                style={{
+                  backgroundColor: '#1890ff',
+                  borderColor: '#1890ff',
+                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                }}
+              >
+                {isMobile ? 'Gerenciar' : 'Gerenciar Fitas'}
+              </PrimaryButton>
+            </div>
           </Col>
         </Row>
       </Card>
@@ -189,24 +222,26 @@ const ControleBanana = () => {
       )}
 
       {/* Área principal dividida */}
-      <Row gutter={16} className="main-content">
-        {/* Coluna do Mapa (70%) */}
-        <Col span={17}>
+      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} className="main-content">
+        {/* Coluna do Mapa (70% desktop, 100% mobile) */}
+        <Col xs={24} lg={17}>
           <MapaBanana dashboardData={dashboardData} />
         </Col>
 
-        {/* Coluna da Listagem (30%) */}
-        <Col span={7}>
-          <Card 
+        {/* Coluna da Listagem (30% desktop, 100% mobile) */}
+        <Col xs={24} lg={7}>
+          <Card
             title={
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 width: '100%',
-                paddingRight: '8px' // Adicionar padding para dar espaço ao botão
+                paddingRight: isMobile ? '4px' : '8px'
               }}>
-                <span>
+                <span style={{
+                  fontSize: isMobile ? '0.875rem' : '1rem'
+                }}>
                   {modoExibicao === 'fitas' ? 'Fitas Cadastradas' : 'Áreas com Fitas'}
                 </span>
                 <Button
@@ -214,16 +249,17 @@ const ControleBanana = () => {
                   icon={<SwapOutlined />}
                   onClick={toggleModoExibicao}
                   className="toggle-button"
+                  size={isMobile ? 'small' : 'middle'}
                   style={{
                     color: '#059669',
-                    border: '1px solid #059669',
-                    borderRadius: '6px',
-                    padding: '4px 8px',
+                    border: '0.0625rem solid #059669',
+                    borderRadius: '0.375rem',
+                    padding: isMobile ? '2px 6px' : '4px 8px',
                     height: 'auto',
-                    fontSize: '12px',
+                    fontSize: isMobile ? '0.6875rem' : '0.75rem',
                     fontWeight: '500',
-                    marginLeft: '12px', // Adicionar margem à esquerda
-                    flexShrink: 0 // Evitar que o botão encolha
+                    marginLeft: isMobile ? '8px' : '12px',
+                    flexShrink: 0
                   }}
                   title={`Alternar para ${modoExibicao === 'fitas' ? 'Áreas' : 'Fitas'}`}
                 >
@@ -232,36 +268,41 @@ const ControleBanana = () => {
               </div>
             }
             className="listagem-card"
-            style={{ height: '600px' }}
+            style={{ height: isMobile ? '400px' : '600px' }}
           >
             <div className="listagem-container">
               {modoExibicao === 'fitas' ? (
                 // Modo Fitas
                 listagemFitas.length === 0 ? (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    padding: '40px 0',
+                  <div style={{
+                    textAlign: 'center',
+                    padding: isMobile ? '24px 0' : '40px 0',
                     color: '#666'
                   }}>
-                    <div style={{ fontSize: '32px', marginBottom: '16px' }}>📝</div>
-                    <div>Nenhuma fita cadastrada</div>
+                    <div style={{
+                      fontSize: isMobile ? '1.5rem' : '2rem',
+                      marginBottom: isMobile ? '8px' : '16px'
+                    }}>📝</div>
+                    <div style={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                      Nenhuma fita cadastrada
+                    </div>
                   </div>
                 ) : (
                   <div className="fitas-lista">
                     {listagemFitas.map((fita) => (
-                      <div 
-                        key={fita.id} 
+                      <div
+                        key={fita.id}
                         className="fita-item"
-                        style={{ 
+                        style={{
                           cursor: 'pointer',
                           transition: 'all 0.2s ease',
-                          borderRadius: '8px',
-                          padding: '8px'
+                          borderRadius: '0.5rem',
+                          padding: isMobile ? '6px' : '8px'
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = '#f5f5f5';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                          e.currentTarget.style.transform = 'translateY(-0.0625rem)';
+                          e.currentTarget.style.boxShadow = '0 0.125rem 0.5rem rgba(0,0,0,0.1)';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = 'transparent';
@@ -271,27 +312,40 @@ const ControleBanana = () => {
                         onClick={() => abrirModalDetalhamento('fita', fita.id, fita.nome)}
                       >
                         <div className="fita-info">
-                          <div 
+                          <div
                             className="fita-cor"
-                            style={{ backgroundColor: fita.corHex }}
+                            style={{
+                              backgroundColor: fita.corHex,
+                              width: isMobile ? '20px' : '24px',
+                              height: isMobile ? '20px' : '24px'
+                            }}
                           />
                           <div className="fita-detalhes">
-                            <div className="fita-nome">{fita.nome}</div>
-                            <div className="fita-stats">
+                            <div className="fita-nome" style={{
+                              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+                            }}>
+                              {fita.nome}
+                            </div>
+                            <div className="fita-stats" style={{
+                              fontSize: isMobile ? '0.6875rem' : '0.75rem'
+                            }}>
                               {fita.quantidadeFitas || 0} fitas totais
                             </div>
                             {fita.tempoDesdeData && (
-                              <div className="fita-tempo" style={{ 
-                                fontSize: '12px', 
-                                color: '#059669', 
-                                marginTop: '2px',
-                                fontWeight: '500'
-                              }}>
-                                {fita.tempoDesdeData.semanas > 0 
-                                  ? `${fita.tempoDesdeData.semanas} semana${fita.tempoDesdeData.semanas !== 1 ? 's' : ''}`
-                                  : `${fita.tempoDesdeData.dias} dia${fita.tempoDesdeData.dias !== 1 ? 's' : ''}`
-                                }
-                              </div>
+                              <Tooltip title={fita.tempoDesdeData.explicacao} placement="top">
+                                <div className="fita-tempo" style={{
+                                  fontSize: isMobile ? '0.6875rem' : '0.75rem',
+                                  color: '#059669',
+                                  marginTop: '2px',
+                                  fontWeight: '500',
+                                  cursor: 'help'
+                                }}>
+                                  {fita.tempoDesdeData.semanas > 0
+                                    ? `${fita.tempoDesdeData.semanas} semana${fita.tempoDesdeData.semanas !== 1 ? 's' : ''}`
+                                    : `${fita.tempoDesdeData.dias} dia${fita.tempoDesdeData.dias !== 1 ? 's' : ''}`
+                                  }
+                                </div>
+                              </Tooltip>
                             )}
                           </div>
                         </div>
@@ -302,30 +356,35 @@ const ControleBanana = () => {
               ) : (
                 // Modo Áreas
                 listagemAreas.length === 0 ? (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    padding: '40px 0',
+                  <div style={{
+                    textAlign: 'center',
+                    padding: isMobile ? '24px 0' : '40px 0',
                     color: '#666'
                   }}>
-                    <div style={{ fontSize: '32px', marginBottom: '16px' }}>🗺️</div>
-                    <div>Nenhuma área com fitas</div>
+                    <div style={{
+                      fontSize: isMobile ? '1.5rem' : '2rem',
+                      marginBottom: isMobile ? '8px' : '16px'
+                    }}>🗺️</div>
+                    <div style={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                      Nenhuma área com fitas
+                    </div>
                   </div>
                 ) : (
                   <div className="fitas-lista">
                     {listagemAreas.map((area) => (
-                      <div 
-                        key={area.id} 
+                      <div
+                        key={area.id}
                         className="fita-item"
-                        style={{ 
+                        style={{
                           cursor: 'pointer',
                           transition: 'all 0.2s ease',
-                          borderRadius: '8px',
-                          padding: '8px'
+                          borderRadius: '0.5rem',
+                          padding: isMobile ? '6px' : '8px'
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = '#f5f5f5';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                          e.currentTarget.style.transform = 'translateY(-0.0625rem)';
+                          e.currentTarget.style.boxShadow = '0 0.125rem 0.5rem rgba(0,0,0,0.1)';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = 'transparent';
@@ -335,34 +394,42 @@ const ControleBanana = () => {
                         onClick={() => abrirModalDetalhamento('area', area.id, area.nome)}
                       >
                         <div className="fita-info">
-                          <div 
+                          <div
                             className="fita-cor"
-                            style={{ 
+                            style={{
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontSize: '14px',
+                              fontSize: '0.875rem',
                               color: 'white',
-                              fontWeight: 'bold'
+                              fontWeight: 'bold',
+                              width: isMobile ? '20px' : '24px',
+                              height: isMobile ? '20px' : '24px'
                             }}
                           >
-                            <img 
-                              src="/icons/icon_maps.png" 
-                              alt="Área" 
-                              style={{ 
-                                width: '20px', 
-                                height: '20px'
+                            <img
+                              src="/icons/icon_maps.png"
+                              alt="Área"
+                              style={{
+                                width: isMobile ? '16px' : '20px',
+                                height: isMobile ? '16px' : '20px'
                               }}
                             />
                           </div>
                           <div className="fita-detalhes">
-                            <div className="fita-nome">{area.nome}</div>
-                            <div className="fita-stats">
+                            <div className="fita-nome" style={{
+                              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+                            }}>
+                              {area.nome}
+                            </div>
+                            <div className="fita-stats" style={{
+                              fontSize: isMobile ? '0.6875rem' : '0.75rem'
+                            }}>
                               {area.totalFitas || 0} fitas totais
                             </div>
-                            <div style={{ 
-                              fontSize: '12px', 
-                              color: '#666', 
+                            <div style={{
+                              fontSize: isMobile ? '0.6875rem' : '0.75rem',
+                              color: '#666',
                               marginTop: '2px'
                             }}>
                               {area.areaTotal} ha • {area.totalRegistros} registros
@@ -380,7 +447,7 @@ const ControleBanana = () => {
       </Row>
 
       {/* Calendário de Colheita */}
-      <CalendarioColheitaBanana />
+      <CalendarioColheitaBanana dashboardData={dashboardData} />
 
       {/* Modais */}
       <RegistrarFitaModal

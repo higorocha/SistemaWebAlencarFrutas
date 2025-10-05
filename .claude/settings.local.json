@@ -12,7 +12,10 @@
       "Bash(echo:*)",
       "Bash(git checkout:*)",
       "WebSearch",
-      "WebFetch(domain:www.receitaws.com.br)"
+      "WebFetch(domain:www.receitaws.com.br)",
+      "WebFetch(domain:ant.design)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:stackoverflow.com)"
     ],
     "deny": [],
     "ask": []

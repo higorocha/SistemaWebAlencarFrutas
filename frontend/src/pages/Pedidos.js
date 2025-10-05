@@ -13,6 +13,8 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from "@ant-design/icons";
+// Importar ícones do Iconify
+import { Icon } from "@iconify/react";
 import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
@@ -447,7 +449,14 @@ const Pedidos = () => {
               flexWrap: 'wrap'
             }}
           >
-            <ShoppingCartOutlined style={{ marginRight: 8 }} />
+            <Icon 
+              icon="mdi:cart" 
+              style={{ 
+                marginRight: 8, 
+                fontSize: isMobile ? '26px' : '31px',
+                color: "#2E7D32"
+              }} 
+            />
             Sistema de Pedidos
           </Title>
           <Text

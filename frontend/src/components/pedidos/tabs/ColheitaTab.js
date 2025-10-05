@@ -1,6 +1,6 @@
 // src/components/pedidos/tabs/ColheitaTab.js
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag, Tooltip, Modal, Alert } from "antd";
 import PropTypes from "prop-types";
 import {
@@ -20,7 +20,7 @@ import {
   DeleteOutlined,
   CheckCircleOutlined
 } from "@ant-design/icons";
-import { MonetaryInput } from "../../../components/common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../../../components/common/inputs";
 import { FormButton } from "../../common/buttons";
 import axiosInstance from "../../../api/axiosConfig";
 import { showNotification } from "../../../config/notificationConfig";
@@ -57,12 +57,9 @@ const ColheitaTab = ({
 
   // Estados para mão de obra
   const [turmasColheita, setTurmasColheita] = useState([]);
-  
+
   // ✅ NOVOS ESTADOS: Para validação global de fitas
   const [fitasComAreasDisponiveis, setFitasComAreasDisponiveis] = useState([]);
-  
-  // Ref para controlar o valor original da data de colheita
-  const dataColheitaOriginalRef = useRef(null);
 
   // Garantir que todas as frutas tenham arrays de áreas e fitas inicializados, e inicializar mão de obra
   useEffect(() => {
@@ -104,14 +101,6 @@ const ColheitaTab = ({
       setPedidoAtual(updatedPedido);
     }
   }, [pedidoAtual?.frutas, pedidoAtual?.maoObra, setPedidoAtual]);
-
-
-  // Inicializar data de colheita original
-  useEffect(() => {
-    if (pedidoAtual.dataColheita) {
-      dataColheitaOriginalRef.current = moment(pedidoAtual.dataColheita);
-    }
-  }, [pedidoAtual.dataColheita]);
 
   // Carregar fitas de banana, turmas de colheita e dados para validação global
   useEffect(() => {
@@ -177,31 +166,19 @@ const ColheitaTab = ({
     });
   };
 
-  // Função para gerenciar o foco do campo de data
-  const handleDataColheitaFocus = () => {
-    // Limpa o campo quando recebe foco
-    setPedidoAtual(prev => ({
-      ...prev,
-      dataColheita: null
-    }));
-  };
-
-  // Função para gerenciar a perda de foco do campo de data
-  const handleDataColheitaBlur = () => {
-    const valorAtual = pedidoAtual.dataColheita;
-    
-    // Se não há valor selecionado, restaura o valor original
-    if (!valorAtual && dataColheitaOriginalRef.current) {
-      setPedidoAtual(prev => ({
-        ...prev,
-        dataColheita: dataColheitaOriginalRef.current.toDate()
-      }));
-    }
-  };
-
   // Funções para abrir modais de vinculação
   const handleVincularAreas = (fruta, frutaIndex) => {
-    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+    // ✅ PROCESSAR fruta para incluir dados completos (igual ao ColheitaModal.js)
+    const frutaProcessada = {
+      ...fruta,
+      index: frutaIndex,
+      // ✅ ADICIONAR: Nome da fruta para VincularAreasModal
+      frutaNome: frutas.find(f => f.id === fruta.frutaId)?.nome || '',
+      // ✅ ADICIONAR: Objeto fruta completo (com cultura) para filtragem por cultura
+      fruta: frutas.find(f => f.id === fruta.frutaId) || null
+    };
+    
+    setFrutaSelecionada(frutaProcessada);
     setVincularAreasModalOpen(true);
   };
 
@@ -499,21 +476,19 @@ const ColheitaTab = ({
               help={erros.dataColheita}
               required
             >
-              <DatePicker
-                style={{ 
+              <MaskedDatePicker
+                style={{
                   width: "100%",
                   borderRadius: "6px",
                   borderColor: "#d9d9d9",
                 }}
-                format="DD/MM/YYYY"
                 placeholder="Selecione a data"
                 disabledDate={(current) => current && current > moment().endOf('day')}
-                value={pedidoAtual.dataColheita ? moment(pedidoAtual.dataColheita) : undefined}
+                value={pedidoAtual.dataColheita ? moment(pedidoAtual.dataColheita) : null}
                 onChange={(date) => {
-                  handleChange("dataColheita", date ? date.format('YYYY-MM-DD') : null);
+                  handleChange("dataColheita", date ? date.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null);
                 }}
-                onFocus={handleDataColheitaFocus}
-                onBlur={handleDataColheitaBlur}
+                showToday
                 disabled={!canEditTab("2")}
               />
             </Form.Item>

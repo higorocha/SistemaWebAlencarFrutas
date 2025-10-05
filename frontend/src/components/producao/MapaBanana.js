@@ -8,6 +8,7 @@ import { useTheme } from '@mui/material/styles';
 import axiosInstance from '../../api/axiosConfig';
 import { showNotification } from '../../config/notificationConfig';
 import DetalhamentoModal from './DetalhamentoModal';
+import useResponsive from '../../hooks/useResponsive';
 
 const { Text, Title } = Typography;
 
@@ -20,8 +21,8 @@ const StaticNameOverlay = styled.div`
   background: rgba(220, 38, 38, 0.9);
   color: white;
   padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 0.375rem; /* 6px → rem */
+  font-size: 0.875rem; /* 14px → rem */
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
@@ -29,19 +30,19 @@ const StaticNameOverlay = styled.div`
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(220, 38, 38, 0.8);
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.3); /* 2px 4px → rem */
+  border: 0.0625rem solid rgba(220, 38, 38, 0.8); /* 1px → rem */
   z-index: 5;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.03125rem; /* 0.5px → rem */
 `;
 
 // Estilo para overlay com informações detalhadas
 const OverlayBox = styled.div`
   background: ${props => props.theme?.palette?.background?.paper || 'white'};
   padding: 8px;
-  border: 1px solid ${props => props.theme?.palette?.ui?.border || '#ccc'};
-  border-radius: 4px;
-  box-shadow: 0 2px 6px ${props => props.theme?.palette?.ui?.shadow || 'rgba(0, 0, 0, 0.3)'};
+  border: 0.0625rem solid ${props => props.theme?.palette?.ui?.border || '#ccc'}; /* 1px → rem */
+  border-radius: 0.25rem; /* 4px → rem */
+  box-shadow: 0 0.125rem 0.375rem ${props => props.theme?.palette?.ui?.shadow || 'rgba(0, 0, 0, 0.3)'}; /* 2px 6px → rem */
   min-width: 200px;
   text-align: center;
   z-index: 10;
@@ -50,8 +51,11 @@ const OverlayBox = styled.div`
 
 const MapaBanana = ({ dashboardData }) => {
   const theme = useTheme();
+  // Hook de responsividade
+  const { isMobile } = useResponsive();
+
   const [areasComFitas, setAreasComFitas] = useState([]);
-  
+
   // Estados para o modal de detalhamento
   const [modalDetalhamento, setModalDetalhamento] = useState({
     visible: false,
@@ -62,8 +66,8 @@ const MapaBanana = ({ dashboardData }) => {
   
   // Coordenadas padrão iguais ao AreasAgricolas (Ceará, Brasil)
   const defaultCenter = { lat: -3.052397, lng: -40.083981 };
-  const defaultZoom = 14;
-  
+  const defaultZoom = isMobile ? 12 : 14;  // ✅ Zoom menor no mobile (mais afastado)
+
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [mapZoom, setMapZoom] = useState(defaultZoom);
   const [currentZoom, setCurrentZoom] = useState(defaultZoom);
@@ -85,6 +89,16 @@ const MapaBanana = ({ dashboardData }) => {
       carregarAreasComFitas();
     }
   }, [isLoaded]);
+
+  // ✅ Atualizar zoom quando mudar entre mobile/desktop
+  useEffect(() => {
+    const newZoom = isMobile ? 12 : 14;
+    setMapZoom(newZoom);
+    setCurrentZoom(newZoom);
+    if (mapRef.current) {
+      mapRef.current.setZoom(newZoom);
+    }
+  }, [isMobile]);
 
   const carregarAreasComFitas = async () => {
     try {
@@ -112,12 +126,13 @@ const MapaBanana = ({ dashboardData }) => {
               const ne = bounds.getNorthEast();
               const sw = bounds.getSouthWest();
               const distance = window.google.maps.geometry.spherical.computeDistanceBetween(ne, sw);
-              
-              let zoom = 15;
-              if (distance > 50000) zoom = 10;
-              else if (distance > 20000) zoom = 12;
-              else if (distance > 10000) zoom = 14;
-              
+
+              // ✅ Zoom ajustado para mobile (2 níveis a menos) e desktop
+              let zoom = isMobile ? 13 : 15;
+              if (distance > 50000) zoom = isMobile ? 8 : 10;
+              else if (distance > 20000) zoom = isMobile ? 10 : 12;
+              else if (distance > 10000) zoom = isMobile ? 12 : 14;
+
               setMapZoom(zoom);
               setCurrentZoom(zoom);
             }
@@ -206,16 +221,18 @@ const MapaBanana = ({ dashboardData }) => {
 
   if (loadError) {
     return (
-      <Card 
-        title="🗺️ Mapa das Áreas" 
+      <Card
+        title="🗺️ Mapa das Áreas"
         className="mapa-card"
-        style={{ height: '600px' }}
+        style={{ height: isMobile ? '400px' : '600px' }}
         styles={{ body: { display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
       >
         <div style={{ textAlign: 'center', color: '#ff4d4f' }}>
-          <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚠️</div>
-          <div>Erro ao carregar Google Maps</div>
-          <div style={{ fontSize: '12px', marginTop: '4px' }}>
+          <div style={{ fontSize: isMobile ? '1.25rem' : '1.5rem', marginBottom: '8px' }}>⚠️</div>
+          <div style={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+            Erro ao carregar Google Maps
+          </div>
+          <div style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', marginTop: '4px' }}>
             Verifique se a chave da API está configurada corretamente no arquivo .env como REACT_APP_GOOGLE_MAPS_API_KEY.
           </div>
         </div>
@@ -225,14 +242,14 @@ const MapaBanana = ({ dashboardData }) => {
 
   if (!isLoaded) {
     return (
-      <Card 
-        title="🗺️ Mapa das Áreas" 
+      <Card
+        title="🗺️ Mapa das Áreas"
         className="mapa-card"
-        style={{ height: '600px', display: 'flex', flexDirection: 'column' }}
+        style={{ height: isMobile ? '400px' : '600px', display: 'flex', flexDirection: 'column' }}
         styles={{ body: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
       >
-        <Spin size="large" />
-        <div style={{ marginTop: '16px', color: '#666' }}>
+        <Spin size={isMobile ? 'default' : 'large'} />
+        <div style={{ marginTop: '16px', color: '#666', fontSize: isMobile ? '0.875rem' : '1rem' }}>
           Carregando mapa...
         </div>
       </Card>
@@ -241,18 +258,20 @@ const MapaBanana = ({ dashboardData }) => {
 
   if (areasComFitas.length === 0) {
     return (
-      <Card 
-        title="🗺️ Mapa das Áreas" 
+      <Card
+        title="🗺️ Mapa das Áreas"
         className="mapa-card"
-        style={{ height: '600px' }}
+        style={{ height: isMobile ? '400px' : '600px' }}
         styles={{ body: { display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
       >
         <Empty
-          image={<EnvironmentOutlined style={{ fontSize: '48px', color: '#d9d9d9' }} />}
+          image={<EnvironmentOutlined style={{ fontSize: isMobile ? '2.5rem' : '3rem', color: '#d9d9d9' }} />}
           description={
             <div style={{ textAlign: 'center' }}>
-              <div>Nenhuma área com fitas cadastradas</div>
-              <div style={{ color: '#666', marginTop: '8px', fontSize: '12px' }}>
+              <div style={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                Nenhuma área com fitas cadastradas
+              </div>
+              <div style={{ color: '#666', marginTop: '8px', fontSize: isMobile ? '0.6875rem' : '0.75rem' }}>
                 Registre fitas em áreas para visualizá-las no mapa
               </div>
             </div>
@@ -263,37 +282,40 @@ const MapaBanana = ({ dashboardData }) => {
   }
 
   return (
-    <Card 
-      title="🗺️ Mapa das Áreas" 
+    <Card
+      title="🗺️ Mapa das Áreas"
       className="mapa-card"
-      style={{ height: '600px' }}
-      styles={{ body: { padding: 0 } }}
+      style={{ height: isMobile ? '400px' : '600px', display: 'flex', flexDirection: 'column' }}
+      styles={{ body: { padding: 0, flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 } }}
     >
-      <div style={{ position: 'relative', height: '100%' }}>
-        <GoogleMap
-          mapContainerStyle={{ height: '100%', width: '100%' }}
-          center={mapCenter}
-          zoom={mapZoom}
-          onLoad={onLoad}
-          onZoomChanged={onZoomChanged}
-          onDragEnd={onDragEnd}
-          options={{
-            disableDefaultUI: false,
-            mapTypeControl: true,
-            gestureHandling: "greedy",
-            mapTypeControlOptions: {
-              style: window.google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
-              position: window.google.maps.ControlPosition.TOP_RIGHT,
-              mapTypeIds: [
-                window.google.maps.MapTypeId.ROADMAP,
-                window.google.maps.MapTypeId.SATELLITE,
-                window.google.maps.MapTypeId.HYBRID,
-                window.google.maps.MapTypeId.TERRAIN,
-              ],
-            },
-            clickableIcons: false,
-          }}
-        >
+      <GoogleMap
+        mapContainerStyle={{
+          height: isMobile ? '350px' : '100%',  // ✅ Altura fixa no mobile
+          width: '100%',
+          minHeight: isMobile ? '350px' : 'auto'
+        }}
+        center={mapCenter}
+        zoom={mapZoom}
+        onLoad={onLoad}
+        onZoomChanged={onZoomChanged}
+        onDragEnd={onDragEnd}
+        options={{
+          disableDefaultUI: false,
+          mapTypeControl: true,
+          gestureHandling: "greedy",
+          mapTypeControlOptions: {
+            style: window.google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+            position: window.google.maps.ControlPosition.TOP_RIGHT,
+            mapTypeIds: [
+              window.google.maps.MapTypeId.ROADMAP,
+              window.google.maps.MapTypeId.SATELLITE,
+              window.google.maps.MapTypeId.HYBRID,
+              window.google.maps.MapTypeId.TERRAIN,
+            ],
+          },
+          clickableIcons: false,
+        }}
+      >
           {/* Renderizar áreas com fitas */}
           {areasComFitas.map((area) => {
             if (!area.coordenadas || !Array.isArray(area.coordenadas) || area.coordenadas.length < 3) {
@@ -405,20 +427,22 @@ const MapaBanana = ({ dashboardData }) => {
         </GoogleMap>
         
         {/* Controles de zoom personalizados */}
-        <div style={{ 
-          position: "absolute", 
-          bottom: "10px", 
-          right: "10px", 
-          backgroundColor: theme?.palette?.background?.paper || "white", 
-          padding: "5px", 
-          borderRadius: "4px",
-          boxShadow: theme?.palette?.ui?.shadow || "0 2px 6px rgba(0,0,0,0.3)",
-          border: `1px solid ${theme?.palette?.ui?.border || "#e0e0e0"}`
+        <div style={{
+          position: "absolute",
+          bottom: "10px",  // ✅ Mesma linha da legenda
+          right: isMobile ? "20px" : "10px",
+          backgroundColor: theme?.palette?.background?.paper || "white",
+          padding: isMobile ? "6px" : "5px",
+          borderRadius: "0.25rem",
+          boxShadow: theme?.palette?.ui?.shadow || "0 0.125rem 0.375rem rgba(0,0,0,0.3)",
+          border: `0.0625rem solid ${theme?.palette?.ui?.border || "#e0e0e0"}`,
+          zIndex: 100
         }}>
-          <Space direction="vertical">
-            <Button 
-              icon={<ZoomInOutlined />}
+          <Space direction="vertical" size={isMobile ? 2 : 0}>
+            <Button
+              icon={<ZoomInOutlined style={{ fontSize: isMobile ? '1rem' : '0.875rem' }} />}
               type="text"
+              size="small"
               onClick={() => {
                 const newZoom = Math.min(currentZoom + 1, 20);
                 setCurrentZoom(newZoom);
@@ -427,10 +451,19 @@ const MapaBanana = ({ dashboardData }) => {
                   mapRef.current.setZoom(newZoom);
                 }
               }}
+              style={{
+                width: isMobile ? '32px' : '28px',
+                height: isMobile ? '32px' : '28px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
             />
-            <Button 
-              icon={<ZoomOutOutlined />}
+            <Button
+              icon={<ZoomOutOutlined style={{ fontSize: isMobile ? '1rem' : '0.875rem' }} />}
               type="text"
+              size="small"
               onClick={() => {
                 const newZoom = Math.max(currentZoom - 1, 1);
                 setCurrentZoom(newZoom);
@@ -439,37 +472,60 @@ const MapaBanana = ({ dashboardData }) => {
                   mapRef.current.setZoom(newZoom);
                 }
               }}
+              style={{
+                width: isMobile ? '32px' : '28px',
+                height: isMobile ? '32px' : '28px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
             />
           </Space>
         </div>
-        
+
         {/* Legenda do mapa */}
-        <div style={{ 
-          position: "absolute", 
-          bottom: "10px", 
-          left: "10px", 
-          backgroundColor: theme?.palette?.background?.paper || "white", 
-          padding: "8px", 
-          borderRadius: "4px",
-          boxShadow: theme?.palette?.ui?.shadow || "0 2px 6px rgba(0,0,0,0.3)",
-          fontSize: "12px",
-          border: `1px solid ${theme?.palette?.ui?.border || "#e0e0e0"}`
+        <div style={{
+          position: "absolute",
+          bottom: "10px",
+          left: "10px",
+          backgroundColor: theme?.palette?.background?.paper || "white",
+          padding: isMobile ? "6px 8px" : "8px",
+          borderRadius: "0.25rem",
+          boxShadow: theme?.palette?.ui?.shadow || "0 0.125rem 0.375rem rgba(0,0,0,0.3)",
+          fontSize: isMobile ? "0.6875rem" : "0.75rem",
+          border: `0.0625rem solid ${theme?.palette?.ui?.border || "#e0e0e0"}`,
+          zIndex: 100,
+          maxWidth: isMobile ? "calc(100% - 80px)" : "auto"  // ✅ Ajustado para não sobrepor zoom
         }}>
-          <div style={{ marginBottom: "4px" }}>
-            <span style={{ 
-              display: "inline-block", 
-              width: "12px", 
-              height: "12px", 
+          <div style={{
+            marginBottom: "2px",
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <span style={{
+              display: "inline-block",
+              width: isMobile ? "8px" : "12px",
+              height: isMobile ? "8px" : "12px",
               backgroundColor: "#059669",
-              marginRight: "5px" 
+              flexShrink: 0
             }}></span>
-            Áreas com fitas de banana
+            <span style={{
+              fontSize: isMobile ? "0.625rem" : "0.75rem",
+              whiteSpace: isMobile ? "nowrap" : "normal",
+              overflow: isMobile ? "hidden" : "visible",
+              textOverflow: isMobile ? "ellipsis" : "clip"
+            }}>
+              {isMobile ? 'Áreas c/ fitas' : 'Áreas com fitas de banana'}
+            </span>
           </div>
-          <div style={{ fontSize: "11px", color: "#666" }}>
-            Total: {areasComFitas.length} área{areasComFitas.length !== 1 ? 's' : ''}
-          </div>
+          {!isMobile && (
+            <div style={{ fontSize: "0.6875rem", color: "#666" }}>
+              Total: {areasComFitas.length} área{areasComFitas.length !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
-      </div>
 
       {/* Modal de Detalhamento */}
       <DetalhamentoModal

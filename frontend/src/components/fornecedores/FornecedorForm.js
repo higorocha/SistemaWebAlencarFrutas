@@ -46,6 +46,13 @@ const FornecedorForm = ({
 }) => {
   const [areas, setAreas] = useState([]);
   const [loadingAreas, setLoadingAreas] = useState(false);
+  const [culturas, setCulturas] = useState([]);
+  const [loadingCulturas, setLoadingCulturas] = useState(false);
+
+  // Carregar culturas quando o componente montar
+  useEffect(() => {
+    fetchCulturas();
+  }, []);
 
   // Carregar áreas do fornecedor quando estiver editando
   useEffect(() => {
@@ -53,6 +60,30 @@ const FornecedorForm = ({
       fetchAreasFornecedor(fornecedorAtual.id);
     }
   }, [editando, fornecedorAtual.id]);
+
+  // Buscar culturas ativas
+  const fetchCulturas = async () => {
+    try {
+      setLoadingCulturas(true);
+      const response = await axiosInstance.get("/api/culturas");
+      
+      // Extrair array de culturas (pode vir em data.data ou diretamente em data)
+      let todasCulturas = [];
+      if (Array.isArray(response.data)) {
+        todasCulturas = response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        todasCulturas = response.data.data;
+      }
+      
+      // Não filtra por status pois o modelo Cultura não possui esse campo
+      setCulturas(todasCulturas);
+    } catch (error) {
+      console.error("Erro ao carregar culturas:", error);
+      showNotification("error", "Erro", "Erro ao carregar culturas");
+    } finally {
+      setLoadingCulturas(false);
+    }
+  };
 
   // Buscar áreas do fornecedor
   const fetchAreasFornecedor = async (fornecedorId) => {
@@ -99,6 +130,7 @@ const FornecedorForm = ({
     const novaArea = {
       id: `temp-${Date.now()}`, // ID temporário para controle local
       nome: "",
+      culturaId: null,
       isNew: true,
     };
     setAreas(prev => [...prev, novaArea]);
@@ -137,6 +169,13 @@ const FornecedorForm = ({
     ));
   };
 
+  // Atualizar cultura da área
+  const atualizarCulturaArea = (index, culturaId) => {
+    setAreas(prev => prev.map((area, i) => 
+      i === index ? { ...area, culturaId } : area
+    ));
+  };
+
   // Salvar áreas (será chamado pelo modal principal)
   const salvarAreas = async () => {
     console.log('Função salvarAreas chamada');
@@ -158,6 +197,7 @@ const FornecedorForm = ({
           const response = await axiosInstance.post("/api/areas-fornecedores", {
             fornecedorId: fornecedorAtual.id,
             nome: area.nome.trim(),
+            culturaId: area.culturaId || null,
           });
           console.log('Área salva com sucesso:', response.data);
         }
@@ -400,10 +440,16 @@ const FornecedorForm = ({
             <>
               {/* Cabeçalho das colunas */}
               <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-                <Col xs={24} md={20}>
+                <Col xs={24} md={12}>
                   <Text strong style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                     <TagOutlined style={{ marginRight: 8 }} />
                     Nome da Área
+                  </Text>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Text strong style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                    <TagOutlined style={{ marginRight: 8 }} />
+                    Cultura
                   </Text>
                 </Col>
                 <Col xs={24} md={4}>
@@ -415,7 +461,7 @@ const FornecedorForm = ({
               {areas.map((area, index) => (
                 <div key={area.id}>
                   <Row gutter={[16, 16]} align="middle">
-                    <Col xs={24} md={20}>
+                    <Col xs={24} md={12}>
                       <Input
                         placeholder="Nome da área"
                         value={area.nome}
@@ -425,6 +471,26 @@ const FornecedorForm = ({
                           borderColor: "#d9d9d9",
                         }}
                       />
+                    </Col>
+
+                    <Col xs={24} md={8}>
+                      <Select
+                        placeholder="Selecione a cultura"
+                        value={area.culturaId}
+                        onChange={(value) => atualizarCulturaArea(index, value)}
+                        style={{
+                          width: "100%",
+                          borderRadius: "6px",
+                        }}
+                        allowClear
+                        loading={loadingCulturas}
+                      >
+                        {culturas.map((cultura) => (
+                          <Option key={cultura.id} value={cultura.id}>
+                            {cultura.descricao}
+                          </Option>
+                        ))}
+                      </Select>
                     </Col>
 
                     <Col xs={24} md={4}>
@@ -532,7 +598,7 @@ const FornecedorForm = ({
                     type="primary"
                     onClick={salvarAreas}
                     loading={loadingAreas}
-                    disabled={loadingAreas || areas.every(area => !area.nome.trim())}
+                    disabled={loadingAreas || areas.every(area => !area.nome.trim() || !area.culturaId)}
                     icon={loadingAreas ? undefined : <SaveOutlined />}
                     style={{
                       backgroundColor: loadingAreas ? "#10b981" : "#059669",

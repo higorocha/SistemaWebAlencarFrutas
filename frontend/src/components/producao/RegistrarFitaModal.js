@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal, Form, Input, Select, InputNumber, DatePicker, Button, Row, Col, Card, Space } from 'antd';
+import { Modal, Form, Input, Select, InputNumber, Button, Row, Col, Card, Space } from 'antd';
 import axiosInstance from '../../api/axiosConfig';
-import dayjs from 'dayjs';
+import moment from 'moment';
 import { showNotification } from '../../config/notificationConfig';
 import { CentralizedLoader } from '../common/loaders';
+import { MaskedDatePicker } from '../common/inputs';
 import { SaveOutlined, CloseOutlined, TagOutlined, CalendarOutlined, UserOutlined, EnvironmentOutlined, NumberOutlined, FileTextOutlined } from '@ant-design/icons';
 import './RegistrarFitaModal.css';
 
@@ -30,7 +31,12 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
         axiosInstance.get('/fitas-banana')
       ]);
       
-      setAreas(areasResponse.data);
+      // ✅ FILTRAR áreas que possuem cultura de banana (ID 1)
+      const areasComBanana = areasResponse.data.filter(area => {
+        return area.culturas && area.culturas.some(cultura => cultura.culturaId === 1);
+      });
+      
+      setAreas(areasComBanana);
       setFitas(fitasResponse.data);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -48,7 +54,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
         fitaBananaId: values.fitaBananaId,
         areaAgricolaId: values.areaAgricolaId,
         quantidadeFitas: values.quantidadeFitas,
-        dataRegistro: values.dataRegistro?.format('YYYY-MM-DD'),
+        dataRegistro: values.dataRegistro ? values.dataRegistro.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null,
         observacoes: values.observacoes || null
       };
 
@@ -57,7 +63,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
       // Limpar apenas os campos do formulário, mantendo o modal aberto
       form.resetFields();
       form.setFieldsValue({
-        dataRegistro: dayjs(),
+        dataRegistro: moment(),
         quantidadeFitas: 1
       });
 
@@ -133,7 +139,7 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
         layout="vertical"
         onFinish={handleSubmit}
         initialValues={{
-          dataRegistro: dayjs(),
+          dataRegistro: moment(),
           quantidadeFitas: 1
         }}
       >
@@ -276,9 +282,8 @@ const RegistrarFitaModal = ({ visible, onCancel, onSuccess }) => {
                 }
                 rules={[{ required: true, message: 'Data é obrigatória' }]}
               >
-                <DatePicker 
+                <MaskedDatePicker 
                   style={{ width: '100%' }}
-                  format="DD/MM/YYYY"
                 />
               </Form.Item>
             </Col>

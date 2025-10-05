@@ -7,6 +7,8 @@ import {
   useProSidebar,
 } from "react-pro-sidebar";
 import { Switch, Divider } from "antd";
+// Importar ícones do Iconify para agricultura
+import { Icon } from "@iconify/react";
 import {
   Dashboard,
   People,
@@ -91,23 +93,52 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
   // ------------------------------------------------------------------
   // (4) Itens do menu
   // ------------------------------------------------------------------
-  const menuItems = [{ text: "Dashboard", icon: <Dashboard />, path: "/" }];
+  const menuItems = [{ text: "Dashboard", icon: <Icon icon="mdi:monitor-dashboard" style={{ fontSize: '28px' }} />, path: "/" }];
 
   const pedidosItems = [
-    { text: "Dashboard", icon: <BarChart />, path: "/pedidos/dashboard" },
-    { text: "Pedidos", icon: <ShoppingCartOutlined />, path: "/pedidos" },
+    { text: "Dashboard", icon: <Icon icon="mdi:monitor-dashboard" style={{ fontSize: '20px' }} />, path: "/pedidos/dashboard" },
+    { text: "Pedidos", icon: <Icon icon="mdi:cart" style={{ fontSize: '20px' }} />, path: "/pedidos" },
   ];
 
   const cadastroItems = [
-    { text: "Clientes", icon: <People />, path: "/clientes" },
-    { text: "Frutas", icon: <Apple />, path: "/frutas" },
-    { text: "Áreas Agrícolas", icon: <EnvironmentOutlined />, path: "/areas-agricolas" },
-    { text: "Fornecedores", icon: <Store />, path: "/fornecedores" },
-    { text: "Turma de Colheita", icon: <GroupsIcon />, path: "/turma-colheita" },
+    { 
+      text: "Clientes", 
+      icon: <Icon icon="mdi:account-group" style={{ fontSize: '20px' }} />, 
+      path: "/clientes" 
+    },
+    { 
+      text: "Culturas", 
+      icon: <Icon icon="mdi:seedling" style={{ fontSize: '20px' }} />, 
+      path: "/culturas" 
+    },
+    { 
+      text: "Frutas", 
+      icon: <Icon icon="healthicons:fruits" style={{ fontSize: '20px' }} />, 
+      path: "/frutas" 
+    },
+    { 
+      text: "Áreas Agrícolas", 
+      icon: <Icon icon="mdi:map-marker" style={{ fontSize: '20px' }} />, 
+      path: "/areas-agricolas" 
+    },
+    { 
+      text: "Fornecedores", 
+      icon: <Icon icon="mdi:truck-delivery" style={{ fontSize: '20px' }} />, 
+      path: "/fornecedores" 
+    },
+    { 
+      text: "Turma de Colheita", 
+      icon: <Icon icon="game-icons:farmer" style={{ fontSize: '20px' }} />, 
+      path: "/turma-colheita" 
+    },
   ];
 
   const producaoItems = [
-    { text: "Banana", icon: <Spa />, path: "/producao/banana" },
+      { 
+        text: "Banana", 
+        icon: <Icon icon="emojione-monotone:banana" style={{ fontSize: '20px' }} />, 
+        path: "/producao/banana" 
+      },
   ];
 
   // ------------------------------------------------------------------
@@ -128,9 +159,9 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     if (location.pathname.startsWith("/pedidos")) {
       setOpenParents((prev) => ({ ...prev, PEDIDOS: true }));
     }
-    // se "/clientes", "/frutas", "/areas-agricolas", "/fornecedores", "/turma-colheita" => abre CADASTRO
+    // se "/clientes", "/culturas", "/frutas", "/areas-agricolas", "/fornecedores", "/turma-colheita" => abre CADASTRO
     if (
-      ["/clientes", "/frutas", "/areas-agricolas", "/fornecedores", "/turma-colheita"].some((p) =>
+      ["/clientes", "/culturas", "/frutas", "/areas-agricolas", "/fornecedores", "/turma-colheita"].some((p) =>
         location.pathname.startsWith(p)
       )
     ) {
@@ -209,18 +240,18 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     backgroundColor: theme.palette.background.paper,
     "& .ps-sidebar-container": {
       backgroundColor: "inherit",
-      height: "100dvh", // Usa Dynamic Viewport Height - ajusta com barra de navegação
-      maxHeight: "100dvh", // Garante que não exceda a altura da viewport
+      height: "100dvh",
+      maxHeight: "100dvh",
       display: "flex",
       flexDirection: "column",
-      overflow: "hidden", // Previne scroll duplo
+      overflow: "hidden",
     },
     "& .ps-menuitem-root": {
       marginBottom: "4px",
     },
     "& .ps-submenu-content": {
       backgroundColor: theme.palette.sidebar.submenuBackground,
-      transition: "none !important", // remove animações
+      transition: "none !important",
     },
   };
 
@@ -263,7 +294,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
         }
       });
     };
-  
+
     const timeoutId = setTimeout(adjustSubmenuHeights, 1);
     window.addEventListener("resize", adjustSubmenuHeights);
     return () => {
@@ -373,10 +404,10 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               backgroundColor: active
                 ? theme.palette.primary.main
                 : "transparent",
-              color: active 
-                ? "#fff" 
-                : (level > 0 && theme.palette.sidebar?.submenuText) 
-                  ? theme.palette.sidebar.submenuText 
+              color: active
+                ? "#fff"
+                : (level > 0 && theme.palette.sidebar?.submenuText)
+                  ? theme.palette.sidebar.submenuText
                   : theme.palette.text.primary,
               fontWeight: active ? 700 : 500,
               "&:hover": {
@@ -388,8 +419,8 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               margin: level === 0 ? "4px 8px" : "2px 4px",
             }),
             icon: ({ level }) => ({
-              color: (level > 0 && theme.palette.sidebar?.submenuIcon) 
-                ? theme.palette.sidebar.submenuIcon 
+              color: (level > 0 && theme.palette.sidebar?.submenuIcon)
+                ? theme.palette.sidebar.submenuIcon
                 : theme.palette.text.secondary,
             }),
             SubMenuExpandIcon: {
@@ -405,7 +436,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
           {isOpen ? (
             <SubMenu
               key="PEDIDOS"
-              icon={<ShoppingCartOutlined />}
+              icon={<Icon icon="mdi:cart" style={{ fontSize: '20px' }} />}
               label="Pedidos"
               open={openParents.PEDIDOS}
               onOpenChange={(opened) =>
@@ -424,7 +455,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               key="PEDIDOS"
               icon={
                 <Tooltip title="Pedidos" placement="right">
-                  <ShoppingCartOutlined />
+                  <Icon icon="mdi:cart" style={{ fontSize: '20px' }} />
                 </Tooltip>
               }
               label=""
@@ -455,6 +486,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               className={
                 isMenuActive([
                   "/clientes",
+                  "/culturas",
                   "/frutas",
                   "/areas-agricolas",
                   "/fornecedores",
@@ -482,6 +514,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               className={
                 isMenuActive([
                   "/clientes",
+                  "/culturas",
                   "/frutas",
                   "/areas-agricolas",
                   "/fornecedores",
@@ -499,7 +532,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
           {isOpen ? (
             <SubMenu
               key="PRODUCAO"
-              icon={<LocalFlorist />}
+              icon={<Icon icon="fa6-solid:tractor" style={{ fontSize: '20px' }} />}
               label="Produção"
               open={openParents.PRODUCAO}
               onOpenChange={(opened) =>
@@ -518,7 +551,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               key="PRODUCAO"
               icon={
                 <Tooltip title="Produção" placement="right">
-                  <LocalFlorist />
+                  <Icon icon="fa6-solid:tractor" style={{ fontSize: '20px' }} />
                 </Tooltip>
               }
               label=""

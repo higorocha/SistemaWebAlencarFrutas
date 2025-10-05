@@ -15,7 +15,7 @@ export class AreasFornecedoresController {
   @ApiOperation({ summary: 'Criar nova área de fornecedor' })
   @ApiResponse({ status: 201, description: 'Área criada com sucesso', type: AreaFornecedorResponseDto })
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
-  @ApiResponse({ status: 404, description: 'Fornecedor não encontrado' })
+  @ApiResponse({ status: 404, description: 'Fornecedor ou Cultura não encontrado' })
   @ApiResponse({ status: 409, description: 'Área com mesmo nome já existe para este fornecedor' })
   create(@Body() createAreaFornecedorDto: CreateAreaFornecedorDto): Promise<AreaFornecedorResponseDto> {
     return this.areasFornecedoresService.create(createAreaFornecedorDto);
@@ -48,7 +48,7 @@ export class AreasFornecedoresController {
   @ApiOperation({ summary: 'Atualizar área de fornecedor' })
   @ApiResponse({ status: 200, description: 'Área atualizada com sucesso', type: AreaFornecedorResponseDto })
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
-  @ApiResponse({ status: 404, description: 'Área não encontrada' })
+  @ApiResponse({ status: 404, description: 'Área, Fornecedor ou Cultura não encontrado' })
   @ApiResponse({ status: 409, description: 'Área com mesmo nome já existe para este fornecedor' })
   update(@Param('id') id: string, @Body() updateAreaFornecedorDto: UpdateAreaFornecedorDto): Promise<AreaFornecedorResponseDto> {
     return this.areasFornecedoresService.update(+id, updateAreaFornecedorDto);

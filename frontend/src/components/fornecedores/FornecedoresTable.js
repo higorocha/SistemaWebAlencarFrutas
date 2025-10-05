@@ -442,7 +442,7 @@ const FornecedoresTable = React.memo(({
       key: "areas",
       render: (_, record) => {
         const areas = record.areas || [];
-        const maxVisibleAreas = 3; // Máximo de áreas visíveis
+        const maxVisibleAreas = 2; // Reduzido para dar espaço para cultura
         const visibleAreas = areas.slice(0, maxVisibleAreas);
         const hiddenAreas = areas.slice(maxVisibleAreas);
         
@@ -457,27 +457,18 @@ const FornecedoresTable = React.memo(({
 
         return (
           <div>
-            <Space size={[4, 4]} wrap>
+            <Space direction="vertical" size="small" style={{ width: "100%" }}>
               {visibleAreas.map((area, index) => (
-                <Tag
-                  key={area.id || index}
-                  color="#059669"
-                  style={{
-                    fontSize: "11px",
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                    border: "1px solid #059669",
-                    backgroundColor: "#f0fdf4",
-                    color: "#059669",
-                    fontWeight: "500",
-                    maxWidth: "120px",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {area.nome}
-                </Tag>
+                <div key={area.id || index} style={{ marginBottom: "4px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "600", color: "#059669", marginBottom: "2px" }}>
+                    {area.nome}
+                  </div>
+                  {area.cultura && (
+                    <div style={{ fontSize: "10px", color: "#666666", fontStyle: "italic" }}>
+                      🥬 {area.cultura.descricao}
+                    </div>
+                  )}
+                </div>
               ))}
               
               {hiddenAreas.length > 0 && (
@@ -489,7 +480,12 @@ const FornecedoresTable = React.memo(({
                       </div>
                       {hiddenAreas.map((area, index) => (
                         <div key={area.id || index} style={{ marginBottom: "4px" }}>
-                          • {area.nome}
+                          <div style={{ fontWeight: "500" }}>• {area.nome}</div>
+                          {area.cultura && (
+                            <div style={{ fontSize: "11px", color: "#888", marginLeft: "8px" }}>
+                              🥬 {area.cultura.descricao}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

@@ -7,6 +7,9 @@
     "@emotion/styled": "^11.14.0",
     "@fortawesome/fontawesome-free": "^6.7.1",
     "@hookform/resolvers": "^3.9.1",
+    "@iconify/icons-healthicons": "^1.2.8",
+    "@iconify/icons-mdi": "^1.2.48",
+    "@iconify/react": "^6.0.2",
     "@mui/icons-material": "^5.16.9",
     "@mui/material": "^5.16.14",
     "@mui/x-date-pickers": "^7.23.3",
@@ -16,6 +19,7 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "antd": "^5.22.4",
+    "antd-mask-input": "^2.0.7",
     "apexcharts": "^4.7.0",
     "axios": "^1.6.2",
     "chart.js": "^4.4.7",
@@ -68,10 +72,10 @@
     "zod": "^3.24.1"
   },
   "scripts": {
-    "start": "set PORT=3002 && react-scripts start",
-    "start:unix": "PORT=3002 react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "set PORT=3002 && react-app-rewired start",
+    "start:unix": "PORT=3002 react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-app-rewired test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -93,6 +97,7 @@
     ]
   },
   "devDependencies": {
+    "@ant-design/moment-webpack-plugin": "^1.0.0",
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
   }
 }

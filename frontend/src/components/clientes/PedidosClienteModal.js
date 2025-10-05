@@ -24,6 +24,8 @@ import Chart from "react-apexcharts";
 import { formatCurrency } from "../../utils/formatters";
 import MiniSelectPersonalizavel from "../common/MiniComponents/MiniSelectPersonalizavel";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
+import useResponsive from "../../hooks/useResponsive";
+import ResponsiveTable from "../common/ResponsiveTable";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -31,81 +33,9 @@ const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-// Styled components para o modal
-const StyledModal = styled(Modal)`
-  .ant-modal-header {
-    background: #059669;
-    border-bottom: 2px solid #047857;
-    border-radius: 8px 8px 0 0;
-  }
-
-  .ant-modal-title {
-    color: #ffffff !important;
-    font-weight: 600;
-    font-size: 16px;
-  }
-
-  .ant-modal-close {
-    color: #ffffff !important;
-  }
-
-  .ant-modal-close:hover {
-    color: #f0f0f0 !important;
-  }
-
-  .ant-modal-body {
-    padding: 20px;
-    max-height: "calc(100vh - 200px)";
-    overflow-y: auto;
-    overflow-x: visible;
-  }
-`;
-
-const StyledTable = styled(Table)`
-  .ant-table-thead > tr > th {
-    background-color: #059669 !important;
-    color: #ffffff !important;
-    font-weight: 600;
-    padding: 12px 16px;
-    font-size: 13px;
-    border-bottom: 2px solid #047857;
-  }
-
-  .ant-table-tbody > tr:nth-child(even) {
-    background-color: #fafafa;
-  }
-
-  .ant-table-tbody > tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-
-  .ant-table-tbody > tr:hover {
-    background-color: #e6f7ff !important;
-    cursor: pointer;
-  }
-
-  .ant-table-tbody > tr > td {
-    padding: 12px 16px;
-    font-size: 13px;
-  }
-
-  .ant-table-container {
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid #e8e8e8;
-  }
-
-  .ant-empty {
-    padding: 40px 20px;
-  }
-
-  .ant-empty-description {
-    color: #8c8c8c;
-    font-size: 14px;
-  }
-`;
-
 const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
+  // Hook de responsividade
+  const { isMobile } = useResponsive();
   const [pedidos, setPedidos] = useState([]);
   const [pedidosFiltrados, setPedidosFiltrados] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -397,7 +327,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
   // Função para formatar status do pedido (cores centralizadas do tema)
   const formatarStatusPedido = (status) => {
     const config = getStatusConfig(status);
-    
+
     // Mapeamento de ícones para status
     const statusIcons = {
       PEDIDO_CRIADO: <ClockCircleOutlined />,
@@ -411,17 +341,17 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       PEDIDO_FINALIZADO: <CheckCircleOutlined />,
       CANCELADO: <MinusCircleOutlined />,
     };
-    
+
     const icon = statusIcons[status] || <ClockCircleOutlined />;
-    
+
     return (
-      <Tag 
-        color={config.color} 
+      <Tag
+        color={config.color}
         icon={icon}
-        style={{ 
-          borderRadius: "4px", 
+        style={{
+          borderRadius: "0.25rem",  // 4px
           fontWeight: "500",
-          fontSize: "11px",
+          fontSize: "0.6875rem",  // 11px
           border: "none",
           display: "flex",
           alignItems: "center",
@@ -454,7 +384,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       dataIndex: "numeroPedido",
       key: "numeroPedido",
       render: (text) => (
-        <Text strong style={{ color: "#059669", fontSize: "13px" }}>
+        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
           {text}
         </Text>
       ),
@@ -467,8 +397,8 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       key: "createdAt",
       render: (data) => (
         <Space>
-          <CalendarOutlined style={{ color: "#059669", fontSize: "12px" }} />
-          <Text style={{ fontSize: "12px" }}>{formatarData(data)}</Text>
+          <CalendarOutlined style={{ color: "#059669", fontSize: "0.75rem" }} />
+          <Text style={{ fontSize: "0.75rem" }}>{formatarData(data)}</Text>
         </Space>
       ),
       width: "15%",
@@ -479,7 +409,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       dataIndex: "dataPrevistaColheita",
       key: "dataPrevistaColheita",
       render: (data) => (
-        <Text style={{ fontSize: "12px" }}>
+        <Text style={{ fontSize: "0.75rem" }}>
           {formatarData(data)}
         </Text>
       ),
@@ -500,8 +430,8 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       key: "valorFinal",
       render: (valor) => (
         <Space>
-          <DollarOutlined style={{ color: "#059669", fontSize: "12px" }} />
-          <Text strong style={{ color: "#333", fontSize: "12px" }}>
+          <DollarOutlined style={{ color: "#059669", fontSize: "0.75rem" }} />
+          <Text strong style={{ color: "#333", fontSize: "0.75rem" }}>
             {formatarValor(valor)}
           </Text>
         </Space>
@@ -514,9 +444,9 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       dataIndex: "observacoes",
       key: "observacoes",
       render: (text) => (
-        <Text 
-          style={{ 
-            fontSize: "12px", 
+        <Text
+          style={{
+            fontSize: "0.75rem",
             color: "#666",
             display: "block",
             maxWidth: "200px",
@@ -665,39 +595,40 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
   ] : [];
 
   return (
-    <StyledModal
+    <Modal
       title={
-        <span style={{ 
-          color: "#ffffff", 
-          fontWeight: "600", 
-          fontSize: "16px",
+        <span style={{
+          color: "#ffffff",
+          fontWeight: "600",
+          fontSize: isMobile ? "0.875rem" : "1rem",  // 14px mobile, 16px desktop
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",  // 10px 12px / 12px 16px
+          margin: "-1.25rem -1.5rem 0 -1.5rem",  // -20px -24px 0 -24px
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",  // 8px
         }}>
-          <ShoppingCartOutlined style={{ marginRight: 8 }} />
-          Pedidos de {cliente?.nome || "Cliente"}
+          <ShoppingCartOutlined style={{ marginRight: "0.5rem" }} />
+          {isMobile ? `Pedidos - ${cliente?.nome || "Cliente"}` : `Pedidos de ${cliente?.nome || "Cliente"}`}
         </span>
       }
       open={open}
       onCancel={onClose}
       footer={null}
-      width="90%"
-      style={{ maxWidth: 1200 }}
+      width={isMobile ? '95vw' : '90%'}
+      style={{ maxWidth: isMobile ? '95vw' : "75rem" }}  // 1200px
       styles={{
         body: {
-          maxHeight: "calc(100vh - 200px)",
+          maxHeight: "calc(100vh - 12.5rem)",  // 200px convertido
           overflowY: "auto",
           overflowX: "hidden",
-          padding: "20px",
+          padding: isMobile ? 12 : 20,  // px para estabilidade
         },
         header: {
           backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
+          borderBottom: "0.125rem solid #047857",  // 2px
           padding: 0,
-        }
+        },
+        wrapper: { zIndex: 1000 }
       }}
       centered
       destroyOnClose
@@ -707,53 +638,61 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         title={
           <Space>
             <ShoppingCartOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Estatísticas do Cliente</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+              Estatísticas do Cliente
+            </span>
           </Space>
         }
-        style={{ 
-          marginBottom: 16,
-          border: "1px solid #e8e8e8",
-          borderRadius: "8px",
+        style={{
+          marginBottom: isMobile ? 12 : 16,  // px para estabilidade
+          border: "0.0625rem solid #e8e8e8",  // 1px
+          borderRadius: "0.5rem",  // 8px
           backgroundColor: "#f9f9f9",
         }}
-        headStyle={{
-          backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
-          color: "#ffffff",
-          borderRadius: "8px 8px 0 0",
+        styles={{
+          header: {
+            backgroundColor: "#059669",
+            borderBottom: "0.125rem solid #047857",  // 2px
+            color: "#ffffff",
+            borderRadius: "0.5rem 0.5rem 0 0",  // 8px
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
         }}
       >
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={6}>
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+          <Col xs={12} sm={12} md={6}>
             <Statistic
-              title="Total de Pedidos"
+              title={isMobile ? "Total" : "Total de Pedidos"}
               value={estatisticas.totalPedidos}
-              valueStyle={{ color: "#1890ff" }}
+              valueStyle={{ color: "#1890ff", fontSize: isMobile ? "1.125rem" : "1.5rem" }}
               prefix={<ShoppingCartOutlined />}
             />
           </Col>
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={12} sm={12} md={6}>
             <Statistic
-              title="Pedidos Ativos"
+              title={isMobile ? "Ativos" : "Pedidos Ativos"}
               value={estatisticas.pedidosAtivos}
-              valueStyle={{ color: "#fa8c16" }}
+              valueStyle={{ color: "#fa8c16", fontSize: isMobile ? "1.125rem" : "1.5rem" }}
               prefix={<ClockCircleOutlined />}
             />
           </Col>
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={12} sm={12} md={6}>
             <Statistic
-              title="Pedidos Finalizados"
+              title={isMobile ? "Finalizados" : "Pedidos Finalizados"}
               value={estatisticas.pedidosFinalizados}
-              valueStyle={{ color: "#52c41a" }}
+              valueStyle={{ color: "#52c41a", fontSize: isMobile ? "1.125rem" : "1.5rem" }}
               prefix={<CheckCircleOutlined />}
             />
           </Col>
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={12} sm={12} md={6}>
             <Statistic
-              title="Valor Total"
+              title={isMobile ? "Valor" : "Valor Total"}
               value={estatisticas.valorTotal}
               formatter={(value) => formatarValor(value)}
-              valueStyle={{ color: "#059669" }}
+              valueStyle={{ color: "#059669", fontSize: isMobile ? "1.125rem" : "1.5rem" }}
               prefix={<DollarOutlined />}
             />
           </Col>
@@ -765,24 +704,32 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         title={
           <Space>
             <BarChartOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Evolução do Faturamento</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+              {isMobile ? "Evolução" : "Evolução do Faturamento"}
+            </span>
           </Space>
         }
-        style={{ 
-          marginBottom: 16,
-          border: "1px solid #e8e8e8",
-          borderRadius: "8px",
+        style={{
+          marginBottom: isMobile ? 12 : 16,
+          border: "0.0625rem solid #e8e8e8",
+          borderRadius: "0.5rem",
           backgroundColor: "#f9f9f9",
         }}
-        headStyle={{
-          backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
-          color: "#ffffff",
-          borderRadius: "8px 8px 0 0",
+        styles={{
+          header: {
+            backgroundColor: "#059669",
+            borderBottom: "0.125rem solid #047857",
+            color: "#ffffff",
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
         }}
         extra={
           <Space>
-            <Text strong style={{ color: "#ffffff" }}>Período:</Text>
+            {!isMobile && <Text strong style={{ color: "#ffffff" }}>Período:</Text>}
             <MiniSelectPersonalizavel
               value={intervaloMeses}
               onChange={setIntervaloMeses}
@@ -793,17 +740,17 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
                 { value: 12, label: '12 meses' },
               ]}
               placeholder="Selecione o período"
-              height="32px"
-              fontSize="12px"
+              height={isMobile ? "28px" : "32px"}
+              fontSize={isMobile ? "0.6875rem" : "0.75rem"}  // 11px / 12px
               iconColor="#ffffff"
-              iconSize="14px"
-              customPadding="6px 8px 6px 28px"
+              iconSize={isMobile ? "12px" : "14px"}
+              customPadding={isMobile ? "4px 6px 4px 24px" : "6px 8px 6px 28px"}
               maxHeight="200px"
-              style={{ 
-                width: "120px",
+              style={{
+                width: isMobile ? "100px" : "120px",
                 border: "1px solid rgba(255, 255, 255, 0.3)",
                 backgroundColor: "rgba(255, 255, 255, 0.1)",
-                borderRadius: "6px",
+                borderRadius: "0.375rem",  // 6px
                 zIndex: 9999,
               }}
               icon={<FilterOutlined />}
@@ -816,16 +763,16 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
             options={opcoesGrafico}
             series={seriesGrafico}
             type="line"
-            height={350}
+            height={isMobile ? 250 : 350}
           />
         ) : (
-          <div style={{ 
-            textAlign: "center", 
-            padding: "40px",
+          <div style={{
+            textAlign: "center",
+            padding: isMobile ? "24px" : "40px",
             color: "#8c8c8c"
           }}>
-            <BarChartOutlined style={{ fontSize: "48px", marginBottom: "16px" }} />
-            <Text type="secondary">
+            <BarChartOutlined style={{ fontSize: isMobile ? "36px" : "48px", marginBottom: isMobile ? "12px" : "16px" }} />
+            <Text type="secondary" style={{ fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>
               Nenhum dado disponível para o período selecionado
             </Text>
           </div>
@@ -837,75 +784,130 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         title={
           <Space>
             <FilterOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Filtros e Busca</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+              {isMobile ? "Filtros" : "Filtros e Busca"}
+            </span>
           </Space>
         }
-        style={{ 
-          marginBottom: 16,
-          border: "1px solid #e8e8e8",
-          borderRadius: "8px",
+        style={{
+          marginBottom: isMobile ? 12 : 16,
+          border: "0.0625rem solid #e8e8e8",
+          borderRadius: "0.5rem",
           backgroundColor: "#f9f9f9",
         }}
-        headStyle={{
-          backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
-          color: "#ffffff",
-          borderRadius: "8px 8px 0 0",
+        styles={{
+          header: {
+            backgroundColor: "#059669",
+            borderBottom: "0.125rem solid #047857",
+            color: "#ffffff",
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
         }}
       >
-        <Row gutter={[16, 16]} align="bottom">
-          <Col xs={24} sm={12} md={12}>
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 18 : 16]}>
+          <Col xs={24} sm={24} md={12}>
             <SearchInput
-              placeholder="Buscar por número do pedido, observações ou vale..."
+              placeholder={isMobile ? "Buscar pedido..." : "Buscar por número do pedido, observações ou vale..."}
               value={searchTerm}
               onChange={setSearchTerm}
               style={{ width: "100%", marginBottom: 0 }}
+              size={isMobile ? "middle" : "large"}
             />
           </Col>
           <Col xs={24} sm={12} md={6}>
             <Select
-              placeholder="Filtrar por status"
+              placeholder={isMobile ? "Status" : "Filtrar por status"}
               value={statusFilter}
               onChange={setStatusFilter}
               style={{ width: "100%" }}
-              size="large"
+              size={isMobile ? "middle" : "large"}
               allowClear
             >
-              <Option value="">Todos</Option>
-              <Option value="PEDIDO_CRIADO">Criado</Option>
-              <Option value="AGUARDANDO_COLHEITA">Aguardando Colheita</Option>
-              <Option value="COLHEITA_REALIZADA">Colheita Realizada</Option>
-              <Option value="AGUARDANDO_PRECIFICACAO">Aguardando Precificação</Option>
-              <Option value="PRECIFICACAO_REALIZADA">Precificação Realizada</Option>
-              <Option value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</Option>
-              <Option value="PAGAMENTO_PARCIAL">Pagamento Parcial</Option>
-              <Option value="PAGAMENTO_REALIZADO">Pagamento Realizado</Option>
-              <Option value="PEDIDO_FINALIZADO">Finalizado</Option>
-              <Option value="CANCELADO">Cancelado</Option>
+              <Option value="">
+                <Space>
+                  <FilterOutlined style={{ color: "#8c8c8c" }} />
+                  <span>Todos</span>
+                </Space>
+              </Option>
+              <Option value="PEDIDO_CRIADO">
+                <Space>
+                  <ClockCircleOutlined style={{ color: getStatusConfig('PEDIDO_CRIADO').color }} />
+                  <span>Criado</span>
+                </Space>
+              </Option>
+              <Option value="AGUARDANDO_COLHEITA">
+                <Space>
+                  <ClockCircleOutlined style={{ color: getStatusConfig('AGUARDANDO_COLHEITA').color }} />
+                  <span>Aguardando Colheita</span>
+                </Space>
+              </Option>
+              <Option value="COLHEITA_REALIZADA">
+                <Space>
+                  <CheckCircleOutlined style={{ color: getStatusConfig('COLHEITA_REALIZADA').color }} />
+                  <span>Colheita Realizada</span>
+                </Space>
+              </Option>
+              <Option value="AGUARDANDO_PRECIFICACAO">
+                <Space>
+                  <ClockCircleOutlined style={{ color: getStatusConfig('AGUARDANDO_PRECIFICACAO').color }} />
+                  <span>Aguardando Precificação</span>
+                </Space>
+              </Option>
+              <Option value="PRECIFICACAO_REALIZADA">
+                <Space>
+                  <CheckCircleOutlined style={{ color: getStatusConfig('PRECIFICACAO_REALIZADA').color }} />
+                  <span>Precificação Realizada</span>
+                </Space>
+              </Option>
+              <Option value="AGUARDANDO_PAGAMENTO">
+                <Space>
+                  <ClockCircleOutlined style={{ color: getStatusConfig('AGUARDANDO_PAGAMENTO').color }} />
+                  <span>Aguardando Pagamento</span>
+                </Space>
+              </Option>
+              <Option value="PAGAMENTO_PARCIAL">
+                <Space>
+                  <ExclamationCircleOutlined style={{ color: getStatusConfig('PAGAMENTO_PARCIAL').color }} />
+                  <span>Pagamento Parcial</span>
+                </Space>
+              </Option>
+              <Option value="PAGAMENTO_REALIZADO">
+                <Space>
+                  <CheckCircleOutlined style={{ color: getStatusConfig('PAGAMENTO_REALIZADO').color }} />
+                  <span>Pagamento Realizado</span>
+                </Space>
+              </Option>
+              <Option value="PEDIDO_FINALIZADO">
+                <Space>
+                  <CheckCircleOutlined style={{ color: getStatusConfig('PEDIDO_FINALIZADO').color }} />
+                  <span>Finalizado</span>
+                </Space>
+              </Option>
+              <Option value="CANCELADO">
+                <Space>
+                  <MinusCircleOutlined style={{ color: getStatusConfig('CANCELADO').color }} />
+                  <span>Cancelado</span>
+                </Space>
+              </Option>
             </Select>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <div style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              height: "40px" // Força a mesma altura dos outros componentes
-            }}>
-              <RangePicker
-                placeholder={["Data inicial", "Data final"]}
-                value={dateRange}
-                onChange={setDateRange}
-                style={{ 
-                  width: "100%",
-                  height: "40px"
-                }}
-                size="large"
-                format="DD/MM/YYYY"
-                allowClear
-                showTime={false}
-                disabledTime={() => null}
-                inputReadOnly
-              />
-            </div>
+            <RangePicker
+              placeholder={isMobile ? ["Início", "Fim"] : ["Data inicial", "Data final"]}
+              value={dateRange}
+              onChange={setDateRange}
+              style={{ width: "100%" }}
+              size={isMobile ? "middle" : "large"}
+              format="DD/MM/YYYY"
+              allowClear
+              showTime={false}
+              disabledTime={() => null}
+              inputReadOnly
+            />
           </Col>
         </Row>
       </Card>
@@ -915,36 +917,46 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         title={
           <Space>
             <ShoppingCartOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Lista de Pedidos</span>
+            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+              {isMobile ? "Pedidos" : "Lista de Pedidos"}
+            </span>
           </Space>
         }
-        style={{ 
-          marginBottom: 16,
-          border: "1px solid #e8e8e8",
-          borderRadius: "8px",
+        style={{
+          marginBottom: isMobile ? 12 : 16,
+          border: "0.0625rem solid #e8e8e8",
+          borderRadius: "0.5rem",
           backgroundColor: "#f9f9f9",
         }}
-        headStyle={{
-          backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
-          color: "#ffffff",
-          borderRadius: "8px 8px 0 0",
+        styles={{
+          header: {
+            backgroundColor: "#059669",
+            borderBottom: "0.125rem solid #047857",
+            color: "#ffffff",
+            borderRadius: "0.5rem 0.5rem 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          },
+          body: {
+            padding: isMobile ? "12px" : "16px"
+          }
         }}
       >
-        <StyledTable
+        <ResponsiveTable
           columns={columns}
           dataSource={pedidosFiltrados}
           loading={loading}
           rowKey="id"
+          minWidthMobile={1200}
+          showScrollHint={true}
           onRow={(record) => ({
             onClick: () => handleOpenVisualizarModal(record),
             style: { cursor: 'pointer' },
           })}
           pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => 
+            pageSize: isMobile ? 5 : 10,
+            showSizeChanger: !isMobile,
+            showQuickJumper: !isMobile,
+            showTotal: (total, range) =>
               `${range[0]}-${range[1]} de ${total} pedidos`,
             pageSizeOptions: ['10', '20', '50'],
           }}
@@ -953,7 +965,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
-                  <span style={{ color: "#8c8c8c", fontSize: "14px" }}>
+                  <span style={{ color: "#8c8c8c", fontSize: "0.875rem" }}>
                     Nenhum pedido encontrado
                   </span>
                 }
@@ -974,7 +986,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         }}
         pedido={pedidoSelecionado}
       />
-    </StyledModal>
+    </Modal>
   );
 };
 

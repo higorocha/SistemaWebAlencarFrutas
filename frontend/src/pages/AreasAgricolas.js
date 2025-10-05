@@ -7,15 +7,17 @@ import {
   PartitionOutlined,
   PlusCircleOutlined,
 } from "@ant-design/icons";
+// Importar ícones do Iconify para agricultura
+import { Icon } from "@iconify/react";
+import { CentralizedLoader } from "components/common/loaders";
+import { PrimaryButton } from "components/common/buttons";
+import { cpf } from "cpf-cnpj-validator";
+import { SearchInput } from "components/common/search";
 import axiosInstance from "../api/axiosConfig";
 import { useLoadScript } from "@react-google-maps/api";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
-import { CentralizedLoader } from "components/common/loaders";
-import { PrimaryButton } from "components/common/buttons";
-import { cpf } from "cpf-cnpj-validator";
-import { SearchInput } from "components/common/search";
 
 const MapDialog = lazy(() => import("../components/areas/MapDialog"));
 const AreasTable = lazy(() => import("../components/areas/AreasTable"));
@@ -730,7 +732,7 @@ const AreasAgricolas = () => {
   if (!isLoaded) {
     return (
       <div style={{ padding: 16 }}>
-        <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
+        <Typography.Title level={2} style={{ marginBottom: 16, color: "#059669" }}>
           Áreas Agrícolas
         </Typography.Title>
         <CentralizedLoader
@@ -744,7 +746,25 @@ const AreasAgricolas = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
+        <Typography.Title 
+        level={2} 
+        style={{ 
+          marginBottom: 16, 
+          color: "#059669",
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap'
+        }}
+      >
+        {/* Ícone principal da página - deve ser igual ao do sidebar */}
+        <Icon 
+          icon="mdi:map-marker" 
+          style={{ 
+            marginRight: 12, 
+            fontSize: '31px',
+            color: "#059669"
+          }} 
+        />
         Áreas Agrícolas
       </Typography.Title>
 

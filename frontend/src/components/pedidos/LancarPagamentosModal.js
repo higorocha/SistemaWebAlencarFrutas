@@ -7,7 +7,6 @@ import {
   Form,
   Input,
   Select,
-  DatePicker,
   Row,
   Col,
   Space,
@@ -39,7 +38,7 @@ import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
 import { validatePedidosResponse } from "../../utils/validation";
 import { useFormValidation } from "../../hooks/useFormValidation";
-import { MonetaryInput } from "../common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../common/inputs";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import SearchInputInteligente from "../common/search/SearchInputInteligente";
 import axiosInstance from "../../api/axiosConfig";
@@ -239,7 +238,7 @@ const LancarPagamentosModal = ({
           return {
             pedidoId: parseInt(pedidoId),
             valorRecebido,
-            dataPagamento: values.dataPagamento.toISOString(),
+            dataPagamento: values.dataPagamento.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss'),
             metodoPagamento: values.metodoPagamento,
             contaDestino: values.contaDestino,
             observacoesPagamento: observacoesIndividuais[pedidoId] || values.observacoesGlobal || null,
@@ -873,13 +872,12 @@ const LancarPagamentosModal = ({
                       { required: true, message: isMobile ? "" : "Por favor, selecione a data do pagamento" },
                     ]}
                   >
-                    <DatePicker
+                    <MaskedDatePicker
                       size={isMobile ? "small" : "middle"}
                       style={{
                         width: "100%",
                         borderRadius: "0.375rem"
                       }}
-                      format="DD/MM/YYYY"
                       placeholder="Selecione a data"
                       disabledDate={(current) => current && current > moment().endOf('day')}
                     />

@@ -217,6 +217,7 @@ model Cultura {
 
   // Relações
   lotesCulturas     LotesCulturas[]
+  areasFornecedores AreaFornecedor[]     // NOVA: Relação com áreas de fornecedores
   frutas            Fruta[]              // Relação 1:N com Frutas
 
   @@map("culturas")
@@ -394,11 +395,13 @@ model AreaFornecedor {
   id              Int              @id @default(autoincrement())
   fornecedorId    Int
   nome            String           @db.VarChar(100)
+  culturaId       Int?             @map("cultura_id") // NOVA: FK para Cultura (opcional)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   // Relações
   fornecedor      Fornecedor       @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  cultura         Cultura?         @relation(fields: [culturaId], references: [id], onDelete: SetNull) // NOVA: Relação com Cultura
   frutasPedidosAreas FrutasPedidosAreas[] // NOVA: Relação com múltiplas áreas de pedidos
   
   @@map("areas_fornecedores")

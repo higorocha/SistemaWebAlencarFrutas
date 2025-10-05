@@ -1,4 +1,4 @@
-// src/components/frutas/FrutasTable.js
+// src/components/culturas/CulturasTable.js
 
 import React from "react";
 import { Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
@@ -6,10 +6,10 @@ import {
   EditOutlined,
   DeleteOutlined,
   MoreOutlined,
-  InfoCircleOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
-import { showNotification } from "../../config/notificationConfig";
 import ResponsiveTable from "../common/ResponsiveTable";
 
 const { Text } = Typography;
@@ -21,38 +21,20 @@ function capitalizeName(name) {
     .join(" ");
 }
 
-const formatarCultura = (cultura) => {
-  if (!cultura || !cultura.descricao) return "-";
-  
-  return (
-    <Tag 
-      color="#059669" 
-      style={{ 
-        borderRadius: "4px", 
-        fontWeight: "500",
-        fontSize: "12px",
-        border: "none",
-      }}
-    >
-      {cultura.descricao}
-    </Tag>
-  );
-};
+const formatarPeriodicidade = (periodicidade) => {
+  if (!periodicidade) return "-";
 
-const formatarStatus = (status) => {
-  if (!status) return "-";
-  
-  const statusConfig = {
-    ATIVA: { texto: "Ativa", cor: "#52c41a" },
-    INATIVA: { texto: "Inativa", cor: "#ff4d4f" },
+  const periodicidades = {
+    PERENE: { texto: "Perene", cor: "#52c41a" },
+    TEMPORARIA: { texto: "Temporária", cor: "#1890ff" },
   };
-  
-  const config = statusConfig[status] || { texto: status, cor: "#d9d9d9" };
+
+  const config = periodicidades[periodicidade] || { texto: periodicidade, cor: "#d9d9d9" };
   return (
-    <Tag 
-      color={config.cor} 
-      style={{ 
-        borderRadius: "4px", 
+    <Tag
+      color={config.cor}
+      style={{
+        borderRadius: "4px",
         fontWeight: "500",
         fontSize: "12px",
         border: "none",
@@ -63,8 +45,31 @@ const formatarStatus = (status) => {
   );
 };
 
-const FrutasTable = ({
-  frutas,
+const formatarConsorcio = (permitirConsorcio) => {
+  if (permitirConsorcio === undefined || permitirConsorcio === null) return "-";
+
+  const config = permitirConsorcio
+    ? { texto: "Sim", cor: "#52c41a", icon: <CheckCircleOutlined /> }
+    : { texto: "Não", cor: "#d9d9d9", icon: <CloseCircleOutlined /> };
+
+  return (
+    <Tag
+      icon={config.icon}
+      color={config.cor}
+      style={{
+        borderRadius: "4px",
+        fontWeight: "500",
+        fontSize: "12px",
+        border: "none",
+      }}
+    >
+      {config.texto}
+    </Tag>
+  );
+};
+
+const CulturasTable = ({
+  culturas,
   loading,
   onEdit,
   onDelete,
@@ -95,58 +100,37 @@ const FrutasTable = ({
 
   const columns = [
     {
-      title: "Nome",
-      dataIndex: "nome",
-      key: "nome",
-      render: (nome) => (
-        <Text strong style={{ color: "#059669" }}>
-          {capitalizeName(nome)}
-        </Text>
-      ),
-      sorter: (a, b) => a.nome.localeCompare(b.nome),
-    },
-    {
-      title: "Código",
-      dataIndex: "codigo",
-      key: "codigo",
-      render: (codigo) => (
-        <Text style={{ color: "#666666", fontFamily: "monospace" }}>
-          {codigo || "-"}
-        </Text>
-      ),
-    },
-    {
-      title: "Cultura",
-      dataIndex: "cultura",
-      key: "cultura",
-      render: (cultura) => formatarCultura(cultura),
-      sorter: (a, b) => {
-        const culturaA = a.cultura?.descricao || "";
-        const culturaB = b.cultura?.descricao || "";
-        return culturaA.localeCompare(culturaB);
-      },
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      render: (status) => formatarStatus(status),
-      filters: [
-        { text: "Ativa", value: "ATIVA" },
-        { text: "Inativa", value: "INATIVA" },
-      ],
-      onFilter: (value, record) => record.status === value,
-    },
-    {
       title: "Descrição",
       dataIndex: "descricao",
       key: "descricao",
       render: (descricao) => (
-        <Text style={{ color: "#666666" }}>
-          {descricao ? (descricao.length > 50 ? `${descricao.substring(0, 50)}...` : descricao) : "-"}
+        <Text strong style={{ color: "#059669" }}>
+          {capitalizeName(descricao)}
         </Text>
       ),
-      ellipsis: true,
+      sorter: (a, b) => a.descricao.localeCompare(b.descricao),
+    },
+    {
+      title: "Periodicidade",
+      dataIndex: "periodicidade",
+      key: "periodicidade",
+      render: (periodicidade) => formatarPeriodicidade(periodicidade),
+      filters: [
+        { text: "Perene", value: "PERENE" },
+        { text: "Temporária", value: "TEMPORARIA" },
+      ],
+      onFilter: (value, record) => record.periodicidade === value,
+    },
+    {
+      title: "Permite Consórcio",
+      dataIndex: "permitirConsorcio",
+      key: "permitirConsorcio",
+      render: (permitirConsorcio) => formatarConsorcio(permitirConsorcio),
+      filters: [
+        { text: "Sim", value: true },
+        { text: "Não", value: false },
+      ],
+      onFilter: (value, record) => record.permitirConsorcio === value,
     },
     {
       title: "Ações",
@@ -178,7 +162,7 @@ const FrutasTable = ({
   // Paginação interna dos dados exibidos
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedData = frutas.slice(startIndex, endIndex);
+  const paginatedData = culturas.slice(startIndex, endIndex);
 
   return (
     <ResponsiveTable
@@ -187,7 +171,7 @@ const FrutasTable = ({
       rowKey="id"
       loading={loading}
       pagination={false}
-      minWidthMobile={1000}
+      minWidthMobile={800}
       showScrollHint={true}
       size="middle"
       bordered={true}
@@ -197,7 +181,7 @@ const FrutasTable = ({
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
               <span style={{ color: "#8c8c8c" }}>
-                Nenhuma fruta encontrada
+                Nenhuma cultura encontrada
               </span>
             }
           />
@@ -207,8 +191,8 @@ const FrutasTable = ({
   );
 };
 
-FrutasTable.propTypes = {
-  frutas: PropTypes.array.isRequired,
+CulturasTable.propTypes = {
+  culturas: PropTypes.array.isRequired,
   loading: PropTypes.bool.isRequired,
   onEdit: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
@@ -218,4 +202,4 @@ FrutasTable.propTypes = {
   onShowSizeChange: PropTypes.func.isRequired,
 };
 
-export default FrutasTable; 
+export default CulturasTable;

@@ -1,12 +1,10 @@
-// src/pages/Frutas.js
+// src/pages/Culturas.js
 
 import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
-import { Typography, Button, Space, Modal, Spin } from "antd";
+import { Typography, Modal, Spin } from "antd";
 import {
-  OrderedListOutlined,
-  PartitionOutlined,
   PlusCircleOutlined,
-  AppleOutlined,
+  PartitionOutlined,
 } from "@ant-design/icons";
 // Importar ícones do Iconify para agricultura
 import { Icon } from "@iconify/react";
@@ -20,83 +18,71 @@ import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
 
-const FrutasTable = lazy(() => import("../components/frutas/FrutasTable"));
-const AddEditFrutaDialog = lazy(() =>
-  import("../components/frutas/AddEditFrutaDialog")
+const CulturasTable = lazy(() => import("../components/culturas/CulturasTable"));
+const AddEditCulturaDialog = lazy(() =>
+  import("../components/culturas/AddEditCulturaDialog")
 );
 
 const { Title } = Typography;
 
-const Frutas = () => {
+const Culturas = () => {
   const { isMobile, isTablet } = useResponsive();
-  const [frutas, setFrutas] = useState([]);
-  const [frutasFiltradas, setFrutasFiltradas] = useState([]);
-  
+  const [culturas, setCulturas] = useState([]);
+  const [culturasFiltradas, setCulturasFiltradas] = useState([]);
+
   // Estados para paginação controlada
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
   const [openDialog, setOpenDialog] = useState(false);
-  const [frutaAtual, setFrutaAtual] = useState({
+  const [culturaAtual, setCulturaAtual] = useState({
     id: null,
-    nome: "",
-    codigo: "",
-    culturaId: null,
     descricao: "",
-    status: "ATIVA",
-    nomeCientifico: "",
-    corPredominante: "",
-    epocaColheita: "",
-    observacoes: "",
+    periodicidade: "",
+    permitirConsorcio: false,
   });
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Estados para CentralizedLoader
   const [centralizedLoading, setCentralizedLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Carregando...");
 
   const API_URL = {
-    frutas: "/api/frutas",
+    culturas: "/api/culturas",
   };
 
   useEffect(() => {
-    buscarFrutas();
+    buscarCulturas();
   }, []);
 
-  const buscarFrutas = useCallback(async () => {
+  const buscarCulturas = useCallback(async () => {
     try {
       setCentralizedLoading(true);
-      setLoadingMessage("Carregando frutas...");
+      setLoadingMessage("Carregando culturas...");
       setIsLoading(true);
-      
-      const response = await axiosInstance.get(API_URL.frutas);
 
-      setFrutas(response.data.data || response.data);
-      setFrutasFiltradas(response.data.data || response.data);
+      const response = await axiosInstance.get(API_URL.culturas);
+
+      setCulturas(response.data || []);
+      setCulturasFiltradas(response.data || []);
     } catch (error) {
-      console.error("Erro ao buscar frutas:", error);
-      showNotification("error", "Erro", "Erro ao buscar frutas.");
+      console.error("Erro ao buscar culturas:", error);
+      showNotification("error", "Erro", "Erro ao buscar culturas.");
     } finally {
       setIsLoading(false);
       setCentralizedLoading(false);
     }
-  }, [API_URL.frutas]);
+  }, [API_URL.culturas]);
 
   const handleOpenDialog = useCallback(() => {
-    setFrutaAtual({
+    setCulturaAtual({
       id: null,
-      nome: "",
-      codigo: "",
-      culturaId: null,
       descricao: "",
-      status: "ATIVA",
-      nomeCientifico: "",
-      corPredominante: "",
-      epocaColheita: "",
-      observacoes: "",
+      periodicidade: "",
+      permitirConsorcio: false,
     });
     setEditando(false);
     setErros({});
@@ -122,13 +108,17 @@ const Frutas = () => {
     setCurrentPage(1); // Volta para primeira página quando muda o tamanho
   }, []);
 
-  const handleSalvarFruta = useCallback(async () => {
+  const handleSalvarCultura = useCallback(async () => {
     if (isSaving) return;
 
     const novosErros = {};
 
-    if (!frutaAtual.nome || frutaAtual.nome.trim() === "") {
-      novosErros.nome = "Nome da fruta é obrigatório";
+    if (!culturaAtual.descricao || culturaAtual.descricao.trim() === "") {
+      novosErros.descricao = "Descrição da cultura é obrigatória";
+    }
+
+    if (!culturaAtual.periodicidade) {
+      novosErros.periodicidade = "Periodicidade é obrigatória";
     }
 
     if (Object.keys(novosErros).length > 0) {
@@ -139,63 +129,44 @@ const Frutas = () => {
 
     // FECHAR MODAL IMEDIATAMENTE ao clicar em salvar
     handleCloseDialog();
-    
+
     try {
       setCentralizedLoading(true);
-      setLoadingMessage(editando ? "Atualizando fruta..." : "Criando fruta...");
+      setLoadingMessage(editando ? "Atualizando cultura..." : "Criando cultura...");
       setIsSaving(true);
-      
+
       // Garantir que apenas as propriedades necessárias sejam enviadas
       const dadosParaEnvio = {
-        nome: frutaAtual.nome,
-        codigo: frutaAtual.codigo || null,
-        culturaId: frutaAtual.culturaId, // Campo obrigatório
-        descricao: frutaAtual.descricao || null,
-        status: frutaAtual.status || "ATIVA",
-        nomeCientifico: frutaAtual.nomeCientifico || null,
-        corPredominante: frutaAtual.corPredominante || null,
-        epocaColheita: frutaAtual.epocaColheita || null,
-        observacoes: frutaAtual.observacoes || null,
+        descricao: culturaAtual.descricao,
+        periodicidade: culturaAtual.periodicidade,
+        permitirConsorcio: culturaAtual.permitirConsorcio || false,
       };
-      
-      // Remover propriedades undefined/null para evitar problemas de validação
-      Object.keys(dadosParaEnvio).forEach(key => {
-        if (dadosParaEnvio[key] === undefined || dadosParaEnvio[key] === null) {
-          delete dadosParaEnvio[key];
-        }
-      });
-      
+
       console.log("DEBUG_SAVE: Dados enviados para o backend:", dadosParaEnvio);
-      
+
       if (editando) {
         // Para edição, remover o id do payload se existir
         const { id, ...dadosParaUpdate } = dadosParaEnvio;
-        await axiosInstance.patch(`${API_URL.frutas}/${frutaAtual.id}`, dadosParaUpdate);
-        showNotification("success", "Sucesso", "Fruta atualizada com sucesso!");
+        await axiosInstance.patch(`${API_URL.culturas}/${culturaAtual.id}`, dadosParaUpdate);
+        showNotification("success", "Sucesso", "Cultura atualizada com sucesso!");
       } else {
-        await axiosInstance.post(API_URL.frutas, dadosParaEnvio);
-        showNotification("success", "Sucesso", "Fruta cadastrada com sucesso!");
+        await axiosInstance.post(API_URL.culturas, dadosParaEnvio);
+        showNotification("success", "Sucesso", "Cultura cadastrada com sucesso!");
       }
-      
-      setLoadingMessage("Atualizando lista de frutas...");
-      await buscarFrutas();
+
+      setLoadingMessage("Atualizando lista de culturas...");
+      await buscarCulturas();
     } catch (error) {
-      console.error("Erro ao salvar fruta:", error.response?.data || error);
+      console.error("Erro ao salvar cultura:", error.response?.data || error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || "Erro desconhecido ao salvar.";
       showNotification("error", "Erro", errorMessage);
-      
+
       // REABRIR MODAL EM CASO DE ERRO
-      setFrutaAtual(editando ? frutaAtual : {
+      setCulturaAtual(editando ? culturaAtual : {
         id: null,
-        nome: "",
-        codigo: "",
-        culturaId: null,
         descricao: "",
-        status: "ATIVA",
-        nomeCientifico: "",
-        corPredominante: "",
-        epocaColheita: "",
-        observacoes: "",
+        periodicidade: "",
+        permitirConsorcio: false,
       });
       setEditando(editando);
       setOpenDialog(true);
@@ -203,23 +174,17 @@ const Frutas = () => {
       setIsSaving(false);
       setCentralizedLoading(false);
     }
-  }, [frutaAtual, editando, isSaving, API_URL.frutas, buscarFrutas, handleCloseDialog]);
+  }, [culturaAtual, editando, isSaving, API_URL.culturas, buscarCulturas, handleCloseDialog]);
 
-  const handleEditarFruta = useCallback(
-    (fruta) => {
-      console.log("Fruta recebida para edição:", fruta);
+  const handleEditarCultura = useCallback(
+    (cultura) => {
+      console.log("Cultura recebida para edição:", cultura);
 
-      setFrutaAtual({
-        id: fruta.id,
-        nome: fruta.nome,
-        codigo: fruta.codigo || "",
-        culturaId: fruta.culturaId || null,
-        descricao: fruta.descricao || "",
-        status: fruta.status || "ATIVA",
-        nomeCientifico: fruta.nomeCientifico || "",
-        corPredominante: fruta.corPredominante || "",
-        epocaColheita: fruta.epocaColheita || "",
-        observacoes: fruta.observacoes || "",
+      setCulturaAtual({
+        id: cultura.id,
+        descricao: cultura.descricao,
+        periodicidade: cultura.periodicidade,
+        permitirConsorcio: cultura.permitirConsorcio || false,
       });
 
       setEditando(true);
@@ -228,12 +193,12 @@ const Frutas = () => {
     []
   );
 
-  const handleExcluirFruta = useCallback(
+  const handleExcluirCultura = useCallback(
     async (id) => {
       Modal.confirm({
         title: "Confirmar exclusão",
         content:
-          "Tem certeza de que deseja excluir esta fruta? Essa ação não pode ser desfeita.",
+          "Tem certeza de que deseja excluir esta cultura? Essa ação não pode ser desfeita.",
         okText: "Sim",
         okType: "danger",
         cancelText: "Não",
@@ -241,28 +206,28 @@ const Frutas = () => {
           // Executar operação de exclusão de forma assíncrona
           const executarExclusao = async () => {
             try {
-            setCentralizedLoading(true);
-            setLoadingMessage("Removendo fruta...");
-            
-            await axiosInstance.delete(`${API_URL.frutas}/${id}`);
+              setCentralizedLoading(true);
+              setLoadingMessage("Removendo cultura...");
+
+              await axiosInstance.delete(`${API_URL.culturas}/${id}`);
               showNotification(
                 "success",
                 "Sucesso",
-                "Fruta excluída com sucesso!"
+                "Cultura excluída com sucesso!"
               );
-              
-              setLoadingMessage("Atualizando lista de frutas...");
-              await buscarFrutas();
+
+              setLoadingMessage("Atualizando lista de culturas...");
+              await buscarCulturas();
             } catch (error) {
-              console.error("Erro ao excluir fruta:", error);
+              console.error("Erro ao excluir cultura:", error);
 
               const errorMessage =
                 error.response?.data?.error ||
-                "Ocorreu um erro ao excluir a fruta.";
+                "Ocorreu um erro ao excluir a cultura.";
               const errorDetails = error.response?.data?.detalhes || "";
 
               Modal.error({
-                title: "Não é possível excluir a fruta",
+                title: "Não é possível excluir a cultura",
                 content: (
                   <>
                     <p>{errorMessage}</p>
@@ -274,21 +239,21 @@ const Frutas = () => {
               setCentralizedLoading(false);
             }
           };
-          
+
           // Executar operação
           executarExclusao();
-          
+
           // Retornar true para fechar o modal imediatamente
           return true;
         },
       });
     },
-    [API_URL.frutas, buscarFrutas]
+    [API_URL.culturas, buscarCulturas]
   );
 
   const handleChange = useCallback((fieldName, value) => {
     console.log(`Mudança no campo ${fieldName}:`, value);
-    setFrutaAtual((prevState) => ({
+    setCulturaAtual((prevState) => ({
       ...prevState,
       [fieldName]: value,
     }));
@@ -298,19 +263,17 @@ const Frutas = () => {
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
-      setFrutasFiltradas(frutas);
+      setCulturasFiltradas(culturas);
     } else {
       const query = searchQuery.toLowerCase().trim();
-      const filtrados = frutas.filter((fruta) => {
-        return fruta.nome.toLowerCase().includes(query) ||
-               (fruta.codigo && fruta.codigo.toLowerCase().includes(query)) ||
-               (fruta.cultura?.descricao && fruta.cultura.descricao.toLowerCase().includes(query)) ||
-               (fruta.descricao && fruta.descricao.toLowerCase().includes(query));
+      const filtrados = culturas.filter((cultura) => {
+        return cultura.descricao.toLowerCase().includes(query) ||
+               (cultura.periodicidade && cultura.periodicidade.toLowerCase().includes(query));
       });
-      setFrutasFiltradas(filtrados);
+      setCulturasFiltradas(filtrados);
       setCurrentPage(1); // Reset para primeira página quando busca
     }
-  }, [frutas, searchQuery]);
+  }, [culturas, searchQuery]);
 
   return (
     <Box
@@ -339,7 +302,7 @@ const Frutas = () => {
         >
           {/* Ícone principal da página - deve ser igual ao do sidebar */}
           <Icon 
-            icon="healthicons:fruits" 
+            icon="mdi:seedling" 
             style={{ 
               marginRight: 12, 
               fontSize: isMobile ? '31px' : '31px',
@@ -347,25 +310,25 @@ const Frutas = () => {
             }} 
           />
           {/* Fallback para o ícone antigo caso o Iconify falhe */}
-          <AppleOutlined style={{ marginRight: 8, display: 'none' }} />
-          Catálogo de Frutas
+          <PartitionOutlined style={{ marginRight: 8, display: 'none' }} />
+          Cadastro de Culturas
         </Title>
       </Box>
 
-      {/* Botão Adicionar Fruta */}
+      {/* Botão Adicionar Cultura */}
       <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
         <PrimaryButton
           onClick={handleOpenDialog}
           icon={<PlusCircleOutlined />}
         >
-          Adicionar Fruta
+          Adicionar Cultura
         </PrimaryButton>
       </Box>
 
       {/* Busca */}
       <Box sx={{ mb: 2 }}>
         <SearchInput
-          placeholder={isMobile ? "Buscar..." : "Buscar frutas por nome, código ou cultura..."}
+          placeholder={isMobile ? "Buscar..." : "Buscar culturas por descrição ou periodicidade..."}
           value={searchQuery}
           onChange={(value) => setSearchQuery(value)}
           size={isMobile ? "small" : "middle"}
@@ -376,14 +339,14 @@ const Frutas = () => {
         />
       </Box>
 
-      {/* Tabela de Frutas */}
+      {/* Tabela de Culturas */}
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
-          <FrutasTable
-            frutas={frutasFiltradas}
+          <CulturasTable
+            culturas={culturasFiltradas}
             loading={false}
-            onEdit={handleEditarFruta}
-            onDelete={handleExcluirFruta}
+            onEdit={handleEditarCultura}
+            onDelete={handleExcluirCultura}
             currentPage={currentPage}
             pageSize={pageSize}
             onPageChange={handlePageChange}
@@ -392,12 +355,12 @@ const Frutas = () => {
         </Suspense>
 
         {/* Paginação */}
-        {frutasFiltradas.length > 0 && (
+        {culturasFiltradas.length > 0 && (
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0 }}>
             <Pagination
               current={currentPage}
               pageSize={pageSize}
-              total={frutasFiltradas.length}
+              total={culturasFiltradas.length}
               onChange={handlePageChange}
               onShowSizeChange={handleShowSizeChange}
               showSizeChanger={!isMobile}
@@ -405,7 +368,7 @@ const Frutas = () => {
               showTotal={(total, range) =>
                 isMobile
                   ? `${range[0]}-${range[1]}/${total}`
-                  : `${range[0]}-${range[1]} de ${total} frutas`
+                  : `${range[0]}-${range[1]} de ${total} culturas`
               }
               pageSizeOptions={['10', '20', '50', '100']}
               size={isMobile ? "small" : "default"}
@@ -416,16 +379,16 @@ const Frutas = () => {
 
       {/* Modais */}
       <Suspense fallback={<Spin size="large" />}>
-        <AddEditFrutaDialog
+        <AddEditCulturaDialog
           open={openDialog}
           onClose={handleCloseDialog}
-          frutaAtual={frutaAtual}
-          setFrutaAtual={setFrutaAtual}
+          culturaAtual={culturaAtual}
+          setCulturaAtual={setCulturaAtual}
           editando={editando}
           erros={erros}
           setErros={setErros}
           isSaving={isSaving}
-          handleSalvarFruta={handleSalvarFruta}
+          handleSalvarCultura={handleSalvarCultura}
         />
       </Suspense>
 
@@ -439,4 +402,4 @@ const Frutas = () => {
   );
 };
 
-export default Frutas; 
+export default Culturas;

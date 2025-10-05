@@ -1,7 +1,7 @@
 // src/components/pedidos/tabs/PrecificacaoTab.js
 
 import React, { useState, useEffect } from "react";
-import { Button, Space, Form, Input, Row, Col, Typography, Card, Divider, Tooltip, DatePicker, InputNumber, Alert } from "antd";
+import { Button, Space, Form, Input, Row, Col, Typography, Card, Divider, Tooltip, InputNumber, Alert } from "antd";
 import PropTypes from "prop-types";
 import {
   SaveOutlined,
@@ -16,7 +16,7 @@ import {
   BuildOutlined,
   NumberOutlined
 } from "@ant-design/icons";
-import { MonetaryInput } from "../../../components/common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../../../components/common/inputs";
 import { formatarValorMonetario } from "../../../utils/formatters";
 import { FormButton } from "../../common/buttons";
 import axiosInstance from "../../../api/axiosConfig";
@@ -583,13 +583,12 @@ const PrecificacaoTab = ({
                     </Space>
                   }
                 >
-                  <DatePicker
+                  <MaskedDatePicker
                     style={{ 
                       width: "100%",
                       borderRadius: "6px",
                       borderColor: "#d9d9d9",
                     }}
-                    format="DD/MM/YYYY"
                     placeholder="Selecione a data"
                     disabledDate={(current) => current && current > moment().endOf('day')}
                     size="small"
@@ -597,7 +596,7 @@ const PrecificacaoTab = ({
                     onChange={(date) => {
                       setPedidoAtual(prev => ({
                         ...prev,
-                        indDataEntrada: date ? date.toISOString() : null
+                        indDataEntrada: date ? date.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null
                       }));
                     }}
                     disabled={!canEditTab("3")}
@@ -614,13 +613,12 @@ const PrecificacaoTab = ({
                     </Space>
                   }
                 >
-                  <DatePicker
+                  <MaskedDatePicker
                     style={{ 
                       width: "100%",
                       borderRadius: "6px",
                       borderColor: "#d9d9d9",
                     }}
-                    format="DD/MM/YYYY"
                     placeholder="Selecione a data"
                     disabledDate={(current) => current && current > moment().endOf('day')}
                     size="small"
@@ -628,7 +626,7 @@ const PrecificacaoTab = ({
                     onChange={(date) => {
                       setPedidoAtual(prev => ({
                         ...prev,
-                        indDataDescarga: date ? date.toISOString() : null
+                        indDataDescarga: date ? date.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null
                       }));
                     }}
                     disabled={!canEditTab("3")}

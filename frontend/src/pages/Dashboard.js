@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Card, Row, Col, Typography, Statistic, Space, Badge, Button, Progress, List, Avatar, Tag } from "antd";
+import { Icon } from "@iconify/react";
 import {
   DashboardOutlined,
   UserOutlined,
@@ -42,6 +43,52 @@ import PagamentosPendentesModal from "../components/dashboard/PagamentosPendente
 import PagamentosEfetuadosModal from "../components/dashboard/PagamentosEfetuadosModal";
 
 const { Title } = Typography;
+
+// Componente de ícone personalizado para Dashboard Geral
+const DashboardGeralIcon = ({ isMobile }) => {
+  const iconSize = isMobile ? '31px' : '31px';
+  const smallIconSize = isMobile ? '17px' : '14px';
+  
+  return (
+    <div style={{ 
+      position: 'relative', 
+      width: iconSize, 
+      height: iconSize,
+      marginRight: 8
+    }}>
+      {/* Ícone de fundo branco (borda) */}
+      <Icon 
+        icon="ant-design:dashboard-twotone" 
+        style={{ 
+          position: 'absolute',
+          right: '-4px',
+          bottom: '-3px',
+          fontSize: `${parseInt(smallIconSize) + 4}px`,
+          color: "#ffffff"
+        }} 
+      />
+      {/* Ícone principal - Dashboard */}
+      <Icon 
+        icon="mdi:monitor-dashboard" 
+        style={{ 
+          fontSize: iconSize,
+          color: "#2E7D32"
+        }} 
+      />
+      {/* Ícone secundário - ant-design:dashboard-twotone (canto inferior direito) */}
+      <Icon 
+        icon="ant-design:dashboard-twotone" 
+        style={{ 
+          position: 'absolute',
+          right: '-2px',
+          bottom: '-1px',
+          fontSize: smallIconSize,
+          color: "#2E7D32"
+        }} 
+      />
+    </div>
+  );
+};
 
 // Função para detectar ícone da fruta baseado no nome
 const getFruitIcon = (frutaNome) => {
@@ -434,7 +481,7 @@ const Dashboard = () => {
               flexWrap: 'wrap' // ✅ Permite quebra de linha se necessário
             }}
           >
-            <DashboardOutlined style={{ marginRight: 8 }} /> {/* ✅ Exatamente igual ao desktop */}
+            <DashboardGeralIcon isMobile={isMobile} />
             Dashboard Geral {/* ✅ Exatamente igual ao desktop */}
           </Title>
           <Typography.Text

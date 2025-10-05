@@ -10,14 +10,17 @@ import {
 } from "antd";
 import {
   UserOutlined,
+  PlusCircleOutlined,
 } from "@ant-design/icons";
-import axiosInstance from "../api/axiosConfig";
-import { showNotification } from "../config/notificationConfig";
+// Importar ícones do Iconify para agricultura
+import { Icon } from "@iconify/react";
 import { CentralizedLoader } from "components/common/loaders";
 import FornecedoresTable from "../components/fornecedores/FornecedoresTable";
 import AddEditFornecedorDialog from "../components/fornecedores/AddEditFornecedorDialog";
 import { PrimaryButton } from "../components/common/buttons";
 import { SearchInput } from "../components/common/search";
+import axiosInstance from "../api/axiosConfig";
+import { showNotification } from "../config/notificationConfig";
 
 const { Option } = Select;
 
@@ -170,7 +173,25 @@ const FornecedoresPage = () => {
   return (
     <div style={{ padding: "16px" }}>
       {/* Título */}
-      <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
+      <Typography.Title 
+        level={2} 
+        style={{ 
+          marginBottom: 16, 
+          color: "#059669",
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap'
+        }}
+      >
+        {/* Ícone principal da página - deve ser igual ao do sidebar */}
+        <Icon 
+          icon="mdi:truck-delivery" 
+          style={{ 
+            marginRight: 12, 
+            fontSize: '31px',
+            color: "#059669"
+          }} 
+        />
         Gestão de Fornecedores
       </Typography.Title>
 
@@ -178,7 +199,7 @@ const FornecedoresPage = () => {
       <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
         <PrimaryButton
           onClick={handleNovoFornecedor}
-          icon={<UserOutlined />}
+          icon={<PlusCircleOutlined />}
         >
           Novo Fornecedor
         </PrimaryButton>

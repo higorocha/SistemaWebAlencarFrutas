@@ -4,6 +4,7 @@
 export { default as MaskedDecimalInput } from './MaskedDecimalInput';
 export { default as MonetaryInput } from './MonetaryInput';
 export { default as HectaresInput } from './HectaresInput';
+export { default as MaskedDatePicker } from './MaskedDatePicker';
 
 export { 
   StyledNumericFormat, 

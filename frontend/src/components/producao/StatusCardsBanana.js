@@ -8,11 +8,15 @@ import {
   BarChartOutlined,
   CalculatorOutlined,
 } from "@ant-design/icons";
-import { intFormatter } from "../../utils/formatters";
+import { intFormatter, numberFormatter } from "../../utils/formatters";
+import useResponsive from "../../hooks/useResponsive";
 
 const { Text } = Typography;
 
 const StatusCardsBanana = ({ stats = {} }) => {
+  // Hook de responsividade
+  const { isMobile } = useResponsive();
+
   const {
     totalControles = 0,
     totalFitas = 0,
@@ -21,78 +25,78 @@ const StatusCardsBanana = ({ stats = {} }) => {
   } = stats;
 
   const cardStyle = {
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-    border: "1px solid #f0f0f0",
+    borderRadius: "0.75rem", // 12px → rem
+    boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)", // 2px 8px → rem
+    border: "0.0625rem solid #f0f0f0", // 1px → rem
+  };
+
+  const titleStyle = {
+    color: "#666",
+    fontSize: isMobile ? "0.6875rem" : "0.6875rem", // 11px
+  };
+
+  const iconStyle = {
+    fontSize: isMobile ? "1rem" : "1rem", // 16px
+  };
+
+  const valueStyle = {
+    fontSize: isMobile ? "1.125rem" : "1.125rem", // 18px
+    fontWeight: "600",
   };
 
   return (
-    <div className="status-cards-row">
+    <Row
+      gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}
+      style={{ marginBottom: isMobile ? "12px" : "16px" }}
+    >
       {/* Total de Registros */}
-      <div className="status-cards-col">
-        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
+      <Col xs={12} sm={12} md={6}>
+        <Card style={cardStyle} styles={{ body: { padding: isMobile ? "8px" : "12px" } }}>
           <Statistic
-            title={
-              <Text style={{ color: "#666", fontSize: "11px" }}>
-                Total de Registros
-              </Text>
-            }
+            title={<Text style={titleStyle}>Total de Registros</Text>}
             value={intFormatter(totalControles)}
-            prefix={<FileTextOutlined style={{ color: "#059669", fontSize: "16px" }} />}
-            valueStyle={{ color: "#059669", fontSize: "18px", fontWeight: "600" }}
+            prefix={<FileTextOutlined style={{ ...iconStyle, color: "#059669" }} />}
+            valueStyle={{ ...valueStyle, color: "#059669" }}
           />
         </Card>
-      </div>
+      </Col>
 
       {/* Total de Fitas */}
-      <div className="status-cards-col">
-        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
+      <Col xs={12} sm={12} md={6}>
+        <Card style={cardStyle} styles={{ body: { padding: isMobile ? "8px" : "12px" } }}>
           <Statistic
-            title={
-              <Text style={{ color: "#666", fontSize: "11px" }}>
-                Total de Fitas
-              </Text>
-            }
+            title={<Text style={titleStyle}>Total de Fitas</Text>}
             value={intFormatter(totalFitas)}
-            prefix={<BarChartOutlined style={{ color: "#1890ff", fontSize: "16px" }} />}
-            valueStyle={{ color: "#1890ff", fontSize: "18px", fontWeight: "600" }}
+            prefix={<BarChartOutlined style={{ ...iconStyle, color: "#1890ff" }} />}
+            valueStyle={{ ...valueStyle, color: "#1890ff" }}
           />
         </Card>
-      </div>
+      </Col>
 
       {/* Áreas com Registros */}
-      <div className="status-cards-col">
-        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
+      <Col xs={12} sm={12} md={6}>
+        <Card style={cardStyle} styles={{ body: { padding: isMobile ? "8px" : "12px" } }}>
           <Statistic
-            title={
-              <Text style={{ color: "#666", fontSize: "11px" }}>
-                Áreas com Registros
-              </Text>
-            }
+            title={<Text style={titleStyle}>Áreas c/ Registros</Text>}
             value={intFormatter(totalAreas)}
-            prefix={<EnvironmentOutlined style={{ color: "#52c41a", fontSize: "16px" }} />}
-            valueStyle={{ color: "#52c41a", fontSize: "18px", fontWeight: "600" }}
+            prefix={<EnvironmentOutlined style={{ ...iconStyle, color: "#52c41a" }} />}
+            valueStyle={{ ...valueStyle, color: "#52c41a" }}
           />
         </Card>
-      </div>
+      </Col>
 
       {/* Média por Área */}
-      <div className="status-cards-col">
-        <Card style={cardStyle} styles={{ body: { padding: "12px" } }}>
+      <Col xs={12} sm={12} md={6}>
+        <Card style={cardStyle} styles={{ body: { padding: isMobile ? "8px" : "12px" } }}>
           <Statistic
-            title={
-              <Text style={{ color: "#666", fontSize: "11px" }}>
-                Média por Área
-              </Text>
-            }
-            value={mediaFitasPorArea}
-            precision={1}
-            prefix={<CalculatorOutlined style={{ color: "#faad14", fontSize: "16px" }} />}
-            valueStyle={{ color: "#faad14", fontSize: "18px", fontWeight: "600" }}
+            title={<Text style={titleStyle}>Média por Área</Text>}
+            value={numberFormatter(mediaFitasPorArea)}
+            prefix={<CalculatorOutlined style={{ ...iconStyle, color: "#faad14" }} />}
+            valueStyle={{ ...valueStyle, color: "#faad14" }}
           />
         </Card>
-      </div>
-    </div>
+      </Col>
+    </Row>
   );
 };
 

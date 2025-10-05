@@ -32,7 +32,7 @@ import {
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
-import { MonetaryInput } from "../../components/common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs";
 import axiosInstance from "../../api/axiosConfig";
 import useResponsive from "../../hooks/useResponsive";
 
@@ -231,8 +231,8 @@ const PrecificacaoModal = ({
         desconto: values.desconto ? (typeof values.desconto === 'string' ? parseFloat(values.desconto) : values.desconto) : 0,
         avaria: values.avaria ? (typeof values.avaria === 'string' ? parseFloat(values.avaria) : values.avaria) : 0,
         // Campos específicos para clientes indústria
-        indDataEntrada: values.indDataEntrada ? moment(values.indDataEntrada).format('YYYY-MM-DD') : undefined,
-        indDataDescarga: values.indDataDescarga ? moment(values.indDataDescarga).format('YYYY-MM-DD') : undefined,
+        indDataEntrada: values.indDataEntrada ? moment(values.indDataEntrada).startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : undefined,
+        indDataDescarga: values.indDataDescarga ? moment(values.indDataDescarga).startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : undefined,
         indPesoMedio: values.indPesoMedio ? (typeof values.indPesoMedio === 'string' ? parseFloat(values.indPesoMedio) : values.indPesoMedio) : undefined,
         indMediaMililitro: values.indMediaMililitro ? (typeof values.indMediaMililitro === 'string' ? parseFloat(values.indMediaMililitro) : values.indMediaMililitro) : undefined,
         indNumeroNf: values.indNumeroNf ? (typeof values.indNumeroNf === 'string' ? parseInt(values.indNumeroNf) : values.indNumeroNf) : undefined,
@@ -887,7 +887,7 @@ const PrecificacaoModal = ({
                         if (!value) return Promise.resolve();
                         
                         // Validar se a data é válida
-                        if (!moment(value).isValid()) {
+                        if (!value.isValid || !value.isValid()) {
                           return Promise.reject(new Error("Data inválida"));
                         }
                         
@@ -896,13 +896,12 @@ const PrecificacaoModal = ({
                     }
                   ]}
                 >
-                  <DatePicker
+                  <MaskedDatePicker
                     style={{ 
                       width: "100%",
                       borderRadius: "6px",
                       borderColor: "#d9d9d9",
                     }}
-                    format="DD/MM/YYYY"
                     placeholder="Selecione a data"
                     disabledDate={(current) => current && current > moment().endOf('day')}
                     size="small"
@@ -926,7 +925,7 @@ const PrecificacaoModal = ({
                         if (!value) return Promise.resolve();
                         
                         // Validar se a data é válida
-                        if (!moment(value).isValid()) {
+                        if (!value.isValid || !value.isValid()) {
                           return Promise.reject(new Error("Data inválida"));
                         }
                         
@@ -935,13 +934,12 @@ const PrecificacaoModal = ({
                     }
                   ]}
                 >
-                  <DatePicker
+                  <MaskedDatePicker
                     style={{ 
                       width: "100%",
                       borderRadius: "6px",
                       borderColor: "#d9d9d9",
                     }}
-                    format="DD/MM/YYYY"
                     placeholder="Selecione a data"
                     disabledDate={(current) => current && current > moment().endOf('day')}
                     size="small"

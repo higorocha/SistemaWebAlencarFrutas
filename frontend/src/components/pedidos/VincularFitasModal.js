@@ -107,10 +107,13 @@ const VincularFitasModal = ({
       // Consultar o backend para obter endpoint correto
       const response = await axiosInstance.get("/controle-banana/fitas-com-areas");
       const dadosFitas = response.data || [];
-      setFitasComAreas(dadosFitas);
+      
+      // ✅ NOVA LÓGICA: Filtrar fitas baseadas nas áreas selecionadas
+      const fitasFiltradas = filtrarFitasPorAreasSelecionadas(dadosFitas);
+      setFitasComAreas(fitasFiltradas);
       
       // ✅ NOVA LÓGICA: Inicializar validação global
-      inicializarValidacaoGlobal(dadosFitas);
+      inicializarValidacaoGlobal(fitasFiltradas);
       
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
@@ -118,6 +121,41 @@ const VincularFitasModal = ({
     } finally {
       setLoadingDados(false);
     }
+  };
+
+  // ✅ NOVA FUNÇÃO: Filtrar fitas baseadas nas áreas selecionadas
+  const filtrarFitasPorAreasSelecionadas = (dadosFitas) => {
+    // Obter IDs das áreas selecionadas
+    const areasSelecionadas = fruta?.areas || [];
+    const idsAreasSelecionadas = areasSelecionadas
+      .filter(area => area.areaPropriaId || area.areaFornecedorId)
+      .map(area => area.areaPropriaId || area.areaFornecedorId);
+    
+    console.log("🔍 DEBUG VincularFitasModal - Filtro por áreas:");
+    console.log("  - Áreas selecionadas:", areasSelecionadas);
+    console.log("  - IDs das áreas:", idsAreasSelecionadas);
+    
+    if (idsAreasSelecionadas.length === 0) {
+      console.log("  - Nenhuma área selecionada, mostrando todas as fitas");
+      return dadosFitas;
+    }
+    
+    // Filtrar fitas que possuem lotes nas áreas selecionadas
+    const fitasFiltradas = dadosFitas.map(fita => {
+      const areasFiltradas = fita.areas.filter(area => {
+        const temAreaSelecionada = idsAreasSelecionadas.includes(area.areaId);
+        console.log(`  - Fita "${fita.nome}", Área "${area.nome}" (ID: ${area.areaId}): ${temAreaSelecionada ? 'INCLUÍDA' : 'EXCLUÍDA'}`);
+        return temAreaSelecionada;
+      });
+      
+      return {
+        ...fita,
+        areas: areasFiltradas
+      };
+    }).filter(fita => fita.areas.length > 0); // Remover fitas sem áreas selecionadas
+    
+    console.log(`  - Fitas filtradas: ${fitasFiltradas.length} de ${dadosFitas.length} fitas`);
+    return fitasFiltradas;
   };
 
   // ✅ NOVA FUNÇÃO: Inicializar validação global
@@ -653,6 +691,28 @@ const VincularFitasModal = ({
           </Col>
         </Row>
       </Card>
+
+      {/* ✅ NOVA SEÇÃO: Informação sobre Filtro por Áreas - Apenas Desktop */}
+      {!isMobile && fruta?.areas && fruta.areas.length > 0 && (
+        <Card
+          style={{ 
+            marginBottom: 16, 
+            border: "0.0625rem solid #1890ff", 
+            borderRadius: "0.5rem", 
+            backgroundColor: "#f0f9ff" 
+          }}
+          styles={{
+            body: {
+              padding: "16px"
+            }
+          }}
+        >
+          <Text style={{ color: "#1890ff", fontSize: "0.875rem" }}>
+            <strong>ℹ️ Filtro por Áreas:</strong> Apenas lotes de fitas das áreas selecionadas estão sendo exibidos. 
+            Áreas vinculadas: <strong>{fruta.areas.length}</strong>
+          </Text>
+        </Card>
+      )}
 
       {/* ✅ NOVA SEÇÃO: Alertas de Validação Global */}
       {alertasEstoque.length > 0 && (

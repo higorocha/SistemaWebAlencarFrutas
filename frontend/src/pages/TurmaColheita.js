@@ -7,14 +7,16 @@ import {
   PartitionOutlined,
   PlusCircleOutlined,
 } from "@ant-design/icons";
-import axiosInstance from "../api/axiosConfig";
-import { Pagination } from "antd";
-import { showNotification } from "../config/notificationConfig";
-import { Box } from "@mui/material";
+// Importar ícones do Iconify para agricultura
+import { Icon } from "@iconify/react";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
 import { CentralizedLoader } from "components/common/loaders";
 import { PrimaryButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
+import axiosInstance from "../api/axiosConfig";
+import { Pagination } from "antd";
+import { showNotification } from "../config/notificationConfig";
+import { Box } from "@mui/material";
 
 const TurmaColheitaTable = lazy(() => import("../components/turma-colheita/TurmaColheitaTable"));
 const AddEditTurmaColheitaDialog = lazy(() =>
@@ -209,7 +211,25 @@ const TurmaColheita = () => {
   return (
     <div style={{ padding: 16 }}>
       {/* Título */}
-      <Typography.Title level={1} style={{ marginBottom: 16, color: "#059669" }}>
+      <Typography.Title 
+        level={2} 
+        style={{ 
+          marginBottom: 16, 
+          color: "#059669",
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap'
+        }}
+      >
+        {/* Ícone principal da página - deve ser igual ao do sidebar */}
+        <Icon 
+          icon="game-icons:farmer" 
+          style={{ 
+            marginRight: 12, 
+            fontSize: '31px',
+            color: "#059669"
+          }} 
+        />
         Gestão de Turma de Colheita
       </Typography.Title>
 

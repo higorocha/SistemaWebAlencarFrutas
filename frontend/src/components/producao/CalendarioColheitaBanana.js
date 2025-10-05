@@ -5,12 +5,14 @@ import { useTheme } from '@mui/material/styles';
 import axiosInstance from '../../api/axiosConfig';
 import { obterNumeroSemana, formatarDataCurta, calcularStatusMaturacao } from '../../utils/dateUtils';
 import ModalDetalhesSemana from './ModalDetalhesSemana';
+import useResponsive from '../../hooks/useResponsive';
 import './CalendarioColheitaBanana.css';
 
 const { Text, Title } = Typography;
 
-const CalendarioColheitaBanana = () => {
+const CalendarioColheitaBanana = ({ dashboardData }) => {
   const theme = useTheme();
+  const { isMobile } = useResponsive();
   const [loading, setLoading] = useState(false);
   const [dadosColheita, setDadosColheita] = useState([]);
   const [anoAtual, setAnoAtual] = useState(new Date().getFullYear());
@@ -64,6 +66,13 @@ const CalendarioColheitaBanana = () => {
   useEffect(() => {
     carregarDadosColheita();
   }, [anoAtual]);
+
+  // ✅ REAGIR às mudanças no dashboardData (quando nova fita é cadastrada)
+  useEffect(() => {
+    if (dashboardData) {
+      carregarDadosColheita();
+    }
+  }, [dashboardData]);
 
   const carregarDadosColheita = async () => {
     try {
@@ -261,7 +270,7 @@ const CalendarioColheitaBanana = () => {
 
   const obterTooltipContent = (dados, dataSemana) => {
     if (dados.length === 0) return 'Sem previsões para esta semana';
-    
+
     // Agrupar dados apenas por área
     const dadosAgrupados = dados.reduce((acc, item) => {
       if (!acc[item.areaNome]) {
@@ -273,39 +282,83 @@ const CalendarioColheitaBanana = () => {
       acc[item.areaNome].fitas.push(item);
       return acc;
     }, {});
-    
+
     const iconesStatus = {
       maturacao: '🌱',
       colheita: '🍌',
       alerta: '⚠️',
       vencido: '🚨'
     };
-    
+
     // Prioridade dos status (maior número = maior prioridade)
     const prioridadeStatus = { vencido: 4, alerta: 3, colheita: 2, maturacao: 1 };
-    
+
     return (
-      <div style={{ 
-        backgroundColor: '#ffffff', 
+      <div style={{
+        backgroundColor: '#ffffff',
         color: '#333333',
-        padding: '10px',
+        padding: 0,  // ✅ Removido padding externo para não afetar scroll
         borderRadius: '8px',
         maxWidth: '300px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+        maxHeight: window.innerWidth < 576 ? '60vh' : '400px',  // ✅ Responsivo: mobile usa vh, desktop usa px
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'  // ✅ Oculta overflow externo
       }}>
-        <div style={{ 
-          fontWeight: '700', 
-          marginBottom: '10px', 
+        {/* ✅ Header fixo (não scrollável) */}
+        <div style={{
+          fontWeight: '700',
+          padding: '10px',
           color: '#059669',
           fontSize: '13px',
           textAlign: 'center',
-          borderBottom: '1px solid #f0f0f0',
-          paddingBottom: '6px'
+          borderBottom: '2px solid #f0f0f0',
+          backgroundColor: '#ffffff',
+          borderRadius: '8px 8px 0 0',
+          flexShrink: 0  // ✅ Não encolhe
         }}>
           📅 Semana {dataSemana ? obterNumeroSemana(dataSemana) : ''}
         </div>
-        
-        {Object.values(dadosAgrupados).map((grupo, index) => {
+
+        {/* ✅ Container scrollável para o conteúdo */}
+        <div
+          className="tooltip-scroll-container"
+          style={{
+            overflowY: 'auto',  // ✅ Scroll vertical
+            overflowX: 'hidden',  // ✅ Sem scroll horizontal
+            padding: '10px',
+            flexGrow: 1,  // ✅ Ocupa espaço disponível
+            // ✅ Estilização do scrollbar (Firefox)
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#059669 #f0f0f0',
+            WebkitOverflowScrolling: 'touch'  // ✅ Scroll suave no iOS
+          }}
+        >
+          <style>{`
+            /* ✅ Scrollbar customizado para Chrome/Safari/Edge */
+            .tooltip-scroll-container::-webkit-scrollbar {
+              width: 6px;
+            }
+            .tooltip-scroll-container::-webkit-scrollbar-track {
+              background: #f0f0f0;
+              border-radius: 3px;
+            }
+            .tooltip-scroll-container::-webkit-scrollbar-thumb {
+              background: #059669;
+              border-radius: 3px;
+            }
+            .tooltip-scroll-container::-webkit-scrollbar-thumb:hover {
+              background: #047857;
+            }
+
+            /* ✅ Garantir scroll suave em todos os navegadores */
+            .tooltip-scroll-container {
+              scroll-behavior: smooth;
+            }
+          `}</style>
+
+          {Object.values(dadosAgrupados).map((grupo, index, array) => {
           // Agrupar fitas por status dentro da área
           const fitasPorStatus = grupo.fitas.reduce((acc, fita) => {
             if (!acc[fita.status]) {
@@ -314,17 +367,20 @@ const CalendarioColheitaBanana = () => {
             acc[fita.status].push(fita);
             return acc;
           }, {});
-          
+
           // Determinar o status de maior prioridade para a cor de fundo
-          const statusPrincipal = grupo.fitas.reduce((prev, atual) => 
+          const statusPrincipal = grupo.fitas.reduce((prev, atual) =>
             prioridadeStatus[atual.status] > prioridadeStatus[prev.status] ? atual : prev
           );
-          
+
           const totalFitas = grupo.fitas.reduce((sum, fita) => sum + fita.quantidade, 0);
-          
+
+          // ✅ Último item não tem margem inferior
+          const isUltimo = index === array.length - 1;
+
           return (
-            <div key={index} style={{ 
-              marginBottom: '10px', 
+            <div key={index} style={{
+              marginBottom: isUltimo ? 0 : '10px',  // ✅ Último sem margem
               padding: '12px',
               backgroundColor: coresStatus[statusPrincipal.status],
               border: `2px solid ${coresBorda[statusPrincipal.status]}`,
@@ -394,6 +450,7 @@ const CalendarioColheitaBanana = () => {
             </div>
           );
         })}
+        </div>
       </div>
     );
   };
@@ -402,114 +459,188 @@ const CalendarioColheitaBanana = () => {
     <>
     <Card
       title={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <CalendarOutlined style={{ color: '#059669', fontSize: '20px' }} />
-            <span>Calendário de Colheita</span>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: isMobile ? 'wrap' : 'nowrap',
+          gap: isMobile ? '8px' : '12px'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: isMobile ? '6px' : '12px',
+            flex: isMobile ? '1 1 100%' : 'auto'
+          }}>
+            <CalendarOutlined style={{
+              color: '#059669',
+              fontSize: isMobile ? '1rem' : '1.25rem'  // ✅ 16px → 20px em rem
+            }} />
+            <span style={{
+              fontSize: isMobile ? '0.875rem' : '1rem',  // ✅ 14px → 16px em rem
+              fontWeight: '600'
+            }}>
+              {isMobile ? 'Calendário de Colheita' : 'Calendário de Colheita'}
+            </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: isMobile ? '4px' : '8px',
+            flex: isMobile ? '1 1 100%' : 'auto',
+            justifyContent: isMobile ? 'center' : 'flex-end'
+          }}>
             <Button
-              icon={<LeftOutlined />}
+              icon={<LeftOutlined style={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }} />}
               onClick={() => navegarAno('anterior')}
               size="small"
-              style={{ 
+              style={{
                 backgroundColor: '#f8f9fa',
                 borderColor: '#dee2e6',
-                color: '#495057'
+                color: '#495057',
+                width: isMobile ? '28px' : '32px',
+                height: isMobile ? '28px' : '32px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
             />
             <Button
               onClick={irParaAnoAtual}
               size="small"
-              style={{ 
+              style={{
                 backgroundColor: anoAtual === new Date().getFullYear() ? '#059669' : '#f8f9fa',
                 borderColor: anoAtual === new Date().getFullYear() ? '#059669' : '#dee2e6',
                 color: anoAtual === new Date().getFullYear() ? '#ffffff' : '#495057',
                 fontWeight: '600',
-                minWidth: '60px'
+                minWidth: isMobile ? '50px' : '60px',
+                height: isMobile ? '28px' : '32px',
+                fontSize: isMobile ? '0.75rem' : '0.875rem'  // ✅ 12px → 14px em rem
               }}
             >
               {anoAtual}
             </Button>
             <Button
-              icon={<RightOutlined />}
+              icon={<RightOutlined style={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }} />}
               onClick={() => navegarAno('proximo')}
               size="small"
-              style={{ 
+              style={{
                 backgroundColor: '#f8f9fa',
                 borderColor: '#dee2e6',
-                color: '#495057'
+                color: '#495057',
+                width: isMobile ? '28px' : '32px',
+                height: isMobile ? '28px' : '32px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
             />
           </div>
         </div>
       }
-      style={{ marginTop: '24px' }}
+      style={{ marginTop: isMobile ? '12px' : '24px' }}
       styles={{
         header: {
           backgroundColor: '#f8f9fa',
-          borderBottom: '2px solid #e9ecef',
-          borderRadius: '8px 8px 0 0'
+          borderBottom: '0.125rem solid #e9ecef',  // ✅ 2px → rem
+          borderRadius: '0.5rem 0.5rem 0 0',  // ✅ 8px → rem
+          padding: isMobile ? '8px 12px' : '12px 16px'
         }
       }}
     >
       {/* Legenda */}
-      <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-        <Title level={5} style={{ margin: '0 0 12px 0' }}>Legenda:</Title>
-        <Row gutter={[16, 8]}>
-          <Col span={6}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ 
-                width: '16px', 
-                height: '16px', 
-                backgroundColor: coresStatus.maturacao, 
-                border: `2px solid ${coresBorda.maturacao}`,
-                borderRadius: '4px'
+      <div style={{
+        marginBottom: isMobile ? '12px' : '20px',
+        padding: isMobile ? '12px' : '16px',
+        backgroundColor: '#f8f9fa',
+        borderRadius: '0.5rem'  // ✅ 8px → rem
+      }}>
+        <Title level={5} style={{
+          margin: '0 0 12px 0',
+          fontSize: isMobile ? '0.875rem' : '1rem'  // ✅ 14px → 16px em rem
+        }}>
+          Legenda:
+        </Title>
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 8]}>
+          <Col xs={24} sm={24} md={6}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '4px' : '8px' }}>
+              <div style={{
+                width: isMobile ? '12px' : '16px',
+                height: isMobile ? '12px' : '16px',
+                backgroundColor: coresStatus.maturacao,
+                border: `0.125rem solid ${coresBorda.maturacao}`,  // ✅ 2px → rem
+                borderRadius: '0.25rem',  // ✅ 4px → rem
+                flexShrink: 0
               }} />
-              <Text style={{ color: coresTexto.maturacao, fontWeight: '500' }}>
-                🌱 Maturação (0-99 dias)
+              <Text style={{
+                color: coresTexto.maturacao,
+                fontWeight: '500',
+                fontSize: isMobile ? '0.6875rem' : '0.875rem',  // ✅ 11px → 14px em rem
+                lineHeight: isMobile ? '1.2' : '1.5'
+              }}>
+                {isMobile ? '🌱 Maturação 0-99d' : '🌱 Maturação (0-99 dias)'}
               </Text>
             </div>
           </Col>
-          <Col span={6}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ 
-                width: '16px', 
-                height: '16px', 
-                backgroundColor: coresStatus.colheita, 
-                border: `2px solid ${coresBorda.colheita}`,
-                borderRadius: '4px'
+          <Col xs={24} sm={24} md={6}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '4px' : '8px' }}>
+              <div style={{
+                width: isMobile ? '12px' : '16px',
+                height: isMobile ? '12px' : '16px',
+                backgroundColor: coresStatus.colheita,
+                border: `0.125rem solid ${coresBorda.colheita}`,  // ✅ 2px → rem
+                borderRadius: '0.25rem',  // ✅ 4px → rem
+                flexShrink: 0
               }} />
-              <Text style={{ color: coresTexto.colheita, fontWeight: '500' }}>
-                🍌 Colheita (100-115 dias)
+              <Text style={{
+                color: coresTexto.colheita,
+                fontWeight: '500',
+                fontSize: isMobile ? '0.6875rem' : '0.875rem',  // ✅ 11px → 14px em rem
+                lineHeight: isMobile ? '1.2' : '1.5'
+              }}>
+                {isMobile ? '🍌 Colheita 100-115d' : '🍌 Colheita (100-115 dias)'}
               </Text>
             </div>
           </Col>
-          <Col span={6}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ 
-                width: '16px', 
-                height: '16px', 
-                backgroundColor: coresStatus.alerta, 
-                border: `2px solid ${coresBorda.alerta}`,
-                borderRadius: '4px'
+          <Col xs={24} sm={24} md={6}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '4px' : '8px' }}>
+              <div style={{
+                width: isMobile ? '12px' : '16px',
+                height: isMobile ? '12px' : '16px',
+                backgroundColor: coresStatus.alerta,
+                border: `0.125rem solid ${coresBorda.alerta}`,  // ✅ 2px → rem
+                borderRadius: '0.25rem',  // ✅ 4px → rem
+                flexShrink: 0
               }} />
-              <Text style={{ color: coresTexto.alerta, fontWeight: '500' }}>
-                ⚠️ Alerta (116-125 dias)
+              <Text style={{
+                color: coresTexto.alerta,
+                fontWeight: '500',
+                fontSize: isMobile ? '0.6875rem' : '0.875rem',  // ✅ 11px → 14px em rem
+                lineHeight: isMobile ? '1.2' : '1.5'
+              }}>
+                {isMobile ? '⚠️ Alerta 116-125d' : '⚠️ Alerta (116-125 dias)'}
               </Text>
             </div>
           </Col>
-          <Col span={6}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ 
-                width: '16px', 
-                height: '16px', 
-                backgroundColor: coresStatus.vencido, 
-                border: `2px solid ${coresBorda.vencido}`,
-                borderRadius: '4px'
+          <Col xs={24} sm={24} md={6}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '4px' : '8px' }}>
+              <div style={{
+                width: isMobile ? '12px' : '16px',
+                height: isMobile ? '12px' : '16px',
+                backgroundColor: coresStatus.vencido,
+                border: `0.125rem solid ${coresBorda.vencido}`,  // ✅ 2px → rem
+                borderRadius: '0.25rem',  // ✅ 4px → rem
+                flexShrink: 0
               }} />
-              <Text style={{ color: coresTexto.vencido, fontWeight: '500' }}>
-                🚨 Risco (+125 dias)
+              <Text style={{
+                color: coresTexto.vencido,
+                fontWeight: '500',
+                fontSize: isMobile ? '0.6875rem' : '0.875rem',  // ✅ 11px → 14px em rem
+                lineHeight: isMobile ? '1.2' : '1.5'
+              }}>
+                {isMobile ? '🚨 Risco +125d' : '🚨 Risco (+125 dias)'}
               </Text>
             </div>
           </Col>
@@ -776,18 +907,33 @@ const CalendarioColheitaBanana = () => {
 
       {/* Informações adicionais */}
       <Alert
-        message="Informações sobre o Calendário"
+        message={
+          <span style={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}>
+            Informações sobre o Calendário
+          </span>
+        }
         description={
-          <div>
-            <p>• Cada semana mostra as previsões de colheita baseadas nas fitas cadastradas</p>
-            <p>• As cores indicam o status de maturação das bananas</p>
-            <p>• Passe o mouse sobre as semanas para ver detalhes</p>
-            <p>• O cálculo é baseado em 100-125 dias após o cadastro da fita</p>
+          <div style={{ fontSize: isMobile ? '0.6875rem' : '0.8125rem' }}>
+            <p style={{ margin: isMobile ? '4px 0' : '8px 0' }}>
+              • Cada semana mostra as previsões de colheita baseadas nas fitas cadastradas
+            </p>
+            <p style={{ margin: isMobile ? '4px 0' : '8px 0' }}>
+              • As cores indicam o status de maturação das bananas
+            </p>
+            <p style={{ margin: isMobile ? '4px 0' : '8px 0' }}>
+              • Passe o mouse sobre as semanas para ver detalhes
+            </p>
+            <p style={{ margin: isMobile ? '4px 0' : '8px 0' }}>
+              • O cálculo é baseado em 100-125 dias após o cadastro da fita
+            </p>
           </div>
         }
         type="info"
         showIcon
-        style={{ marginTop: '20px' }}
+        style={{
+          marginTop: isMobile ? '12px' : '20px',
+          fontSize: isMobile ? '0.75rem' : '0.875rem'
+        }}
       />
       </Card>
 

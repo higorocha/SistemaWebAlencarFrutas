@@ -1,6 +1,6 @@
 // src/components/frutas/FrutaForm.js
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import {
   Form,
@@ -12,6 +12,7 @@ import {
   Card,
   Space,
   Tag,
+  Spin,
 } from "antd";
 import {
   TagOutlined,
@@ -19,6 +20,9 @@ import {
   InfoCircleOutlined,
   FileTextOutlined,
 } from "@ant-design/icons";
+import axiosInstance from "../../api/axiosConfig";
+import { showNotification } from "../../config/notificationConfig";
+
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -30,6 +34,36 @@ const FrutaForm = ({
   erros,
   setErros,
 }) => {
+  const [culturas, setCulturas] = useState([]);
+  const [loadingCulturas, setLoadingCulturas] = useState(false);
+
+  // Buscar culturas ao montar o componente
+  useEffect(() => {
+    const buscarCulturas = async () => {
+      try {
+        setLoadingCulturas(true);
+        const response = await axiosInstance.get("/api/culturas");
+        
+        // Extrair array de culturas (pode vir em data.data ou diretamente em data)
+        let todasCulturas = [];
+        if (Array.isArray(response.data)) {
+          todasCulturas = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          todasCulturas = response.data.data;
+        }
+        
+        // Não filtra por status pois o modelo Cultura não possui esse campo
+        setCulturas(todasCulturas);
+      } catch (error) {
+        console.error("Erro ao buscar culturas:", error);
+        showNotification("error", "Erro", "Erro ao carregar culturas.");
+      } finally {
+        setLoadingCulturas(false);
+      }
+    };
+
+    buscarCulturas();
+  }, []);
 
   const handleChange = (field, value) => {
     setFrutaAtual((prevState) => ({
@@ -127,56 +161,33 @@ const FrutaForm = ({
                 label={
                   <Space>
                     <TagOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>Categoria</span>
+                    <span style={{ fontWeight: "700", color: "#333" }}>Cultura</span>
                   </Space>
                 }
-                validateStatus={erros.categoria ? "error" : ""}
-                help={erros.categoria}
+                validateStatus={erros.culturaId ? "error" : ""}
+                help={erros.culturaId}
+                required
               >
                 <Select
-                  placeholder="Selecione a categoria"
-                  value={frutaAtual.categoria || undefined}
-                  onChange={(value) => handleChange("categoria", value)}
+                  placeholder="Selecione a cultura"
+                  value={frutaAtual.culturaId || undefined}
+                  onChange={(value) => handleChange("culturaId", value)}
                   style={{
                     borderRadius: "6px",
                   }}
-                  allowClear
+                  loading={loadingCulturas}
+                  notFoundContent={loadingCulturas ? <Spin size="small" /> : "Nenhuma cultura encontrada"}
+                  showSearch
+                  optionFilterProp="children"
+                  filterOption={(input, option) =>
+                    option.children.toLowerCase().includes(input.toLowerCase())
+                  }
                 >
-                  <Option value="CITRICOS">
-                    <Space>
-                      <Tag color="#fa8c16" style={{ borderRadius: "4px" }}>Cítricos</Tag>
-                    </Space>
-                  </Option>
-                  <Option value="TROPICAIS">
-                    <Space>
-                      <Tag color="#52c41a" style={{ borderRadius: "4px" }}>Tropicais</Tag>
-                    </Space>
-                  </Option>
-                  <Option value="TEMPERADAS">
-                    <Space>
-                      <Tag color="#1890ff" style={{ borderRadius: "4px" }}>Temperadas</Tag>
-                    </Space>
-                  </Option>
-                  <Option value="SECAS">
-                    <Space>
-                      <Tag color="#722ed1" style={{ borderRadius: "4px" }}>Secas</Tag>
-                    </Space>
-                  </Option>
-                  <Option value="EXOTICAS">
-                    <Space>
-                      <Tag color="#eb2f96" style={{ borderRadius: "4px" }}>Exóticas</Tag>
-                    </Space>
-                  </Option>
-                  <Option value="VERMELHAS">
-                    <Space>
-                      <Tag color="#f5222d" style={{ borderRadius: "4px" }}>Vermelhas</Tag>
-                    </Space>
-                  </Option>
-                  <Option value="VERDES">
-                    <Space>
-                      <Tag color="#13c2c2" style={{ borderRadius: "4px" }}>Verdes</Tag>
-                    </Space>
-                  </Option>
+                  {culturas.map((cultura) => (
+                    <Option key={cultura.id} value={cultura.id}>
+                      {cultura.descricao}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>

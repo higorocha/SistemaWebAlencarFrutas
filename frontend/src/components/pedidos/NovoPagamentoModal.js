@@ -1,13 +1,12 @@
 // src/components/pedidos/NovoPagamentoModal.js
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import {
   Modal,
   Form,
   Input,
   Select,
-  DatePicker,
   Row,
   Col,
   Space,
@@ -29,7 +28,7 @@ import {
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
-import { MonetaryInput } from "../../components/common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import useResponsive from "../../hooks/useResponsive";
 
@@ -51,18 +50,13 @@ const NovoPagamentoModal = ({
 
   const [form] = Form.useForm();
   const [submitLoading, setSubmitLoading] = useState(false);
-  
-  // Ref para controlar o valor original da data de pagamento
-  const dataPagamentoOriginalRef = useRef(null);
 
   // Resetar formulário quando modal abrir
   useEffect(() => {
     if (open && pedido) {
       if (pagamentoEditando) {
         // MODO EDIÇÃO: Carrega os dados diretamente.
-        // O MaskedDecimalInput corrigido irá renderizar o valor corretamente.
         const dataPagamento = moment(pagamentoEditando.dataPagamento);
-        dataPagamentoOriginalRef.current = dataPagamento;
 
         form.setFieldsValue({
           pedidoId: pedido.id,
@@ -77,7 +71,6 @@ const NovoPagamentoModal = ({
       } else {
         // MODO CRIAÇÃO: Define valores padrão.
         const dataPagamento = moment();
-        dataPagamentoOriginalRef.current = dataPagamento;
 
         form.setFieldsValue({
           pedidoId: pedido.id,
@@ -129,7 +122,7 @@ const NovoPagamentoModal = ({
         ...values,
         pedidoId: pedidoId, // Garantir que seja número
         valorRecebido: valorRecebido, // Garantir que seja número
-        dataPagamento: values.dataPagamento.toISOString(),
+        dataPagamento: values.dataPagamento.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss'),
       };
 
       // Se estiver editando, adicionar o ID do pagamento
@@ -152,21 +145,6 @@ const NovoPagamentoModal = ({
     onClose();
   };
 
-  // Função para gerenciar o foco do campo de data
-  const handleDataPagamentoFocus = () => {
-    // Limpa o campo quando recebe foco
-    form.setFieldValue('dataPagamento', null);
-  };
-
-  // Função para gerenciar a perda de foco do campo de data
-  const handleDataPagamentoBlur = () => {
-    const valorAtual = form.getFieldValue('dataPagamento');
-    
-    // Se não há valor selecionado, restaura o valor original
-    if (!valorAtual) {
-      form.setFieldValue('dataPagamento', dataPagamentoOriginalRef.current);
-    }
-  };
 
   // Opções de método de pagamento
   const metodosPagamento = [
@@ -407,13 +385,10 @@ const NovoPagamentoModal = ({
                   { required: true, message: "Por favor, selecione a data do pagamento" },
                 ]}
               >
-                <DatePicker
+                <MaskedDatePicker
                   style={{ width: "100%", borderRadius: "0.375rem" }}
-                  format="DD/MM/YYYY"
                   placeholder="Selecione a data"
                   disabledDate={(current) => current && current > moment().endOf('day')}
-                  onFocus={handleDataPagamentoFocus}
-                  onBlur={handleDataPagamentoBlur}
                   size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>

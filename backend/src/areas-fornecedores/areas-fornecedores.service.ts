@@ -31,6 +31,17 @@ export class AreasFornecedoresService {
       throw new NotFoundException('Fornecedor não encontrado');
     }
 
+    // Se culturaId foi fornecido, verificar se a cultura existe
+    if (createAreaFornecedorDto.culturaId) {
+      const cultura = await this.prisma.cultura.findUnique({
+        where: { id: createAreaFornecedorDto.culturaId },
+      });
+
+      if (!cultura) {
+        throw new NotFoundException('Cultura não encontrada');
+      }
+    }
+
     // Verificar se já existe área com mesmo nome para este fornecedor
     const existingArea = await this.prisma.areaFornecedor.findFirst({
       where: {
@@ -52,6 +63,12 @@ export class AreasFornecedoresService {
             nome: true,
           },
         },
+        cultura: {
+          select: {
+            id: true,
+            descricao: true,
+          },
+        },
       },
     });
 
@@ -65,6 +82,12 @@ export class AreasFornecedoresService {
           select: {
             id: true,
             nome: true,
+          },
+        },
+        cultura: {
+          select: {
+            id: true,
+            descricao: true,
           },
         },
       },
@@ -96,6 +119,12 @@ export class AreasFornecedoresService {
             nome: true,
           },
         },
+        cultura: {
+          select: {
+            id: true,
+            descricao: true,
+          },
+        },
       },
       orderBy: { nome: 'asc' },
     });
@@ -111,6 +140,12 @@ export class AreasFornecedoresService {
           select: {
             id: true,
             nome: true,
+          },
+        },
+        cultura: {
+          select: {
+            id: true,
+            descricao: true,
           },
         },
       },
@@ -144,6 +179,17 @@ export class AreasFornecedoresService {
       }
     }
 
+    // Se estiver alterando a cultura, verificar se existe
+    if (updateAreaFornecedorDto.culturaId) {
+      const cultura = await this.prisma.cultura.findUnique({
+        where: { id: updateAreaFornecedorDto.culturaId },
+      });
+
+      if (!cultura) {
+        throw new NotFoundException('Cultura não encontrada');
+      }
+    }
+
     // Se estiver alterando o nome, verificar se já existe área com mesmo nome para o fornecedor
     if (updateAreaFornecedorDto.nome) {
       const fornecedorId = updateAreaFornecedorDto.fornecedorId || existingArea.fornecedorId;
@@ -169,6 +215,12 @@ export class AreasFornecedoresService {
           select: {
             id: true,
             nome: true,
+          },
+        },
+        cultura: {
+          select: {
+            id: true,
+            descricao: true,
           },
         },
       },

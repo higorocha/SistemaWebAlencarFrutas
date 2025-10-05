@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from "react";
-import { Modal, Button, Space, message, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider } from "antd";
+import { Modal, Button, Space, message, Form, Input, Select, Row, Col, Typography, Card, Divider } from "antd";
 import PropTypes from "prop-types";
 import { 
   SaveOutlined, 
@@ -15,7 +15,7 @@ import {
   PlusOutlined,
   DeleteOutlined
 } from "@ant-design/icons";
-import { MonetaryInput } from "../../components/common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { validarFrutasDuplicadas, validarPedidoCompleto } from "../../utils/pedidoValidation";
@@ -129,9 +129,9 @@ const NovoPedidoModal = ({
 
       console.log('✅ Validação do pedido passou!');
 
-      // Validação simples das datas (CORRIGIDO - usar .toDate())
+      // Validação simples das datas
       if (values.dataPedido && values.dataPrevistaColheita) {
-        if (moment(values.dataPrevistaColheita.toDate()).isBefore(moment(values.dataPedido.toDate()), 'day')) {
+        if (moment(values.dataPrevistaColheita).isBefore(moment(values.dataPedido), 'day')) {
           showNotification("error", "Erro", "Data prevista para colheita não pode ser anterior à data do pedido");
           return;
         }
@@ -146,12 +146,12 @@ const NovoPedidoModal = ({
         onLoadingChange(true, "Criando pedido...");
       }
 
-      // 🔍 DEBUG: Processar datas (CORRIGIDO - usar .toDate() para converter dayjs para Date)
+      // Processar datas para formato ISO
       const dataPedidoProcessada = values.dataPedido
-        ? moment(values.dataPedido.toDate()).startOf('day').toISOString()
+        ? moment(values.dataPedido).startOf('day').add(12, 'hours').toISOString()
         : undefined;
       const dataPrevistaProcessada = values.dataPrevistaColheita
-        ? moment(values.dataPrevistaColheita.toDate()).startOf('day').toISOString()
+        ? moment(values.dataPrevistaColheita).startOf('day').add(12, 'hours').toISOString()
         : undefined;
 
       console.log('📅 Data do pedido processada:', dataPedidoProcessada);
@@ -363,7 +363,7 @@ const NovoPedidoModal = ({
                   { required: true, message: "Data do pedido é obrigatória" },
                 ]}
               >
-                <DatePicker
+                <MaskedDatePicker
                   style={{
                     width: "100%",
                     borderRadius: "0.375rem",
@@ -371,7 +371,6 @@ const NovoPedidoModal = ({
                     fontSize: isMobile ? "0.875rem" : "1rem"
                   }}
                   size={isMobile ? "small" : "middle"}
-                  format="DD/MM/YYYY"
                   placeholder="Selecione a data"
                 />
               </Form.Item>
@@ -394,7 +393,7 @@ const NovoPedidoModal = ({
                   { required: true, message: "Data prevista para colheita é obrigatória" },
                 ]}
               >
-                <DatePicker
+                <MaskedDatePicker
                   style={{
                     width: "100%",
                     borderRadius: "0.375rem",
@@ -402,7 +401,6 @@ const NovoPedidoModal = ({
                     fontSize: isMobile ? "0.875rem" : "1rem"
                   }}
                   size={isMobile ? "small" : "middle"}
-                  format="DD/MM/YYYY"
                   placeholder="Selecione a data"
                 />
               </Form.Item>

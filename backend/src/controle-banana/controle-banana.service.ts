@@ -26,7 +26,7 @@ export class ControleBananaService {
   /**
    * Calcula dias e semanas desde uma data até hoje
    */
-  private calcularTempoDesdeData(dataRegistro: Date): { dias: number; semanas: number } {
+  private calcularTempoDesdeData(dataRegistro: Date): { dias: number; semanas: number; explicacao: string } {
     const hoje = new Date();
     const dataInicio = new Date(dataRegistro);
     
@@ -38,7 +38,9 @@ export class ControleBananaService {
     const dias = Math.floor(diferencaMs / (1000 * 60 * 60 * 24));
     const semanas = Math.floor(dias / 7);
     
-    return { dias, semanas };
+    const explicacao = `Tempo decorrido desde o cadastramento até a data atual`;
+    
+    return { dias, semanas, explicacao };
   }
 
   async create(createControleBananaDto: CreateControleBananaDto, usuarioId: number) {
@@ -423,13 +425,14 @@ export class ControleBananaService {
       const totais = dadosAgregados.find(d => d.areaAgricolaId === area.id);
       
       // Processar fitas com tempo desde a data mais antiga
-      const fitasComTempo = area.controlesBanana.reduce((acc: Array<{id: number, nome: string, corHex: string, quantidadeFitas: number, dataMaisAntiga: Date, tempoDesdeData: {dias: number, semanas: number}}>, controle) => {
+      const fitasComTempo = area.controlesBanana.reduce((acc: Array<{id: number, nome: string, corHex: string, quantidadeFitas: number, dataMaisAntiga: Date, tempoDesdeData: {dias: number, semanas: number, explicacao: string}, totalLotes: number}>, controle) => {
         const fita = controle.fitaBanana;
         const fitaExiste = acc.find(f => f.id === fita.id);
         
         if (fitaExiste) {
           // Se a fita já existe, somar a quantidade e verificar se a data é mais antiga
           fitaExiste.quantidadeFitas += controle.quantidadeFitas;
+          fitaExiste.totalLotes += 1;
           if (controle.dataRegistro < fitaExiste.dataMaisAntiga) {
             fitaExiste.dataMaisAntiga = controle.dataRegistro;
             fitaExiste.tempoDesdeData = this.calcularTempoDesdeData(controle.dataRegistro);
@@ -442,11 +445,21 @@ export class ControleBananaService {
             corHex: fita.corHex,
             quantidadeFitas: controle.quantidadeFitas,
             dataMaisAntiga: controle.dataRegistro,
-            tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
+            tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro),
+            totalLotes: 1
           });
         }
         return acc;
       }, []);
+
+      // Personalizar mensagem baseada no número de lotes
+      fitasComTempo.forEach(fita => {
+        if (fita.totalLotes > 1) {
+          fita.tempoDesdeData.explicacao = `Tempo decorrido desde o cadastramento até a data atual. Esta fita possui ${fita.totalLotes} lotes marcados em datas diferentes - o tempo mostrado é baseado na data mais antiga (${fita.dataMaisAntiga.toLocaleDateString('pt-BR')}).`;
+        } else {
+          fita.tempoDesdeData.explicacao = `Tempo decorrido desde o cadastramento até a data atual (${fita.dataMaisAntiga.toLocaleDateString('pt-BR')}).`;
+        }
+      });
 
       return {
         ...area,
@@ -637,13 +650,14 @@ export class ControleBananaService {
     // Processar dados para o mapa
     return areasComFitas.map(area => {
       // Agrupar fitas únicas com suas quantidades e data mais antiga
-      const fitasComQuantidade = area.controlesBanana.reduce((acc: Array<{id: number, nome: string, corHex: string, quantidadeFitas: number, dataMaisAntiga: Date, tempoDesdeData: {dias: number, semanas: number}}>, controle) => {
+      const fitasComQuantidade = area.controlesBanana.reduce((acc: Array<{id: number, nome: string, corHex: string, quantidadeFitas: number, dataMaisAntiga: Date, tempoDesdeData: {dias: number, semanas: number, explicacao: string}, totalLotes: number}>, controle) => {
         const fita = controle.fitaBanana;
         const fitaExiste = acc.find(f => f.id === fita.id);
         
         if (fitaExiste) {
           // Se a fita já existe, somar a quantidade e verificar se a data é mais antiga
           fitaExiste.quantidadeFitas += controle.quantidadeFitas;
+          fitaExiste.totalLotes += 1;
           if (controle.dataRegistro < fitaExiste.dataMaisAntiga) {
             fitaExiste.dataMaisAntiga = controle.dataRegistro;
             fitaExiste.tempoDesdeData = this.calcularTempoDesdeData(controle.dataRegistro);
@@ -656,11 +670,21 @@ export class ControleBananaService {
             corHex: fita.corHex,
             quantidadeFitas: controle.quantidadeFitas,
             dataMaisAntiga: controle.dataRegistro,
-            tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro)
+            tempoDesdeData: this.calcularTempoDesdeData(controle.dataRegistro),
+            totalLotes: 1
           });
         }
         return acc;
       }, []);
+
+      // Personalizar mensagem baseada no número de lotes
+      fitasComQuantidade.forEach(fita => {
+        if (fita.totalLotes > 1) {
+          fita.tempoDesdeData.explicacao = `Tempo decorrido desde o cadastramento até a data atual. Esta fita possui ${fita.totalLotes} lotes marcados em datas diferentes - o tempo mostrado é baseado na data mais antiga (${fita.dataMaisAntiga.toLocaleDateString('pt-BR')}).`;
+        } else {
+          fita.tempoDesdeData.explicacao = `Tempo decorrido desde o cadastramento até a data atual (${fita.dataMaisAntiga.toLocaleDateString('pt-BR')}).`;
+        }
+      });
 
       // Calcular total de fitas (soma das quantidades)
       const totalFitas = area.controlesBanana.reduce((sum, controle) => {

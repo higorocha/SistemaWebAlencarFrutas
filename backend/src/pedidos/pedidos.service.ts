@@ -64,6 +64,12 @@ export class PedidosService {
                   select: { 
                     id: true, 
                     nome: true,
+                    cultura: {
+                      select: {
+                        id: true,
+                        descricao: true
+                      }
+                    },
                     fornecedor: {
                       select: { id: true, nome: true }
                     }
@@ -928,7 +934,16 @@ export class PedidosService {
           frutasPedidos: {
             include: {
               fruta: {
-                select: { id: true, nome: true }
+                select: { 
+                  id: true, 
+                  nome: true,
+                  cultura: {
+                    select: {
+                      id: true,
+                      descricao: true
+                    }
+                  }
+                }
               },
               areas: {
                 include: {
@@ -939,6 +954,12 @@ export class PedidosService {
                     select: { 
                       id: true, 
                       nome: true,
+                      cultura: {
+                        select: {
+                          id: true,
+                          descricao: true
+                        }
+                      },
                       fornecedor: {
                         select: { id: true, nome: true }
                       }
@@ -1024,7 +1045,16 @@ export class PedidosService {
           frutasPedidos: {
             include: {
               fruta: {
-                select: { id: true, nome: true }
+                select: { 
+                  id: true, 
+                  nome: true,
+                  cultura: {
+                    select: {
+                      id: true,
+                      descricao: true
+                    }
+                  }
+                }
               },
               areas: {
                 include: {
@@ -1035,6 +1065,12 @@ export class PedidosService {
                     select: {
                       id: true,
                       nome: true,
+                      cultura: {
+                        select: {
+                          id: true,
+                          descricao: true
+                        }
+                      },
                       fornecedor: {
                         select: { id: true, nome: true }
                       }
@@ -1077,7 +1113,16 @@ export class PedidosService {
         frutasPedidos: {
           include: {
             fruta: {
-              select: { id: true, nome: true }
+              select: { 
+                id: true, 
+                nome: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                }
+              }
             },
             areas: {
               include: {
@@ -1088,6 +1133,12 @@ export class PedidosService {
                   select: { 
                     id: true, 
                     nome: true,
+                    cultura: {
+                      select: {
+                        id: true,
+                        descricao: true
+                      }
+                    },
                     fornecedor: {
                       select: { id: true, nome: true }
                     }
@@ -1156,7 +1207,16 @@ export class PedidosService {
         frutasPedidos: {
           include: {
             fruta: {
-              select: { id: true, nome: true }
+              select: { 
+                id: true, 
+                nome: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                }
+              }
             },
             areas: {
               include: {
@@ -1167,6 +1227,12 @@ export class PedidosService {
                   select: { 
                     id: true, 
                     nome: true,
+                    cultura: {
+                      select: {
+                        id: true,
+                        descricao: true
+                      }
+                    },
                     fornecedor: {
                       select: { id: true, nome: true }
                     }
@@ -3294,6 +3360,12 @@ export class PedidosService {
           select: {
             id: true,
             nome: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            },
             fornecedor: {
               select: {
                 id: true,

@@ -1,6 +1,6 @@
 // src/components/pedidos/tabs/DadosBasicosTab.js
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag } from "antd";
 import PropTypes from "prop-types";
 import {
@@ -14,7 +14,7 @@ import {
   PlusOutlined,
   DeleteOutlined
 } from "@ant-design/icons";
-import { MonetaryInput } from "../../../components/common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../../../components/common/inputs";
 import axiosInstance from "../../../api/axiosConfig";
 import { showNotification } from "../../../config/notificationConfig";
 import moment from "moment";
@@ -36,14 +36,6 @@ const DadosBasicosTab = ({
   isSaving,
 }) => {
   const [frutas, setFrutas] = useState([]);
-  const dataPrevistaOriginalRef = useRef(null);
-
-  // Armazenar valor original da data prevista quando o componente monta
-  useEffect(() => {
-    if (pedidoAtual.dataPrevistaColheita) {
-      dataPrevistaOriginalRef.current = moment(pedidoAtual.dataPrevistaColheita);
-    }
-  }, [pedidoAtual.dataPrevistaColheita]);
 
   // Carregar frutas ativas
   useEffect(() => {
@@ -60,28 +52,6 @@ const DadosBasicosTab = ({
 
     fetchFrutas();
   }, []);
-
-  // Função para gerenciar o foco do campo de data prevista
-  const handleDataPrevistaFocus = () => {
-    // Limpa o campo quando recebe foco
-    setPedidoAtual(prev => ({
-      ...prev,
-      dataPrevistaColheita: null
-    }));
-  };
-
-  // Função para gerenciar a perda de foco do campo de data prevista
-  const handleDataPrevistaBlur = () => {
-    const valorAtual = pedidoAtual.dataPrevistaColheita;
-    
-    // Se não há valor selecionado, restaura o valor original
-    if (!valorAtual && dataPrevistaOriginalRef.current) {
-      setPedidoAtual(prev => ({
-        ...prev,
-        dataPrevistaColheita: dataPrevistaOriginalRef.current.toDate()
-      }));
-    }
-  };
 
   const handleChange = (field, value) => {
     // Para campos enum opcionais, converter string vazia ou undefined para null
@@ -325,7 +295,7 @@ const DadosBasicosTab = ({
                 help={erros.dataPedido}
                 required
               >
-                <DatePicker
+                <MaskedDatePicker
                   style={{
                     width: "100%",
                     borderRadius: "6px",
@@ -333,9 +303,8 @@ const DadosBasicosTab = ({
                   }}
                   value={pedidoAtual.dataPedido ? moment(pedidoAtual.dataPedido) : undefined}
                   onChange={(date) => {
-                    handleChange("dataPedido", date ? date.format('YYYY-MM-DD') : null);
+                    handleChange("dataPedido", date ? date.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null);
                   }}
-                  format="DD/MM/YYYY"
                   placeholder="Selecione a data"
                   disabled={!canEditTab("1")}
                 />
@@ -354,7 +323,7 @@ const DadosBasicosTab = ({
                 help={erros.dataPrevistaColheita}
                 required
               >
-                <DatePicker
+                <MaskedDatePicker
                   style={{
                     width: "100%",
                     borderRadius: "6px",
@@ -362,12 +331,9 @@ const DadosBasicosTab = ({
                   }}
                   value={pedidoAtual.dataPrevistaColheita ? moment(pedidoAtual.dataPrevistaColheita) : undefined}
                   onChange={(date) => {
-                    handleChange("dataPrevistaColheita", date ? date.format('YYYY-MM-DD') : null);
+                    handleChange("dataPrevistaColheita", date ? date.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null);
                   }}
-                  format="DD/MM/YYYY"
                   placeholder="Selecione a data"
-                  onFocus={handleDataPrevistaFocus}
-                  onBlur={handleDataPrevistaBlur}
                   disabled={!canEditTab("1")}
                 />
               </Form.Item>

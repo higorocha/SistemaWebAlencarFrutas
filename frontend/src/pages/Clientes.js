@@ -8,15 +8,17 @@ import {
   PlusCircleOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import axiosInstance from "../api/axiosConfig";
-import { Pagination } from "antd";
-import { showNotification } from "../config/notificationConfig";
-import { Box } from "@mui/material";
+// Importar ícones do Iconify para agricultura
+import { Icon } from "@iconify/react";
 import { CentralizedLoader } from "components/common/loaders";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
 import { PrimaryButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
 import useResponsive from "../hooks/useResponsive";
+import axiosInstance from "../api/axiosConfig";
+import { Pagination } from "antd";
+import { showNotification } from "../config/notificationConfig";
+import { Box } from "@mui/material";
 
 const ClientesTable = lazy(() => import("../components/clientes/ClientesTable"));
 const AddEditClienteDialog = lazy(() =>
@@ -256,17 +258,28 @@ const Clientes = () => {
       {/* Header com título */}
       <Box sx={{ mb: 0 }}>
         <Title
-          level={isMobile ? 3 : 2}
+          level={2}
           style={{
             margin: 0,
             color: "#059669",
             marginBottom: 16,
             display: 'flex',
             alignItems: 'center',
-            flexWrap: 'wrap'
+            flexWrap: 'wrap',
+            fontSize: '1.500rem' // 22px - um pouco menor que o padrão do level 2
           }}
         >
-          <UserOutlined style={{ marginRight: 8 }} />
+          {/* Ícone principal da página - deve ser igual ao do sidebar */}
+          <Icon 
+            icon="mdi:account-group" 
+            style={{ 
+              marginRight: 12, 
+              fontSize: isMobile ? '31px' : '31px',
+              color: "#059669"
+            }} 
+          />
+          {/* Fallback para o ícone antigo caso o Iconify falhe */}
+          <UserOutlined style={{ marginRight: 8, display: 'none' }} />
           Gestão de Clientes
         </Title>
       </Box>

@@ -42,6 +42,7 @@ const VincularAreasModal = ({
   const [loadingDados, setLoadingDados] = useState(false);
   const [selectedAreas, setSelectedAreas] = useState([]);
   const [observacoes, setObservacoes] = useState("");
+  const [culturaIdFruta, setCulturaIdFruta] = useState(null);
 
   // Hook para notificações com z-index correto
   const { error, warning, contextHolder } = useNotificationWithContext();
@@ -67,13 +68,53 @@ const VincularAreasModal = ({
     try {
       setLoadingDados(true);
       
-      // Buscar áreas próprias (já inclui culturas)
+      // Obter culturaId diretamente da fruta (vem como fruta.cultura.id do backend)
+      const culturaId = fruta?.fruta?.cultura?.id || null;
+      setCulturaIdFruta(culturaId);
+      
+      console.log("🔍 DEBUG VincularAreasModal:");
+      console.log("  - Fruta completa:", JSON.stringify(fruta, null, 2));
+      console.log("  - fruta.fruta:", JSON.stringify(fruta?.fruta, null, 2));
+      console.log("  - fruta.fruta.cultura:", JSON.stringify(fruta?.fruta?.cultura, null, 2));
+      console.log("  - CulturaId da fruta:", culturaId);
+      console.log("  - Caminho: fruta?.fruta?.cultura?.id");
+      
+      // Buscar áreas próprias (já inclui culturas via lotes)
       const responseAreasProprias = await axiosInstance.get("/api/areas-agricolas");
-      setAreasProprias(responseAreasProprias.data || []);
+      const todasAreasProprias = responseAreasProprias.data || [];
+      
+      console.log("📦 Todas as áreas próprias:", JSON.stringify(todasAreasProprias, null, 2));
+      console.log("📦 Estrutura da primeira área:", JSON.stringify(todasAreasProprias[0], null, 2));
+      
+      // Filtrar áreas próprias que possuem lotes com a mesma cultura da fruta
+      const areasPropriasFiltradas = culturaId 
+        ? todasAreasProprias.filter(area => {
+            // Verificar se a área tem lotes com a cultura da fruta
+            const temCultura = area.culturas && area.culturas.some(cultura => {
+              console.log(`  🔎 Área "${area.nome}": culturaId=${cultura.culturaId} === ${culturaId}? ${cultura.culturaId === culturaId}`);
+              return cultura.culturaId === culturaId;
+            });
+            console.log(`  ✅ Área "${area.nome}" ${temCultura ? 'INCLUÍDA' : 'EXCLUÍDA'}`);
+            return temCultura;
+          })
+        : todasAreasProprias; // Se não tem culturaId, mostra todas
+      
+      console.log("✅ Áreas filtradas:", areasPropriasFiltradas);
+      setAreasProprias(areasPropriasFiltradas);
 
       // Buscar áreas de fornecedores
       const responseAreasFornecedores = await axiosInstance.get("/api/areas-fornecedores");
-      setAreasFornecedores(responseAreasFornecedores.data || []);
+      const todasAreasFornecedores = responseAreasFornecedores.data || [];
+      
+      // Filtrar áreas de fornecedores que possuem a mesma cultura da fruta
+      const areasFornecedoresFiltradas = culturaId
+        ? todasAreasFornecedores.filter(area => {
+            // Verificar se a área tem a cultura da fruta
+            return area.cultura && area.cultura.id === culturaId;
+          })
+        : todasAreasFornecedores; // Se não tem culturaId, mostra todas
+      
+      setAreasFornecedores(areasFornecedoresFiltradas);
       
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
@@ -394,6 +435,20 @@ const VincularAreasModal = ({
                     <Tag size="small" color="blue" style={{ fontSize: '10px' }}>
                       👤 {area.fornecedor?.nome || 'Fornecedor'}
                     </Tag>
+                    
+                    {/* Cultura da área */}
+                    {area.cultura && (
+                      <Tag size="small" color="green" style={{ fontSize: '10px', margin: 0 }}>
+                        🌱 {area.cultura.descricao?.toUpperCase() || 'Cultura'}
+                      </Tag>
+                    )}
+                    
+                    {/* Caso não tenha cultura */}
+                    {!area.cultura && (
+                      <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>
+                        Sem cultura cadastrada
+                      </Text>
+                    )}
                   </Space>
                 </Card>
               </Col>

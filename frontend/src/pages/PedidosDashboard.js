@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Typography, message, Button, Tooltip, Space, Badge } from "antd";
+import { Icon } from "@iconify/react";
 
 const { Title, Text: AntText } = Typography;
 import { ReloadOutlined, ClockCircleOutlined, CheckCircleOutlined, ShoppingCartOutlined } from "@ant-design/icons";
@@ -14,6 +15,52 @@ import { useDashboardOptimized } from "../hooks/useDashboardOptimized";
 import { useSmartDashboardReload } from "../hooks/useSmartDashboardReload";
 import { CentralizedLoader } from "components/common/loaders";
 import moment from "moment";
+
+// Componente de ícone personalizado para Dashboard de Pedidos
+const DashboardPedidosIcon = ({ isMobile }) => {
+  const iconSize = isMobile ? '31px' : '31px';
+  const smallIconSize = isMobile ? '17px' : '14px';
+  
+  return (
+    <div style={{ 
+      position: 'relative', 
+      width: iconSize, 
+      height: iconSize,
+      marginRight: 8
+    }}>
+      {/* Ícone principal - Dashboard */}
+      <Icon 
+        icon="mdi:monitor-dashboard" 
+        style={{ 
+          fontSize: iconSize,
+          color: "#2E7D32"
+        }} 
+      />
+      {/* Ícone de fundo cinza (borda) */}
+      <Icon 
+        icon="mdi:cart" 
+        style={{ 
+          position: 'absolute',
+          right: '-4px',
+          bottom: '-3px',
+          fontSize: `${parseInt(smallIconSize) + 4}px`,
+          color: "#ffffff"
+        }} 
+      />
+      {/* Ícone secundário - Cart (canto inferior direito) */}
+      <Icon 
+        icon="mdi:cart" 
+        style={{ 
+          position: 'absolute',
+          right: '-2px',
+          bottom: '-1px',
+          fontSize: smallIconSize,
+          color: "#2E7D32"
+        }} 
+      />
+    </div>
+  );
+};
 
 // Componentes da dashboard
 import StatusCards from "../components/pedidos/dashboard/StatusCards";
@@ -393,7 +440,7 @@ const PedidosDashboard = () => {
               flexWrap: 'wrap' // ✅ Permite quebra de linha se necessário
             }}
           >
-            <ShoppingCartOutlined style={{ marginRight: 8 }} /> {/* ✅ Exatamente igual ao desktop */}
+            <DashboardPedidosIcon isMobile={isMobile} />
             Dashboard de Pedidos {/* ✅ Exatamente igual ao desktop */}
           </Title>
           <AntText

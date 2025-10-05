@@ -1,6 +1,6 @@
 // src/components/pedidos/ColheitaModal.js
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal, Button, Space, message, Form, Input, Select, DatePicker, InputNumber, Row, Col, Typography, Card, Divider, Tag, Tooltip } from "antd";
 import PropTypes from "prop-types";
 import useResponsive from "../../hooks/useResponsive";
@@ -25,7 +25,7 @@ import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
 import moment from "moment";
 import axiosInstance from "../../api/axiosConfig";
-import { MonetaryInput } from "../../components/common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs";
 import { FormButton } from "../common/buttons";
 import VincularAreasModal from "./VincularAreasModal";
 import VincularFitasModal from "./VincularFitasModal";
@@ -34,6 +34,7 @@ import { validarFitasCompleto } from "../../utils/fitasValidation";
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+
 
 
 
@@ -67,9 +68,6 @@ const ColheitaModal = ({
 
   // Estados para mão de obra
   const [turmasColheita, setTurmasColheita] = useState([]);
-
-  // Ref para controlar o valor original da data de colheita
-  const dataColheitaOriginalRef = useRef(null);
 
   // Carregar áreas próprias, de fornecedores e fitas de banana
   useEffect(() => {
@@ -108,11 +106,13 @@ const ColheitaModal = ({
   // Resetar formulário quando modal abrir
   useEffect(() => {
     if (open && pedido) {
+
       // Preparar dados das frutas para o formulário
       const frutasForm = pedido.frutasPedidos?.map(fruta => ({
         frutaPedidoId: fruta.id,
         frutaId: fruta.frutaId,
         frutaNome: fruta.fruta?.nome,
+        fruta: fruta.fruta, // ✅ Incluir objeto fruta completo (com cultura)
         quantidadePrevista: fruta.quantidadePrevista,
         unidadeMedida1: fruta.unidadeMedida1,
         unidadeMedida2: fruta.unidadeMedida2,
@@ -138,10 +138,9 @@ const ColheitaModal = ({
         })) : []
       })) || [];
 
-             // Armazenar o valor original da data de colheita
-       const dataColheita = pedido.dataColheita ? moment(pedido.dataColheita) : moment();
-       dataColheitaOriginalRef.current = dataColheita;
-       
+       // Garantir que a data seja um objeto moment válido
+       const dataColheita = pedido.dataColheita ? moment(pedido.dataColheita) : null;
+
        form.setFieldsValue({
          dataColheita: dataColheita,
          observacoesColheita: pedido.observacoesColheita || '',
@@ -192,6 +191,12 @@ const ColheitaModal = ({
   };
 
   const handleVincularFitas = (fruta, frutaIndex) => {
+    // Verificar se a fruta tem áreas vinculadas antes de abrir o modal
+    if (!hasLinkedAreas(fruta)) {
+      warning("Áreas Necessárias", "Você deve vincular áreas à fruta antes de vincular fitas. As fitas são específicas para cada área.");
+      return;
+    }
+    
     setFrutaSelecionada({ ...fruta, index: frutaIndex });
     setVincularFitasModalOpen(true);
   };
@@ -467,7 +472,7 @@ const ColheitaModal = ({
       }
 
       const formData = {
-        dataColheita: values.dataColheita.toISOString(),
+        dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
         observacoesColheita: values.observacoesColheita,
         frutas: values.frutas.map(fruta => ({
           frutaPedidoId: fruta.frutaPedidoId,
@@ -538,7 +543,7 @@ const ColheitaModal = ({
                 quantidadeColhida: parseFloat(item.quantidadeColhida),
                 unidadeMedida: item.unidadeMedida,
                 valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
-                dataColheita: values.dataColheita.toISOString(),
+                dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
                 pagamentoEfetuado: false,
                 observacoes: item.observacoes || ''
               };
@@ -570,21 +575,6 @@ const ColheitaModal = ({
     onClose();
   };
 
-  // Função para gerenciar o foco do campo de data
-  const handleDataColheitaFocus = () => {
-    // Limpa o campo quando recebe foco
-    form.setFieldValue('dataColheita', null);
-  };
-
-  // Função para gerenciar a perda de foco do campo de data
-  const handleDataColheitaBlur = () => {
-    const valorAtual = form.getFieldValue('dataColheita');
-    
-    // Se não há valor selecionado, restaura o valor original
-    if (!valorAtual) {
-      form.setFieldValue('dataColheita', dataColheitaOriginalRef.current);
-    }
-  };
 
   return (
     <>
@@ -729,20 +719,17 @@ const ColheitaModal = ({
                   { required: true, message: "Data da colheita é obrigatória" },
                 ]}
               >
-                                 <DatePicker
-                   style={{ 
-                     width: "100%",
-                     borderRadius: "6px",
-                     borderColor: "#d9d9d9",
-                     fontSize: isMobile ? "0.875rem" : "1rem"
-                   }}
-                   size={isMobile ? "small" : "middle"}
-                   format="DD/MM/YYYY"
-                   placeholder="Selecione a data"
-                   disabledDate={(current) => current && current > moment().endOf('day')}
-                   onFocus={handleDataColheitaFocus}
-                   onBlur={handleDataColheitaBlur}
-                 />
+                <MaskedDatePicker
+                  style={{
+                    width: "100%",
+                    borderRadius: "6px",
+                    borderColor: "#d9d9d9",
+                    fontSize: isMobile ? "0.875rem" : "1rem"
+                  }}
+                  size={isMobile ? "small" : "middle"}
+                  disabledDate={(current) => current && current > moment().endOf('day')}
+                  showToday
+                />
               </Form.Item>
             </Col>
 

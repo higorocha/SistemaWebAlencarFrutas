@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Card, Typography, Row, Col, Spin, Empty, Tag, Space, Divider, Button, Badge, Select, Input, DatePicker, Form, Tooltip } from 'antd';
-import dayjs from 'dayjs';
-import { 
-  EnvironmentOutlined, 
-  UserOutlined, 
-  CalendarOutlined, 
+import { Modal, Card, Typography, Row, Col, Spin, Empty, Tag, Space, Divider, Button, Badge, Select, Input, Form, Tooltip } from 'antd';
+import moment from 'moment';
+import { MaskedDatePicker } from '../common/inputs';
+import {
+  EnvironmentOutlined,
+  UserOutlined,
+  CalendarOutlined,
   ClockCircleOutlined,
   InfoCircleOutlined,
   CloseOutlined,
@@ -16,6 +17,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import axiosInstance from '../../api/axiosConfig';
 import useNotificationWithContext from '../../hooks/useNotificationWithContext';
+import useResponsive from '../../hooks/useResponsive';
 import { CentralizedLoader } from '../common/loaders';
 import { obterNumeroSemana, formatarData, calcularStatusMaturacao } from '../../utils/dateUtils';
 
@@ -31,6 +33,7 @@ const DetalhamentoModal = ({
   onSuccess // Callback para atualizar a UI do componente pai
 }) => {
   const theme = useTheme();
+  const { isMobile } = useResponsive();
   const { success, error, contextHolder } = useNotificationWithContext();
   const [loading, setLoading] = useState(false);
   const [dados, setDados] = useState(null);
@@ -91,7 +94,7 @@ const DetalhamentoModal = ({
     let editData = {
       id: controle.id,
       quantidade: controle.quantidadeFitas || 0,
-      dataRegistro: dayjs(controle.dataRegistro)
+      dataRegistro: moment(controle.dataRegistro)
     };
 
     if (tipo === 'area') {
@@ -128,7 +131,7 @@ const DetalhamentoModal = ({
         areaAgricolaId: editandoControle.areaId,
         fitaBananaId: editandoControle.fitaId,
         quantidadeFitas: editandoControle.quantidade,
-        dataRegistro: editandoControle.dataRegistro.format('YYYY-MM-DD')
+        dataRegistro: editandoControle.dataRegistro ? editandoControle.dataRegistro.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null
       };
 
       console.log('Dados para atualização:', dadosAtualizacao);
@@ -262,9 +265,9 @@ const DetalhamentoModal = ({
           height: "100%"
         }}>
           <Empty
-            image={<InfoCircleOutlined style={{ fontSize: '48px', color: '#d9d9d9' }} />}
+            image={<InfoCircleOutlined style={{ fontSize: isMobile ? '2rem' : '3rem', color: '#d9d9d9' }} />}
             description={
-              <Text type="secondary" style={{ fontSize: "14px" }}>
+              <Text type="secondary" style={{ fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
                 Nenhum registro encontrado
               </Text>
             }
@@ -274,57 +277,62 @@ const DetalhamentoModal = ({
     }
 
     return (
-      <div style={{ 
-        display: "flex", 
-        flexDirection: "column", 
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
         gap: "0px",
         width: "100%",
-        paddingRight: "4px"
+        paddingRight: isMobile ? "0px" : "4px"
       }}>
-        {/* Cabeçalho da tabela */}
-        <div style={{
-          padding: "8px 12px",
-          backgroundColor: "#fafafa",
-          border: "1px solid #f0f0f0",
-          borderRadius: "4px",
-          marginBottom: "4px",
-          fontSize: "13px",
-          fontWeight: "700",
-          color: "#333",
-          display: "flex",
-          alignItems: "center"
-        }}>
-          <div style={{ flex: "2 1 0", minWidth: "0", textAlign: "left" }}>
-            <strong>{tipo === 'area' ? 'Fita' : 'Área'}</strong>
+        {/* Cabeçalho da tabela - Oculto no mobile */}
+        {!isMobile && (
+          <div style={{
+            padding: "8px 12px",
+            backgroundColor: "#fafafa",
+            border: "0.0625rem solid #f0f0f0",  // ✅ 1px → rem
+            borderRadius: "0.25rem",  // ✅ 4px → rem
+            marginBottom: "4px",
+            fontSize: "0.8125rem",  // ✅ 13px → rem
+            fontWeight: "700",
+            color: "#333",
+            display: "flex",
+            alignItems: "center"
+          }}>
+            <div style={{ flex: "2 1 0", minWidth: "0", textAlign: "left" }}>
+              <strong>{tipo === 'area' ? 'Fita' : 'Área'}</strong>
+            </div>
+            <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+              <strong>Quantidade</strong>
+            </div>
+            <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+              <strong>Data</strong>
+            </div>
+            <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+              <strong>Tempo</strong>
+              <Tooltip title="Tempo decorrido desde o cadastramento até a data atual">
+                <InfoCircleOutlined style={{ marginLeft: '4px', color: '#059669', fontSize: '0.75rem' }} />
+              </Tooltip>
+            </div>
+            <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+              <strong>Usuário</strong>
+            </div>
+            <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+              <strong>Ações</strong>
+            </div>
           </div>
-          <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-            <strong>Quantidade</strong>
-          </div>
-          <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-            <strong>Data</strong>
-          </div>
-          <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-            <strong>Tempo</strong>
-          </div>
-          <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-            <strong>Usuário</strong>
-          </div>
-          <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-            <strong>Ações</strong>
-          </div>
-        </div>
+        )}
 
         {/* Lista de controles */}
         {dados.controles
           .filter(controle => controle && controle.id && controle.quantidadeFitas !== undefined)
           .map((controle, index) => (
-          <div 
+          <div
             key={controle.id}
             style={{
-              padding: "12px",
+              padding: isMobile ? "10px" : "12px",
               backgroundColor: "#ffffff",
-              border: "1px solid #e8e8e8",
-              borderRadius: "6px",
+              border: "0.0625rem solid #e8e8e8",  // ✅ 1px → rem
+              borderRadius: isMobile ? "0.375rem" : "0.375rem",  // ✅ 6px → rem
               marginBottom: "4px",
               transition: "all 0.2s ease",
               cursor: "default",
@@ -340,9 +348,14 @@ const DetalhamentoModal = ({
           >
             {editandoControle && editandoControle.id === controle.id ? (
               // Modo de Edição - Formulário estruturado
-              <div style={{ padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px", border: "1px solid #e9ecef" }}>
-                <Form layout="vertical" size="large">
-                  <Row gutter={[16, 16]}>
+              <div style={{
+                padding: isMobile ? "12px" : "16px",
+                backgroundColor: "#f8f9fa",
+                borderRadius: "0.5rem",  // ✅ 8px → rem
+                border: "0.0625rem solid #e9ecef"  // ✅ 1px → rem
+              }}>
+                <Form layout="vertical" size={isMobile ? "middle" : "large"}>
+                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
                     {tipo === 'fita' ? (
                       // Modo fita: mostrar seletor de área (fita é fixa)
                       <Col xs={24} md={8}>
@@ -448,10 +461,9 @@ const DetalhamentoModal = ({
                         }
                         required
                       >
-                        <DatePicker
+                        <MaskedDatePicker
                           value={editandoControle.dataRegistro}
                           onChange={(date) => setEditandoControle({...editandoControle, dataRegistro: date})}
-                          format="DD/MM/YYYY"
                           placeholder="Selecione a data"
                           style={{
                             width: '100%',
@@ -463,26 +475,37 @@ const DetalhamentoModal = ({
                     </Col>
                   </Row>
 
-                  <Row gutter={[16, 16]}>
+                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
                     <Col span={24}>
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "16px" }}>
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        gap: isMobile ? "8px" : "12px",
+                        marginTop: isMobile ? "12px" : "16px"
+                      }}>
                         <Button
                           onClick={cancelarEdicao}
-                          size="large"
+                          size={isMobile ? "middle" : "large"}
+                          style={{
+                            height: isMobile ? "32px" : "40px",
+                            padding: isMobile ? "0 12px" : "0 16px"
+                          }}
                         >
                           Cancelar
                         </Button>
                         <Button
                           type="primary"
-                          icon={<SaveOutlined />}
+                          icon={<SaveOutlined style={{ fontSize: isMobile ? "0.875rem" : "1rem" }} />}
                           onClick={salvarEdicao}
-                          size="large"
+                          size={isMobile ? "middle" : "large"}
                           style={{
                             backgroundColor: "#059669",
                             borderColor: "#059669",
+                            height: isMobile ? "32px" : "40px",
+                            padding: isMobile ? "0 12px" : "0 16px"
                           }}
                         >
-                          Salvar Alterações
+                          {isMobile ? "Salvar" : "Salvar Alterações"}
                         </Button>
                       </div>
                     </Col>
@@ -490,94 +513,135 @@ const DetalhamentoModal = ({
                 </Form>
               </div>
             ) : (
-              // Modo de Visualização - Layout original
-              <div style={{ display: "flex", alignItems: "center" }}>
+              // Modo de Visualização - Layout responsivo
+              <div style={{
+                display: "flex",
+                alignItems: isMobile ? "stretch" : "center",
+                flexDirection: isMobile ? "column" : "row",
+                gap: isMobile ? "8px" : "0"
+              }}>
                 {/* Fita/Área */}
-                <div style={{ flex: "2 1 0", minWidth: "0", textAlign: "left" }}>
+                <div style={{
+                  flex: isMobile ? "1 1 auto" : "2 1 0",
+                  minWidth: "0",
+                  textAlign: isMobile ? "left" : "left"
+                }}>
                   {tipo === 'area' ? (
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <div 
-                        style={{ 
-                          width: '16px', 
-                          height: '16px', 
+                      <div
+                        style={{
+                          width: isMobile ? '14px' : '16px',
+                          height: isMobile ? '14px' : '16px',
                           backgroundColor: controle.fita?.corHex || '#059669',
                           borderRadius: '50%',
-                          border: '2px solid #fff',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                          border: '0.125rem solid #fff',  // ✅ 2px → rem
+                          boxShadow: '0 0.125rem 0.25rem rgba(0,0,0,0.1)',  // ✅ 2px 4px → rem
                           flexShrink: 0
                         }}
                       />
                       <div>
-                        <Text strong style={{ color: "#333", fontSize: "14px", display: "block" }}>
+                        <Text strong style={{ color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem", display: "block" }}>
+                          {isMobile && <TagOutlined style={{ marginRight: '4px', color: '#059669', fontSize: '0.75rem' }} />}
                           {controle.fita?.nome || 'Fita não encontrada'}
                         </Text>
                       </div>
                     </div>
                   ) : (
                     <div>
-                      <Text strong style={{ color: "#333", fontSize: "14px", display: "block" }}>
+                      <Text strong style={{ color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem", display: "block" }}>
+                        {isMobile && <EnvironmentOutlined style={{ marginRight: '4px', color: '#059669', fontSize: '0.75rem' }} />}
                         {controle.area?.nome || 'Área não encontrada'}
                       </Text>
-                      <Text style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                      <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.6875rem', color: '#666', marginTop: '2px' }}>
                         {controle.area?.areaTotal || 0} ha
                       </Text>
                     </div>
                   )}
                 </div>
 
-                {/* Quantidade */}
-                <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                  <Text strong style={{ 
-                    fontSize: '16px', 
-                    color: '#059669' 
-                  }}>
-                    {controle.quantidadeFitas}
-                  </Text>
-                </div>
+                {/* Info Grid - Desktop: row / Mobile: grid 2x2 */}
+                <div style={{
+                  flex: isMobile ? "1 1 auto" : "4 1 0",
+                  display: "grid",
+                  gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+                  gap: isMobile ? "8px" : "0",
+                  alignItems: "center"
+                }}>
+                  {/* Quantidade */}
+                  <div style={{ textAlign: isMobile ? "left" : "center" }}>
+                    {isMobile && <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block" }}>Quantidade</Text>}
+                    <Text strong style={{
+                      fontSize: isMobile ? '0.875rem' : '1rem',
+                      color: '#059669'
+                    }}>
+                      {controle.quantidadeFitas}
+                    </Text>
+                  </div>
 
-                {/* Data */}
-                <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                  <CalendarOutlined style={{ color: "#666", marginRight: '4px', fontSize: '12px' }} />
-                  <Text style={{ fontSize: '12px', color: '#666' }}>
-                    {formatarData(controle.dataRegistro)}
-                  </Text>
-                </div>
+                  {/* Data */}
+                  <div style={{ textAlign: isMobile ? "left" : "center" }}>
+                    {isMobile && <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block" }}>Data</Text>}
+                    <div>
+                      <CalendarOutlined style={{ color: "#666", marginRight: '4px', fontSize: isMobile ? '0.6875rem' : '0.75rem' }} />
+                      <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>
+                        {formatarData(controle.dataRegistro)}
+                      </Text>
+                    </div>
+                  </div>
 
-                {/* Tempo */}
-                <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                  <ClockCircleOutlined style={{ color: '#059669', marginRight: '4px', fontSize: '12px' }} />
-                  <Text style={{ fontSize: '12px', color: '#059669', fontWeight: '500' }}>
-                    {formatarTempo(controle.tempoDesdeData)}
-                  </Text>
-                </div>
+                  {/* Tempo */}
+                  <div style={{ textAlign: isMobile ? "left" : "center" }}>
+                    {isMobile && <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block" }}>Tempo</Text>}
+                    <div>
+                      <ClockCircleOutlined style={{ color: '#059669', marginRight: '4px', fontSize: isMobile ? '0.6875rem' : '0.75rem' }} />
+                      <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#059669', fontWeight: '500' }}>
+                        {formatarTempo(controle.tempoDesdeData)}
+                      </Text>
+                    </div>
+                  </div>
 
-                {/* Usuário */}
-                <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                  <UserOutlined style={{ color: "#666", marginRight: '4px', fontSize: '12px' }} />
-                  <Text style={{ fontSize: '12px', color: '#666' }}>
-                    {controle.usuario?.nome || 'Usuário não encontrado'}
-                  </Text>
+                  {/* Usuário */}
+                  <div style={{ textAlign: isMobile ? "left" : "center" }}>
+                    {isMobile && <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block" }}>Usuário</Text>}
+                    <div>
+                      <UserOutlined style={{ color: "#666", marginRight: '4px', fontSize: isMobile ? '0.6875rem' : '0.75rem' }} />
+                      <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>
+                        {controle.usuario?.nome || 'N/A'}
+                      </Text>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Ações */}
-                <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                <div style={{
+                  flex: isMobile ? "1 1 auto" : "1 1 0",
+                  minWidth: "0",
+                  textAlign: isMobile ? "left" : "center",
+                  marginTop: isMobile ? "4px" : "0",
+                  paddingTop: isMobile ? "8px" : "0",
+                  borderTop: isMobile ? "0.0625rem solid #f0f0f0" : "none"
+                }}>
                   <Space size="small">
                     <Button
                       type="default"
-                      icon={<EditOutlined />}
-                      size="small"
+                      icon={<EditOutlined style={{ fontSize: isMobile ? "0.75rem" : undefined }} />}
+                      size={isMobile ? "small" : "small"}
                       onClick={() => iniciarEdicao(controle)}
                       title="Editar lote"
-                    />
+                    >
+                      {isMobile && "Editar"}
+                    </Button>
                     <Button
                       type="default"
                       danger
-                      icon={<DeleteOutlined />}
-                      size="small"
+                      icon={<DeleteOutlined style={{ fontSize: isMobile ? "0.75rem" : undefined }} />}
+                      size={isMobile ? "small" : "small"}
                       title="Excluir lote"
                       onClick={() => confirmarExclusao(controle.id)}
                       disabled={operacaoLoading}
-                    />
+                    >
+                      {isMobile && "Excluir"}
+                    </Button>
                   </Space>
                 </div>
               </div>
@@ -615,56 +679,80 @@ const DetalhamentoModal = ({
       return (
         <Card
           title={
-            <Space>
-              <EnvironmentOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Resumo da Área</span>
+            <Space size={isMobile ? "small" : "middle"}>
+              <EnvironmentOutlined style={{ color: "#ffffff", fontSize: isMobile ? "0.875rem" : "1rem" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: isMobile ? "0.875rem" : "1rem" }}>
+                {isMobile ? "Resumo" : "Resumo da Área"}
+              </span>
             </Space>
           }
-          style={{ 
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+          style={{
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",  // ✅ 1px → rem
+            borderRadius: "0.5rem",  // ✅ 8px → rem
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",  // ✅ 2px → rem
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",  // ✅ 8px → rem
+              padding: isMobile ? "8px 12px" : "12px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
-          <Row gutter={16}>
-            <Col span={8}>
-              <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                <Text strong style={{ color: '#059669', fontSize: '18px' }}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+            <Col xs={24} sm={8}>
+              <div style={{
+                textAlign: 'center',
+                padding: isMobile ? '8px' : '12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0.375rem',  // ✅ 6px → rem
+                border: '0.0625rem solid #e9ecef'  // ✅ 1px → rem
+              }}>
+                <Text strong style={{ color: '#059669', fontSize: isMobile ? '1rem' : '1.125rem' }}>  {/* ✅ 16px → 18px em rem */}
                   {dados.totalControles}
                 </Text>
                 <br />
-                <Text style={{ fontSize: '12px', color: '#666' }}>
+                <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>  {/* ✅ 11px → 12px em rem */}
                   Registros
                 </Text>
               </div>
             </Col>
-            <Col span={8}>
-              <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                <Text strong style={{ color: '#059669', fontSize: '18px' }}>
+            <Col xs={24} sm={8}>
+              <div style={{
+                textAlign: 'center',
+                padding: isMobile ? '8px' : '12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0.375rem',  // ✅ 6px → rem
+                border: '0.0625rem solid #e9ecef'  // ✅ 1px → rem
+              }}>
+                <Text strong style={{ color: '#059669', fontSize: isMobile ? '1rem' : '1.125rem' }}>
                   {dados.totalFitas}
                 </Text>
                 <br />
-                <Text style={{ fontSize: '12px', color: '#666' }}>
+                <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>
                   Total de Fitas
                 </Text>
               </div>
             </Col>
-            <Col span={8}>
-              <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                <Text strong style={{ color: '#059669', fontSize: '18px' }}>
+            <Col xs={24} sm={8}>
+              <div style={{
+                textAlign: 'center',
+                padding: isMobile ? '8px' : '12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0.375rem',  // ✅ 6px → rem
+                border: '0.0625rem solid #e9ecef'  // ✅ 1px → rem
+              }}>
+                <Text strong style={{ color: '#059669', fontSize: isMobile ? '1rem' : '1.125rem' }}>
                   {dados.areaTotal} ha
                 </Text>
                 <br />
-                <Text style={{ fontSize: '12px', color: '#666' }}>
+                <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>
                   Área Total
                 </Text>
               </div>
@@ -676,74 +764,104 @@ const DetalhamentoModal = ({
       return (
         <Card
           title={
-            <Space>
-              <InfoCircleOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Resumo da Fita</span>
+            <Space size={isMobile ? "small" : "middle"}>
+              <InfoCircleOutlined style={{ color: "#ffffff", fontSize: isMobile ? "0.875rem" : "1rem" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: isMobile ? "0.875rem" : "1rem" }}>
+                {isMobile ? "Resumo" : "Resumo da Fita"}
+              </span>
             </Space>
           }
-          style={{ 
-            marginBottom: 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
+          style={{
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",  // ✅ 1px → rem
+            borderRadius: "0.5rem",  // ✅ 8px → rem
             backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",  // ✅ 2px → rem
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",  // ✅ 8px → rem
+              padding: isMobile ? "8px 12px" : "12px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
-          <Row gutter={16}>
-            <Col span={6}>
-              <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                <div 
-                  style={{ 
-                    width: '40px', 
-                    height: '40px', 
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+            <Col xs={12} sm={6}>
+              <div style={{
+                textAlign: 'center',
+                padding: isMobile ? '8px' : '12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0.375rem',  // ✅ 6px → rem
+                border: '0.0625rem solid #e9ecef'  // ✅ 1px → rem
+              }}>
+                <div
+                  style={{
+                    width: isMobile ? '30px' : '40px',
+                    height: isMobile ? '30px' : '40px',
                     backgroundColor: dados.corHex,
                     borderRadius: '50%',
-                    border: '3px solid #fff',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+                    border: '0.1875rem solid #fff',  // ✅ 3px → rem
+                    boxShadow: '0 0.25rem 0.5rem rgba(0,0,0,0.15)',  // ✅ 4px 8px → rem
                     margin: '0 auto 8px auto'
                   }}
                 />
-                <Text style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>
+                <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666', fontWeight: '500' }}>
                   Cor da Fita
                 </Text>
               </div>
             </Col>
-            <Col span={6}>
-              <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                <Text strong style={{ color: '#059669', fontSize: '18px' }}>
+            <Col xs={12} sm={6}>
+              <div style={{
+                textAlign: 'center',
+                padding: isMobile ? '8px' : '12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0.375rem',  // ✅ 6px → rem
+                border: '0.0625rem solid #e9ecef'  // ✅ 1px → rem
+              }}>
+                <Text strong style={{ color: '#059669', fontSize: isMobile ? '1rem' : '1.125rem' }}>
                   {dados.totalControles}
                 </Text>
                 <br />
-                <Text style={{ fontSize: '12px', color: '#666' }}>
+                <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>
                   Registros
                 </Text>
               </div>
             </Col>
-            <Col span={6}>
-              <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                <Text strong style={{ color: '#059669', fontSize: '18px' }}>
+            <Col xs={12} sm={6}>
+              <div style={{
+                textAlign: 'center',
+                padding: isMobile ? '8px' : '12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0.375rem',  // ✅ 6px → rem
+                border: '0.0625rem solid #e9ecef'  // ✅ 1px → rem
+              }}>
+                <Text strong style={{ color: '#059669', fontSize: isMobile ? '1rem' : '1.125rem' }}>
                   {dados.totalFitas}
                 </Text>
                 <br />
-                <Text style={{ fontSize: '12px', color: '#666' }}>
+                <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>
                   Total de Fitas
                 </Text>
               </div>
             </Col>
-            <Col span={6}>
-              <div style={{ textAlign: 'center', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                <Text strong style={{ color: '#059669', fontSize: '18px' }}>
+            <Col xs={12} sm={6}>
+              <div style={{
+                textAlign: 'center',
+                padding: isMobile ? '8px' : '12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0.375rem',  // ✅ 6px → rem
+                border: '0.0625rem solid #e9ecef'  // ✅ 1px → rem
+              }}>
+                <Text strong style={{ color: '#059669', fontSize: isMobile ? '1rem' : '1.125rem' }}>
                   {dados.totalAreas}
                 </Text>
                 <br />
-                <Text style={{ fontSize: '12px', color: '#666' }}>
+                <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>
                   Áreas
                 </Text>
               </div>
@@ -759,25 +877,25 @@ const DetalhamentoModal = ({
       {contextHolder}
       <Modal
       title={
-        <span style={{ 
-          color: "#ffffff", 
-          fontWeight: "600", 
-          fontSize: "16px",
+        <span style={{
+          color: "#ffffff",
+          fontWeight: "600",
+          fontSize: isMobile ? "0.875rem" : "1rem",  // ✅ 14px → 16px em rem
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "8px 12px" : "12px 16px",
+          margin: isMobile ? "-1.25rem -1.5rem 0 -1.5rem" : "-1.25rem -1.5rem 0 -1.5rem",  // ✅ -20px -24px em rem
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",  // ✅ 8px em rem
         }}>
           {tipo === 'area' ? (
             <>
-              <EnvironmentOutlined style={{ marginRight: 8 }} />
-              Detalhes da Área: {itemNome}
+              <EnvironmentOutlined style={{ marginRight: isMobile ? 4 : 8, fontSize: isMobile ? "0.875rem" : "1rem" }} />
+              {isMobile ? `Área: ${itemNome}` : `Detalhes da Área: ${itemNome}`}
             </>
           ) : (
             <>
-              <InfoCircleOutlined style={{ marginRight: 8 }} />
-              Detalhes da Fita: {itemNome}
+              <InfoCircleOutlined style={{ marginRight: isMobile ? 4 : 8, fontSize: isMobile ? "0.875rem" : "1rem" }} />
+              {isMobile ? `Fita: ${itemNome}` : `Detalhes da Fita: ${itemNome}`}
             </>
           )}
         </span>
@@ -785,18 +903,18 @@ const DetalhamentoModal = ({
       open={visible}
       onCancel={onClose}
       footer={null}
-      width="90%"
-      style={{ maxWidth: 1200 }}
+      width={isMobile ? "95vw" : "90%"}
+      style={{ maxWidth: isMobile ? "95vw" : "75rem" }}  // ✅ 1200px → 75rem
       styles={{
         body: {
-          maxHeight: "calc(100vh - 200px)",
+          maxHeight: "calc(100vh - 12.5rem)",  // ✅ 200px → rem
           overflowY: "auto",
           overflowX: "hidden",
-          padding: "20px",
+          padding: isMobile ? "12px" : "20px",
         },
         header: {
           backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
+          borderBottom: "0.125rem solid #047857",  // ✅ 2px → rem
           padding: 0,
         }
       }}
@@ -860,17 +978,17 @@ const DetalhamentoModal = ({
           {/* Lista de Controles */}
           <Card
             title={
-              <div style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                gap: "12px",
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: isMobile ? "8px" : "12px",
                 width: "100%",
                 padding: "0 4px"
               }}>
-                <Space>
-                  <InfoCircleOutlined style={{ color: "#ffffff" }} />
-                  <span style={{ color: "#ffffff", fontWeight: "600" }}>
-                    {tipo === 'area' ? 'Fitas da Área' : 'Áreas da Fita'}
+                <Space size={isMobile ? "small" : "middle"}>
+                  <InfoCircleOutlined style={{ color: "#ffffff", fontSize: isMobile ? "0.875rem" : "1rem" }} />
+                  <span style={{ color: "#ffffff", fontWeight: "600", fontSize: isMobile ? "0.875rem" : "1rem" }}>
+                    {tipo === 'area' ? (isMobile ? 'Fitas' : 'Fitas da Área') : (isMobile ? 'Áreas' : 'Áreas da Fita')}
                   </span>
                 </Space>
                 <Badge
@@ -879,6 +997,7 @@ const DetalhamentoModal = ({
                     backgroundColor: "rgba(255,255,255,0.9)",
                     color: "#059669",
                     fontWeight: "600",
+                    fontSize: isMobile ? "0.625rem" : "0.75rem"  // ✅ 10px → 12px em rem
                   }}
                 />
               </div>
@@ -886,13 +1005,14 @@ const DetalhamentoModal = ({
             styles={{
               header: {
                 backgroundColor: "#059669",
-                borderBottom: "2px solid #047857",
+                borderBottom: "0.125rem solid #047857",  // ✅ 2px → rem
                 color: "#ffffff",
-                borderRadius: "8px 8px 0 0",
+                borderRadius: "0.5rem 0.5rem 0 0",  // ✅ 8px → rem
+                padding: isMobile ? "8px 12px" : "12px 16px"
               },
               body: {
-                padding: "16px",
-                maxHeight: "350px",
+                padding: isMobile ? "12px" : "16px",
+                maxHeight: isMobile ? "300px" : "350px",
                 overflowY: "auto",
                 overflowX: "hidden"
               }
@@ -905,17 +1025,17 @@ const DetalhamentoModal = ({
           {calcularPrevisoesColheita().length > 0 && (
             <Card
               title={
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "12px",
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: isMobile ? "8px" : "12px",
                   width: "100%",
                   padding: "0 4px"
                 }}>
-                  <Space>
-                    <CalendarOutlined style={{ color: "#ffffff" }} />
-                    <span style={{ color: "#ffffff", fontWeight: "600" }}>
-                      Previsão de Colheita
+                  <Space size={isMobile ? "small" : "middle"}>
+                    <CalendarOutlined style={{ color: "#ffffff", fontSize: isMobile ? "0.875rem" : "1rem" }} />
+                    <span style={{ color: "#ffffff", fontWeight: "600", fontSize: isMobile ? "0.875rem" : "1rem" }}>
+                      {isMobile ? "Previsão" : "Previsão de Colheita"}
                     </span>
                   </Space>
                   <Badge
@@ -924,77 +1044,87 @@ const DetalhamentoModal = ({
                       backgroundColor: "rgba(255,255,255,0.9)",
                       color: "#059669",
                       fontWeight: "600",
+                      fontSize: isMobile ? "0.625rem" : "0.75rem"
                     }}
                   />
                 </div>
               }
+              style={{
+                marginTop: isMobile ? 12 : 16,
+              }}
               styles={{
                 header: {
                   backgroundColor: "#059669",
-                  borderBottom: "2px solid #047857",
+                  borderBottom: "0.125rem solid #047857",  // ✅ 2px → rem
                   color: "#ffffff",
-                  borderRadius: "8px 8px 0 0",
+                  borderRadius: "0.5rem 0.5rem 0 0",  // ✅ 8px → rem
+                  padding: isMobile ? "8px 12px" : "12px 16px"
                 },
                 body: {
-                  padding: "16px",
-                  maxHeight: "350px",
+                  padding: isMobile ? "12px" : "16px",
+                  maxHeight: isMobile ? "300px" : "350px",
                   overflowY: "auto",
                   overflowX: "hidden"
                 }
               }}
             >
-              <div style={{ 
-                display: "flex", 
-                flexDirection: "column", 
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
                 gap: "8px",
                 width: "100%",
-                paddingRight: "4px"
+                paddingRight: isMobile ? "0px" : "4px"
               }}>
-                {/* Cabeçalho da tabela */}
-                <div style={{
-                  padding: "8px 12px",
-                  backgroundColor: "#fafafa",
-                  border: "1px solid #f0f0f0",
-                  borderRadius: "4px",
-                  marginBottom: "4px",
-                  fontSize: "13px",
-                  fontWeight: "700",
-                  color: "#333",
-                  display: "flex",
-                  alignItems: "center"
-                }}>
-                  <div style={{ flex: "1.5 1 0", minWidth: "0", textAlign: "left" }}>
-                    <strong>Fita</strong>
+                {/* Cabeçalho da tabela - Oculto no mobile */}
+                {!isMobile && (
+                  <div style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#fafafa",
+                    border: "0.0625rem solid #f0f0f0",  // ✅ 1px → rem
+                    borderRadius: "0.25rem",  // ✅ 4px → rem
+                    marginBottom: "4px",
+                    fontSize: "0.8125rem",  // ✅ 13px → rem
+                    fontWeight: "700",
+                    color: "#333",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    <div style={{ flex: "1.5 1 0", minWidth: "0", textAlign: "left" }}>
+                      <strong>Fita</strong>
+                    </div>
+                    <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                      <strong>Quantidade</strong>
+                    </div>
+                    <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
+                      <strong>Data Marcação</strong>
+                    </div>
+                    <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                      <strong>Semana</strong>
+                      <Tooltip title="Semana de marcação da fita (ano)">
+                        <InfoCircleOutlined style={{ marginLeft: '4px', color: '#059669', fontSize: '0.75rem' }} />
+                      </Tooltip>
+                    </div>
+                    <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
+                      <strong>Previsão Colheita</strong>
+                    </div>
+                    <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                      <strong>Período de Colheita</strong>
+                    </div>
+                    <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                      <strong>Status</strong>
+                    </div>
                   </div>
-                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Quantidade</strong>
-                  </div>
-                  <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Data Marcação</strong>
-                  </div>
-                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Semana</strong>
-                  </div>
-                  <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Previsão Colheita</strong>
-                  </div>
-                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Período de Colheita</strong>
-                  </div>
-                  <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                    <strong>Status</strong>
-                  </div>
-                </div>
+                )}
 
                 {/* Lista de previsões */}
                 {calcularPrevisoesColheita().map((previsao, index) => (
-                  <div 
+                  <div
                     key={previsao.id}
                     style={{
-                      padding: "12px",
+                      padding: isMobile ? "10px" : "12px",
                       backgroundColor: "#ffffff",
-                      border: "1px solid #e8e8e8",
-                      borderRadius: "6px",
+                      border: "0.0625rem solid #e8e8e8",  // ✅ 1px → rem
+                      borderRadius: "0.375rem",  // ✅ 6px → rem
                       marginBottom: "4px",
                       transition: "all 0.2s ease",
                       cursor: "default",
@@ -1008,173 +1138,214 @@ const DetalhamentoModal = ({
                       e.currentTarget.style.borderColor = "#e8e8e8";
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center" }}>
+                    <div style={{
+                      display: "flex",
+                      alignItems: isMobile ? "stretch" : "center",
+                      flexDirection: isMobile ? "column" : "row",
+                      gap: isMobile ? "8px" : "0"
+                    }}>
                       {/* Fita */}
-                      <div style={{ flex: "1.5 1 0", minWidth: "0", textAlign: "left" }}>
+                      <div style={{
+                        flex: isMobile ? "1 1 auto" : "1.5 1 0",
+                        minWidth: "0",
+                        textAlign: "left"
+                      }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <div 
-                            style={{ 
-                              width: '16px', 
-                              height: '16px', 
+                          <div
+                            style={{
+                              width: isMobile ? '14px' : '16px',
+                              height: isMobile ? '14px' : '16px',
                               backgroundColor: previsao.fitaCor,
                               borderRadius: '50%',
-                              border: '2px solid #fff',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                              border: '0.125rem solid #fff',  // ✅ 2px → rem
+                              boxShadow: '0 0.125rem 0.25rem rgba(0,0,0,0.1)',  // ✅ 2px 4px → rem
                               flexShrink: 0
                             }}
                           />
                           <div>
-                            <Text strong style={{ color: "#333", fontSize: "14px", display: "block" }}>
+                            <Text strong style={{ color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem", display: "block" }}>
                               {previsao.fitaNome}
                             </Text>
-                            <Text style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                            <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.6875rem', color: '#666', marginTop: '2px' }}>
                               {tipo === 'area' ? dados.nome : previsao.areaNome}
                             </Text>
                           </div>
                         </div>
                       </div>
 
-                      {/* Quantidade */}
-                      <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                        <Text strong style={{ 
-                          fontSize: '16px', 
-                          color: '#059669' 
-                        }}>
-                          {previsao.quantidade}
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: '11px', color: '#666' }}>
-                          fitas
-                        </Text>
-                      </div>
-
-                      {/* Data Marcação */}
-                      <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
-                        <CalendarOutlined style={{ color: "#666", marginRight: '4px', fontSize: '12px' }} />
-                        <Text style={{ fontSize: '12px', color: '#666' }}>
-                          {formatarData(previsao.dataRegistro)}
-                        </Text>
-                      </div>
-
-                      {/* Semana Marcação */}
-                      <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                        <Text style={{ fontSize: '12px', color: '#059669', fontWeight: '500' }}>
-                          Sem {previsao.semanaRegistro}
-                        </Text>
-                      </div>
-
-                      {/* Previsão Colheita */}
-                      <div style={{ flex: "1.2 1 0", minWidth: "0", textAlign: "center" }}>
-                        <CalendarOutlined style={{ color: "#059669", marginRight: '4px', fontSize: '12px' }} />
-                        <Text style={{ fontSize: '12px', color: '#059669', fontWeight: '500' }}>
-                          {formatarData(previsao.dataColheitaInicio)}
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: '10px', color: '#666' }}>
-                          até {formatarData(previsao.dataColheitaFim)}
-                        </Text>
-                      </div>
-
-                      {/* Semana Colheita */}
-                      <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
-                        <Tooltip
-                          title={
-                            <div style={{ maxWidth: '300px' }}>
-                              <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1f2937' }}>
-                                📅 Período de Colheita
-                              </div>
-                              <div style={{ marginBottom: '6px' }}>
-                                <span style={{ color: '#22c55e', fontWeight: '500' }}>🟢 Início:</span> Semana {previsao.semanaColheitaInicio} ({formatarData(previsao.dataColheitaInicio)})
-                              </div>
-                              <div style={{ marginBottom: '6px' }}>
-                                <span style={{ color: '#ef4444', fontWeight: '500' }}>🔴 Fim:</span> Semana {previsao.semanaColheitaFim} ({formatarData(previsao.dataColheitaFim)})
-                              </div>
-                              <div style={{ fontSize: '12px', color: '#1f2937', marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #d1d5db' }}>
-                                <strong style={{ color: '#1f2937' }}>💡 Dica:</strong> Este é o período ideal para colher as bananas. 
-                                {previsao.semanaColheitaInicio === previsao.semanaColheitaFim 
-                                  ? ' A colheita deve ser feita nesta semana específica.'
-                                  : ` Você tem ${previsao.semanaColheitaFim - previsao.semanaColheitaInicio + 1} semanas para realizar a colheita.`
-                                }
-                              </div>
-                            </div>
-                          }
-                          placement="top"
-                        >
-                          {previsao.semanaColheitaInicio === previsao.semanaColheitaFim ? (
-                            <div style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#f0fdf4',
-                              border: '1px solid #22c55e',
-                              borderRadius: '6px',
-                              display: 'inline-block',
-                              cursor: 'help'
-                            }}>
-                              <Text style={{ fontSize: '12px', color: '#15803d', fontWeight: '600' }}>
-                                Sem {previsao.semanaColheitaInicio}
+                      {/* Info Grid - Desktop: row / Mobile: grid */}
+                      <div style={{
+                        flex: isMobile ? "1 1 auto" : "6.4 1 0",
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "1fr 1.2fr 1fr 1.2fr 1fr 1fr",
+                        gap: isMobile ? "8px" : "0",
+                        alignItems: "center"
+                      }}>
+                        {/* Quantidade */}
+                        <div style={{ textAlign: isMobile ? "left" : "center" }}>
+                          {isMobile && <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block" }}>Quantidade</Text>}
+                          <Text strong style={{
+                            fontSize: isMobile ? '0.875rem' : '1rem',
+                            color: '#059669'
+                          }}>
+                            {previsao.quantidade}
+                          </Text>
+                          {!isMobile && (
+                            <>
+                              <br />
+                              <Text style={{ fontSize: '0.6875rem', color: '#666' }}>
+                                fitas
                               </Text>
-                            </div>
-                          ) : (
-                            <div style={{
-                              padding: '8px 12px',
-                              backgroundColor: '#f0fdf4',
-                              border: '1px solid #22c55e',
-                              borderRadius: '6px',
-                              display: 'inline-block',
-                              minWidth: '90px',
-                              cursor: 'help'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-                                <div style={{
-                                  width: '8px',
-                                  height: '8px',
-                                  backgroundColor: '#22c55e',
-                                  borderRadius: '50%',
-                                  marginRight: '6px',
-                                  flexShrink: 0
-                                }} />
-                                <Text style={{ fontSize: '12px', color: '#15803d', fontWeight: '600' }}>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Data Marcação */}
+                        <div style={{ textAlign: isMobile ? "left" : "center" }}>
+                          {isMobile && <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block" }}>Marcação</Text>}
+                          <div>
+                            <CalendarOutlined style={{ color: "#666", marginRight: '4px', fontSize: isMobile ? '0.6875rem' : '0.75rem' }} />
+                            <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#666' }}>
+                              {formatarData(previsao.dataRegistro)}
+                            </Text>
+                          </div>
+                        </div>
+
+                        {/* Semana Marcação */}
+                        <div style={{ textAlign: isMobile ? "left" : "center" }}>
+                          {isMobile && <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block" }}>Semana</Text>}
+                          <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#059669', fontWeight: '500' }}>
+                            Sem {previsao.semanaRegistro}
+                          </Text>
+                        </div>
+
+                        {/* Previsão Colheita */}
+                        <div style={{ textAlign: isMobile ? "left" : "center" }}>
+                          {isMobile && <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block" }}>Colheita</Text>}
+                          <div>
+                            <CalendarOutlined style={{ color: "#059669", marginRight: '4px', fontSize: isMobile ? '0.6875rem' : '0.75rem' }} />
+                            <Text style={{ fontSize: isMobile ? '0.6875rem' : '0.75rem', color: '#059669', fontWeight: '500' }}>
+                              {formatarData(previsao.dataColheitaInicio)}
+                            </Text>
+                            {!isMobile && (
+                              <>
+                                <br />
+                                <Text style={{ fontSize: '0.625rem', color: '#666' }}>
+                                  até {formatarData(previsao.dataColheitaFim)}
+                                </Text>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Período de Colheita - Desktop only */}
+                        {!isMobile && (
+                          <div style={{ textAlign: "center" }}>
+                            {previsao.semanaColheitaInicio === previsao.semanaColheitaFim ? (
+                              <div style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#f0fdf4',
+                                border: '0.0625rem solid #22c55e',
+                                borderRadius: '0.375rem',
+                                display: 'inline-block'
+                              }}>
+                                <Text style={{ fontSize: '0.6875rem', color: '#15803d', fontWeight: '600' }}>
                                   Sem {previsao.semanaColheitaInicio}
                                 </Text>
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center' }}>
-                                <div style={{
-                                  width: '8px',
-                                  height: '8px',
-                                  backgroundColor: '#ef4444',
-                                  borderRadius: '50%',
-                                  marginRight: '6px',
-                                  flexShrink: 0
-                                }} />
-                                <Text style={{ fontSize: '12px', color: '#15803d', fontWeight: '600' }}>
-                                  Sem {previsao.semanaColheitaFim}
-                                </Text>
-                              </div>
+                            ) : (
+                              <Text style={{ fontSize: '0.6875rem', color: '#059669', fontWeight: '500' }}>
+                                Sem {previsao.semanaColheitaInicio}-{previsao.semanaColheitaFim}
+                              </Text>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Status - Desktop only */}
+                        {!isMobile && (
+                          <div style={{ textAlign: "center" }}>
+                            <div style={{
+                              padding: '4px 8px',
+                              backgroundColor: coresStatusColheita[previsao.status].bg,
+                              border: `0.0625rem solid ${coresStatusColheita[previsao.status].border}`,
+                              borderRadius: '0.25rem',
+                              display: 'inline-block'
+                            }}>
+                              <Text style={{
+                                fontSize: '0.6875rem',
+                                color: coresStatusColheita[previsao.status].text,
+                                fontWeight: '500'
+                              }}>
+                                {previsao.status === 'maturacao' && '🌱 Maturação'}
+                                {previsao.status === 'colheita' && '🍌 Colheita'}
+                                {previsao.status === 'alerta' && '⚠️ Alerta'}
+                                {previsao.status === 'vencido' && '🚨 Risco'}
+                              </Text>
                             </div>
-                          )}
-                        </Tooltip>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Status */}
-                      <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
+                      {/* Semana Colheita e Status - Mobile */}
+                      {isMobile && (
                         <div style={{
-                          padding: '4px 8px',
-                          backgroundColor: coresStatusColheita[previsao.status].bg,
-                          border: `1px solid ${coresStatusColheita[previsao.status].border}`,
-                          borderRadius: '4px',
-                          display: 'inline-block'
+                          flex: "1 1 auto",
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "8px",
+                          paddingTop: "8px",
+                          borderTop: "0.0625rem solid #f0f0f0"
                         }}>
-                          <Text style={{ 
-                            fontSize: '11px', 
-                            color: coresStatusColheita[previsao.status].text,
-                            fontWeight: '500'
-                          }}>
-                            {previsao.status === 'maturacao' && '🌱 Maturação'}
-                            {previsao.status === 'colheita' && '🍌 Colheita'}
-                            {previsao.status === 'alerta' && '⚠️ Alerta'}
-                            {previsao.status === 'vencido' && '🚨 Risco'}
-                          </Text>
+                          {/* Período de Colheita */}
+                          <div>
+                            <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block", marginBottom: "4px" }}>
+                              Período
+                            </Text>
+                            {previsao.semanaColheitaInicio === previsao.semanaColheitaFim ? (
+                              <div style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#f0fdf4',
+                                border: '0.0625rem solid #22c55e',
+                                borderRadius: '0.375rem',
+                                display: 'inline-block'
+                              }}>
+                                <Text style={{ fontSize: '0.6875rem', color: '#15803d', fontWeight: '600' }}>
+                                  Sem {previsao.semanaColheitaInicio}
+                                </Text>
+                              </div>
+                            ) : (
+                              <Text style={{ fontSize: '0.6875rem', color: '#059669', fontWeight: '500' }}>
+                                Sem {previsao.semanaColheitaInicio}-{previsao.semanaColheitaFim}
+                              </Text>
+                            )}
+                          </div>
+
+                          {/* Status */}
+                          <div>
+                            <Text style={{ fontSize: "0.6875rem", color: "#666", display: "block", marginBottom: "4px" }}>
+                              Status
+                            </Text>
+                            <div style={{
+                              padding: '4px 8px',
+                              backgroundColor: coresStatusColheita[previsao.status].bg,
+                              border: `0.0625rem solid ${coresStatusColheita[previsao.status].border}`,
+                              borderRadius: '0.25rem',
+                              display: 'inline-block'
+                            }}>
+                              <Text style={{
+                                fontSize: '0.6875rem',
+                                color: coresStatusColheita[previsao.status].text,
+                                fontWeight: '500'
+                              }}>
+                                {previsao.status === 'maturacao' && '🌱 Maturação'}
+                                {previsao.status === 'colheita' && '🍌 Colheita'}
+                                {previsao.status === 'alerta' && '⚠️ Alerta'}
+                                {previsao.status === 'vencido' && '🚨 Risco'}
+                              </Text>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1187,16 +1358,20 @@ const DetalhamentoModal = ({
             style={{
               display: "flex",
               justifyContent: "flex-end",
-              gap: "12px",
-              marginTop: "24px",
-              paddingTop: "16px",
-              borderTop: "1px solid #e8e8e8",
+              gap: isMobile ? "8px" : "12px",
+              marginTop: isMobile ? "1rem" : "1.5rem",  // ✅ 16px → 24px em rem
+              paddingTop: isMobile ? "12px" : "16px",
+              borderTop: "0.0625rem solid #e8e8e8",  // ✅ 1px → rem
             }}
           >
             <Button
-              icon={<CloseOutlined />}
+              icon={<CloseOutlined style={{ fontSize: isMobile ? "0.875rem" : "1rem" }} />}
               onClick={onClose}
-              size="large"
+              size={isMobile ? "middle" : "large"}
+              style={{
+                height: isMobile ? "32px" : "40px",
+                padding: isMobile ? "0 12px" : "0 16px"
+              }}
             >
               Fechar
             </Button>

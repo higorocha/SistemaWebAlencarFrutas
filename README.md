@@ -91,10 +91,30 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 - **Fornecedores**: Cadastro completo com áreas associadas
 - **Relacionamentos**: Lotes-culturas para controle de plantio
 
+### 🔗 **Sistema de Relacionamentos Cultura-Fruta-Área**
+
+**🎯 Nova Arquitetura de Relacionamentos:**
+- **Fruta → Cultura**: Relação obrigatória (substitui sistema de categorias)
+- **Área Fornecedor → Cultura**: Relação opcional para controle de plantio
+- **Filtragem Inteligente**: Áreas de fornecedores filtradas pela cultura da fruta selecionada
+
+**📊 Funcionalidades Implementadas:**
+- **Cadastro de Frutas**: Select de culturas obrigatório
+- **Vinculação de Áreas**: Áreas de fornecedores podem ser vinculadas a culturas específicas
+- **Controle de Qualidade**: Sistema filtra automaticamente áreas compatíveis
+- **Integração com Pedidos**: Vincular áreas baseadas na cultura da fruta do pedido
+
+**🔄 Fluxo de Funcionamento:**
+1. **Cadastro de Cultura**: Criar cultura (ex: "Banana", "Coco")
+2. **Cadastro de Fruta**: Vincular fruta à cultura obrigatoriamente
+3. **Cadastro de Área**: Área de fornecedor pode ser vinculada à cultura
+4. **Pedido**: Sistema filtra áreas baseadas na cultura da fruta selecionada
+
 ### 🍎 **Catálogo de Frutas**
-- **Categorização**: CITRICOS, TROPICAIS, TEMPERADAS, EXOTICAS, OLEAGINOSAS
+- **Vinculação com Culturas**: Frutas obrigatoriamente vinculadas a culturas (substitui categorias)
 - **Unidades Duplas**: Suporte a duas unidades por fruta
-- **Integração**: Direto com sistema de pedidos
+- **Integração**: Direto com sistema de pedidos e controle de áreas
+- **Filtragem Inteligente**: Áreas de fornecedores filtradas pela cultura da fruta
 
 ### 👥 **Gestão de Clientes**
 - **Dados Fiscais**: CPF/CNPJ, inscrições, endereços
@@ -234,6 +254,82 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 - **Utilitários:** Moment.js, QRCode, CPF/CNPJ Validator
 - **Animações:** Framer Motion 11.13.1
 
+### **📅 Sistema de Datas e Fuso Horário**
+
+**🎯 Configuração Atual:**
+- **Plugin Oficial**: `@ant-design/moment-webpack-plugin` para reverter do Day.js para Moment.js
+- **Biblioteca de Datas**: Moment.js para parsing, validação e formatação de datas
+- **Componente Customizado**: `MaskedDatePicker` - adiciona barras automaticamente durante digitação
+- **Formatação Padrão**: `YYYY-MM-DD HH:mm:ss` (com horário de meio-dia para evitar problemas de fuso)
+
+**🔧 Padrão de Formatação Implementado:**
+```javascript
+// ✅ Formato correto para salvar no banco (evita problemas de fuso horário)
+date.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss')
+// Resultado: "2025-08-06 12:00:00" (meio-dia)
+
+// ❌ Formato antigo que causava problemas
+date.format('YYYY-MM-DD')
+// Resultado: "2025-08-06 00:00:00" (meia-noite UTC - problema de fuso)
+```
+
+**⚠️ Problema de Fuso Horário Resolvido:**
+- **Sintoma**: Data salva como 06/08/2025 aparecia como 05/08/2025 ao editar
+- **Causa**: Salvamento em meia-noite UTC causava diferença de 1 dia no fuso brasileiro
+- **Solução**: Salvamento em meio-dia (12:00) evita problemas de fuso horário
+- **Componentes Corrigidos**: Todos os DatePickers do sistema (pedidos, pagamentos, precificação)
+
+**📋 Validação de Datas:**
+```javascript
+// ✅ Validação correta com Moment.js
+if (!value.isValid || !value.isValid()) {
+  return Promise.reject(new Error("Data inválida"));
+}
+
+// ❌ Validação antiga que não funcionava
+if (!moment(value).isValid()) {
+  return Promise.reject(new Error("Data inválida"));
+}
+```
+
+**📦 Componente MaskedDatePicker:**
+```javascript
+// Localização: frontend/src/components/common/inputs/MaskedDatePicker.js
+import { MaskedDatePicker } from "../../components/common/inputs";
+
+// Uso básico
+<MaskedDatePicker
+  value={dataColheita}
+  onChange={(date) => setDataColheita(date)}
+  placeholder="Selecione a data"
+/>
+
+// Com validação
+<Form.Item name="dataColheita" rules={[{ required: true }]}>
+  <MaskedDatePicker
+    disabledDate={(current) => current && current > moment().endOf('day')}
+    showToday
+  />
+</Form.Item>
+```
+
+**Funcionalidade:**
+- Digite: `06122025` → Resultado automático: `06/12/2025`
+- Funciona em formulários de criação e edição
+- Mantém todas as funcionalidades do DatePicker padrão
+
+**🎨 Componentes com DatePicker Corrigidos:**
+- **ColheitaModal.js**: `dataColheita` (usa MaskedDatePicker)
+- **NovoPedidoModal.js**: `dataPedido`, `dataPrevistaColheita`
+- **ColheitaTab.js**: `dataColheita`
+- **DadosBasicosTab.js**: `dataPedido`, `dataPrevistaColheita`
+- **PrecificacaoTab.js**: `indDataEntrada`, `indDataDescarga`
+- **PrecificacaoModal.js**: `indDataEntrada`, `indDataDescarga`
+- **LancarPagamentosModal.js**: `dataPagamento`
+- **NovoPagamentoModal.js**: `dataPagamento`
+- **RegistrarFitaModal.js**: `dataRegistro`
+- **DetalhamentoModal.js**: `dataRegistro`
+
 ### **Backend (NestJS 11.0.1)**
 - **ORM:** Prisma 6.12.0 com PostgreSQL
 - **Autenticação:** JWT, Passport, bcryptjs
@@ -352,9 +448,10 @@ SistemaWebAlencarFrutas/
 - **FrutasPedidosFitas** - Múltiplas fitas por fruta
 - **PagamentosPedidos** - Múltiplos pagamentos por pedido
 - **AreaAgricola** - Áreas próprias categorizadas
-- **AreaFornecedor** - Áreas de fornecedores
+- **AreaFornecedor** - Áreas de fornecedores com vinculação a culturas
 - **Cliente** - Dados fiscais e comerciais + classificação indústria
-- **Fruta** - Catálogo com categorias
+- **Fruta** - Catálogo vinculado a culturas (substitui categorias)
+- **Cultura** - Gestão de culturas com relacionamento com frutas e áreas de fornecedores
 - **FitaBanana** - Fitas com cores hexadecimais e nomes únicos
 - **ControleBanana** - Lotes de fitas por área (controle por lote específico)
 - **HistoricoFitas** - Auditoria completa de operações
@@ -365,7 +462,10 @@ SistemaWebAlencarFrutas/
 ### **Relacionamentos Complexos**
 - **N:N Avançado**: Pedidos ↔ Frutas com múltiplas áreas e fitas
 - **Dupla Referência**: Áreas podem ser próprias OU de fornecedores
-- **Hierarquia**: Culturas → Áreas → Pedidos → Pagamentos
+- **Hierarquia**: Culturas → Frutas → Pedidos → Pagamentos
+- **Relação Cultura-Fruta**: Frutas vinculadas obrigatoriamente a culturas (substitui categorias)
+- **Relação Cultura-Área**: Áreas de fornecedores podem ser vinculadas a culturas específicas
+- **Controle de Qualidade**: Filtragem de áreas baseada na cultura da fruta selecionada
 
 ---
 
@@ -405,11 +505,16 @@ PATCH  /api/areas-agricolas/:id        # Atualizar área
 
 # Fornecedores e Áreas
 GET    /api/fornecedores               # Listar fornecedores
-GET    /api/areas-fornecedores         # Áreas de fornecedores
+GET    /api/areas-fornecedores         # Áreas de fornecedores (com culturas)
+POST   /api/areas-fornecedores         # Criar área de fornecedor (com culturaId opcional)
+PATCH  /api/areas-fornecedores/:id     # Atualizar área de fornecedor
+GET    /api/areas-fornecedores/fornecedor/:id  # Áreas por fornecedor
 
 # Culturas e Frutas
 GET    /api/culturas                   # Listar culturas
-GET    /api/frutas                     # Catálogo de frutas
+GET    /api/frutas                     # Catálogo de frutas (com culturas)
+POST   /api/frutas                     # Criar fruta (culturaId obrigatório)
+PATCH  /api/frutas/:id                 # Atualizar fruta
 
 # Gestão de Clientes
 GET    /api/clientes                   # Listar clientes
@@ -1235,6 +1340,14 @@ npx prisma db seed           # Popular com dados
 - **Cálculo de Valores**: Validação de valores positivos e recálculo automático de totais
 - **Status de Pagamento Automático**: Baseado em valor recebido vs. valor final
 
+### **Sistema de Datas e Fuso Horário**
+- **Formatação Padronizada**: Todas as datas salvas como `YYYY-MM-DD HH:mm:ss` com horário 12:00:00
+- **Validação Moment.js**: Uso de `value.isValid()` para validação correta de objetos Moment
+- **Prevenção de Fuso Horário**: Salvamento em meio-dia evita diferenças de 1 dia ao editar
+- **Consistência de Exibição**: Datas carregadas corretamente nos DatePickers sem diferenças visuais
+- **Plugin Oficial**: `@ant-design/moment-webpack-plugin` para compatibilidade com Ant Design
+- **Remoção de Hacks**: Eliminação de eventos `onFocus`/`onBlur` e `useRef` para controle de datas
+
 ### **Sistema de Produção de Banana**  
 - **Cores Hexadecimais**: Validação de formato correto (#FF0000) para fitas de banana
 - **Unicidade de Fitas**: Nomes de fitas devem ser únicos globalmente
@@ -1338,6 +1451,11 @@ npx prisma db seed           # Popular com dados
 - [x] Headers padronizados verde #059669 para todas as tabelas do sistema
 - [x] Indicador visual de scroll "Deslize para ver mais →" com animação temporária
 - [x] Sticky headers para melhor experiência de usuário em tabelas longas
+- [x] Sistema de datas e fuso horário padronizado com `@ant-design/moment-webpack-plugin`
+- [x] Correção de problema de fuso horário em todos os DatePickers do sistema
+- [x] Formatação padronizada de datas como `YYYY-MM-DD HH:mm:ss` (meio-dia)
+- [x] Validação correta de datas com Moment.js usando `value.isValid()`
+- [x] Remoção de hacks antigos (`onFocus`/`onBlur`/`useRef`) nos componentes de data
 - [x] Modal PagamentosPendentesModal totalmente responsivo com layout otimizado
 - [x] Modal PagamentosEfetuadosModal com visualização completa de pagamentos efetuados por turma
 - [x] Endpoint específico para buscar todos os pagamentos efetuados de uma turma
