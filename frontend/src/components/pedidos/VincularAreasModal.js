@@ -72,34 +72,23 @@ const VincularAreasModal = ({
       const culturaId = fruta?.fruta?.cultura?.id || null;
       setCulturaIdFruta(culturaId);
       
-      console.log("🔍 DEBUG VincularAreasModal:");
-      console.log("  - Fruta completa:", JSON.stringify(fruta, null, 2));
-      console.log("  - fruta.fruta:", JSON.stringify(fruta?.fruta, null, 2));
-      console.log("  - fruta.fruta.cultura:", JSON.stringify(fruta?.fruta?.cultura, null, 2));
-      console.log("  - CulturaId da fruta:", culturaId);
-      console.log("  - Caminho: fruta?.fruta?.cultura?.id");
       
       // Buscar áreas próprias (já inclui culturas via lotes)
       const responseAreasProprias = await axiosInstance.get("/api/areas-agricolas");
       const todasAreasProprias = responseAreasProprias.data || [];
       
-      console.log("📦 Todas as áreas próprias:", JSON.stringify(todasAreasProprias, null, 2));
-      console.log("📦 Estrutura da primeira área:", JSON.stringify(todasAreasProprias[0], null, 2));
       
       // Filtrar áreas próprias que possuem lotes com a mesma cultura da fruta
       const areasPropriasFiltradas = culturaId 
         ? todasAreasProprias.filter(area => {
             // Verificar se a área tem lotes com a cultura da fruta
             const temCultura = area.culturas && area.culturas.some(cultura => {
-              console.log(`  🔎 Área "${area.nome}": culturaId=${cultura.culturaId} === ${culturaId}? ${cultura.culturaId === culturaId}`);
               return cultura.culturaId === culturaId;
             });
-            console.log(`  ✅ Área "${area.nome}" ${temCultura ? 'INCLUÍDA' : 'EXCLUÍDA'}`);
             return temCultura;
           })
         : todasAreasProprias; // Se não tem culturaId, mostra todas
       
-      console.log("✅ Áreas filtradas:", areasPropriasFiltradas);
       setAreasProprias(areasPropriasFiltradas);
 
       // Buscar áreas de fornecedores

@@ -11,6 +11,9 @@ export class ReceitaMensalDto {
 }
 
 export class ProgramacaoColheitaDto {
+  @ApiProperty({ example: 123 })
+  pedidoId: number;
+
   @ApiProperty({ example: 'João Silva Ltda' })
   cliente: string;
 
@@ -43,12 +46,30 @@ export class PrevisaoBananaDto {
   @ApiProperty({ example: 5, description: 'Dias restantes até a colheita' })
   diasRestantes: number;
 
-  @ApiProperty({ example: [{ areaNome: 'Área Norte', fitaNome: 'Fita Vermelha', fitaCor: '#FF0000', quantidadeFitas: 200 }], description: 'Detalhes das fitas por área' })
+  @ApiProperty({ example: '2024-01-15T00:00:00.000Z', description: 'Data de início da semana' })
+  dataInicio: string;
+
+  @ApiProperty({ example: '2024-01-21T23:59:59.999Z', description: 'Data de fim da semana' })
+  dataFim: string;
+
+  @ApiProperty({ 
+    example: [{ 
+      areaNome: 'Área Norte', 
+      fitaNome: 'Fita Vermelha', 
+      fitaCor: '#FF0000', 
+      quantidadeFitas: 200,
+      id: '123',
+      dataRegistro: '2024-01-01T10:30:00.000Z'
+    }], 
+    description: 'Detalhes das fitas por área' 
+  })
   detalhes: Array<{
     areaNome: string;
     fitaNome: string;
     fitaCor: string;
     quantidadeFitas: number;
+    id: string;
+    dataRegistro: string;
   }>;
 
   @ApiProperty({ example: 350, description: 'Total de fitas da semana' })

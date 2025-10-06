@@ -310,6 +310,9 @@ const ModalDetalhesSemana = ({
                 </div>
                 <div style={{ flex: "1 1 0", minWidth: "0", textAlign: "center" }}>
                   <strong>Tempo</strong>
+                  <Tooltip title="Tempo decorrido desde o cadastramento da fita até o fim da semana selecionada">
+                    <InfoCircleOutlined style={{ marginLeft: '4px', color: '#059669', fontSize: '0.75rem' }} />
+                  </Tooltip>
                 </div>
               </div>
             )}

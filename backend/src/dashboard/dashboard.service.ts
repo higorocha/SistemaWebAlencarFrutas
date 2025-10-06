@@ -225,6 +225,7 @@ export class DashboardService {
 
       pedido.frutasPedidos.forEach(frutaPedido => {
         programacao.push({
+          pedidoId: pedido.id,
           cliente: clienteNome,
           fruta: frutaPedido.fruta.nome,
           quantidadePrevista: frutaPedido.quantidadePrevista,
@@ -316,6 +317,8 @@ export class DashboardService {
                 numeroSemana,
                 periodoSemana: `${this.formatarDataCurta(inicioSemana)} - ${this.formatarDataCurta(fimSemana)}`,
                 diasRestantes,
+                dataInicio: inicioSemana.toISOString(),
+                dataFim: fimSemana.toISOString(),
                 detalhes: [],
                 totalFitas: 0,
                 status,
@@ -338,6 +341,8 @@ export class DashboardService {
                   fitaNome: controle.fitaBanana.nome,
                   fitaCor: controle.fitaBanana.corHex,
                   quantidadeFitas: controle.quantidadeFitas,
+                  id: controle.id.toString(),
+                  dataRegistro: controle.dataRegistro.toISOString(),
                 });
               }
 

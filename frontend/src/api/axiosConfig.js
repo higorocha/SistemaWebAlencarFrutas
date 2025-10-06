@@ -38,9 +38,6 @@ const axiosInstance = axios.create({
   },
 });
 
-// Log para debug - mostrar qual URL está sendo usada
-console.log('🔧 Frontend URL:', window.location.href);
-console.log('🔧 Backend URL:', config[environment]);
 
 // Interceptor para tratamento global de erros
 // Adiciona o token em todas as requisições

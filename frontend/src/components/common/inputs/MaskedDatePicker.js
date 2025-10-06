@@ -56,7 +56,7 @@ const MaskedDatePicker = ({ value, onChange, placeholder = "DD/MM/AAAA", showTod
           // Se a data estiver completa (10 caracteres), tentar converter para moment
           if (inputValue.length === 10) {
             const momentValue = moment(inputValue, 'DD/MM/YYYY', true);
-            if (momentValue.isValid()) {
+            if (momentValue.isValid() && onChange) {
               onChange(momentValue);
             }
           }
@@ -88,7 +88,7 @@ MaskedDatePicker.propTypes = {
   /** Valor da data (objeto moment) */
   value: PropTypes.object,
   /** Callback chamado quando a data muda */
-  onChange: PropTypes.func.isRequired,
+  onChange: PropTypes.func, // ✅ Removido .isRequired para compatibilidade com Form.Item
   /** Placeholder do campo */
   placeholder: PropTypes.string,
   /** Tamanho do campo */

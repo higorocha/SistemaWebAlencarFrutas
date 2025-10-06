@@ -86,48 +86,28 @@ const NovoPedidoModal = ({
     try {
       setIsSaving(true);
 
-      // 🔍 DEBUG: Verificar valores recebidos
-      console.log('📋 Valores recebidos do formulário:', values);
-      console.log('📅 Data do pedido RAW:', values.dataPedido);
-      console.log('📅 Data prevista colheita RAW:', values.dataPrevistaColheita);
-      console.log('📅 Tipo da data do pedido:', typeof values.dataPedido);
-      console.log('📅 Tipo da data prevista:', typeof values.dataPrevistaColheita);
 
       // ✅ NOVA VALIDAÇÃO: Usar validação completa do pedido
-      console.log('🔍 Validando pedido completo...', {
-        totalFrutas: values.frutas?.length || 0,
-        frutas: values.frutas?.map(f => ({ frutaId: f.frutaId, nome: frutas.find(fr => fr.id === f.frutaId)?.nome }))
-      });
 
       const resultadoValidacao = validarPedidoCompleto(values, frutas);
 
       if (!resultadoValidacao.valido) {
-        console.error('❌ Validação do pedido falhou:', {
-          erros: resultadoValidacao.erros,
-          avisos: resultadoValidacao.avisos
-        });
 
         // Mostrar primeiro erro encontrado
         const primeiroErro = resultadoValidacao.erros[0] || "Erro de validação";
         showNotification("error", "Erro de Validação", primeiroErro);
 
-        // Log todos os erros para debug
-        if (resultadoValidacao.erros.length > 1) {
-          console.warn('Erros adicionais encontrados:', resultadoValidacao.erros.slice(1));
-        }
 
         return;
       }
 
       // Mostrar avisos se existirem (mas não bloquear)
       if (resultadoValidacao.avisos.length > 0) {
-        console.warn('⚠️ Avisos encontrados:', resultadoValidacao.avisos);
         resultadoValidacao.avisos.forEach(aviso => {
           showNotification("warning", "Aviso", aviso);
         });
       }
 
-      console.log('✅ Validação do pedido passou!');
 
       // Validação simples das datas
       if (values.dataPedido && values.dataPrevistaColheita) {
@@ -154,8 +134,6 @@ const NovoPedidoModal = ({
         ? moment(values.dataPrevistaColheita).startOf('day').add(12, 'hours').toISOString()
         : undefined;
 
-      console.log('📅 Data do pedido processada:', dataPedidoProcessada);
-      console.log('📅 Data prevista processada:', dataPrevistaProcessada);
 
       const formData = {
         ...values,
@@ -174,11 +152,6 @@ const NovoPedidoModal = ({
         }))
       };
 
-      console.log('🚀 FormData final sendo enviado:', formData);
-      console.log('🚀 Datas no formData final:', {
-        dataPedido: formData.dataPedido,
-        dataPrevistaColheita: formData.dataPrevistaColheita
-      });
 
       await onSave(formData);
     } catch (error) {

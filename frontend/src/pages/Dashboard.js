@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Card, Row, Col, Typography, Statistic, Space, Badge, Button, Progress, List, Avatar, Tag } from "antd";
+import { Card, Row, Col, Typography, Statistic, Space, Badge, Button, Progress, List, Avatar, Tag, message } from "antd";
 import { Icon } from "@iconify/react";
 import {
   DashboardOutlined,
@@ -41,6 +41,8 @@ import { useTheme } from '@mui/material/styles';
 import  CentralizedLoader  from "../components/common/loaders/CentralizedLoader";
 import PagamentosPendentesModal from "../components/dashboard/PagamentosPendentesModal";
 import PagamentosEfetuadosModal from "../components/dashboard/PagamentosEfetuadosModal";
+import ModalDetalhesSemana from "../components/producao/ModalDetalhesSemana";
+import ColheitaModal from "../components/pedidos/ColheitaModal";
 
 const { Title } = Typography;
 
@@ -169,6 +171,19 @@ const Dashboard = () => {
     turmaNome: null
   });
   
+  const [modalSemana, setModalSemana] = useState({
+    visible: false,
+    dados: [],
+    semana: null
+  });
+  
+  const [colheitaModal, setColheitaModal] = useState({
+    open: false,
+    pedido: null
+  });
+  
+  const [loadingColheita, setLoadingColheita] = useState(false);
+  
   // Estados para controle de loading específico do toggle de pagamentos
   const [loadingPagamentosEfetuados, setLoadingPagamentosEfetuados] = useState(false);
   const [pagamentosEfetuadosCarregados, setPagamentosEfetuadosCarregados] = useState(false);
@@ -177,80 +192,19 @@ const Dashboard = () => {
   const [cacheCountdown, setCacheCountdown] = useState(0); // Contador regressivo do cache
   const [dashboardData, setDashboardData] = useState({
     // Cards principais
-    faturamentoTotal: 1245780.50,
-    faturamentoAberto: 89450.75,
-    totalClientes: 125,
-    totalPedidos: 847,
-    areasProdutivasHa: 42.5,
-    frutasCadastradas: 23,
-    pedidosAtivos: 18,
+    faturamentoTotal: 0,
+    faturamentoAberto: 0,
+    totalClientes: 0,
+    totalPedidos: 0,
+    areasProdutivasHa: 0,
+    frutasCadastradas: 0,
+    pedidosAtivos: 0,
 
     // Dados para gráficos
-    receitaMensal: [
-      { mes: 'Jan', valor: 145320.50 },
-      { mes: 'Fev', valor: 189750.75 },
-      { mes: 'Mar', valor: 156890.25 },
-      { mes: 'Abr', valor: 201450.80 },
-      { mes: 'Mai', valor: 178920.40 },
-      { mes: 'Jun', valor: 195680.90 }
-    ],
+    receitaMensal: [],
 
-    // Programação de colheita - pedidos agrupados por cliente/fruta
-    programacaoColheita: [
-      {
-        cliente: 'João Silva Ltda',
-        fruta: 'Banana Prata',
-        quantidadePrevista: 2500,
-        unidade: 'KG',
-        dataPrevistaColheita: '2024-01-25',
-        status: 'AGUARDANDO_COLHEITA',
-        diasRestantes: 3
-      },
-      {
-        cliente: 'Mercado Central',
-        fruta: 'Laranja Lima',
-        quantidadePrevista: 1800,
-        unidade: 'KG',
-        dataPrevistaColheita: '2024-01-26',
-        status: 'PEDIDO_CRIADO',
-        diasRestantes: 4
-      },
-      {
-        cliente: 'Distribuidora Norte',
-        fruta: 'Banana Nanica',
-        quantidadePrevista: 3200,
-        unidade: 'KG',
-        dataPrevistaColheita: '2024-01-27',
-        status: 'AGUARDANDO_COLHEITA',
-        diasRestantes: 5
-      },
-      {
-        cliente: 'SuperFruits SA',
-        fruta: 'Manga Tommy',
-        quantidadePrevista: 950,
-        unidade: 'KG',
-        dataPrevistaColheita: '2024-01-28',
-        status: 'PEDIDO_CRIADO',
-        diasRestantes: 6
-      },
-      {
-        cliente: 'João Silva Ltda',
-        fruta: 'Limão Tahiti',
-        quantidadePrevista: 1200,
-        unidade: 'KG',
-        dataPrevistaColheita: '2024-01-29',
-        status: 'AGUARDANDO_COLHEITA',
-        diasRestantes: 7
-      }
-    ],
-
-    // Produção de banana
-    producaoBanana: {
-      totalFitas: 2450,
-      areasAtivas: 15,
-      proximasColheitas: 8,
-      percentualColheita: 75
-    },
+    // Programação de colheita
+    programacaoColheita: [],
 
     // Pagamentos pendentes
     pagamentosPendentes: [],
@@ -258,7 +212,7 @@ const Dashboard = () => {
     // Pagamentos efetuados
     pagamentosEfetuados: [],
 
-    // Alertas
+    // Alertas - apenas esta seção mantém dados mock
     alertas: {
       pedidosParaColheita: 3,
       precificacoesPendentes: 2,
@@ -293,13 +247,7 @@ const Dashboard = () => {
         pagamentosPendentes: backendData.pagamentosPendentes || [],
         pagamentosEfetuados: backendData.pagamentosEfetuados || [],
 
-        // Mock data para seções não implementadas (manter temporariamente)
-        producaoBanana: {
-          totalFitas: 2450,
-          areasAtivas: 15,
-          proximasColheitas: 8,
-          percentualColheita: 75
-        },
+        // Alertas - apenas esta seção mantém dados mock
         alertas: {
           pedidosParaColheita: 3,
           precificacoesPendentes: 2,
@@ -316,9 +264,17 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
       setLoading(false);
-
-      // Em caso de erro, manter dados mock para não quebrar a interface
-      console.warn('Usando dados mock devido ao erro na API');
+      
+      // Em caso de erro, manter dados vazios exceto alertas
+      setDashboardData(prev => ({
+        ...prev,
+        // Manter apenas alertas com dados mock
+        alertas: {
+          pedidosParaColheita: 3,
+          precificacoesPendentes: 2,
+          pagamentosAtrasados: 1
+        }
+      }));
     }
   };
 
@@ -364,6 +320,91 @@ const Dashboard = () => {
       turmaId: null,
       turmaNome: null
     });
+  };
+
+  // Função para abrir modal de detalhes da semana
+  const abrirModalSemana = (previsao) => {
+    if (previsao.detalhes.length > 0) {
+      // Transformar dados do Dashboard para o formato esperado pelo modal
+      const dadosModal = previsao.detalhes.map(detalhe => ({
+        id: detalhe.id,
+        fitaNome: detalhe.fitaNome,
+        fitaCor: detalhe.fitaCor,
+        quantidade: detalhe.quantidadeFitas,
+        dataRegistro: new Date(detalhe.dataRegistro),
+        areaNome: detalhe.areaNome,
+        status: previsao.status
+      }));
+
+      const semanaModal = {
+        numero: previsao.numeroSemana,
+        inicio: new Date(previsao.dataInicio),
+        fim: new Date(previsao.dataFim)
+      };
+
+      setModalSemana({
+        visible: true,
+        dados: dadosModal,
+        semana: semanaModal
+      });
+    }
+  };
+
+  // Função para fechar modal de detalhes da semana
+  const fecharModalSemana = () => {
+    setModalSemana({
+      visible: false,
+      dados: [],
+      semana: null
+    });
+  };
+
+  // Função para abrir modal de colheita
+  const abrirModalColheita = async (item) => {
+    try {
+      setLoadingColheita(true);
+      // Buscar o pedido completo pelo ID
+      const response = await axiosInstance.get(`/api/pedidos/${item.pedidoId}`);
+      setColheitaModal({
+        open: true,
+        pedido: response.data
+      });
+    } catch (error) {
+      console.error("Erro ao buscar pedido:", error);
+      message.error("Erro ao carregar dados do pedido");
+    } finally {
+      setLoadingColheita(false);
+    }
+  };
+
+  // Função para fechar modal de colheita
+  const fecharModalColheita = () => {
+    setColheitaModal({
+      open: false,
+      pedido: null
+    });
+  };
+
+  // Função para salvar colheita
+  const handleSalvarColheita = async (colheitaData) => {
+    try {
+      console.log("Salvando colheita...");
+      await axiosInstance.patch(`/api/pedidos/${colheitaModal.pedido.id}/colheita`, colheitaData);
+      console.log("Colheita salva com sucesso!");
+      message.success("Colheita registrada com sucesso!");
+      
+      fecharModalColheita();
+      
+      // Recarregar dados do dashboard
+      console.log("Atualizando dados do dashboard...");
+      await fetchDashboardData();
+      console.log("Dados do dashboard atualizados!");
+    } catch (error) {
+      console.error("Erro ao registrar colheita:", error);
+      const errorMessage = error.response?.data?.message || "Erro ao registrar colheita";
+      message.error(errorMessage);
+      throw error; // Re-throw para o modal tratar
+    }
   };
 
   // Função para alternar entre pagamentos pendentes e efetuados
@@ -911,6 +952,7 @@ const Dashboard = () => {
                     {dashboardData.programacaoColheita.slice(0, 5).map((item, index) => (
                       <div
                         key={index}
+                        onClick={() => abrirModalColheita(item)}
                         style={{
                           padding: '12px',
                           borderRadius: '8px',
@@ -920,7 +962,17 @@ const Dashboard = () => {
                           border: `2px solid ${item.status === 'ATRASADO' ? '#f5222d' :
                                               item.diasRestantes === 0 ? '#faad14' :
                                               item.diasRestantes <= 3 ? '#fa8c16' : '#52c41a'}`,
-                          position: 'relative'
+                          position: 'relative',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0px)';
+                          e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
                         {/* Header: Avatar + Cliente */}
@@ -1051,22 +1103,41 @@ const Dashboard = () => {
                     ))}
                   </div>
                 ) : (
-                  // Desktop: Lista horizontal original
-                  <List
-                    itemLayout="horizontal"
-                    dataSource={dashboardData.programacaoColheita}
-                    renderItem={(item) => (
-                    <List.Item style={{
-                      padding: '12px 0',
-                      borderBottom: '1px solid #f0f0f0',
-                      backgroundColor: item.status === 'ATRASADO' ? '#fff2f0' : 'transparent',
-                      borderRadius: item.status === 'ATRASADO' ? '6px' : '0',
-                      margin: item.status === 'ATRASADO' ? '4px 0' : '0',
-                      paddingLeft: item.status === 'ATRASADO' ? '8px' : '0',
-                      paddingRight: item.status === 'ATRASADO' ? '8px' : '0'
-                    }}>
-                      <List.Item.Meta
-                        avatar={
+                  // Desktop: Layout vertical com fontes maiores
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {dashboardData.programacaoColheita.slice(0, 5).map((item, index) => (
+                      <div
+                        key={index}
+                        onClick={() => abrirModalColheita(item)}
+                        style={{
+                          padding: '8px',
+                          borderRadius: '8px',
+                          backgroundColor: item.status === 'ATRASADO' ? '#fff2f0' :
+                                         item.diasRestantes === 0 ? '#fff7e6' :
+                                         item.diasRestantes <= 3 ? '#fef3c7' : '#f6ffed',
+                          border: `2px solid ${item.status === 'ATRASADO' ? '#f5222d' :
+                                              item.diasRestantes === 0 ? '#faad14' :
+                                              item.diasRestantes <= 3 ? '#fa8c16' : '#52c41a'}`,
+                          position: 'relative',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0px)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        {/* Header: Avatar + Cliente */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginBottom: '6px',
+                          gap: '8px'
+                        }}>
                           <Avatar
                             size={40}
                             style={{
@@ -1077,89 +1148,111 @@ const Dashboard = () => {
                                 item.diasRestantes <= 7 ? '#52c41a' : '#1890ff',
                               color: 'white',
                               fontSize: '0.75rem',
-                              fontWeight: 'bold'
+                              fontWeight: 'bold',
+                              flexShrink: 0
                             }}
                           >
                             {item.diasRestantes < 0 ? `${Math.abs(item.diasRestantes)}!` :
                              item.diasRestantes === 0 ? 'HOJE' :
                              `${item.diasRestantes}d`}
                           </Avatar>
-                        }
-                        title={
-                          <div style={{
-                            fontSize: '1rem',
-                            fontWeight: '700',
-                            color: item.status === 'ATRASADO' ? '#f5222d' : '#333',
-                            lineHeight: '1.3',
-                            marginBottom: '2px'
-                          }}>
-                            {item.cliente}
-                          </div>
-                        }
-                        description={
-                          <div style={{ fontSize: '0.875rem', color: '#555', lineHeight: '1.4' }}>
-                            <div style={{ marginBottom: '6px', fontWeight: '500' }}>
-                              <img
-                                src={getFruitIcon(item.fruta)}
-                                alt={`Ícone ${item.fruta}`}
-                                style={{
-                                  width: '16px',
-                                  height: '16px',
-                                  marginRight: '8px',
-                                  verticalAlign: 'middle'
-                                }}
-                                onError={(e) => {
-                                  e.target.src = "/icons/frutas_64x64.png";
-                                }}
-                              />
-                              <span style={{ fontSize: '0.9375rem' }}>{item.fruta}</span>
-                            </div>
-                            <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#333' }}>
-                              📦 <span style={{ fontSize: '1rem' }}>{item.quantidadePrevista.toLocaleString('pt-BR')}</span> <span style={{ fontSize: '0.875rem' }}>{item.unidade}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: '1rem',
+                              fontWeight: '700',
+                              color: item.status === 'ATRASADO' ? '#f5222d' : '#333',
+                              lineHeight: '1.3',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {item.cliente}
                             </div>
                           </div>
-                        }
-                      />
-                      <div style={{ textAlign: 'right', fontSize: '0.8125rem' }}>
+                          <Tag
+                            color={
+                              item.status === 'ATRASADO' ? 'red' :
+                              item.diasRestantes === 0 ? 'gold' :
+                              item.diasRestantes <= 3 ? 'orange' : 'green'
+                            }
+                            style={{
+                              fontSize: '0.6875rem',
+                              fontWeight: '600',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              margin: 0
+                            }}
+                          >
+                            {item.status === 'ATRASADO' ? 'ATRASADO' :
+                             item.diasRestantes === 0 ? 'HOJE' :
+                             item.diasRestantes === 1 ? 'AMANHÃ' :
+                             `${item.diasRestantes} dias`}
+                          </Tag>
+                        </div>
+
+                        {/* Body: Fruta + Quantidade */}
                         <div style={{
-                          color:
-                            item.status === 'ATRASADO' ? '#f5222d' :
-                            item.diasRestantes === 0 ? '#faad14' :
-                            item.diasRestantes <= 3 ? '#fa8c16' :
-                            item.diasRestantes <= 7 ? '#52c41a' : '#1890ff',
-                          fontWeight: '700',
-                          marginBottom: '8px',
-                          fontSize: '0.9375rem',
-                          lineHeight: '1.2'
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '4px'
                         }}>
-                          {item.dataPrevistaColheita ?
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            flex: 1,
+                            minWidth: 0
+                          }}>
+                            <img
+                              src={getFruitIcon(item.fruta)}
+                              alt={`Ícone ${item.fruta}`}
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                flexShrink: 0
+                              }}
+                              onError={(e) => {
+                                e.target.src = "/icons/frutas_64x64.png";
+                              }}
+                            />
+                            <span style={{
+                              fontSize: '0.875rem',
+                              color: '#555',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {item.fruta}
+                            </span>
+                          </div>
+                          <div style={{
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            color: '#333',
+                            textAlign: 'right',
+                            flexShrink: 0
+                          }}>
+                            📦 {item.quantidadePrevista.toLocaleString('pt-BR')} {item.unidade}
+                          </div>
+                        </div>
+
+                        {/* Footer: Data */}
+                        <div style={{
+                          fontSize: '0.8125rem',
+                          color: item.status === 'ATRASADO' ? '#f5222d' :
+                                 item.diasRestantes === 0 ? '#d46b08' : '#52c41a',
+                          fontWeight: '700',
+                          textAlign: 'center'
+                        }}>
+                          📅 {item.dataPrevistaColheita ?
                             new Date(item.dataPrevistaColheita).toLocaleDateString('pt-BR') :
                             'Não definida'
                           }
                         </div>
-                        <Tag
-                          color={
-                            item.status === 'ATRASADO' ? 'red' :
-                            item.diasRestantes === 0 ? 'gold' :
-                            item.diasRestantes <= 3 ? 'orange' :
-                            item.diasRestantes <= 7 ? 'green' : 'blue'
-                          }
-                          style={{
-                            fontSize: '0.6875rem',
-                            fontWeight: '600',
-                            padding: '2px 8px',
-                            borderRadius: '4px'
-                          }}
-                        >
-                          {item.status === 'ATRASADO' ? `${Math.abs(item.diasRestantes)} dias atrás` :
-                           item.diasRestantes === 0 ? 'HOJE' :
-                           item.diasRestantes === 1 ? 'AMANHÃ' :
-                           `${item.diasRestantes} dias`}
-                        </Tag>
                       </div>
-                    </List.Item>
-                    )}
-                  />
+                    ))}
+                  </div>
                 )}
               </div>
               
@@ -1232,6 +1325,9 @@ const Dashboard = () => {
                   <div style={{ padding: '40px 0', textAlign: 'center', color: '#8c8c8c' }}>
                     <CalendarOutlined style={{ fontSize: '3rem', marginBottom: '1rem' }} />
                     <div>Nenhuma previsão de colheita encontrada</div>
+                    <Typography.Text type="secondary" style={{ fontSize: '0.75rem' }}>
+                      Aguardando dados do sistema de controle de banana
+                    </Typography.Text>
                   </div>
                 ) :
                   isMobile ? (
@@ -1249,7 +1345,17 @@ const Dashboard = () => {
                                                 previsao.status === 'alerta' ? '#d97706' :
                                                 previsao.status === 'vencido' ? '#dc2626' : '#e2e8f0'}`,
                             borderRadius: '8px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onClick={() => abrirModalSemana(previsao)}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0px)';
+                            e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
                           {/* Header: Ícone + Semana + Dias */}
@@ -1336,14 +1442,6 @@ const Dashboard = () => {
                                 borderRadius: '8px',
                                 fontSize: '0.5625rem'
                               }}>
-                                <div style={{
-                                  width: '8px',
-                                  height: '8px',
-                                  backgroundColor: detalhe.fitaCor,
-                                  borderRadius: '50%',
-                                  border: '1px solid #fff',
-                                  flexShrink: 0
-                                }} />
                                 <span style={{
                                   color: '#333',
                                   fontWeight: '500',
@@ -1362,6 +1460,14 @@ const Dashboard = () => {
                                 }}>
                                   →
                                 </span>
+                                <div style={{
+                                  width: '8px',
+                                  height: '8px',
+                                  backgroundColor: detalhe.fitaCor,
+                                  borderRadius: '50%',
+                                  border: '1px solid #fff',
+                                  flexShrink: 0
+                                }} />
                                 <span style={{
                                   color: previsao.status === 'colheita' ? '#166534' : '#92400e',
                                   fontWeight: '700',
@@ -1408,6 +1514,7 @@ const Dashboard = () => {
                             transition: 'all 0.2s ease',
                             cursor: 'pointer'
                           }}
+                          onClick={() => abrirModalSemana(previsao)}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.transform = 'translateY(-1px)';
                             e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
@@ -1467,15 +1574,6 @@ const Dashboard = () => {
                                 border: '1px solid rgba(0, 0, 0, 0.1)',
                                 fontSize: '0.6875rem'
                               }}>
-                                <div style={{
-                                  width: '12px',
-                                  height: '12px',
-                                  backgroundColor: detalhe.fitaCor,
-                                  borderRadius: '50%',
-                                  border: '1px solid #fff',
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                                  flexShrink: 0
-                                }} />
                                 <span style={{
                                   color: '#333',
                                   fontWeight: '500',
@@ -1494,6 +1592,15 @@ const Dashboard = () => {
                                 }}>
                                   →
                                 </span>
+                                <div style={{
+                                  width: '12px',
+                                  height: '12px',
+                                  backgroundColor: detalhe.fitaCor,
+                                  borderRadius: '50%',
+                                  border: '1px solid #fff',
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                                  flexShrink: 0
+                                }} />
                                 <span style={{
                                   color: previsao.status === 'colheita' ? '#166534' : '#92400e',
                                   fontWeight: '700'
@@ -1592,7 +1699,18 @@ const Dashboard = () => {
                 overflowY: 'auto', 
                 minHeight: '200px'
               }}>
-              {loadingPagamentosEfetuados ? (
+              {dadosPagamentosAtuais && dadosPagamentosAtuais.length === 0 && !loadingPagamentosEfetuados && !erroPagamentosEfetuados ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#8c8c8c' }}>
+                  <CheckCircleOutlined style={{ fontSize: '3rem', marginBottom: '1rem', color: '#52c41a' }} />
+                  <div>{isModoPendentes ? 'Nenhum pagamento pendente' : 'Nenhum pagamento efetuado'}</div>
+                  <Typography.Text type="secondary" style={{ fontSize: '0.75rem' }}>
+                    {isModoPendentes 
+                      ? 'Todos os colheitadores estão em dia'
+                      : 'Ainda não há registros de pagamentos realizados'
+                    }
+                  </Typography.Text>
+                </div>
+              ) : loadingPagamentosEfetuados ? (
                 <div style={{ 
                   position: 'absolute',
                   top: 0,
@@ -1766,18 +1884,7 @@ const Dashboard = () => {
                       </List.Item>
                     )}
                   />
-                ) : (
-                  <div style={{ padding: '40px 0', textAlign: 'center', color: '#8c8c8c' }}>
-                    <CheckCircleOutlined style={{ fontSize: '3rem', marginBottom: '1rem', color: '#52c41a' }} />
-                    <div>{isModoPendentes ? 'Nenhum pagamento pendente' : 'Nenhum pagamento efetuado'}</div>
-                    <Typography.Text type="secondary" style={{ fontSize: '0.75rem' }}>
-                      {isModoPendentes 
-                        ? 'Todos os colheitadores estão em dia'
-                        : 'Ainda não há registros de pagamentos realizados'
-                      }
-                    </Typography.Text>
-                  </div>
-                )}
+                ) : null}
               </div>
               
               {/* Footer fixo na base - sempre visível */}
@@ -2050,6 +2157,34 @@ const Dashboard = () => {
         onClose={fecharModalPagamentosEfetuados}
         turmaId={modalPagamentosEfetuados.turmaId}
         turmaNome={modalPagamentosEfetuados.turmaNome}
+      />
+
+      {/* Modal de Detalhes da Semana */}
+      <ModalDetalhesSemana
+        visible={modalSemana.visible}
+        onClose={fecharModalSemana}
+        semana={modalSemana.semana}
+        dados={modalSemana.dados}
+      />
+
+      {/* Modal de Colheita */}
+      <ColheitaModal
+        open={colheitaModal.open}
+        onClose={fecharModalColheita}
+        onSave={handleSalvarColheita}
+        pedido={colheitaModal.pedido}
+        loading={false}
+        onLoadingChange={(loading, message) => {
+          setLoadingColheita(loading);
+          // Aqui podemos usar o message se necessário para o CentralizedLoader
+        }}
+      />
+
+      {/* CentralizedLoader para carregamento do modal de colheita */}
+      <CentralizedLoader
+        visible={loadingColheita}
+        message="Carregando dados do pedido..."
+        subMessage="Preparando informações para colheita"
       />
     </div>
   );
