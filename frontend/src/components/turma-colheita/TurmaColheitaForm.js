@@ -9,6 +9,7 @@ import {
   FileTextOutlined,
   TeamOutlined
 } from "@ant-design/icons";
+import useResponsive from "../../hooks/useResponsive";
 
 const { TextArea } = Input;
 
@@ -19,6 +20,7 @@ const TurmaColheitaForm = ({
   setErros,
   loadingData
 }) => {
+  const { isMobile } = useResponsive();
 
   const handleFieldChange = (field, value) => {
     setTurmaAtual(prev => ({
@@ -51,8 +53,8 @@ const TurmaColheitaForm = ({
   }
 
   return (
-    <div>
-      <Form layout="vertical" size="large">
+    <div style={{ minWidth: 0 }}>
+      <Form layout="vertical" size={isMobile ? "middle" : "large"}>
         {/* Seção 1: Dados do Colhedor */}
         <Card
           title={
@@ -62,7 +64,7 @@ const TurmaColheitaForm = ({
             </Space>
           }
           style={{
-            marginBottom: 16,
+            marginBottom: isMobile ? 12 : 16,
             border: "1px solid #e8e8e8",
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
@@ -76,7 +78,7 @@ const TurmaColheitaForm = ({
             }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]}>
             <Col xs={24}>
               <Form.Item
                 label={
@@ -97,13 +99,15 @@ const TurmaColheitaForm = ({
                   style={{
                     borderRadius: "6px",
                     borderColor: erros.nomeColhedor ? "#ff4d4f" : "#d9d9d9",
+                    height: isMobile ? 36 : undefined,
                   }}
+                  size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>
             </Col>
           </Row>
 
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]}>
             <Col xs={24}>
               <Form.Item
                 label={
@@ -123,7 +127,9 @@ const TurmaColheitaForm = ({
                   style={{
                     borderRadius: "6px",
                     borderColor: erros.chavePix ? "#ff4d4f" : "#d9d9d9",
+                    height: isMobile ? 36 : undefined,
                   }}
+                  size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>
             </Col>
@@ -140,7 +146,7 @@ const TurmaColheitaForm = ({
             </Space>
           }
           style={{ 
-            marginBottom: 16,
+            marginBottom: isMobile ? 12 : 16,
             border: "1px solid #e8e8e8",
             borderRadius: "8px",
             backgroundColor: "#f9f9f9",
@@ -154,7 +160,7 @@ const TurmaColheitaForm = ({
             }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]}>
             <Col xs={24}>
               <Form.Item
                 label={
@@ -165,14 +171,16 @@ const TurmaColheitaForm = ({
                 }
               >
                 <TextArea
-                  rows={4}
+                  rows={isMobile ? 3 : 4}
                   placeholder="Observações sobre a turma de colheita (opcional)"
                   value={turmaAtual.observacoes || ""}
                   onChange={(e) => handleFieldChange("observacoes", e.target.value)}
                   style={{
                     borderRadius: "6px",
                     borderColor: "#d9d9d9",
+                    fontSize: isMobile ? 13 : undefined,
                   }}
+                  size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>
             </Col>

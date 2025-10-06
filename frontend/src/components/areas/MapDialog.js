@@ -26,6 +26,7 @@ import {
   GlobalOutlined,
   ArrowsAltOutlined,
 } from "@ant-design/icons";
+import useResponsive from "../../hooks/useResponsive";
 import {
   GoogleMap,
   Marker,
@@ -105,7 +106,7 @@ const StaticNameOverlay = styled.div`
   lotesExistentes = [],
 }) => {
   const theme = useTheme();
-  
+  const { isMobile } = useResponsive();
 
   const isEditableMode = mapMode === "edit" || mapMode === "create";
   const [manualArea, setManualArea] = useState(areaPoligono);
@@ -367,7 +368,14 @@ const StaticNameOverlay = styled.div`
   const footerButtons = () => {
     if (!isEditableMode) {
       return [
-        <Button key="close" onClick={onClose}>
+        <Button
+          key="close"
+          onClick={onClose}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            fontSize: isMobile ? "0.75rem" : "0.875rem",
+          }}
+        >
           Fechar
         </Button>,
       ];
@@ -375,28 +383,49 @@ const StaticNameOverlay = styled.div`
 
     // isEditableMode = true
     const buttons = [
-      <Button key="cancel" onClick={onClose}>
+      <Button
+        key="cancel"
+        onClick={onClose}
+        size={isMobile ? "small" : "middle"}
+        style={{
+          fontSize: isMobile ? "0.75rem" : "0.875rem",
+        }}
+      >
         Cancelar
       </Button>,
     ];
 
     if (!isDrawing && tempCoordinates.length > 0) {
       buttons.push(
-        <Button 
-          key="finalizar" 
-          type="primary" 
+        <Button
+          key="finalizar"
+          type="primary"
           onClick={handleFinalizar}
           disabled={!isManualAreaValid}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            backgroundColor: "#059669",
+            borderColor: "#059669",
+            fontSize: isMobile ? "0.75rem" : "0.875rem",
+          }}
         >
-          Finalizar {mapMode === "edit" ? "Edição" : "Criação"}
+          {isMobile ? "Finalizar" : `Finalizar ${mapMode === "edit" ? "Edição" : "Criação"}`}
         </Button>
       );
     }
 
     if (isEditableMode && !isDrawing && tempCoordinates.length > 0) {
       buttons.push(
-        <Button key="excluir" danger onClick={handleExcluirPoligono}>
-          Excluir Polígono
+        <Button
+          key="excluir"
+          danger
+          onClick={handleExcluirPoligono}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            fontSize: isMobile ? "0.75rem" : "0.875rem",
+          }}
+        >
+          {isMobile ? "Excluir" : "Excluir Polígono"}
         </Button>
       );
     }
@@ -450,44 +479,52 @@ const StaticNameOverlay = styled.div`
       open={open}
       onCancel={onClose}
       title={
-        <span style={{ 
-          color: "#ffffff", 
-          fontWeight: "600", 
-          fontSize: "16px",
+        <span style={{
+          color: "#ffffff",
+          fontWeight: "600",
+          fontSize: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+          margin: "-1.25rem -1.5rem 0 -1.5rem",
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",
         }}>
           {dialogTitle}
         </span>
       }
-      width="70%"
+      width={isMobile ? '95vw' : '70%'}
+      style={{ maxWidth: isMobile ? '95vw' : '90%' }}
       footer={footerButtons()}
       styles={{
         header: {
           backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
+          borderBottom: "0.125rem solid #047857",
           padding: 0,
+        },
+        body: {
+          padding: isMobile ? 12 : 20,
         }
       }}
+      centered
       destroyOnClose
     >
       {isEditableMode && (
         <div
           style={{
             display: "flex",
+            flexDirection: isMobile ? "column" : "row",
             justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
+            alignItems: isMobile ? "stretch" : "center",
+            marginBottom: isMobile ? 12 : 16,
+            gap: isMobile ? "8px" : "0",
           }}
         >
-          <Space>
+          <Space wrap size={isMobile ? "small" : "middle"}>
             {mapMode === "create" && (
               <Button
                 type={isDrawing ? "primary" : "default"}
                 icon={<GlobalOutlined />}
+                size={isMobile ? "small" : "middle"}
                 onClick={() => {
                   if (isDrawing) {
                     setIsDrawing(false);
@@ -501,32 +538,45 @@ const StaticNameOverlay = styled.div`
                     setIsDrawing(true);
                   }
                 }}
+                style={{
+                  fontSize: isMobile ? "0.75rem" : "0.875rem",
+                }}
               >
-                {isDrawing ? "Cancelar Desenho" : "Desenhar Área"}
+                {isDrawing ? (isMobile ? "Cancelar" : "Cancelar Desenho") : (isMobile ? "Desenhar" : "Desenhar Área")}
               </Button>
             )}
             <Button
               type="default"
               icon={<ArrowsAltOutlined />}
+              size={isMobile ? "small" : "middle"}
               onClick={() => setIsDrawing(false)}
+              style={{
+                fontSize: isMobile ? "0.75rem" : "0.875rem",
+              }}
             >
-              Mover Mapa
+              {isMobile ? "Mover" : "Mover Mapa"}
             </Button>
           </Space>
-          
-          <div style={{ textAlign: "right" }}>
-            <Typography.Text type="secondary" style={{ fontSize: "12px" }}>
-              <InfoCircleOutlined /> Dica: Clique e arraste os pontos azuis para ajustar os vértices. 
-              Pontos verdes são para adicionar novos vértices.
-            </Typography.Text>
-          </div>
+
+          {!isMobile && (
+            <div style={{ textAlign: "right" }}>
+              <Typography.Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                <InfoCircleOutlined /> Dica: Clique e arraste os pontos azuis para ajustar os vértices.
+                Pontos verdes são para adicionar novos vértices.
+              </Typography.Text>
+            </div>
+          )}
         </div>
       )}
       
       <div style={{ position: "relative" }}>
-        
+
         <GoogleMap
-          mapContainerStyle={{ height: "450px", width: "100%" }}
+          mapContainerStyle={{
+            height: isMobile ? "350px" : "450px",
+            width: "100%",
+            minHeight: isMobile ? "350px" : "auto"
+          }}
           center={mapCenter}
           zoom={mapZoom}
           onLoad={onLoad}
@@ -756,20 +806,22 @@ const StaticNameOverlay = styled.div`
         </GoogleMap>
         
         {/* Controles de zoom personalizados */}
-        <div style={{ 
-          position: "absolute", 
-          bottom: "10px", 
-          right: "10px", 
-          backgroundColor: theme?.palette?.background?.paper || "white", 
-          padding: "5px", 
-          borderRadius: "4px",
-          boxShadow: theme?.palette?.ui?.shadow || "0 2px 6px rgba(0,0,0,0.3)",
-          border: `1px solid ${theme?.palette?.ui?.border || "#e0e0e0"}`
+        <div style={{
+          position: "absolute",
+          bottom: "10px",
+          right: isMobile ? "20px" : "10px",
+          backgroundColor: "white",
+          padding: isMobile ? "6px" : "5px",
+          borderRadius: "0.25rem",
+          boxShadow: "0 0.125rem 0.375rem rgba(0,0,0,0.3)",
+          border: "0.0625rem solid #e0e0e0",
+          zIndex: 100
         }}>
-          <Space direction="vertical">
-            <Button 
-              icon="+" 
+          <Space direction="vertical" size={isMobile ? 2 : 0}>
+            <Button
+              icon={<ZoomInOutlined style={{ fontSize: isMobile ? '1rem' : '0.875rem' }} />}
               type="text"
+              size="small"
               onClick={() => {
                 const newZoom = Math.min(currentZoom + 1, 20);
                 setCurrentZoom(newZoom);
@@ -778,10 +830,19 @@ const StaticNameOverlay = styled.div`
                   mapRef.current.setZoom(newZoom);
                 }
               }}
-            >+</Button>
-            <Button 
-              icon="-" 
+              style={{
+                width: isMobile ? '32px' : '28px',
+                height: isMobile ? '32px' : '28px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            />
+            <Button
+              icon={<ZoomOutOutlined style={{ fontSize: isMobile ? '1rem' : '0.875rem' }} />}
               type="text"
+              size="small"
               onClick={() => {
                 const newZoom = Math.max(currentZoom - 1, 1);
                 setCurrentZoom(newZoom);
@@ -790,77 +851,118 @@ const StaticNameOverlay = styled.div`
                   mapRef.current.setZoom(newZoom);
                 }
               }}
-            >-</Button>
+              style={{
+                width: isMobile ? '32px' : '28px',
+                height: isMobile ? '32px' : '28px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            />
           </Space>
         </div>
         
         {/* Legenda do mapa */}
-        <div style={{ 
-          position: "absolute", 
-          bottom: "10px", 
-          left: "10px", 
-          backgroundColor: theme?.palette?.background?.paper || "white", 
-          padding: "8px", 
-          borderRadius: "4px",
-          boxShadow: theme?.palette?.ui?.shadow || "0 2px 6px rgba(0,0,0,0.3)",
-          fontSize: "12px",
-          border: `1px solid ${theme?.palette?.ui?.border || "#e0e0e0"}`
+        <div style={{
+          position: "absolute",
+          bottom: "10px",
+          left: "10px",
+          backgroundColor: "white",
+          padding: isMobile ? "6px 8px" : "8px",
+          borderRadius: "0.25rem",
+          boxShadow: "0 0.125rem 0.375rem rgba(0,0,0,0.3)",
+          fontSize: isMobile ? "0.6875rem" : "0.75rem",
+          border: "0.0625rem solid #e0e0e0",
+          zIndex: 100,
+          maxWidth: isMobile ? "calc(100% - 80px)" : "auto"
         }}>
-                      <div style={{ marginBottom: "4px" }}>
-              <span style={{ 
-                display: "inline-block", 
-                width: "12px", 
-                height: "12px", 
-                backgroundColor: "#10b981", // Verde claro do tema
-                marginRight: "5px" 
-              }}></span>
-              Área atual
-            </div>
-            <div>
-              <span style={{ 
-                display: "inline-block", 
-                width: "12px", 
-                height: "12px", 
-                backgroundColor: "#dc2626", // Vermelho do tema
-                marginRight: "5px" 
-              }}></span>
-              Áreas existentes
-            </div>
+          <div style={{
+            marginBottom: "2px",
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <span style={{
+              display: "inline-block",
+              width: isMobile ? "8px" : "12px",
+              height: isMobile ? "8px" : "12px",
+              backgroundColor: "#10b981",
+              flexShrink: 0
+            }}></span>
+            <span style={{
+              fontSize: isMobile ? "0.625rem" : "0.75rem",
+              whiteSpace: isMobile ? "nowrap" : "normal"
+            }}>
+              {isMobile ? "Atual" : "Área atual"}
+            </span>
+          </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <span style={{
+              display: "inline-block",
+              width: isMobile ? "8px" : "12px",
+              height: isMobile ? "8px" : "12px",
+              backgroundColor: "#dc2626",
+              flexShrink: 0
+            }}></span>
+            <span style={{
+              fontSize: isMobile ? "0.625rem" : "0.75rem",
+              whiteSpace: isMobile ? "nowrap" : "normal"
+            }}>
+              {isMobile ? "Existentes" : "Áreas existentes"}
+            </span>
+          </div>
         </div>
       </div>
       
       {/* Seção de ajuste manual da área */}
-      <div style={{ marginTop: "16px" }}>
+      <div style={{ marginTop: isMobile ? "12px" : "16px" }}>
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            padding: "10px",
-            backgroundColor: theme?.palette?.background?.hover || "#f5f5f5",
-            borderRadius: "4px",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "stretch" : "center",
+            gap: isMobile ? "8px" : "12px",
+            padding: isMobile ? "8px" : "10px",
+            backgroundColor: "#f5f5f5",
+            borderRadius: "0.25rem",
             flexWrap: "wrap",
-            border: `1px solid ${theme?.palette?.ui?.border || "#e0e0e0"}`
+            border: "0.0625rem solid #e0e0e0"
           }}
         >
           {/* Área Original */}
-          <div>
-            <Typography.Text type="secondary">
+          <div style={{ flex: isMobile ? "1" : "0 0 auto" }}>
+            <Typography.Text type="secondary" style={{ fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
               Área Original: <Typography.Text strong>{formatarNumero(originalArea)} ha</Typography.Text>
             </Typography.Text>
           </div>
-          
-          {/* Separador visual */}
-          <div style={{ width: "1px", height: "24px", backgroundColor: theme?.palette?.ui?.border || "#d9d9d9" }} />
-          
+
+          {/* Separador visual - apenas desktop */}
+          {!isMobile && (
+            <div style={{ width: "1px", height: "24px", backgroundColor: "#d9d9d9" }} />
+          )}
+
           {/* Label e Input na mesma linha */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", whiteSpace: "nowrap" }}>
-            <Typography.Text strong style={{ whiteSpace: "nowrap" }}>
-              Área do Polígono:
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? "4px" : "8px",
+            whiteSpace: "nowrap",
+            flex: isMobile ? "1" : "0 0 auto"
+          }}>
+            <Typography.Text strong style={{
+              whiteSpace: "nowrap",
+              fontSize: isMobile ? "0.75rem" : "0.875rem"
+            }}>
+              Área {isMobile ? "" : "do Polígono"}:
             </Typography.Text>
-            
+
             {/* Input estilizado com ícone - largura reduzida */}
-            <InputWithIconContainer iconPosition="right" width="120px">
+            <InputWithIconContainer iconPosition="right" width={isMobile ? "100px" : "120px"}>
               <StyledNumericFormat
                 value={manualArea}
                 onValueChange={handleManualAreaChange}
@@ -875,22 +977,25 @@ const StaticNameOverlay = styled.div`
               <EditOutlined className="input-icon" />
             </InputWithIconContainer>
           </div>
-          
+
           {/* Indicador de erro */}
           {!isManualAreaValid && (
-            <Typography.Text type="danger" style={{ fontSize: "12px" }}>
+            <Typography.Text type="danger" style={{ fontSize: isMobile ? "0.6875rem" : "0.75rem" }}>
               Valor fora do limite (±10%)
             </Typography.Text>
           )}
         </div>
-        
+
         {/* Alerta informativo */}
         {tempCoordinates.length > 0 && (
           <Alert
-            message="Você pode ajustar manualmente a área em até 10% para mais ou para menos."
+            message={isMobile ? "Ajuste manual: até ±10%" : "Você pode ajustar manualmente a área em até 10% para mais ou para menos."}
             type="info"
             showIcon
-            style={{ marginTop: "8px" }}
+            style={{
+              marginTop: "8px",
+              fontSize: isMobile ? "0.6875rem" : "0.875rem"
+            }}
           />
         )}
       </div>

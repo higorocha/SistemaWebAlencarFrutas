@@ -14,6 +14,7 @@ import {
   Col,
   Card,
   Tooltip,
+  Empty,
 } from "antd";
 import {
   PlusOutlined,
@@ -26,11 +27,12 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
-import { useTheme } from "@mui/material/styles";
 import { SecondaryButton } from "../common/buttons";
 import { HectaresInput } from "../common/inputs";
+import ResponsiveTable from "../common/ResponsiveTable";
 import GerenciarCulturasSistemaModal from "./GerenciarCulturasSistemaModal";
 import { showNotification } from "../../config/notificationConfig";
+import useResponsive from "../../hooks/useResponsive";
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -44,7 +46,7 @@ const VincularCulturasModal = ({
   onCulturasReload,
 }) => {
   const [form] = Form.useForm();
-  const theme = useTheme();
+  const { isMobile } = useResponsive();
   const [culturasAreaState, setCulturasAreaState] = useState([]);
   const [editandoIndex, setEditandoIndex] = useState(null);
   const [novaCultura, setNovaCultura] = useState({
@@ -312,103 +314,136 @@ const VincularCulturasModal = ({
   return (
     <Modal
       title={
-        <span style={{ 
-          color: "#ffffff", 
-          fontWeight: "600", 
-          fontSize: "16px",
+        <span style={{
+          color: "#ffffff",
+          fontWeight: "600",
+          fontSize: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+          margin: "-1.25rem -1.5rem 0 -1.5rem",
           display: "block",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: "0.5rem 0.5rem 0 0",
         }}>
-          Vincular Culturas da Área
+          {isMobile ? "Vincular Culturas" : "Vincular Culturas da Área"}
         </span>
       }
       open={open}
       onCancel={handleCancelar}
-      width={800}
+      width={isMobile ? '95vw' : 800}
+      style={{ maxWidth: isMobile ? '95vw' : 800 }}
       footer={[
-        <Button key="cancel" onClick={handleCancelar}>
+        <Button
+          key="cancel"
+          onClick={handleCancelar}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            fontSize: isMobile ? "0.75rem" : "0.875rem",
+          }}
+        >
           Cancelar
         </Button>,
         <Button
           key="save"
           type="primary"
           onClick={handleSalvarFechar}
+          size={isMobile ? "small" : "middle"}
           style={{
-            backgroundColor: "#047857",
-            borderColor: "#047857",
+            backgroundColor: "#059669",
+            borderColor: "#059669",
+            fontSize: isMobile ? "0.75rem" : "0.875rem",
           }}
         >
-          Salvar e Fechar
+          {isMobile ? "Salvar" : "Salvar e Fechar"}
         </Button>,
       ]}
       styles={{
         body: {
           maxHeight: "70vh",
           overflowY: "auto",
+          padding: isMobile ? 12 : 20,
         },
         header: {
           backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
+          borderBottom: "0.125rem solid #047857",
           padding: 0,
         }
       }}
+      centered
+      destroyOnClose
     >
-      <Space direction="vertical" style={{ width: "100%" }} size="large">
+      <Space direction="vertical" style={{ width: "100%" }} size={isMobile ? "middle" : "large"}>
         {/* Formulário para adicionar/editar cultura */}
         <Card
           title={
             <Space>
               <PlusOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>
-                {editandoIndex !== null ? "Editar Cultura" : "Adicionar Nova Cultura"}
+              <span style={{
+                color: "#ffffff",
+                fontWeight: "600",
+                fontSize: isMobile ? "0.8125rem" : "0.875rem"
+              }}>
+                {editandoIndex !== null ? "Editar Cultura" : (isMobile ? "Adicionar" : "Adicionar Nova Cultura")}
               </span>
             </Space>
           }
+          style={{
+            marginBottom: isMobile ? 12 : 16,
+            border: "1px solid #e8e8e8",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9",
+          }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
           <Form
             form={form}
             layout="vertical"
+            size={isMobile ? "middle" : "large"}
             onFinish={editandoIndex !== null ? handleSalvarEdicao : handleAdicionarCultura}
           >
-            <Row gutter={[16, 16]}>
+            <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
               <Col xs={24} md={10}>
-                                 <Form.Item
-                   label={
-                     <Space>
-                       <TagOutlined style={{ color: theme.palette.forms.sectionHeader }} />
-                       <span style={{ fontWeight: "600", color: theme.palette.forms.labelText }}>Cultura</span>
-                     </Space>
-                   }
-                   name="culturaId"
-                   rules={[{ required: true, message: "Selecione uma cultura" }]}
-                   style={{ marginBottom: "50px" }}
-                 >
-                   <Select
-                     placeholder="Selecione uma cultura"
-                     value={novaCultura.culturaId}
-                     onChange={(value) => setNovaCultura({ ...novaCultura, culturaId: value })}
-                     disabled={editandoIndex !== null}
-                     showSearch
-                     filterOption={(input, option) =>
-                       option.children.props.children[0].props.children
-                         .toLowerCase()
-                         .includes(input.toLowerCase())
-                     }
-                     style={{
-                       borderRadius: "6px",
-                       height: "40px",
-                     }}
+                <Form.Item
+                  label={
+                    <Space>
+                      <TagOutlined style={{ color: "#059669" }} />
+                      <span style={{
+                        fontWeight: "600",
+                        color: "#262626",
+                        fontSize: isMobile ? "0.8125rem" : "0.875rem"
+                      }}>
+                        Cultura
+                      </span>
+                    </Space>
+                  }
+                  name="culturaId"
+                  rules={[{ required: true, message: "Selecione uma cultura" }]}
+                >
+                  <Select
+                    placeholder="Selecione uma cultura"
+                    value={novaCultura.culturaId}
+                    onChange={(value) => setNovaCultura({ ...novaCultura, culturaId: value })}
+                    disabled={editandoIndex !== null}
+                    showSearch
+                    size={isMobile ? "middle" : "large"}
+                    filterOption={(input, option) =>
+                      option.children.props.children[0].props.children
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
+                    style={{
+                      borderRadius: "6px",
+                    }}
                                            suffixIcon={
                         <Tooltip title="Gerenciar culturas do sistema">
                           <Button
@@ -468,8 +503,14 @@ const VincularCulturasModal = ({
                 <HectaresInput
                   label={
                     <Space>
-                      <TagOutlined style={{ color: theme.palette.forms.sectionHeader }} />
-                      <span style={{ fontWeight: "600", color: theme.palette.forms.labelText }}>Área Plantada</span>
+                      <TagOutlined style={{ color: "#059669" }} />
+                      <span style={{
+                        fontWeight: "600",
+                        color: "#262626",
+                        fontSize: isMobile ? "0.8125rem" : "0.875rem"
+                      }}>
+                        Área Plantada
+                      </span>
                     </Space>
                   }
                   value={novaCultura.areaPlantada || ""}
@@ -483,8 +524,14 @@ const VincularCulturasModal = ({
                 <HectaresInput
                   label={
                     <Space>
-                      <TagOutlined style={{ color: theme.palette.forms.sectionHeader }} />
-                      <span style={{ fontWeight: "600", color: theme.palette.forms.labelText }}>Área Produzindo</span>
+                      <TagOutlined style={{ color: "#059669" }} />
+                      <span style={{
+                        fontWeight: "600",
+                        color: "#262626",
+                        fontSize: isMobile ? "0.8125rem" : "0.875rem"
+                      }}>
+                        Área Produzindo
+                      </span>
                     </Space>
                   }
                   value={novaCultura.areaProduzindo || ""}
@@ -494,15 +541,25 @@ const VincularCulturasModal = ({
               </Col>
             </Row>
 
-            <div style={{ textAlign: "right", marginTop: "16px" }}>
+            <div style={{ textAlign: "right", marginTop: isMobile ? "12px" : "16px" }}>
               {editandoIndex !== null ? (
-                <Space>
-                  <Button onClick={handleCancelarEdicao}>
+                <Space size={isMobile ? "small" : "middle"}>
+                  <Button
+                    onClick={handleCancelarEdicao}
+                    size={isMobile ? "small" : "middle"}
+                    style={{
+                      fontSize: isMobile ? "0.75rem" : "0.875rem",
+                    }}
+                  >
                     Cancelar
                   </Button>
                   <SecondaryButton
                     icon={<SaveOutlined />}
                     onClick={handleSalvarEdicao}
+                    style={{
+                      height: isMobile ? "32px" : undefined,
+                      fontSize: isMobile ? "0.75rem" : "0.875rem",
+                    }}
                   >
                     Salvar
                   </SecondaryButton>
@@ -511,8 +568,12 @@ const VincularCulturasModal = ({
                 <SecondaryButton
                   icon={<PlusOutlined />}
                   onClick={handleAdicionarCultura}
+                  style={{
+                    height: isMobile ? "32px" : undefined,
+                    fontSize: isMobile ? "0.75rem" : "0.875rem",
+                  }}
                 >
-                  Adicionar Cultura
+                  {isMobile ? "Adicionar" : "Adicionar Cultura"}
                 </SecondaryButton>
               )}
             </div>
@@ -524,44 +585,78 @@ const VincularCulturasModal = ({
           title={
             <Space>
               <FieldTimeOutlined style={{ color: "#ffffff" }} />
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>Culturas da Área</span>
+              <span style={{
+                color: "#ffffff",
+                fontWeight: "600",
+                fontSize: isMobile ? "0.8125rem" : "0.875rem"
+              }}>
+                Culturas da Área
+              </span>
             </Space>
           }
+          style={{
+            marginBottom: 0,
+            border: "1px solid #e8e8e8",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9",
+          }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
+              borderBottom: "0.125rem solid #047857",
               color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
           {culturasAreaState.length > 0 ? (
-            <Table
+            <ResponsiveTable
               dataSource={culturasAreaState}
               columns={colunas}
               rowKey={(record, index) => index}
               pagination={false}
               size="small"
+              minWidthMobile={800}
+              showScrollHint={true}
               locale={{
-                emptyText: "Nenhuma cultura cadastrada",
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="Nenhuma cultura cadastrada"
+                  />
+                ),
               }}
             />
           ) : (
-            <div style={{ 
-              textAlign: "center", 
-              padding: "40px 0",
-              backgroundColor: "#f7fafc",
+            <div style={{
+              textAlign: "center",
+              padding: isMobile ? "24px 0" : "40px 0",
+              backgroundColor: "#ffffff",
               borderRadius: "6px",
-              border: "1px solid #d1fae5",
+              border: "1px solid #d9d9d9",
             }}>
-              <FieldTimeOutlined style={{ fontSize: 48, color: "#9ca3af" }} />
+              <FieldTimeOutlined style={{
+                fontSize: isMobile ? 36 : 48,
+                color: "#bfbfbf"
+              }} />
               <br />
-              <Text style={{ color: "#059669", display: "block", marginTop: "8px" }}>
+              <Text style={{
+                color: "#8c8c8c",
+                display: "block",
+                marginTop: "8px",
+                fontSize: isMobile ? "0.875rem" : "1rem"
+              }}>
                 Nenhuma cultura cadastrada para esta área
               </Text>
               <br />
-              <Text style={{ color: "#059669" }}>
+              <Text style={{
+                color: "#8c8c8c",
+                fontSize: isMobile ? "0.75rem" : "0.875rem"
+              }}>
                 Use o formulário acima para adicionar culturas
               </Text>
             </div>

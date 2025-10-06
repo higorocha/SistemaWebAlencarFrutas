@@ -14,11 +14,13 @@ import {
 } from "@ant-design/icons";
 // Importar ícones do Iconify para agricultura
 import { Icon } from "@iconify/react";
+import { Box } from "@mui/material";
 import { CentralizedLoader } from "components/common/loaders";
 import FornecedoresTable from "../components/fornecedores/FornecedoresTable";
 import AddEditFornecedorDialog from "../components/fornecedores/AddEditFornecedorDialog";
 import { PrimaryButton } from "../components/common/buttons";
 import { SearchInput } from "../components/common/search";
+import useResponsive from "../hooks/useResponsive";
 import axiosInstance from "../api/axiosConfig";
 import { showNotification } from "../config/notificationConfig";
 
@@ -26,6 +28,7 @@ const { Option } = Select;
 
 const FornecedoresPage = () => {
   const [fornecedores, setFornecedores] = useState([]);
+  const [fornecedoresFiltrados, setFornecedoresFiltrados] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingFornecedor, setEditingFornecedor] = useState(null);
@@ -35,23 +38,21 @@ const FornecedoresPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [centralizedLoading, setCentralizedLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Carregando...");
+  const { isMobile } = useResponsive();
 
-  // Carregar fornecedores
-  const fetchFornecedores = async (page = 1, limit = 20, search = "") => {
+  // Carregar TODOS os fornecedores (sem paginação no backend)
+  const fetchFornecedores = async () => {
     try {
       setCentralizedLoading(true);
       setLoadingMessage("Carregando fornecedores...");
       setLoading(true);
       
-      const params = new URLSearchParams();
-
-      if (search) params.append("search", search);
-
-      const response = await axiosInstance.get(`/api/fornecedores?${params}`);
-      setFornecedores(response.data || []);
-      setTotal(response.data?.length || 0);
-      setCurrentPage(page);
-      setPageSize(limit);
+      const response = await axiosInstance.get(`/api/fornecedores`);
+      const lista = response.data || [];
+      setFornecedores(lista);
+      setFornecedoresFiltrados(lista);
+      setTotal(lista.length || 0);
+      setCurrentPage(1);
     } catch (error) {
       console.error("Erro ao carregar fornecedores:", error);
       showNotification("error", "Erro", "Erro ao carregar fornecedores");
@@ -104,7 +105,7 @@ const FornecedoresPage = () => {
       }
       
       setLoadingMessage("Atualizando lista de fornecedores...");
-      await fetchFornecedores(currentPage, pageSize, searchTerm);
+      await fetchFornecedores();
     } catch (error) {
       console.error("Erro ao salvar fornecedor:", error);
       const errorMessage = error.response?.data?.message || "Erro ao salvar fornecedor";
@@ -142,7 +143,7 @@ const FornecedoresPage = () => {
             showNotification("success", "Sucesso", "Fornecedor excluído com sucesso!");
             
             setLoadingMessage("Atualizando lista de fornecedores...");
-            await fetchFornecedores(currentPage, pageSize, searchTerm);
+            await fetchFornecedores();
           } catch (error) {
             console.error("Erro ao excluir fornecedor:", error);
             const errorMessage = error.response?.data?.message || "Erro ao excluir fornecedor";
@@ -162,88 +163,132 @@ const FornecedoresPage = () => {
   const handleSearch = (value) => {
     setSearchTerm(value);
     setCurrentPage(1);
-    fetchFornecedores(1, pageSize, value);
   };
 
   // Mudança de página
   const handlePageChange = (page, size) => {
-    fetchFornecedores(page, size, searchTerm);
+    setCurrentPage(page);
+    setPageSize(size);
   };
 
-  return (
-    <div style={{ padding: "16px" }}>
-      {/* Título */}
-      <Typography.Title 
-        level={2} 
-        style={{ 
-          marginBottom: 16, 
-          color: "#059669",
-          display: 'flex',
-          alignItems: 'center',
-          flexWrap: 'wrap'
-        }}
-      >
-        {/* Ícone principal da página - deve ser igual ao do sidebar */}
-        <Icon 
-          icon="mdi:truck-delivery" 
-          style={{ 
-            marginRight: 12, 
-            fontSize: '31px',
-            color: "#059669"
-          }} 
-        />
-        Gestão de Fornecedores
-      </Typography.Title>
+  // Filtrar localmente por termo de busca (atualiza apenas a lista derivada)
+  useEffect(() => {
+    const termo = (searchTerm || "").toLowerCase().trim();
+    if (!termo) {
+      setFornecedoresFiltrados(fornecedores);
+      setTotal(fornecedores.length || 0);
+      return;
+    }
 
-      {/* Botão */}
-      <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+    const filtrados = fornecedores.filter((f) =>
+      (f.nome || "").toLowerCase().includes(termo) ||
+      (f.cnpj || "").toLowerCase().includes(termo) ||
+      (f.cpf || "").toLowerCase().includes(termo) ||
+      (f.documento || "").toLowerCase().includes(termo)
+    );
+    setFornecedoresFiltrados(filtrados);
+    setTotal(filtrados.length || 0);
+  }, [searchTerm, fornecedores]);
+
+  return (
+    <Box
+      sx={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        p: 2
+      }}
+    >
+      {/* Header com título */}
+      <Box sx={{ mb: 0 }}>
+        <Typography.Title
+          level={2}
+          style={{
+            margin: 0,
+            color: "#059669",
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            fontSize: '1.500rem'
+          }}
+        >
+          {/* Ícone principal da página - deve ser igual ao do sidebar */}
+          <Icon 
+            icon="mdi:truck-delivery" 
+            style={{ 
+              marginRight: 12, 
+              fontSize: isMobile ? '31px' : '31px',
+              color: "#059669"
+            }} 
+          />
+          {/* Fallback para o ícone antigo caso o Iconify falhe */}
+          <UserOutlined style={{ marginRight: 8, display: 'none' }} />
+          {isMobile ? "Fornecedores" : "Gestão de Fornecedores"}
+        </Typography.Title>
+      </Box>
+
+      {/* Botão Novo Fornecedor */}
+      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
         <PrimaryButton
           onClick={handleNovoFornecedor}
           icon={<PlusCircleOutlined />}
         >
           Novo Fornecedor
         </PrimaryButton>
-      </div>
+      </Box>
 
-      {/* Campo de Busca */}
-      <div style={{ marginBottom: "24px" }}>
+      {/* Busca */}
+      <Box sx={{ mb: 2 }}>
         <SearchInput
-          placeholder="Buscar fornecedores por nome ou CNPJ/CPF..."
+          placeholder={isMobile ? "Buscar..." : "Buscar fornecedores por nome ou CNPJ/CPF..."}
           value={searchTerm}
           onChange={handleSearch}
-          style={{ marginTop: "8px" }}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            width: "100%",
+            fontSize: isMobile ? '0.875rem' : '1rem'
+          }}
         />
-      </div>
+      </Box>
 
       {/* Tabela de Fornecedores */}
-      <FornecedoresTable
-        fornecedores={fornecedores}
-        loading={false}
-        onEdit={handleEditarFornecedor}
-        onDelete={handleExcluirFornecedor}
-        currentPage={currentPage}
-        pageSize={pageSize}
-        onPageChange={handlePageChange}
-        onShowSizeChange={handlePageChange}
-      />
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <FornecedoresTable
+          fornecedores={fornecedoresFiltrados}
+          loading={false}
+          onEdit={handleEditarFornecedor}
+          onDelete={handleExcluirFornecedor}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onShowSizeChange={handlePageChange}
+        />
 
-      {/* Paginação */}
-      {total > 0 && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
-          <Pagination
-            current={currentPage}
-            pageSize={pageSize}
-            total={total}
-            onChange={handlePageChange}
-            onShowSizeChanger={handlePageChange}
-            showSizeChanger
-            showTotal={(total, range) =>
-              `${range[0]}-${range[1]} de ${total} fornecedores`
-            }
-            pageSizeOptions={['10', '20', '50', '100']}
-          />
-        </div>
-      )}
+        {/* Paginação */}
+        {total > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0 }}>
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={total}
+              onChange={handlePageChange}
+              onShowSizeChanger={handlePageChange}
+              showSizeChanger={!isMobile}
+              showQuickJumper={!isMobile}
+              size={isMobile ? "small" : "default"}
+              showTotal={(total, range) =>
+                isMobile
+                  ? `${range[0]}-${range[1]}/${total}`
+                  : `${range[0]}-${range[1]} de ${total} fornecedores`
+              }
+              pageSizeOptions={['10', '20', '50', '100']}
+            />
+          </Box>
+        )}
+      </Box>
 
       {/* Modal de Adição/Edição */}
       <AddEditFornecedorDialog
@@ -260,7 +305,7 @@ const FornecedoresPage = () => {
         message={loadingMessage}
         subMessage="Aguarde enquanto processamos sua solicitação..."
       />
-    </div>
+    </Box>
   );
 };
 

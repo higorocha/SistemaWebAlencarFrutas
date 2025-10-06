@@ -4,6 +4,7 @@ import React from "react";
 import { Modal, Button, Card, Typography, Space } from "antd";
 import { ExclamationCircleOutlined, CloseOutlined } from "@ant-design/icons";
 import PropTypes from "prop-types";
+import useResponsive from "../../../hooks/useResponsive";
 
 const { Text } = Typography;
 
@@ -23,16 +24,17 @@ const ConfirmCloseModal = ({
   confirmButtonType = "primary",
   confirmButtonDanger = true,
 }) => {
+  const { isMobile } = useResponsive();
   return (
     <Modal
       title={
         <span style={{ 
           color: "#ffffff", 
           fontWeight: "600", 
-          fontSize: "16px",
+          fontSize: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "10px 12px" : "12px 16px",
+          margin: isMobile ? "-20px -24px 0 -24px" : "-20px -24px 0 -24px",
           display: "block",
           borderRadius: "8px 8px 0 0",
         }}>
@@ -43,15 +45,17 @@ const ConfirmCloseModal = ({
       open={open}
       onCancel={onCancel}
       footer={null}
-      width={600}
+      width={isMobile ? "95vw" : 600}
+      style={{ maxWidth: isMobile ? "95vw" : 600 }}
       centered
       destroyOnClose
       styles={{
         body: {
-          maxHeight: "calc(100vh - 200px)",
+          maxHeight: isMobile ? "calc(100vh - 160px)" : "calc(100vh - 200px)",
           overflowY: "auto",
           overflowX: "hidden",
-          padding: 20
+          padding: isMobile ? 12 : 20,
+          minWidth: 0,
         },
         header: {
           backgroundColor: "#059669",
@@ -65,27 +69,38 @@ const ConfirmCloseModal = ({
       {/* Card de Aviso */}
       <Card
         style={{
-          marginBottom: 16,
+          marginBottom: isMobile ? 12 : 16,
           border: "1px solid #e8e8e8",
           borderRadius: "8px",
           backgroundColor: "#fff7e6",
           borderColor: "#fa8c16"
         }}
       >
-        <div style={{ textAlign: "center", padding: "16px" }}>
+        <div style={{ textAlign: "center", padding: isMobile ? "12px" : "16px" }}>
           <ExclamationCircleOutlined 
             style={{ 
-              fontSize: "48px", 
+              fontSize: isMobile ? "36px" : "48px", 
               color: "#fa8c16", 
-              marginBottom: "16px",
+              marginBottom: isMobile ? "12px" : "16px",
               display: "block"
             }} 
           />
-          <Text style={{ fontSize: "16px", fontWeight: "500", color: "#333" }}>
+          <Text style={{ 
+            fontSize: isMobile ? "14px" : "16px", 
+            fontWeight: "500", 
+            color: "#333",
+            lineHeight: isMobile ? "1.4" : "1.5"
+          }}>
             {message}
           </Text>
           <br />
-          <Text style={{ fontSize: "14px", color: "#666", marginTop: "8px", display: "block" }}>
+          <Text style={{ 
+            fontSize: isMobile ? "12px" : "14px", 
+            color: "#666", 
+            marginTop: "8px", 
+            display: "block",
+            lineHeight: isMobile ? "1.4" : "1.5"
+          }}>
             Tem certeza que deseja fechar sem salvar?
           </Text>
         </div>
@@ -95,15 +110,19 @@ const ConfirmCloseModal = ({
       <div style={{
         display: "flex",
         justifyContent: "flex-end",
-        gap: 12,
-        marginTop: 24,
-        paddingTop: 16,
+        gap: isMobile ? "8px" : "12px",
+        marginTop: isMobile ? "16px" : "24px",
+        paddingTop: isMobile ? "12px" : "16px",
         borderTop: "1px solid #e8e8e8"
       }}>
         <Button
           icon={<CloseOutlined />}
           onClick={onCancel}
-          size="large"
+          size={isMobile ? "small" : "large"}
+          style={{
+            height: isMobile ? "32px" : "40px",
+            padding: isMobile ? "0 12px" : "0 16px",
+          }}
         >
           {cancelText}
         </Button>
@@ -111,10 +130,12 @@ const ConfirmCloseModal = ({
           type="primary"
           danger={confirmButtonDanger}
           onClick={onConfirm}
-          size="large"
+          size={isMobile ? "small" : "large"}
           style={{
             backgroundColor: confirmButtonDanger ? "#ff4d4f" : "#059669",
-            borderColor: confirmButtonDanger ? "#ff4d4f" : "#059669"
+            borderColor: confirmButtonDanger ? "#ff4d4f" : "#059669",
+            height: isMobile ? "32px" : "40px",
+            padding: isMobile ? "0 12px" : "0 16px",
           }}
         >
           {confirmText}

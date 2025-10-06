@@ -6,6 +6,7 @@ import {
   OrderedListOutlined,
   PartitionOutlined,
   PlusCircleOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 // Importar ícones do Iconify para agricultura
 import { Icon } from "@iconify/react";
@@ -17,6 +18,7 @@ import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
+import useResponsive from "../hooks/useResponsive";
 
 const TurmaColheitaTable = lazy(() => import("../components/turma-colheita/TurmaColheitaTable"));
 const AddEditTurmaColheitaDialog = lazy(() =>
@@ -24,6 +26,7 @@ const AddEditTurmaColheitaDialog = lazy(() =>
 );
 
 const TurmaColheita = () => {
+  const { isMobile } = useResponsive();
   const [turmasColheita, setTurmasColheita] = useState([]);
   const [turmasColheitaFiltradas, setTurmasColheitaFiltradas] = useState([]);
 
@@ -46,43 +49,19 @@ const TurmaColheita = () => {
 
   const { Title } = Typography;
 
-  // Função para buscar turmas de colheita da API com parâmetros
-  const fetchTurmasColheita = useCallback(async (page = 1, limit = 20, search = "") => {
+  // Função para buscar TODAS as turmas de colheita (sem paginação no backend)
+  const fetchTurmasColheita = useCallback(async () => {
     try {
       setCentralizedLoading(true);
       setLoadingMessage("Carregando turmas de colheita...");
       setLoading(true);
       
-      const params = new URLSearchParams();
-
-      if (page) params.append('page', page.toString());
-      if (limit) params.append('limit', limit.toString());
-      if (search) params.append('search', search);
-
-      const response = await axiosInstance.get(`/api/turma-colheita?${params.toString()}`);
-
-      // Como o backend não tem paginação ainda, vamos simular localmente
-      const todasTurmas = response.data || [];
-
-      // Filtrar por busca se houver termo
-      let turmasFiltradas = todasTurmas;
-      if (search) {
-        turmasFiltradas = todasTurmas.filter(turma =>
-          turma.nomeColhedor?.toLowerCase().includes(search.toLowerCase()) ||
-          turma.chavePix?.toLowerCase().includes(search.toLowerCase()) ||
-          turma.observacoes?.toLowerCase().includes(search.toLowerCase())
-        );
-      }
-
-      // Paginação local
-      const startIndex = (page - 1) * limit;
-      const endIndex = startIndex + limit;
-      const turmasPaginadas = turmasFiltradas.slice(startIndex, endIndex);
-
-      setTurmasColheita(turmasPaginadas);
-      setTurmasColheitaFiltradas(turmasPaginadas);
-      setTotalTurmas(turmasFiltradas.length);
-      setCurrentPage(page);
+      const response = await axiosInstance.get(`/api/turma-colheita`);
+      const lista = response.data || [];
+      setTurmasColheita(lista);
+      setTurmasColheitaFiltradas(lista);
+      setTotalTurmas(lista.length || 0);
+      setCurrentPage(1);
 
     } catch (error) {
       console.error("Erro ao buscar turmas de colheita:", error);
@@ -98,8 +77,8 @@ const TurmaColheita = () => {
 
   // useEffect para carregar turmas na inicialização
   useEffect(() => {
-    fetchTurmasColheita(currentPage, pageSize, searchTerm);
-  }, [fetchTurmasColheita, currentPage, pageSize, searchTerm]);
+    fetchTurmasColheita();
+  }, [fetchTurmasColheita]);
 
   // Função para lidar com busca
   const handleSearch = useCallback((value) => {
@@ -152,8 +131,7 @@ const TurmaColheita = () => {
       }
 
       setLoadingMessage("Atualizando lista de turmas...");
-      // Recarregar lista de turmas
-      await fetchTurmasColheita(currentPage, pageSize, searchTerm);
+      await fetchTurmasColheita();
 
     } catch (error) {
       console.error("Erro ao salvar turma de colheita:", error);
@@ -190,8 +168,7 @@ const TurmaColheita = () => {
             showNotification("success", "Sucesso", "Turma de colheita removida com sucesso!");
 
             setLoadingMessage("Atualizando lista de turmas...");
-            // Recarregar lista de turmas
-            await fetchTurmasColheita(currentPage, pageSize, searchTerm);
+            await fetchTurmasColheita();
 
           } catch (error) {
             console.error("Erro ao deletar turma de colheita:", error);
@@ -209,77 +186,102 @@ const TurmaColheita = () => {
   }, [fetchTurmasColheita, currentPage, pageSize, searchTerm]);
 
   return (
-    <div style={{ padding: 16 }}>
-      {/* Título */}
-      <Typography.Title 
-        level={2} 
-        style={{ 
-          marginBottom: 16, 
-          color: "#059669",
-          display: 'flex',
-          alignItems: 'center',
-          flexWrap: 'wrap'
-        }}
-      >
-        {/* Ícone principal da página - deve ser igual ao do sidebar */}
-        <Icon 
-          icon="game-icons:farmer" 
-          style={{ 
-            marginRight: 12, 
-            fontSize: '31px',
-            color: "#059669"
-          }} 
-        />
-        Gestão de Turma de Colheita
-      </Typography.Title>
+    <Box
+      sx={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        p: 2
+      }}
+    >
+      {/* Header com título */}
+      <Box sx={{ mb: 0 }}>
+        <Typography.Title
+          level={2}
+          style={{
+            margin: 0,
+            color: "#059669",
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            fontSize: '1.500rem'
+          }}
+        >
+          {/* Ícone principal da página - deve ser igual ao do sidebar */}
+          <Icon 
+            icon="game-icons:farmer" 
+            style={{ 
+              marginRight: 12, 
+              fontSize: isMobile ? '31px' : '31px',
+              color: "#059669"
+            }} 
+          />
+          {/* Fallback para o ícone antigo caso o Iconify falhe */}
+          <UserOutlined style={{ marginRight: 8, display: 'none' }} />
+          {isMobile ? "Turma de Colheita" : "Gestão de Turma de Colheita"}
+        </Typography.Title>
+      </Box>
 
-      {/* Botão */}
-      <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+      {/* Botão Nova Turma de Colheita */}
+      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
         <PrimaryButton
           onClick={handleOpenCreateModal}
           icon={<PlusCircleOutlined />}
         >
           Nova Turma de Colheita
         </PrimaryButton>
-      </div>
+      </Box>
 
-      {/* Campo de Busca */}
-      <div style={{ marginBottom: "24px" }}>
+      {/* Busca */}
+      <Box sx={{ mb: 2 }}>
         <SearchInput
-          placeholder="Buscar por colhedor, PIX ou observações..."
+          placeholder={isMobile ? "Buscar..." : "Buscar por colhedor, PIX ou observações..."}
           value={searchTerm}
           onChange={(value) => setSearchTerm(value)}
-          style={{ marginTop: "8px" }}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            width: "100%",
+            fontSize: isMobile ? '0.875rem' : '1rem'
+          }}
         />
-      </div>
+      </Box>
 
-      {/* Tabela */}
-      <Suspense fallback={<LoadingFallback />}>
-        <TurmaColheitaTable
-          turmasColheita={turmasColheitaFiltradas}
-          loading={false}
-          onEdit={handleOpenEditModal}
-          onDelete={handleDeleteTurma}
-        />
-      </Suspense>
-
-      {/* Paginação */}
-      {totalTurmas > 0 && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
-          <Pagination
-            current={currentPage}
-            pageSize={pageSize}
-            total={totalTurmas}
-            onChange={handlePageChange}
-            onShowSizeChanger={handlePageChange}
-            showSizeChanger
-            showTotal={(total, range) =>
-              `${range[0]}-${range[1]} de ${total} turmas de colheita`
-            }
-            pageSizeOptions={['10', '20', '50', '100']}
+      {/* Tabela de Turmas de Colheita */}
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <Suspense fallback={<LoadingFallback />}>
+          <TurmaColheitaTable
+            turmasColheita={turmasColheitaFiltradas}
+            loading={false}
+            onEdit={handleOpenEditModal}
+            onDelete={handleDeleteTurma}
           />
-        </div>
-      )}
+        </Suspense>
+
+        {/* Paginação */}
+        {totalTurmas > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0 }}>
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={totalTurmas}
+              onChange={handlePageChange}
+              onShowSizeChanger={handlePageChange}
+              showSizeChanger={!isMobile}
+              showQuickJumper={!isMobile}
+              showTotal={(total, range) =>
+                isMobile
+                  ? `${range[0]}-${range[1]}/${total}`
+                  : `${range[0]}-${range[1]} de ${total} turmas de colheita`
+              }
+              pageSizeOptions={['10', '20', '50', '100']}
+              size={isMobile ? "small" : "default"}
+            />
+          </Box>
+        )}
+      </Box>
 
       {/* Modal de Criação/Edição */}
       <Suspense fallback={<Spin size="large" />}>
@@ -298,7 +300,7 @@ const TurmaColheita = () => {
         message={loadingMessage}
         subMessage="Aguarde enquanto processamos sua solicitação..."
       />
-    </div>
+    </Box>
   );
 };
 

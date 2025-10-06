@@ -13,8 +13,8 @@ import {
   Card,
   Space,
   Tag,
-  Table,
   Tooltip,
+  Empty,
 } from "antd";
 import {
   EnvironmentOutlined,
@@ -22,12 +22,11 @@ import {
   BarChartOutlined,
   AimOutlined,
   FieldTimeOutlined,
-  PlusOutlined,
   PlusCircleOutlined,
   EditOutlined,
-  DeleteOutlined,
 } from "@ant-design/icons";
-import { useTheme } from "@mui/material/styles";
+import useResponsive from "../../hooks/useResponsive";
+import ResponsiveTable from "../common/ResponsiveTable";
 import VincularCulturasModal from "./VincularCulturasModal";
 import { PrimaryButton } from "../common/buttons";
 import { HectaresInput } from "../common/inputs";
@@ -45,8 +44,8 @@ const AreaForm = ({
   abrirMapa,
   onCulturasReload,
 }) => {
+  const { isMobile } = useResponsive();
   const [gerenciarCulturasOpen, setGerenciarCulturasOpen] = useState(false);
-  const theme = useTheme();
 
   // Função para manipular mudanças nos campos
   const handleChange = (field, value) => {
@@ -73,7 +72,7 @@ const AreaForm = ({
         const cultura = culturas.find(c => c.id === record.culturaId);
         return (
           <Space>
-            <Tag color={theme.palette.forms.fieldSuccess} style={{ borderRadius: "4px", fontWeight: "500" }}>
+            <Tag color="#059669" style={{ borderRadius: "4px", fontWeight: "500" }}>
               {cultura ? cultura.descricao : "Cultura não encontrada"}
             </Tag>
             {cultura && cultura.periodicidade && (
@@ -90,7 +89,7 @@ const AreaForm = ({
       dataIndex: "areaPlantada",
       key: "areaPlantada",
       render: (area) => (
-        <Text style={{ fontWeight: "500", color: theme.palette.forms.fieldGroupHeader }}>
+        <Text style={{ fontWeight: "500", color: "#059669" }}>
           {Number(area || 0).toFixed(2)} ha
         </Text>
       ),
@@ -100,7 +99,7 @@ const AreaForm = ({
       dataIndex: "areaProduzindo",
       key: "areaProduzindo",
       render: (area) => (
-        <Text style={{ fontWeight: "500", color: theme.palette.forms.fieldSuccess }}>
+        <Text style={{ fontWeight: "500", color: "#059669" }}>
           {Number(area || 0).toFixed(2)} ha
         </Text>
       ),
@@ -116,7 +115,7 @@ const AreaForm = ({
               type="text"
               icon={<EditOutlined />}
               onClick={() => setGerenciarCulturasOpen(true)}
-              style={{ color: theme.palette.forms.fieldGroupHeader }}
+              style={{ color: "#059669" }}
             />
           </Tooltip>
         </Space>
@@ -126,7 +125,7 @@ const AreaForm = ({
 
   return (
     <div>
-      <Form layout="vertical" size="large">
+      <Form layout="vertical" size={isMobile ? "middle" : "large"}>
         {/* Seção 1: Dados Básicos */}
         <Card
           title={
@@ -135,28 +134,32 @@ const AreaForm = ({
               <span style={{ color: "#ffffff", fontWeight: "600" }}>Dados Básicos</span>
             </Space>
           }
-          style={{ 
-            marginBottom: 16,
-            border: `1px solid ${theme.palette.forms.sectionBorder}`,
+          style={{
+            marginBottom: isMobile ? 12 : 16,
+            border: "1px solid #e8e8e8",
             borderRadius: "8px",
-            backgroundColor: theme.palette.forms.sectionBackground,
+            backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: `2px solid #047857`,
+              borderBottom: "2px solid #047857",
               color: "#ffffff",
               borderRadius: "8px 8px 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
             }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             <Col xs={24} md={8}>
               <Form.Item
                 label={
                   <Space>
-                    <EnvironmentOutlined style={{ color: theme.palette.forms.sectionHeader }} />
-                    <span style={{ fontWeight: "600", color: theme.palette.forms.labelText }}>Nome da Área</span>
+                    <EnvironmentOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "600", color: "#262626" }}>Nome da Área</span>
                   </Space>
                 }
                 validateStatus={erros.nome ? "error" : ""}
@@ -167,36 +170,37 @@ const AreaForm = ({
                   placeholder="Digite o nome da área agrícola"
                   value={areaAtual.nome}
                   onChange={(e) => handleChange("nome", e.target.value)}
+                  size={isMobile ? "middle" : "large"}
                   style={{
                     borderRadius: "6px",
-                    borderColor: erros.nome ? theme.palette.forms.fieldError : theme.palette.forms.fieldGroupBorder,
+                    borderColor: erros.nome ? "#ff4d4f" : "#d9d9d9",
                   }}
                 />
               </Form.Item>
             </Col>
 
             <Col xs={24} md={8}>
-                          <HectaresInput
-              label={
-                <Space>
-                  <BarChartOutlined style={{ color: theme.palette.forms.sectionHeader }} />
-                  <span style={{ fontWeight: "600", color: theme.palette.forms.labelText }}>Área Total</span>
-                </Space>
-              }
-              value={areaAtual.areaTotal && parseFloat(areaAtual.areaTotal) > 0 ? areaAtual.areaTotal.toString() : ""}
-              onChange={(value) => handleChange("areaTotal", value)}
-              error={erros.areaTotal}
-              required
-              placeholder="0,00 ha"
-            />
+              <HectaresInput
+                label={
+                  <Space>
+                    <BarChartOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "600", color: "#262626" }}>Área Total</span>
+                  </Space>
+                }
+                value={areaAtual.areaTotal && parseFloat(areaAtual.areaTotal) > 0 ? areaAtual.areaTotal.toString() : ""}
+                onChange={(value) => handleChange("areaTotal", value)}
+                error={erros.areaTotal}
+                required
+                placeholder="0,00 ha"
+              />
             </Col>
 
             <Col xs={24} md={8}>
               <Form.Item
                 label={
                   <Space>
-                    <TagOutlined style={{ color: theme.palette.forms.sectionHeader }} />
-                    <span style={{ fontWeight: "600", color: theme.palette.forms.labelText }}>Categoria</span>
+                    <TagOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "600", color: "#262626" }}>Categoria</span>
                   </Space>
                 }
                 validateStatus={erros.categoria ? "error" : ""}
@@ -207,6 +211,7 @@ const AreaForm = ({
                   placeholder="Selecione a categoria"
                   value={areaAtual.categoria}
                   onChange={(value) => handleChange("categoria", value)}
+                  size={isMobile ? "middle" : "large"}
                   style={{
                     borderRadius: "6px",
                   }}
@@ -245,18 +250,22 @@ const AreaForm = ({
               <span style={{ color: "#ffffff", fontWeight: "600" }}>Coordenadas Geográficas</span>
             </Space>
           }
-          style={{ 
-            marginBottom: 16,
-            border: `1px solid ${theme.palette.forms.sectionBorder}`,
+          style={{
+            marginBottom: isMobile ? 12 : 16,
+            border: "1px solid #e8e8e8",
             borderRadius: "8px",
-            backgroundColor: theme.palette.forms.sectionBackground,
+            backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: `2px solid #047857`,
+              borderBottom: "2px solid #047857",
               color: "#ffffff",
               borderRadius: "8px 8px 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
             }
           }}
           extra={
@@ -270,42 +279,46 @@ const AreaForm = ({
                   abrirMapa(areaAtual, "create");
                 }
               }}
-              size="middle"
+              size={isMobile ? "small" : "middle"}
+              style={{
+                height: isMobile ? "32px" : undefined,
+                padding: isMobile ? "0 8px" : undefined,
+              }}
             >
-              {areaAtual.coordenadas && areaAtual.coordenadas.length > 0 ? "Editar Coordenadas" : "Capturar Coordenadas"}
+              {isMobile ? null : (areaAtual.coordenadas && areaAtual.coordenadas.length > 0 ? "Editar Coordenadas" : "Capturar Coordenadas")}
             </PrimaryButton>
           }
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             <Col span={24}>
               {areaAtual.coordenadas && areaAtual.coordenadas.length > 0 ? (
-                <div style={{ 
-                  padding: "12px", 
-                  backgroundColor: theme.palette.forms.fieldGroupBackground, 
-                  borderRadius: "6px", 
-                  border: `1px solid ${theme.palette.forms.fieldGroupBorder}` 
+                <div style={{
+                  padding: isMobile ? "10px" : "12px",
+                  backgroundColor: "#f6ffed",
+                  borderRadius: "6px",
+                  border: "1px solid #b7eb8f"
                 }}>
-                  <Text style={{ color: theme.palette.forms.fieldSuccess, fontWeight: "600" }}>
+                  <Text style={{ color: "#52c41a", fontWeight: "600", fontSize: isMobile ? "0.875rem" : "1rem" }}>
                     ✓ Polígono capturado com {areaAtual.coordenadas.length} pontos
                   </Text>
                   <br />
-                  <Text style={{ color: theme.palette.forms.helperText }}>
-                    Clique em "Editar Coordenadas" para modificar ou visualizar no mapa
+                  <Text style={{ color: "#8c8c8c", fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
+                    {isMobile ? "Toque no ícone acima para editar" : "Clique em \"Editar Coordenadas\" para modificar ou visualizar no mapa"}
                   </Text>
                 </div>
               ) : (
-                <div style={{ 
-                  padding: "12px", 
-                  backgroundColor: "#fff7e6", 
-                  borderRadius: "6px", 
-                  border: "1px solid #ffd591" 
+                <div style={{
+                  padding: isMobile ? "10px" : "12px",
+                  backgroundColor: "#fff7e6",
+                  borderRadius: "6px",
+                  border: "1px solid #ffd591"
                 }}>
-                  <Text style={{ color: "#fa8c16", fontWeight: "600" }}>
+                  <Text style={{ color: "#fa8c16", fontWeight: "600", fontSize: isMobile ? "0.875rem" : "1rem" }}>
                     ⚠ Nenhuma coordenada capturada
                   </Text>
                   <br />
-                  <Text type="secondary">
-                    Use o botão "Capturar Coordenadas" para definir a localização da área
+                  <Text style={{ color: "#8c8c8c", fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
+                    {isMobile ? "Use o ícone acima para capturar" : "Use o botão \"Capturar Coordenadas\" para definir a localização da área"}
                   </Text>
                 </div>
               )}
@@ -321,80 +334,71 @@ const AreaForm = ({
               <span style={{ color: "#ffffff", fontWeight: "600" }}>Culturas</span>
             </Space>
           }
-          style={{ 
-            marginBottom: 16,
-            border: `1px solid ${theme.palette.forms.sectionBorder}`,
+          style={{
+            marginBottom: isMobile ? 12 : 16,
+            border: "1px solid #e8e8e8",
             borderRadius: "8px",
-            backgroundColor: theme.palette.forms.sectionBackground,
+            backgroundColor: "#f9f9f9",
           }}
           styles={{
             header: {
               backgroundColor: "#059669",
-              borderBottom: `2px solid #047857`,
+              borderBottom: "2px solid #047857",
               color: "#ffffff",
               borderRadius: "8px 8px 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
             }
           }}
           extra={
             <PrimaryButton
               icon={<PlusCircleOutlined />}
               onClick={() => setGerenciarCulturasOpen(true)}
-              size="middle"
+              size={isMobile ? "small" : "middle"}
+              style={{
+                height: isMobile ? "32px" : undefined,
+                padding: isMobile ? "0 8px" : undefined,
+              }}
             >
-              Gerenciar Culturas
+              {isMobile ? null : "Gerenciar Culturas"}
             </PrimaryButton>
           }
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             <Col span={24}>
               {areaAtual.culturas && areaAtual.culturas.length > 0 ? (
-                <Table
+                <ResponsiveTable
                   dataSource={areaAtual.culturas}
                   columns={colunasCulturas}
                   rowKey={(record, index) => index}
-                  pagination={false}
-                  size="small"
+                  minWidthMobile={800}
+                  showScrollHint={true}
                   locale={{
-                    emptyText: "Nenhuma cultura cadastrada",
-                  }}
-                  style={{
-                    border: `1px solid ${theme.palette.forms.fieldGroupBorder}`,
-                    borderRadius: "8px",
-                  }}
-                  components={{
-                    header: {
-                      cell: (props) => (
-                        <th
-                          {...props}
-                          style={{
-                            ...props.style,
-                            backgroundColor: '#059669',
-                            color: '#ffffff',
-                            fontWeight: 600,
-                            padding: '8px 12px',
-                            fontSize: '14px',
-                            borderBottom: 'none',
-                          }}
-                        />
-                      ),
-                    },
+                    emptyText: (
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description="Nenhuma cultura cadastrada"
+                      />
+                    ),
                   }}
                 />
               ) : (
-                <div style={{ 
-                  textAlign: "center", 
-                  padding: "40px 0",
-                  backgroundColor: theme.palette.forms.fieldGroupBackground,
+                <div style={{
+                  textAlign: "center",
+                  padding: isMobile ? "24px 0" : "40px 0",
+                  backgroundColor: "#ffffff",
                   borderRadius: "6px",
-                  border: `1px solid ${theme.palette.forms.fieldGroupBorder}`,
+                  border: "1px solid #d9d9d9",
                 }}>
-                  <FieldTimeOutlined style={{ fontSize: 48, color: theme.palette.forms.fieldDisabled }} />
+                  <FieldTimeOutlined style={{ fontSize: isMobile ? 36 : 48, color: "#bfbfbf" }} />
                   <br />
-                  <Text style={{ color: theme.palette.forms.helperText, display: "block", marginTop: "8px" }}>
+                  <Text style={{ color: "#8c8c8c", display: "block", marginTop: "8px", fontSize: isMobile ? "0.875rem" : "1rem" }}>
                     Nenhuma cultura cadastrada para esta área
                   </Text>
                   <br />
-                  <Text style={{ color: theme.palette.forms.helperText }}>
+                  <Text style={{ color: "#8c8c8c", fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
                     Clique em "Gerenciar Culturas" para adicionar culturas
                   </Text>
                 </div>
@@ -404,26 +408,26 @@ const AreaForm = ({
 
           {/* Resumo das culturas */}
           {areaAtual.culturas && areaAtual.culturas.length > 0 && (
-            <Row gutter={[16, 16]} style={{ 
-              marginTop: 16, 
-              padding: "16px 0", 
-              borderTop: `1px solid ${theme.palette.forms.fieldGroupBorder}`,
-              backgroundColor: theme.palette.forms.fieldGroupBackground,
+            <Row gutter={[16, 16]} style={{
+              marginTop: isMobile ? 12 : 16,
+              padding: isMobile ? "12px 0" : "16px 0",
+              borderTop: "1px solid #e8e8e8",
+              backgroundColor: "#ffffff",
               borderRadius: "6px",
-              margin: "16px 0 0 0",
+              margin: isMobile ? "12px 0 0 0" : "16px 0 0 0",
             }}>
               <Col span={24}>
-                <Space wrap size="middle">
-                  <Text strong style={{ color: theme.palette.forms.sectionHeader }}>Resumo:</Text>
-                  <Tag color={theme.palette.forms.fieldSuccess} style={{ borderRadius: "4px", fontWeight: "500" }}>
+                <Space wrap size={isMobile ? "small" : "middle"}>
+                  <Text strong style={{ color: "#059669", fontSize: isMobile ? "0.875rem" : "1rem" }}>Resumo:</Text>
+                  <Tag color="#059669" style={{ borderRadius: "4px", fontWeight: "500", fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
                     {areaAtual.culturas.length} cultura(s)
                   </Tag>
-                  <Tag color={theme.palette.forms.fieldSuccess} style={{ borderRadius: "4px", fontWeight: "500" }}>
+                  <Tag color="#059669" style={{ borderRadius: "4px", fontWeight: "500", fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
                     {areaAtual.culturas
                       .reduce((total, cultura) => total + (parseFloat(cultura.areaPlantada) || 0), 0)
                       .toFixed(2)} ha plantada
                   </Tag>
-                  <Tag color="#fa8c16" style={{ borderRadius: "4px", fontWeight: "500" }}>
+                  <Tag color="#fa8c16" style={{ borderRadius: "4px", fontWeight: "500", fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
                     {areaAtual.culturas
                       .reduce((total, cultura) => total + (parseFloat(cultura.areaProduzindo) || 0), 0)
                       .toFixed(2)} ha produzindo

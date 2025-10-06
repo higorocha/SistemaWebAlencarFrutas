@@ -60,26 +60,21 @@ const Clientes = () => {
   const [pedidosModalOpen, setPedidosModalOpen] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
 
-  // Função para buscar clientes da API com parâmetros
-  const fetchClientes = useCallback(async (page = 1, limit = 20, search = "", status = "") => {
+  // Função para buscar todos os clientes (sem paginação no backend)
+  const fetchClientes = useCallback(async () => {
     try {
       setCentralizedLoading(true);
       setLoadingMessage("Carregando clientes...");
       setLoading(true);
       
-      const params = new URLSearchParams();
+      // Buscar todos os registros de clientes
+      const response = await axiosInstance.get(`/api/clientes`);
+      const lista = response.data?.data || response.data || [];
       
-      if (page) params.append('page', page.toString());
-      if (limit) params.append('limit', limit.toString());
-      if (search) params.append('search', search);
-      if (status) params.append('status', status);
-
-      const response = await axiosInstance.get(`/api/clientes?${params.toString()}`);
-      
-      setClientes(response.data.data || []);
-      setClientesFiltrados(response.data.data || []);
-      setTotalClientes(response.data.total || 0);
-      setCurrentPage(response.data.page || 1);
+      setClientes(lista);
+      setClientesFiltrados(lista);
+      setTotalClientes(lista.length || 0);
+      setCurrentPage(1);
       
     } catch (error) {
       console.error("Erro ao buscar clientes:", error);
@@ -93,10 +88,37 @@ const Clientes = () => {
     }
   }, []);
 
-  // useEffect para carregar clientes na inicialização
+  // Carregar clientes na inicialização (uma vez)
   useEffect(() => {
-    fetchClientes(currentPage, pageSize, searchTerm, statusFilter);
-  }, [fetchClientes, currentPage, pageSize, searchTerm, statusFilter]);
+    fetchClientes();
+  }, [fetchClientes]);
+
+  // Filtrar localmente por termo de busca e status
+  useEffect(() => {
+    let lista = [...clientes];
+    
+    const termo = (searchTerm || "").toLowerCase().trim();
+    if (termo) {
+      lista = lista.filter((c) => {
+        const nome = c.nome?.toLowerCase() || "";
+        const cpf = c.cpf?.toLowerCase() || "";
+        const cnpj = c.cnpj?.toLowerCase() || "";
+        const razao = c.razaoSocial?.toLowerCase() || "";
+        return (
+          nome.includes(termo) || cpf.includes(termo) || cnpj.includes(termo) || razao.includes(termo)
+        );
+      });
+    }
+    
+    if (statusFilter) {
+      lista = lista.filter((c) => c.status === statusFilter);
+    }
+    
+    setClientesFiltrados(lista);
+    setTotalClientes(lista.length || 0);
+    // Ao alterar filtros, resetar para a primeira página
+    setCurrentPage(1);
+  }, [clientes, searchTerm, statusFilter]);
 
   // Função para lidar com busca
   const handleSearch = useCallback((value) => {
@@ -170,18 +192,8 @@ const Clientes = () => {
       // Atualizar mensagem para recarregamento
       setLoadingMessage("Atualizando lista de clientes...");
 
-      // Recarregar lista de clientes (sem delay adicional)
-      const params = new URLSearchParams();
-      if (currentPage) params.append('page', currentPage.toString());
-      if (pageSize) params.append('limit', pageSize.toString());
-      if (searchTerm) params.append('search', searchTerm);
-      if (statusFilter) params.append('status', statusFilter);
-
-      const response = await axiosInstance.get(`/api/clientes?${params.toString()}`);
-      setClientes(response.data.data || []);
-      setClientesFiltrados(response.data.data || []);
-      setTotalClientes(response.data.total || 0);
-      setCurrentPage(response.data.page || 1);
+      // Recarregar lista completa de clientes
+      await fetchClientes();
 
       // Limpar dados temporários após sucesso
       setDadosTemporarios(null);
@@ -222,18 +234,8 @@ const Clientes = () => {
       // Atualizar mensagem para recarregamento
       setLoadingMessage("Atualizando lista de clientes...");
       
-      // Recarregar lista de clientes (sem delay adicional)
-      const params = new URLSearchParams();
-      if (currentPage) params.append('page', currentPage.toString());
-      if (pageSize) params.append('limit', pageSize.toString());
-      if (searchTerm) params.append('search', searchTerm);
-      if (statusFilter) params.append('status', statusFilter);
-
-      const response = await axiosInstance.get(`/api/clientes?${params.toString()}`);
-      setClientes(response.data.data || []);
-      setClientesFiltrados(response.data.data || []);
-      setTotalClientes(response.data.total || 0);
-      setCurrentPage(response.data.page || 1);
+      // Recarregar lista completa de clientes
+      await fetchClientes();
       
     } catch (error) {
       console.error("Erro ao deletar cliente:", error);
@@ -280,7 +282,7 @@ const Clientes = () => {
           />
           {/* Fallback para o ícone antigo caso o Iconify falhe */}
           <UserOutlined style={{ marginRight: 8, display: 'none' }} />
-          Gestão de Clientes
+          {isMobile ? "Clientes" : "Gestão de Clientes"}
         </Title>
       </Box>
 
@@ -319,6 +321,8 @@ const Clientes = () => {
             onViewPedidos={handleOpenPedidosModal}
             onStatusFilter={handleStatusFilter}
             currentStatusFilter={statusFilter}
+            currentPage={currentPage}
+            pageSize={pageSize}
           />
         </Suspense>
 
@@ -328,7 +332,7 @@ const Clientes = () => {
             <Pagination
               current={currentPage}
               pageSize={pageSize}
-              total={totalClientes}
+            total={totalClientes}
               onChange={handlePageChange}
               onShowSizeChange={handlePageChange}
               showSizeChanger={!isMobile}

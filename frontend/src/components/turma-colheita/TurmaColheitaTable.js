@@ -311,7 +311,6 @@ const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, on
       title: "Ações",
       key: "acoes",
       width: "8%",
-      fixed: "right",
       render: (_, record) => {
         const menuItems = [
           {

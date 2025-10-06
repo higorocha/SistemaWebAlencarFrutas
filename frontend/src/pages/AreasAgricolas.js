@@ -6,13 +6,16 @@ import {
   OrderedListOutlined,
   PartitionOutlined,
   PlusCircleOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 // Importar ícones do Iconify para agricultura
 import { Icon } from "@iconify/react";
 import { CentralizedLoader } from "components/common/loaders";
+import LoadingFallback from "components/common/loaders/LoadingFallback";
 import { PrimaryButton } from "components/common/buttons";
 import { cpf } from "cpf-cnpj-validator";
 import { SearchInput } from "components/common/search";
+import useResponsive from "../hooks/useResponsive";
 import axiosInstance from "../api/axiosConfig";
 import { useLoadScript } from "@react-google-maps/api";
 import { Pagination } from "antd";
@@ -31,6 +34,8 @@ const API_KEY =
 
 // Tornar as bibliotecas estáticas para evitar warning de performance
 const GOOGLE_MAPS_LIBRARIES = ["drawing", "geometry"];
+
+const { Title } = Typography;
 
 const formatarNumero = (numero) => {
   if (numero === null || numero === undefined || isNaN(numero)) return "-";
@@ -92,10 +97,11 @@ const calculatePolygonArea = (coordinates) => {
 };
 
 const AreasAgricolas = () => {
+  const { isMobile, isTablet } = useResponsive();
   const [areas, setAreas] = useState([]);
   const [areasFiltradas, setAreasFiltradas] = useState([]);
   const [culturas, setCulturas] = useState([]);
-  
+
   // Estados para paginação controlada
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -731,137 +737,212 @@ const AreasAgricolas = () => {
 
   if (!isLoaded) {
     return (
-      <div style={{ padding: 16 }}>
-        <Typography.Title level={2} style={{ marginBottom: 16, color: "#059669" }}>
-          Áreas Agrícolas
-        </Typography.Title>
+      <Box
+        sx={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          p: 2
+        }}
+      >
+        <Box sx={{ mb: 0 }}>
+          <Title
+            level={2}
+            style={{
+              margin: 0,
+              color: "#059669",
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              fontSize: '1.500rem'
+            }}
+          >
+            <Icon
+              icon="mdi:map-marker"
+              style={{
+                marginRight: 12,
+                fontSize: isMobile ? '31px' : '31px',
+                color: "#059669"
+              }}
+            />
+            {/* Fallback para o ícone antigo caso o Iconify falhe */}
+            <UserOutlined style={{ marginRight: 8, display: 'none' }} />
+            {isMobile ? "Áreas Agrícolas" : "Gestão de Áreas Agrícolas"}
+          </Title>
+        </Box>
         <CentralizedLoader
           visible={true}
           message="Carregando mapa..."
           subMessage="Aguarde enquanto carregamos o Google Maps..."
         />
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div style={{ padding: 16 }}>
-        <Typography.Title 
-        level={2} 
-        style={{ 
-          marginBottom: 16, 
-          color: "#059669",
-          display: 'flex',
-          alignItems: 'center',
-          flexWrap: 'wrap'
-        }}
-      >
-        {/* Ícone principal da página - deve ser igual ao do sidebar */}
-        <Icon 
-          icon="mdi:map-marker" 
-          style={{ 
-            marginRight: 12, 
-            fontSize: '31px',
-            color: "#059669"
-          }} 
-        />
-        Áreas Agrícolas
-      </Typography.Title>
+    <Box
+      sx={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        p: 2
+      }}
+    >
+      {/* Header com título */}
+      <Box sx={{ mb: 0 }}>
+        <Title
+          level={2}
+          style={{
+            margin: 0,
+            color: "#059669",
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            fontSize: '1.500rem'
+          }}
+        >
+          <Icon
+            icon="mdi:map-marker"
+            style={{
+              marginRight: 12,
+              fontSize: isMobile ? '31px' : '31px',
+              color: "#059669"
+            }}
+          />
+          {/* Fallback para o ícone antigo caso o Iconify falhe */}
+          <UserOutlined style={{ marginRight: 8, display: 'none' }} />
+          {isMobile ? "Áreas Agrícolas" : "Gestão de Áreas Agrícolas"}
+        </Title>
+      </Box>
 
-      <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+      {/* Botão Adicionar Área */}
+      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
         <PrimaryButton
           onClick={handleOpenDialog}
           icon={<PlusCircleOutlined />}
         >
           Adicionar Área Agrícola
         </PrimaryButton>
-      </div>
-      <div style={{ marginBottom: "24px" }}>
+      </Box>
+
+      {/* Busca */}
+      <Box sx={{ mb: 2 }}>
         <SearchInput
-          placeholder="Buscar áreas por nome..."
+          placeholder={isMobile ? "Buscar..." : "Buscar áreas por nome..."}
           value={searchQuery}
           onChange={(value) => setSearchQuery(value)}
-          style={{ marginTop: "8px" }}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            width: "100%",
+            fontSize: isMobile ? '0.875rem' : '1rem'
+          }}
         />
-      </div>
-      <AreasTable
-        areas={areasFiltradas}
-        loading={false}
-        onEdit={handleEditarArea}
-        onDelete={handleExcluirArea}
-        onOpenMap={abrirMapa}
-        currentPage={currentPage}
-        pageSize={pageSize}
-        onPageChange={handlePageChange}
-        onShowSizeChange={handleShowSizeChange}
-      />
-      {areasFiltradas.length > 0 && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0" }}>
-          <Pagination
-            current={currentPage}
+      </Box>
+
+      {/* Tabela de Áreas */}
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <Suspense fallback={<LoadingFallback />}>
+          <AreasTable
+            areas={areasFiltradas}
+            loading={false}
+            onEdit={handleEditarArea}
+            onDelete={handleExcluirArea}
+            onOpenMap={abrirMapa}
+            currentPage={currentPage}
             pageSize={pageSize}
-            total={areasFiltradas.length}
-            onChange={handlePageChange}
+            onPageChange={handlePageChange}
             onShowSizeChange={handleShowSizeChange}
-            showSizeChanger
-            showTotal={(total, range) => `${range[0]}-${range[1]} de ${total} áreas`}
-            pageSizeOptions={["10", "20", "50", "100"]}
           />
-        </div>
-      )}
-      <AddEditAreaDialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        areaAtual={areaAtual}
-        setAreaAtual={setAreaAtual}
-        editando={editando}
-        culturas={culturas}
-        erros={erros}
-        setErros={setErros}
-        isSaving={isSaving}
-        handleSalvarArea={handleSalvarArea}
-        abrirMapa={abrirMapa}
-        onCulturasReload={buscarCulturas}
-      />
-      <MapDialog
-        open={mapOpen}
-        onClose={handleCloseMapDialog}
-        mapMode={mapMode}
-        setMapMode={setMapModeHandler}
-        isDrawing={isDrawing}
-        setIsDrawing={setIsDrawing}
-        mapCenter={mapCenter}
-        setMapCenter={setMapCenter}
-        mapZoom={mapZoom}
-        setMapZoom={setMapZoom}
-        loteAtual={areaAtual}
-        setLoteAtual={setAreaAtual}
-        tempCoordinates={tempCoordinates}
-        setTempCoordinates={setTempCoordinates}
-        markers={markers}
-        setMarkers={setMarkers}
-        midpoints={midpoints}
-        setMidpoints={setMidpoints}
-        handlePolygonComplete={handlePolygonComplete}
-        handleMarkerDragEnd={handleMarkerDragEnd}
-        handleMarkerClick={handleMarkerClick}
-        handleMidpointDragEnd={handleMidpointDragEnd}
-        deleteMarker={deleteMarker}
-        selectedMarker={selectedMarker}
-        handleCloseInfoWindow={handleCloseInfoWindow}
-        calculateAreaPolygon={calcularAreaPolygon}
-        setAreaPoligono={setAreaPoligono}
-        areaPoligono={areaPoligono}
-        lotesExistentes={areas.filter((l) => l.id !== areaAtual?.id)}
-      />
-      
+        </Suspense>
+
+        {/* Paginação */}
+        {areasFiltradas.length > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0 }}>
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={areasFiltradas.length}
+              onChange={handlePageChange}
+              onShowSizeChange={handleShowSizeChange}
+              showSizeChanger={!isMobile}
+              showQuickJumper={!isMobile}
+              showTotal={(total, range) =>
+                isMobile
+                  ? `${range[0]}-${range[1]}/${total}`
+                  : `${range[0]}-${range[1]} de ${total} áreas`
+              }
+              pageSizeOptions={['10', '20', '50', '100']}
+              size={isMobile ? "small" : "default"}
+            />
+          </Box>
+        )}
+      </Box>
+
+      {/* Modais */}
+      <Suspense fallback={<Spin size="large" />}>
+        <AddEditAreaDialog
+          open={openDialog}
+          onClose={handleCloseDialog}
+          areaAtual={areaAtual}
+          setAreaAtual={setAreaAtual}
+          editando={editando}
+          culturas={culturas}
+          erros={erros}
+          setErros={setErros}
+          isSaving={isSaving}
+          handleSalvarArea={handleSalvarArea}
+          abrirMapa={abrirMapa}
+          onCulturasReload={buscarCulturas}
+        />
+      </Suspense>
+
+      <Suspense fallback={<Spin size="large" />}>
+        <MapDialog
+          open={mapOpen}
+          onClose={handleCloseMapDialog}
+          mapMode={mapMode}
+          setMapMode={setMapModeHandler}
+          isDrawing={isDrawing}
+          setIsDrawing={setIsDrawing}
+          mapCenter={mapCenter}
+          setMapCenter={setMapCenter}
+          mapZoom={mapZoom}
+          setMapZoom={setMapZoom}
+          loteAtual={areaAtual}
+          setLoteAtual={setAreaAtual}
+          tempCoordinates={tempCoordinates}
+          setTempCoordinates={setTempCoordinates}
+          markers={markers}
+          setMarkers={setMarkers}
+          midpoints={midpoints}
+          setMidpoints={setMidpoints}
+          handlePolygonComplete={handlePolygonComplete}
+          handleMarkerDragEnd={handleMarkerDragEnd}
+          handleMarkerClick={handleMarkerClick}
+          handleMidpointDragEnd={handleMidpointDragEnd}
+          deleteMarker={deleteMarker}
+          selectedMarker={selectedMarker}
+          handleCloseInfoWindow={handleCloseInfoWindow}
+          calculateAreaPolygon={calcularAreaPolygon}
+          setAreaPoligono={setAreaPoligono}
+          areaPoligono={areaPoligono}
+          lotesExistentes={areas.filter((l) => l.id !== areaAtual?.id)}
+        />
+      </Suspense>
+
       {/* CentralizedLoader */}
       <CentralizedLoader
         visible={centralizedLoading}
         message={loadingMessage}
         subMessage="Aguarde enquanto processamos sua solicitação..."
       />
-    </div>
+    </Box>
   );
 };
 

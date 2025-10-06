@@ -348,7 +348,7 @@ const Frutas = () => {
           />
           {/* Fallback para o ícone antigo caso o Iconify falhe */}
           <AppleOutlined style={{ marginRight: 8, display: 'none' }} />
-          Catálogo de Frutas
+          {isMobile ? "Frutas" : "Gestão de Frutas"}
         </Title>
       </Box>
 

@@ -8,6 +8,7 @@ import { PrimaryButton } from "../common/buttons";
 import AreaForm from "./AreaForm";
 import ConfirmCloseModal from "../common/modals/ConfirmCloseModal";
 import useConfirmClose from "../../hooks/useConfirmClose";
+import useResponsive from "../../hooks/useResponsive";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 
@@ -25,6 +26,8 @@ const AddEditAreaDialog = ({
   abrirMapa,
   onCulturasReload,
 }) => {
+  const { isMobile } = useResponsive();
+
   // Hook customizado para gerenciar confirmação de fechamento
   const {
     confirmCloseModal,
@@ -37,15 +40,15 @@ const AddEditAreaDialog = ({
     <>
       <Modal
         title={
-          <span style={{ 
-            color: "#ffffff", 
-            fontWeight: "600", 
-            fontSize: "16px",
+          <span style={{
+            color: "#ffffff",
+            fontWeight: "600",
+            fontSize: isMobile ? "0.875rem" : "1rem",
             backgroundColor: "#059669",
-            padding: "12px 16px",
-            margin: "-20px -24px 0 -24px",
+            padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
+            margin: "-1.25rem -1.5rem 0 -1.5rem",
             display: "block",
-            borderRadius: "8px 8px 0 0",
+            borderRadius: "0.5rem 0.5rem 0 0",
           }}>
             {editando ? "Editar Área Agrícola" : "Adicionar Área Agrícola"}
           </span>
@@ -53,18 +56,18 @@ const AddEditAreaDialog = ({
         open={open}
         onCancel={handleCloseAttempt}
         footer={null}
-        width="90%"
-        style={{ maxWidth: 1200 }}
+        width={isMobile ? '95vw' : '90%'}
+        style={{ maxWidth: isMobile ? '95vw' : "75rem" }}
         styles={{
           body: {
-            maxHeight: "calc(100vh - 200px)",
+            maxHeight: "calc(100vh - 12.5rem)",
             overflowY: "auto",
             overflowX: "hidden",
-            padding: "20px",
+            padding: isMobile ? 12 : 20,
           },
           header: {
             backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
+            borderBottom: "0.125rem solid #047857",
             padding: 0,
           }
         }}
@@ -86,21 +89,29 @@ const AddEditAreaDialog = ({
           style={{
             display: "flex",
             justifyContent: "flex-end",
-            gap: "12px",
-            marginTop: "24px",
-            paddingTop: "16px",
+            gap: isMobile ? "8px" : "12px",
+            marginTop: isMobile ? "1rem" : "1.5rem",
+            paddingTop: isMobile ? "12px" : "16px",
             borderTop: "1px solid #f0f0f0",
           }}
         >
-          <Button 
+          <Button
             onClick={handleCloseAttempt}
-            size="large"
+            size={isMobile ? "small" : "middle"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
           >
             Cancelar
           </Button>
           <PrimaryButton
             onClick={handleSalvarArea}
             disabled={isSaving}
+            style={{
+              height: isMobile ? "32px" : undefined,
+              padding: isMobile ? "0 12px" : undefined,
+            }}
           >
             {editando ? "Salvar Alterações" : "Cadastrar Área"}
           </PrimaryButton>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, Button, Space } from "antd";
 import PropTypes from "prop-types";
 import { SaveOutlined, CloseOutlined, GroupOutlined } from "@ant-design/icons";
+import useResponsive from "../../hooks/useResponsive";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import TurmaColheitaForm from "./TurmaColheitaForm";
@@ -17,6 +18,7 @@ const AddEditTurmaColheitaDialog = ({
   turmaColheita = null,
   loading = false,
 }) => {
+  const { isMobile } = useResponsive();
   const [turmaAtual, setTurmaAtual] = useState({
     nomeColhedor: "",
     chavePix: "",
@@ -168,10 +170,10 @@ const AddEditTurmaColheitaDialog = ({
         <span style={{
           color: "#ffffff",
           fontWeight: "600",
-          fontSize: "16px",
+          fontSize: isMobile ? "0.875rem" : "16px",
           backgroundColor: "#059669",
-          padding: "12px 16px",
-          margin: "-20px -24px 0 -24px",
+          padding: isMobile ? "10px 12px" : "12px 16px",
+          margin: isMobile ? "-20px -24px 0 -24px" : "-20px -24px 0 -24px",
           display: "block",
           borderRadius: "8px 8px 0 0",
         }}>
@@ -182,14 +184,15 @@ const AddEditTurmaColheitaDialog = ({
       open={open}
       onCancel={handleCloseAttempt}
       footer={null}
-      width={800}
+      width={isMobile ? "96vw" : 800}
+      style={{ maxWidth: isMobile ? "96vw" : 800 }}
       styles={{
         body: {
-          minHeight: "500px",
-          maxHeight: "calc(100vh - 200px)",
+          maxHeight: isMobile ? "calc(100vh - 160px)" : "calc(100vh - 200px)",
           overflowY: "auto",
           overflowX: "hidden",
-          padding: "24px",
+          padding: isMobile ? 12 : 20,
+          minWidth: 0,
         },
         header: {
           backgroundColor: "#059669",
@@ -199,7 +202,6 @@ const AddEditTurmaColheitaDialog = ({
       }}
       centered
       destroyOnClose
-      zIndex={1000}
     >
       <TurmaColheitaForm
         turmaAtual={turmaAtual}
@@ -213,16 +215,16 @@ const AddEditTurmaColheitaDialog = ({
       <div style={{
         display: "flex",
         justifyContent: "flex-end",
-        gap: "12px",
-        marginTop: "24px",
-        paddingTop: "16px",
-        borderTop: "1px solid #f0f0f0"
+        gap: isMobile ? "8px" : "12px",
+        marginTop: isMobile ? "1rem" : "24px",
+        paddingTop: isMobile ? "12px" : "16px",
+        borderTop: "1px solid #e8e8e8"
       }}>
         <Button
           onClick={handleCloseAttempt}
           disabled={isSaving}
           icon={<CloseOutlined />}
-          size="large"
+          size={isMobile ? "small" : "large"}
         >
           Cancelar
         </Button>
@@ -232,7 +234,7 @@ const AddEditTurmaColheitaDialog = ({
           loading={isSaving}
           disabled={loading}
           icon={<SaveOutlined />}
-          size="large"
+          size={isMobile ? "small" : "large"}
           style={{
             backgroundColor: "#059669",
             borderColor: "#059669",

@@ -15,7 +15,10 @@
       "WebFetch(domain:www.receitaws.com.br)",
       "WebFetch(domain:ant.design)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:stackoverflow.com)"
+      "WebFetch(domain:stackoverflow.com)",
+      "Bash(cat:*)",
+      "Bash(cp:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []

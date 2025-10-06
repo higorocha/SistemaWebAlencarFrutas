@@ -15,6 +15,7 @@ import {
   Button,
   Divider,
   message,
+  Modal,
 } from "antd";
 import {
   UserOutlined,
@@ -32,6 +33,7 @@ import { IMaskInput } from "react-imask";
 import { validarDocumento } from "../../utils/documentValidation";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import useResponsive from "../../hooks/useResponsive";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -44,6 +46,7 @@ const FornecedorForm = ({
   erros,
   setErros,
 }) => {
+  const { isMobile, isTablet } = useResponsive();
   const [areas, setAreas] = useState([]);
   const [loadingAreas, setLoadingAreas] = useState(false);
   const [culturas, setCulturas] = useState([]);
@@ -143,10 +146,18 @@ const FornecedorForm = ({
       // Se é uma área nova, apenas remove da lista
       setAreas(prev => prev.filter((_, i) => i !== index));
     } else {
-      // Se é uma área existente, pergunta se quer excluir
-      if (window.confirm(`Deseja excluir a área "${area.nome}"?`)) {
-        excluirArea(area.id, index);
-      }
+      // Se é uma área existente, mostra modal de confirmação
+      Modal.confirm({
+        title: "Confirmar exclusão",
+        content: `Tem certeza que deseja excluir a área "${area.nome}"?`,
+        okText: "Sim, excluir",
+        cancelText: "Cancelar",
+        okType: "danger",
+        centered: true,
+        onOk: () => {
+          excluirArea(area.id, index);
+        },
+      });
     }
   };
 
@@ -215,8 +226,8 @@ const FornecedorForm = ({
   };
 
   return (
-    <div>
-      <Form layout="vertical" size="large">
+    <div style={{ minWidth: 0 }}>
+      <Form layout="vertical" size={isMobile ? "middle" : "large"}>
         {/* Seção 1: Informações Básicas */}
         <Card
           title={
@@ -240,7 +251,7 @@ const FornecedorForm = ({
             }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]}>
             <Col xs={24} md={12}>
               <Form.Item
                 label={
@@ -260,7 +271,9 @@ const FornecedorForm = ({
                   style={{
                     borderRadius: "6px",
                     borderColor: erros.nome ? "#ff4d4f" : "#d9d9d9",
+                    height: isMobile ? 36 : undefined,
                   }}
+                  size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>
             </Col>
@@ -291,12 +304,12 @@ const FornecedorForm = ({
                   placeholder="Digite o CPF ou CNPJ"
                   onAccept={(value) => handleChange("documento", value)}
                   value={fornecedorAtual.documento || ''}
-                  className="ant-input ant-input-lg"
+                  className={isMobile ? "ant-input" : "ant-input ant-input-lg"}
                   style={{
                     borderRadius: "6px",
                     borderColor: erros.documento ? "#ff4d4f" : "#d9d9d9",
                     width: '100%',
-                    height: '40px',
+                    height: isMobile ? '36px' : '40px',
                     padding: '4px 11px',
                     fontSize: '14px',
                     border: '1px solid',
@@ -331,7 +344,7 @@ const FornecedorForm = ({
             }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]}>
             <Col xs={24} md={12}>
               <Form.Item
                 label={
@@ -348,12 +361,12 @@ const FornecedorForm = ({
                   placeholder="(88) 99966-1299"
                   onAccept={(value) => handleChange("telefone", value)}
                   value={fornecedorAtual.telefone || ''}
-                  className="ant-input ant-input-lg"
+                  className={isMobile ? "ant-input" : "ant-input ant-input-lg"}
                   style={{
                     borderRadius: "6px",
                     borderColor: erros.telefone ? "#ff4d4f" : "#d9d9d9",
                     width: '100%',
-                    height: '40px',
+                    height: isMobile ? '36px' : '40px',
                     padding: '4px 11px',
                     fontSize: '14px',
                     border: '1px solid',
@@ -381,13 +394,15 @@ const FornecedorForm = ({
                   style={{
                     borderRadius: "6px",
                     borderColor: erros.email ? "#ff4d4f" : "#d9d9d9",
+                    height: isMobile ? 36 : undefined,
                   }}
+                  size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>
             </Col>
           </Row>
 
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]}>
             <Col xs={24}>
               <Form.Item
                 label={
@@ -406,7 +421,9 @@ const FornecedorForm = ({
                   style={{
                     borderRadius: "6px",
                     borderColor: erros.endereco ? "#ff4d4f" : "#d9d9d9",
+                    height: isMobile ? 36 : undefined,
                   }}
+                  size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>
             </Col>
@@ -438,74 +455,92 @@ const FornecedorForm = ({
         >
           {editando ? (
             <>
-              {/* Cabeçalho das colunas */}
-              <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-                <Col xs={24} md={12}>
-                  <Text strong style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                    <TagOutlined style={{ marginRight: 8 }} />
-                    Nome da Área
-                  </Text>
-                </Col>
-                <Col xs={24} md={8}>
-                  <Text strong style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                    <TagOutlined style={{ marginRight: 8 }} />
-                    Cultura
-                  </Text>
-                </Col>
-                <Col xs={24} md={4}>
-                  {/* Coluna de ações sem texto - apenas para alinhamento */}
-                </Col>
-              </Row>
+              {/* Cabeçalho das colunas - apenas em desktop */}
+              {!isMobile && (
+                <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
+                  <Col xs={24} md={12}>
+                    <Text strong style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                      <TagOutlined style={{ marginRight: 8 }} />
+                      Nome da Área
+                    </Text>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Text strong style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                      <TagOutlined style={{ marginRight: 8 }} />
+                      Cultura
+                    </Text>
+                  </Col>
+                  <Col xs={24} md={4}>
+                    {/* Coluna de ações sem texto - apenas para alinhamento */}
+                  </Col>
+                </Row>
+              )}
 
               {/* Lista de áreas */}
               {areas.map((area, index) => (
                 <div key={area.id}>
-                  <Row gutter={[16, 16]} align="middle">
-                    <Col xs={24} md={12}>
-                      <Input
-                        placeholder="Nome da área"
-                        value={area.nome}
-                        onChange={(e) => atualizarNomeArea(index, e.target.value)}
-                        style={{
-                          borderRadius: "6px",
-                          borderColor: "#d9d9d9",
-                        }}
-                      />
-                    </Col>
+                  {isMobile ? (
+                    // Layout mobile: campos empilhados
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ marginBottom: 12 }}>
+                        <Text strong style={{ color: "#059669", fontSize: "13px", display: "block", marginBottom: 4 }}>
+                          Nome da Área
+                        </Text>
+                        <Input
+                          placeholder="Nome da área"
+                          value={area.nome}
+                          onChange={(e) => atualizarNomeArea(index, e.target.value)}
+                          style={{
+                            borderRadius: "6px",
+                            borderColor: "#d9d9d9",
+                            height: 36,
+                          }}
+                          size="middle"
+                        />
+                      </div>
+                      
+                      <div style={{ marginBottom: 12 }}>
+                        <Text strong style={{ color: "#059669", fontSize: "13px", display: "block", marginBottom: 4 }}>
+                          Cultura
+                        </Text>
+                        <Select
+                          placeholder="Selecione a cultura"
+                          value={area.culturaId}
+                          onChange={(value) => atualizarCulturaArea(index, value)}
+                          style={{
+                            width: "100%",
+                            borderRadius: "6px",
+                          }}
+                          allowClear
+                          loading={loadingCulturas}
+                          size="middle"
+                        >
+                          {culturas.map((cultura) => (
+                            <Option key={cultura.id} value={cultura.id}>
+                              {cultura.descricao}
+                            </Option>
+                          ))}
+                        </Select>
+                      </div>
 
-                    <Col xs={24} md={8}>
-                      <Select
-                        placeholder="Selecione a cultura"
-                        value={area.culturaId}
-                        onChange={(value) => atualizarCulturaArea(index, value)}
-                        style={{
-                          width: "100%",
-                          borderRadius: "6px",
-                        }}
-                        allowClear
-                        loading={loadingCulturas}
-                      >
-                        {culturas.map((cultura) => (
-                          <Option key={cultura.id} value={cultura.id}>
-                            {cultura.descricao}
-                          </Option>
-                        ))}
-                      </Select>
-                    </Col>
-
-                    <Col xs={24} md={4}>
-                      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                        {/* Botão de remover */}
+                      <div style={{ 
+                        display: "flex", 
+                        gap: "8px", 
+                        justifyContent: "center", 
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTop: "1px solid #f0f0f0"
+                      }}>
                         <Button
                           type="text"
                           danger
                           icon={<DeleteOutlined />}
                           onClick={() => removerArea(index)}
-                          size="large"
+                          size="small"
                           style={{
                             borderRadius: "50px",
-                            height: "40px",
-                            width: "40px",
+                            height: "32px",
+                            width: "32px",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -524,21 +559,20 @@ const FornecedorForm = ({
                             e.target.style.transform = "scale(1)";
                           }}
                         />
-
-                        {/* Botão de adicionar apenas na última área */}
+                        
                         {index === areas.length - 1 && (
                           <Button
                             type="dashed"
                             icon={<PlusOutlined />}
                             onClick={adicionarArea}
-                            size="large"
+                            size="small"
                             style={{
                               borderRadius: "50px",
                               borderColor: "#10b981",
                               color: "#10b981",
                               borderWidth: "2px",
-                              height: "40px",
-                              width: "40px",
+                              height: "32px",
+                              width: "32px",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -562,8 +596,114 @@ const FornecedorForm = ({
                           />
                         )}
                       </div>
-                    </Col>
-                  </Row>
+                    </div>
+                  ) : (
+                    // Layout desktop: colunas lado a lado
+                    <Row gutter={[16, 16]} align="middle">
+                      <Col xs={24} md={12}>
+                        <Input
+                          placeholder="Nome da área"
+                          value={area.nome}
+                          onChange={(e) => atualizarNomeArea(index, e.target.value)}
+                          style={{
+                            borderRadius: "6px",
+                            borderColor: "#d9d9d9",
+                          }}
+                          size="large"
+                        />
+                      </Col>
+
+                      <Col xs={24} md={8}>
+                        <Select
+                          placeholder="Selecione a cultura"
+                          value={area.culturaId}
+                          onChange={(value) => atualizarCulturaArea(index, value)}
+                          style={{
+                            width: "100%",
+                            borderRadius: "6px",
+                          }}
+                          allowClear
+                          loading={loadingCulturas}
+                          size="large"
+                        >
+                          {culturas.map((cultura) => (
+                            <Option key={cultura.id} value={cultura.id}>
+                              {cultura.descricao}
+                            </Option>
+                          ))}
+                        </Select>
+                      </Col>
+
+                      <Col xs={24} md={4}>
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                          <Button
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => removerArea(index)}
+                            size="large"
+                            style={{
+                              borderRadius: "50px",
+                              height: "40px",
+                              width: "40px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 0,
+                              border: "2px solid #ff4d4f",
+                              color: "#ff4d4f",
+                              backgroundColor: "#ffffff",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.backgroundColor = "#fff2f0";
+                              e.target.style.transform = "scale(1.05)";
+                              e.target.style.transition = "all 0.2s ease";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.backgroundColor = "#ffffff";
+                              e.target.style.transform = "scale(1)";
+                            }}
+                          />
+
+                          {index === areas.length - 1 && (
+                            <Button
+                              type="dashed"
+                              icon={<PlusOutlined />}
+                              onClick={adicionarArea}
+                              size="large"
+                              style={{
+                                borderRadius: "50px",
+                                borderColor: "#10b981",
+                                color: "#10b981",
+                                borderWidth: "2px",
+                                height: "40px",
+                                width: "40px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: 0,
+                                backgroundColor: "#ffffff",
+                                boxShadow: "0 2px 8px rgba(16, 185, 129, 0.15)",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.target.style.backgroundColor = "#f0fdf4";
+                                e.target.style.borderColor = "#059669";
+                                e.target.style.color = "#059669";
+                                e.target.style.transform = "scale(1.05)";
+                                e.target.style.transition = "all 0.2s ease";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.backgroundColor = "#ffffff";
+                                e.target.style.borderColor = "#10b981";
+                                e.target.style.color = "#10b981";
+                                e.target.style.transform = "scale(1)";
+                              }}
+                            />
+                          )}
+                        </div>
+                      </Col>
+                    </Row>
+                  )}
                   {index < areas.length - 1 && <Divider style={{ margin: "16px 0" }} />}
                 </div>
               ))}
@@ -575,13 +715,13 @@ const FornecedorForm = ({
                     type="dashed"
                     icon={<PlusOutlined />}
                     onClick={adicionarArea}
-                    size="large"
+                    size={isMobile ? "middle" : "large"}
                     style={{
                       borderRadius: "6px",
                       borderColor: "#10b981",
                       color: "#10b981",
                       borderWidth: "2px",
-                      height: "48px",
+                      height: isMobile ? "40px" : "48px",
                       padding: "0 24px",
                       backgroundColor: "#ffffff",
                     }}
@@ -604,9 +744,10 @@ const FornecedorForm = ({
                       backgroundColor: loadingAreas ? "#10b981" : "#059669",
                       borderColor: loadingAreas ? "#10b981" : "#059669",
                       borderRadius: "6px",
-                      minWidth: "140px",
+                      minWidth: isMobile ? "120px" : "140px",
                       transition: "all 0.3s ease",
                     }}
+                    size={isMobile ? "middle" : "large"}
                   >
                     {loadingAreas ? (
                       <span>
@@ -667,7 +808,9 @@ const FornecedorForm = ({
                   style={{
                     borderRadius: "6px",
                     borderColor: "#d9d9d9",
+                    fontSize: isMobile ? 13 : undefined,
                   }}
+                  size={isMobile ? "middle" : "large"}
                 />
               </Form.Item>
             </Col>

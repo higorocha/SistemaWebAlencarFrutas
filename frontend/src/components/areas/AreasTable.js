@@ -1,7 +1,7 @@
 // src/components/areas/AreasTable.js
 
 import React from "react";
-import { Table, Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
+import { Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -10,199 +10,10 @@ import {
   EnvironmentOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
-import styled from "styled-components";
+import ResponsiveTable from "../common/ResponsiveTable";
 import { showNotification } from "../../config/notificationConfig";
 
 const { Text } = Typography;
-
-// Styled components para tabela com tema personalizado
-const StyledTable = styled(Table)`
-  .ant-table-thead > tr > th {
-    background-color: #059669 !important;
-    color: #ffffff !important;
-    font-weight: 600;
-    border-bottom: 2px solid #047857;
-    padding: 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-tbody > tr:nth-child(even) {
-    background-color: #fafafa;
-  }
-
-  .ant-table-tbody > tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-
-  .ant-table-tbody > tr:hover {
-    background-color: #e6f7ff !important;
-    cursor: pointer;
-  }
-
-  .ant-table-tbody > tr.ant-table-row-selected {
-    background-color: #d1fae5 !important;
-  }
-
-  .ant-table-tbody > tr > td {
-    border-bottom: 1px solid #e0e0e0;
-    padding: 12px 16px;
-    font-size: 14px;
-  }
-
-  .ant-table-container {
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .ant-table-cell-fix-left,
-  .ant-table-cell-fix-right {
-    background-color: inherit !important;
-  }
-
-  .ant-empty {
-    padding: 40px 20px;
-  }
-
-  .ant-empty-description {
-    color: #8c8c8c;
-    font-size: 14px;
-  }
-
-  /* CORREÇÃO ESPECÍFICA: Esconder linha de medida */
-  .ant-table-measure-row {
-    display: none !important;
-  }
-
-  /* LAYOUT COMPACTO E PROFISSIONAL DA PAGINAÇÃO */
-  .ant-pagination {
-    margin-top: 8px !important;
-    display: flex !important;
-    justify-content: flex-end !important;
-    align-items: center !important;
-    padding: 8px 0 !important;
-    border-top: 1px solid #f0f0f0 !important;
-    gap: 8px !important;
-  }
-
-  .ant-pagination-total-text {
-    color: #666 !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    margin: 0 !important;
-    margin-right: 16px !important;
-  }
-
-  /* Items de página - DESIGN LIMPO */
-  .ant-pagination-item {
-    min-width: 32px !important;
-    height: 32px !important;
-    line-height: 30px !important;
-    border: 1px solid #d9d9d9 !important;
-    border-radius: 6px !important;
-    margin: 0 2px !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    background: #ffffff !important;
-    color: #333333 !important;
-    transition: all 0.2s ease !important;
-  }
-
-  .ant-pagination-prev .ant-pagination-item-link,
-  .ant-pagination-next .ant-pagination-item-link {
-    height: 32px !important;
-    line-height: 30px !important;
-    border-radius: 6px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  .ant-pagination-prev.ant-pagination-disabled .ant-pagination-item-link,
-  .ant-pagination-next.ant-pagination-disabled .ant-pagination-item-link {
-    color: #bfbfbf !important;
-    border-color: #f0f0f0 !important;
-    background: #f5f5f5 !important;
-    cursor: not-allowed !important;
-  }
-
-  /* Container dos controles à direita - COMPACTO */
-  .ant-pagination-options {
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
-    margin-left: 16px !important;
-  }
-
-  /* Select de tamanho da página - DESIGN CONSISTENTE */
-  .ant-pagination-options-size-changer .ant-select {
-    min-width: 80px !important;
-  }
-
-  .ant-pagination-options-size-changer .ant-select-selector {
-    height: 32px !important;
-    border: 1px solid #d9d9d9 !important;
-    border-radius: 6px !important;
-    background: #ffffff !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    transition: all 0.2s ease !important;
-  }
-
-  .ant-pagination-options-size-changer .ant-select-selection-item {
-    line-height: 30px !important;
-  }
-
-  /* Quick jumper - INPUT COMPACTO */
-  .ant-pagination-options-quick-jumper {
-    display: flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    color: #666666 !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-  }
-
-  .ant-pagination-options-quick-jumper input {
-    width: 45px !important;
-    height: 32px !important;
-    border: 1px solid #d9d9d9 !important;
-    border-radius: 6px !important;
-    text-align: center !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    background: #ffffff !important;
-    color: #333333 !important;
-    transition: all 0.2s ease !important;
-  }
-
-  .ant-pagination-options-quick-jumper input:hover {
-    border-color: #059669 !important;
-  }
-
-  .ant-pagination-options-quick-jumper input:focus {
-    border-color: #059669 !important;
-    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.1) !important;
-    outline: none !important;
-  }
-
-  /* Responsividade */
-  @media (max-width: 768px) {
-    .ant-pagination {
-      flex-direction: column !important;
-      gap: 12px !important;
-    }
-    
-    .ant-pagination-total-text {
-      order: -1 !important;
-      margin-right: 0 !important;
-    }
-    
-    .ant-pagination-options {
-      margin-left: 0 !important;
-    }
-  }
-`;
 
 // Função para capitalizar nome
 function capitalizeName(name) {
@@ -423,7 +234,6 @@ const AreasTable = React.memo(({
     {
       title: "Ações",
       key: "acoes",
-      fixed: "right",
       width: 80,
       render: (_, record) => (
         <Dropdown 
@@ -457,15 +267,14 @@ const AreasTable = React.memo(({
   };
 
   return (
-    <StyledTable
+    <ResponsiveTable
       columns={columns}
       dataSource={areas}
       loading={loading}
       rowKey="id"
-      pagination={false}
-      scroll={{ x: 1000 }}
+      minWidthMobile={1200}
+      showScrollHint={true}
       rowClassName={assignRowClassName}
-      bordered={true}
       locale={{
         emptyText: (
           <Empty
@@ -477,12 +286,6 @@ const AreasTable = React.memo(({
             }
           />
         ),
-      }}
-      size="middle"
-      style={{
-        backgroundColor: "#ffffff",
-        borderRadius: "8px",
-        overflow: "hidden",
       }}
     />
   );

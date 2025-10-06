@@ -311,7 +311,7 @@ const Culturas = () => {
           />
           {/* Fallback para o ícone antigo caso o Iconify falhe */}
           <PartitionOutlined style={{ marginRight: 8, display: 'none' }} />
-          Cadastro de Culturas
+          {isMobile ? "Culturas" : "Gestão de Culturas"}
         </Title>
       </Box>
 

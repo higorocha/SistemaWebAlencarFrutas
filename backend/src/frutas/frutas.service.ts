@@ -61,13 +61,17 @@ export class FrutasService {
    * Busca todas as frutas com paginação e filtros
    */
   async findAll(
-    page: number = 1,
-    limit: number = 10,
+    page?: number,
+    limit?: number,
     search?: string,
     culturaId?: number,
     status?: string,
   ): Promise<{ data: FrutaResponseDto[]; total: number; page: number; limit: number }> {
-    const skip = (page - 1) * limit;
+    // Quando page e limit não forem informados, retornar TODOS os registros
+    const shouldPaginate = Boolean(page && limit);
+    const numericPage = shouldPaginate ? Number(page) : undefined;
+    const numericLimit = shouldPaginate ? Number(limit) : undefined;
+    const skip = shouldPaginate ? ((numericPage as number) - 1) * (numericLimit as number) : undefined;
 
     // Construir filtros
     const where: any = {};
@@ -91,8 +95,9 @@ export class FrutasService {
     const [frutas, total] = await Promise.all([
       this.prisma.fruta.findMany({
         where,
+        // Aplicar paginação apenas quando requisitada
         skip,
-        take: limit,
+        take: numericLimit,
         orderBy: { nome: 'asc' },
         include: {
           cultura: true, // Incluir cultura na resposta
@@ -104,8 +109,8 @@ export class FrutasService {
     return {
       data: frutas.map(fruta => this.mapToResponseDto(fruta)),
       total,
-      page,
-      limit,
+      page: shouldPaginate ? (numericPage as number) : 1,
+      limit: shouldPaginate ? (numericLimit as number) : frutas.length,
     };
   }
 

@@ -93,8 +93,10 @@ export class ClientesService {
     search?: string,
     status?: string,
   ): Promise<{ data: ClienteResponseDto[]; total: number; page: number; limit: number }> {
-    const skip = page && limit ? (page - 1) * limit : 0;
-    const take = limit || 10;
+    // Quando page e limit não forem informados, retornar TODOS os registros
+    const shouldPaginate = Boolean(page && limit);
+    const skip = shouldPaginate ? (Number(page) - 1) * Number(limit) : undefined;
+    const take = shouldPaginate ? Number(limit) : undefined;
 
     const where: any = {};
 
@@ -115,6 +117,7 @@ export class ClientesService {
     const [clientes, total] = await Promise.all([
       this.prisma.cliente.findMany({
         where,
+        // Aplicar paginação apenas quando requisitada
         skip,
         take,
         orderBy: { nome: 'asc' },
@@ -132,8 +135,8 @@ export class ClientesService {
         return converted;
       }),
       total,
-      page: page || 1,
-      limit: take,
+      page: shouldPaginate ? Number(page) : 1,
+      limit: shouldPaginate ? Number(limit) : clientes.length,
     };
   }
 
