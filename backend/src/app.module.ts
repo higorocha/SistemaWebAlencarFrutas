@@ -10,7 +10,7 @@ import { ContaCorrenteModule } from './conta-corrente/conta-corrente.module';
 import { ConvenioCobrancaModule } from './convenio-cobranca/convenio-cobranca.module';
 import { CredenciaisAPIModule } from './credenciais-api/credenciais-api.module';
 import { NotificacoesModule } from './notificacoes/notificacoes.module';
-import { PrismaService } from './prisma/prisma.service';
+import { PrismaModule } from './prisma/prisma.module';
 import { CulturasModule } from './culturas/culturas.module';
 import { AreasModule } from './areas/areas.module';
 import { FrutasModule } from './frutas/frutas.module';
@@ -38,6 +38,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
         limit: 100, // 100 requisições por hora
       },
     ]),
+    PrismaModule,
     AuthModule,
     ConfigModule,
     ConfigEmailModule,
@@ -61,6 +62,6 @@ import { DashboardModule } from './dashboard/dashboard.module';
     DashboardModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [AppService],
 })
 export class AppModule {}

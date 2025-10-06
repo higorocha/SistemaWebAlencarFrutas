@@ -11,7 +11,9 @@ process.env.TZ = 'America/Sao_Paulo';
 dotenv.config();
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error'] // Apenas erros críticos
+  });
   
   // Configurar validação global
   app.useGlobalPipes(new ValidationPipe({
