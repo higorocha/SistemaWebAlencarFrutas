@@ -20,14 +20,17 @@ import {
   Tooltip,
 } from "antd";
 import { LogoutOutlined } from "@ant-design/icons";
+import { Icon } from "@iconify/react";
 import Sidebar from "./Sidebar";
 import { ProSidebarProvider } from "react-pro-sidebar";
 import useResponsive from "../hooks/useResponsive";
+import { useNavigate } from "react-router-dom";
 
 import AccountCircle from "@mui/icons-material/AccountCircle";
 import MenuIcon from "@mui/icons-material/Menu";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import MapIcon from "@mui/icons-material/Map";
 
 import getTheme from "../theme";
 import { useAuth } from "../contexts/AuthContext";
@@ -50,6 +53,7 @@ const Layout = ({ children }) => {
   const [isOpen, setIsOpen] = useState(!isMobile); // Iniciar fechado em mobile
   const [mode, setMode] = useState("light");
   const { user, logout, getTokenExpiration } = useAuth();
+  const navigate = useNavigate();
 
   const theme = React.useMemo(() => getTheme(mode), [mode]);
 
@@ -304,6 +308,18 @@ const Layout = ({ children }) => {
                     size={isMobile ? "small" : "medium"}
                   >
                     {mode === "dark" ? <Brightness7Icon fontSize={isMobile ? "small" : "medium"} /> : <Brightness4Icon fontSize={isMobile ? "small" : "medium"} />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Mapa Geral das Áreas" placement="bottom">
+                  <IconButton
+                    sx={{
+                      padding: { xs: "6px", sm: "8px" }, // Menor em mobile
+                    }}
+                    onClick={() => navigate("/mapa-geral")}
+                    color="inherit"
+                    size={isMobile ? "small" : "medium"}
+                  >
+                    <MapIcon fontSize={isMobile ? "small" : "medium"} />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Notificações do sistema" placement="bottom">

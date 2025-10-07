@@ -26,6 +26,7 @@ import PedidosDashboard from "./pages/PedidosDashboard";
 import Fornecedores from "./pages/FornecedoresPage";
 import TurmaColheita from "./pages/TurmaColheita";
 import ControleBanana from "./pages/producao/ControleBanana";
+import MapaGeral from "./pages/MapaGeral";
 import Login from "./pages/Login";
 import { NotificacaoProvider } from './contexts/NotificacaoContext';
 import { useThemeVariables } from './hooks/useThemeVariables';
@@ -81,6 +82,7 @@ const App = () => {
                         <Route path="/fornecedores" element={<Fornecedores />} />
                         <Route path="/turma-colheita" element={<TurmaColheita />} />
                         <Route path="/producao/banana" element={<ControleBanana />} />
+                        <Route path="/mapa-geral" element={<MapaGeral />} />
                         <Route path="/configuracoes" element={<Configuracoes />} />
                       </Routes>
                     </Layout>

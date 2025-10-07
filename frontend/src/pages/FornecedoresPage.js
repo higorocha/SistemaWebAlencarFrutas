@@ -277,7 +277,6 @@ const FornecedoresPage = () => {
               onChange={handlePageChange}
               onShowSizeChanger={handlePageChange}
               showSizeChanger={!isMobile}
-              showQuickJumper={!isMobile}
               size={isMobile ? "small" : "default"}
               showTotal={(total, range) =>
                 isMobile

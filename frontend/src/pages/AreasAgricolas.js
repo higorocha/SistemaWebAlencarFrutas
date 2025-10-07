@@ -871,7 +871,6 @@ const AreasAgricolas = () => {
               onChange={handlePageChange}
               onShowSizeChange={handleShowSizeChange}
               showSizeChanger={!isMobile}
-              showQuickJumper={!isMobile}
               showTotal={(total, range) =>
                 isMobile
                   ? `${range[0]}-${range[1]}/${total}`
