@@ -1,7 +1,7 @@
 // src/components/culturas/CulturasTable.js
 
 import React from "react";
-import { Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
+import { Dropdown, Button, Tag, Empty, Typography } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -135,27 +135,26 @@ const CulturasTable = ({
     {
       title: "Ações",
       key: "actions",
-      render: (_, record) => (
-        <Space size="small">
-          <Dropdown
-            menu={{ items: getMenuContent(record) }}
-            trigger={["click"]}
-            placement="bottomRight"
-          >
-            <Button
-              type="text"
-              icon={<MoreOutlined />}
-              size="small"
-              style={{
-                color: "#666666",
-                border: "none",
-                boxShadow: "none",
-              }}
-            />
-          </Dropdown>
-        </Space>
-      ),
       width: 80,
+      align: "center",
+      render: (_, record) => (
+        <Dropdown
+          menu={{ items: getMenuContent(record) }}
+          trigger={["click"]}
+          placement="bottomRight"
+        >
+          <Button
+            type="text"
+            icon={<MoreOutlined />}
+            size="small"
+            style={{
+              color: "#666666",
+              border: "none",
+              boxShadow: "none",
+            }}
+          />
+        </Dropdown>
+      ),
     },
   ];
 

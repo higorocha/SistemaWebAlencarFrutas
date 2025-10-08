@@ -17,9 +17,18 @@ const { Text } = Typography;
 
 // Função para capitalizar nome
 function capitalizeName(name) {
+  if (!name) return "";
+  
   return name
     .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word) => {
+      // Se contém 'Lote' ou 'Setor', mantém capitalização normal
+      if (word.toLowerCase().includes('lote') || word.toLowerCase().includes('setor')) {
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      }
+      // Caso contrário, aplica uppercase
+      return word.toUpperCase();
+    })
     .join(" ");
 }
 
@@ -120,9 +129,9 @@ const AreasTable = React.memo(({
       key: "nome",
       sorter: (a, b) => a.nome.localeCompare(b.nome),
       render: (text) => (
-        <Text 
-          strong 
-          style={{ 
+        <Text
+          strong
+          style={{
             color: "#059669",
             fontSize: "14px",
             fontWeight: "600",
@@ -131,7 +140,6 @@ const AreasTable = React.memo(({
           {text ? capitalizeName(text) : "-"}
         </Text>
       ),
-      width: "30%",
     },
     {
       title: "Categoria",
@@ -139,7 +147,6 @@ const AreasTable = React.memo(({
       key: "categoria",
       sorter: (a, b) => a.categoria.localeCompare(b.categoria),
       render: (categoria) => categoria ? formatarCategoria(categoria) : "-",
-      width: "15%",
     },
     {
       title: "Área Total",
@@ -147,8 +154,8 @@ const AreasTable = React.memo(({
       key: "areaTotal",
       sorter: (a, b) => (a.areaTotal || 0) - (b.areaTotal || 0),
       render: (area) => (
-        <Text 
-          style={{ 
+        <Text
+          style={{
             fontWeight: "500",
             color: "#1890ff",
             fontSize: "14px",
@@ -157,7 +164,6 @@ const AreasTable = React.memo(({
           {area !== null && area !== undefined ? formatarArea(area) : "-"}
         </Text>
       ),
-      width: "15%",
     },
     {
       title: "Área Plantada",
@@ -165,8 +171,8 @@ const AreasTable = React.memo(({
       render: (_, record) => {
         const totalPlantada = calcularAreaPlantadaTotal(record.culturas || record.culturasDetalhadas);
         return (
-          <Text 
-            style={{ 
+          <Text
+            style={{
               color: totalPlantada > 0 ? "#059669" : "#8c8c8c",
               fontWeight: "500",
               fontSize: "14px",
@@ -181,7 +187,6 @@ const AreasTable = React.memo(({
         const areaB = calcularAreaPlantadaTotal(b.culturas || b.culturasDetalhadas);
         return areaA - areaB;
       },
-      width: "15%",
     },
     {
       title: "Culturas",
@@ -195,14 +200,14 @@ const AreasTable = React.memo(({
             </Text>
           );
         }
-        
+
         return (
           <Space wrap size="small">
             {culturas.slice(0, 2).map((cultura, index) => (
-              <Tag 
-                key={index} 
-                color="#059669" 
-                style={{ 
+              <Tag
+                key={index}
+                color="#059669"
+                style={{
                   borderRadius: "4px",
                   fontSize: "11px",
                   fontWeight: "500",
@@ -213,9 +218,9 @@ const AreasTable = React.memo(({
                </Tag>
             ))}
             {culturas.length > 2 && (
-              <Tag 
-                color="#d9d9d9" 
-                style={{ 
+              <Tag
+                color="#d9d9d9"
+                style={{
                   borderRadius: "4px",
                   fontSize: "11px",
                   fontWeight: "500",
@@ -229,31 +234,26 @@ const AreasTable = React.memo(({
           </Space>
         );
       },
-      width: "20%",
     },
     {
       title: "Ações",
       key: "acoes",
       width: 80,
+      align: "center",
       render: (_, record) => (
-        <Dropdown 
-          menu={getMenuContent(record)} 
-          trigger={["click"]} 
+        <Dropdown
+          menu={getMenuContent(record)}
+          trigger={["click"]}
           placement="bottomRight"
         >
           <Button
             type="text"
             icon={<MoreOutlined />}
+            size="small"
             style={{
+              color: "#666666",
               border: "none",
-              backgroundColor: "transparent",
-              color: "#8c8c8c",
-              fontSize: "16px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "32px",
-              height: "32px",
+              boxShadow: "none",
             }}
           />
         </Dropdown>
@@ -272,9 +272,11 @@ const AreasTable = React.memo(({
       dataSource={areas}
       loading={loading}
       rowKey="id"
-      minWidthMobile={1200}
+      minWidthMobile={800}
       showScrollHint={true}
       rowClassName={assignRowClassName}
+      size="middle"
+      bordered={true}
       locale={{
         emptyText: (
           <Empty

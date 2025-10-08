@@ -30,6 +30,7 @@ import ResponsiveTable from "../common/ResponsiveTable";
 import VincularCulturasModal from "./VincularCulturasModal";
 import { PrimaryButton } from "../common/buttons";
 import { HectaresInput } from "../common/inputs";
+import { useTheme } from "@mui/material/styles";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -45,6 +46,7 @@ const AreaForm = ({
   onCulturasReload,
 }) => {
   const { isMobile } = useResponsive();
+  const theme = useTheme();
   const [gerenciarCulturasOpen, setGerenciarCulturasOpen] = useState(false);
 
   // Função para manipular mudanças nos campos
@@ -218,22 +220,22 @@ const AreaForm = ({
                 >
                   <Option value="COLONO">
                     <Space>
-                      <Tag color="#52c41a" style={{ borderRadius: "4px" }}>Colono</Tag>
+                      <Tag color={theme.palette.areaCategorias?.COLONO?.primary || "#52c41a"} style={{ borderRadius: "4px" }}>Colono</Tag>
                     </Space>
                   </Option>
                   <Option value="TECNICO">
                     <Space>
-                      <Tag color="#1890ff" style={{ borderRadius: "4px" }}>Técnico</Tag>
+                      <Tag color={theme.palette.areaCategorias?.TECNICO?.primary || "#1890ff"} style={{ borderRadius: "4px" }}>Técnico</Tag>
                     </Space>
                   </Option>
                   <Option value="EMPRESARIAL">
                     <Space>
-                      <Tag color="#722ed1" style={{ borderRadius: "4px" }}>Empresarial</Tag>
+                      <Tag color={theme.palette.areaCategorias?.EMPRESARIAL?.primary || "#722ed1"} style={{ borderRadius: "4px" }}>Empresarial</Tag>
                     </Space>
                   </Option>
                   <Option value="ADJACENTE">
                     <Space>
-                      <Tag color="#fa8c16" style={{ borderRadius: "4px" }}>Adjacente</Tag>
+                      <Tag color={theme.palette.areaCategorias?.ADJACENTE?.primary || "#fa8c16"} style={{ borderRadius: "4px" }}>Adjacente</Tag>
                     </Space>
                   </Option>
                 </Select>

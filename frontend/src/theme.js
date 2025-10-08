@@ -214,6 +214,42 @@ const getTheme = (mode) =>
               jumpInputFocusShadow: "rgba(5, 150, 105, 0.1)", // Sombra verde
               jumpLabelText: "#666666", // Texto do label cinza
             },
+            
+            // NOVA SEÇÃO: Cores das Categorias de Área Agrícola
+            areaCategorias: {
+              COLONO: {
+                primary: "#52c41a",    // Verde principal
+                light: "#73d13d",      // Verde claro
+                dark: "#389e0d",       // Verde escuro
+                background: "#f6ffed", // Verde muito claro para fundo
+                border: "#b7eb8f",     // Verde claro para borda
+                text: "#135200",       // Verde muito escuro para texto
+              },
+              TECNICO: {
+                primary: "#1890ff",    // Azul principal
+                light: "#40a9ff",      // Azul claro
+                dark: "#096dd9",       // Azul escuro
+                background: "#e6f7ff", // Azul muito claro para fundo
+                border: "#91d5ff",     // Azul claro para borda
+                text: "#003a8c",       // Azul muito escuro para texto
+              },
+              EMPRESARIAL: {
+                primary: "#722ed1",    // Roxo principal
+                light: "#9254de",      // Roxo claro
+                dark: "#531dab",       // Roxo escuro
+                background: "#f9f0ff", // Roxo muito claro para fundo
+                border: "#d3adf7",     // Roxo claro para borda
+                text: "#22075e",       // Roxo muito escuro para texto
+              },
+              ADJACENTE: {
+                primary: "#fa8c16",    // Laranja principal
+                light: "#ffa940",      // Laranja claro
+                dark: "#d46b08",       // Laranja escuro
+                background: "#fff7e6", // Laranja muito claro para fundo
+                border: "#ffd591",     // Laranja claro para borda
+                text: "#ad4e00",       // Laranja muito escuro para texto
+              },
+            },
           }
         : {
             // Paleta para o modo escuro
@@ -410,6 +446,42 @@ const getTheme = (mode) =>
               jumpInputFocusBorder: "#10b981", // Borda verde no focus
               jumpInputFocusShadow: "rgba(16, 185, 129, 0.1)", // Sombra verde
               jumpLabelText: "#b0bec5", // Texto do label cinza claro
+            },
+            
+            // NOVA SEÇÃO: Cores das Categorias de Área Agrícola (Modo Escuro)
+            areaCategorias: {
+              COLONO: {
+                primary: "#52c41a",    // Verde principal (mantém destaque)
+                light: "#73d13d",      // Verde claro
+                dark: "#389e0d",       // Verde escuro
+                background: "#1a2e1a", // Verde muito escuro para fundo
+                border: "#52c41a",     // Verde para borda
+                text: "#73d13d",       // Verde claro para texto
+              },
+              TECNICO: {
+                primary: "#1890ff",    // Azul principal (mantém destaque)
+                light: "#40a9ff",      // Azul claro
+                dark: "#096dd9",       // Azul escuro
+                background: "#1a2232", // Azul muito escuro para fundo
+                border: "#1890ff",     // Azul para borda
+                text: "#40a9ff",       // Azul claro para texto
+              },
+              EMPRESARIAL: {
+                primary: "#722ed1",    // Roxo principal (mantém destaque)
+                light: "#9254de",      // Roxo claro
+                dark: "#531dab",       // Roxo escuro
+                background: "#2a1a3a", // Roxo muito escuro para fundo
+                border: "#722ed1",     // Roxo para borda
+                text: "#9254de",       // Roxo claro para texto
+              },
+              ADJACENTE: {
+                primary: "#fa8c16",    // Laranja principal (mantém destaque)
+                light: "#ffa940",      // Laranja claro
+                dark: "#d46b08",       // Laranja escuro
+                background: "#3a2a1a", // Laranja muito escuro para fundo
+                border: "#fa8c16",     // Laranja para borda
+                text: "#ffa940",       // Laranja claro para texto
+              },
             },
           }),
     },

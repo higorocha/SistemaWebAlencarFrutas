@@ -141,7 +141,6 @@ const ClientesTable = React.memo(({
           )}
         </div>
       ),
-      width: "25%",
     },
     {
       title: "CNPJ/CPF",
@@ -160,7 +159,6 @@ const ClientesTable = React.memo(({
           )}
         </div>
       ),
-      width: "20%",
     },
     {
       title: "Contato",
@@ -181,7 +179,6 @@ const ClientesTable = React.memo(({
           )}
         </Space>
       ),
-      width: "20%",
     },
     {
       title: "Localização",
@@ -198,19 +195,18 @@ const ClientesTable = React.memo(({
           )}
         </div>
       ),
-      width: "15%",
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
       render: (status) => formatarStatus(status),
-      width: "10%",
     },
     {
       title: "Ações",
       key: "acoes",
       width: 80,
+      align: "center",
       render: (_, record) => (
         <Dropdown
           menu={getMenuContent(record)}
@@ -220,16 +216,11 @@ const ClientesTable = React.memo(({
           <Button
             type="text"
             icon={<MoreOutlined />}
+            size="small"
             style={{
+              color: "#666666",
               border: "none",
-              backgroundColor: "transparent",
-              color: "#8c8c8c",
-              fontSize: "16px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "32px",
-              height: "32px",
+              boxShadow: "none",
             }}
           />
         </Dropdown>
@@ -249,7 +240,7 @@ const ClientesTable = React.memo(({
       loading={loading}
       rowKey="id"
       pagination={false}
-      minWidthMobile={1200}
+      minWidthMobile={800}
       showScrollHint={true}
       size="middle"
       bordered={true}

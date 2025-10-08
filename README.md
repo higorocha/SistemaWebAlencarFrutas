@@ -91,6 +91,13 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 - **Fornecedores**: Cadastro completo com áreas associadas
 - **Relacionamentos**: Lotes-culturas para controle de plantio
 
+#### **🎨 Sistema de Cores por Categoria de Área**
+As cores das categorias de área estão centralizadas no `theme.js` e devem ser alteradas lá se necessário:
+- **COLONO** → Verde - Áreas de colonos
+- **TECNICO** → Azul - Áreas técnicas  
+- **EMPRESARIAL** → Roxo - Áreas empresariais
+- **ADJACENTE** → Laranja - Áreas adjacentes
+
 ### 🔗 **Sistema de Relacionamentos Cultura-Fruta-Área**
 
 **🎯 Nova Arquitetura de Relacionamentos:**
