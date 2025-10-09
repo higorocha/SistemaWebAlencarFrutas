@@ -275,6 +275,13 @@ const Culturas = () => {
     }
   }, [culturas, searchQuery]);
 
+  // Calcular dados paginados para exibição na tabela
+  const dadosPaginados = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return culturasFiltradas.slice(startIndex, endIndex);
+  }, [culturasFiltradas, currentPage, pageSize]);
+
   return (
     <Box
       sx={{
@@ -343,7 +350,7 @@ const Culturas = () => {
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
           <CulturasTable
-            culturas={culturasFiltradas}
+            culturas={dadosPaginados}
             loading={false}
             onEdit={handleEditarCultura}
             onDelete={handleExcluirCultura}

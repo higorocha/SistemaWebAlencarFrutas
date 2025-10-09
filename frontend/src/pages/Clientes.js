@@ -120,6 +120,13 @@ const Clientes = () => {
     setCurrentPage(1);
   }, [clientes, searchTerm, statusFilter]);
 
+  // Calcular dados paginados para exibição na tabela
+  const dadosPaginados = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return clientesFiltrados.slice(startIndex, endIndex);
+  }, [clientesFiltrados, currentPage, pageSize]);
+
   // Função para lidar com busca
   const handleSearch = useCallback((value) => {
     setSearchTerm(value);
@@ -314,7 +321,7 @@ const Clientes = () => {
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
           <ClientesTable
-            clientes={clientesFiltrados}
+            clientes={dadosPaginados}
             loading={false}
             onEdit={handleOpenEditModal}
             onDelete={handleDeleteCliente}

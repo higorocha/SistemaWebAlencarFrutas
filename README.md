@@ -68,6 +68,27 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 // { color: "#1890ff", text: "Aguardando Colheita" }
 ```
 
+**💰 Regra de Pedidos Vencidos (Lógica Unificada):**
+
+**🔴 Pedidos Vencidos - Critérios (30 dias):**
+- **Definição**: Pedidos com saldo devedor após 30 dias da data de colheita
+- **Critérios** (todos devem ser atendidos):
+  1. ✅ Possui data de colheita (`dataColheita` não nula)
+  2. ✅ Possui valor final (`valorFinal > 0`)
+  3. ✅ Passaram mais de 30 dias desde a colheita
+  4. ✅ Possui saldo devedor (`valorFinal - valorRecebido > 0`)
+- **Cálculo**: `valorInadimplente = Σ(valorFinal - valorRecebido)` para pedidos que atendem os critérios
+- **Taxa**: `taxaInadimplencia = (valorInadimplente / totalValorPedidos) × 100`
+- **Uso**: 
+  - Card "Pedidos Vencidos" no dashboard principal
+  - Card "% INADIMPLÊNCIA" no modal de detalhes da área
+  - Filtro especial "Vencidos" no modal de detalhes da área
+
+**📊 Exemplo Prático:**
+- **Pedido com 45 dias de colheita + saldo devedor de R$ 4.000**: ✅ **VENCIDO**
+- **Pedido com 18 dias de colheita + sem pagamento**: ❌ **NÃO vencido** (dentro dos 30 dias)
+- **Pedido com 54 dias de colheita + pago completamente**: ❌ **NÃO vencido** (sem saldo devedor)
+
 **🎯 Características Avançadas:**
 - **Dupla Unidade de Medida**: Por fruta (ex: 1000 KG + 50 CX)
 - **Múltiplas Áreas de Origem**: Próprias + fornecedores por fruta

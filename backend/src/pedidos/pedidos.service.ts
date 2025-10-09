@@ -118,7 +118,8 @@ export class PedidosService {
         valorFinal: true,
         valorRecebido: true,
         dataPrevistaColheita: true,
-        dataPedido: true
+        dataPedido: true,
+        dataColheita: true // ✅ Necessário para cálculo de pedidos vencidos
       }
     });
 
@@ -136,7 +137,7 @@ export class PedidosService {
     const trintaDiasAtras = new Date(hoje.getTime() - (30 * 24 * 60 * 60 * 1000));
 
     todosPedidos.forEach(pedido => {
-      const { status, valorFinal, valorRecebido, dataPedido } = pedido;
+      const { status, valorFinal, valorRecebido, dataColheita } = pedido;
 
       // Calcular pedidos ativos (excluir finalizados e cancelados)
       if (!['PEDIDO_FINALIZADO', 'CANCELADO'].includes(status)) {
@@ -152,11 +153,17 @@ export class PedidosService {
       // Somar valores recebidos
       if (valorRecebido) stats.valorRecebido += valorRecebido;
 
-      // Calcular pedidos vencidos: dataPedido > 30 dias atrás E 
-      // status de colheita/precificação/pagamento (exclui criados/aguardando colheita)
-      if (dataPedido && dataPedido < trintaDiasAtras && 
-          !['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'PEDIDO_FINALIZADO', 'CANCELADO', 'PAGAMENTO_REALIZADO'].includes(status)) {
-        stats.pedidosVencidos++;
+      // ✅ LÓGICA UNIFICADA: Pedidos vencidos = dataColheita > 30 dias + saldo devedor
+      // Considera vencido quando:
+      // 1. Tem data de colheita
+      // 2. Passou 30 dias da colheita
+      // 3. Tem valor final
+      // 4. Tem saldo devedor (valor não pago completamente)
+      if (dataColheita && dataColheita < trintaDiasAtras && valorFinal && valorFinal > 0) {
+        const saldoDevedor = valorFinal - (valorRecebido || 0);
+        if (saldoDevedor > 0) {
+          stats.pedidosVencidos++;
+        }
       }
     });
 

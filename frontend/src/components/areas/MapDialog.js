@@ -1,6 +1,6 @@
 // src/components/areas/MapDialog.js
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Modal, Button, Space, Typography, Card, Row, Col, Input, Form, Alert } from "antd";
+import { Modal, Button, Space, Typography, Card, Row, Col, Input, Form, Alert, Switch } from "antd";
 import { useTheme } from "@mui/material/styles";
 import {
   EnvironmentOutlined,
@@ -25,6 +25,7 @@ import {
   MyLocationOutlined,
   GlobalOutlined,
   ArrowsAltOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons";
 import useResponsive from "../../hooks/useResponsive";
 import {
@@ -40,6 +41,8 @@ import PropTypes from 'prop-types';
 import styled from "styled-components";
 import axiosInstance from "../../api/axiosConfig";
 import { StyledNumericFormat, InputWithIconContainer } from "../common/inputs/StyledInputComponents";
+import todosDibauData from "../../assets/geojson/lotesdibau/todosDibau.json";
+import { debounce } from 'lodash';
 
 // Estilo para o overlay de informações da área
 const OverlayBox = styled.div`
@@ -56,22 +59,158 @@ const OverlayBox = styled.div`
 
 // Estilo para o overlay estático do nome da área
 const StaticNameOverlay = styled.div`
-  background: rgba(220, 38, 38, 0.9); /* Vermelho semi-transparente */
+  background: ${props => props.theme?.palette?.primary?.main || '#059669'};
   color: white;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
   text-align: center;
   white-space: nowrap;
-  min-width: 80px;
+  width: fit-content;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
+  border: 1px solid ${props => props.theme?.palette?.primary?.dark || '#047857'};
+  z-index: 5;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+  backdrop-filter: blur(2px);
+`;
+
+// Estilo para o tooltip simples dos lotes DIBAU
+const LoteTooltip = styled.div`
+  color: #333;
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.9), -1px -1px 2px rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+  z-index: 3;
+  letter-spacing: 0.2px;
+  line-height: 1.2;
+`;
+
+// Estilo para o tooltip destacado dos lotes DIBAU
+const LoteTooltipDestacado = styled.div`
+  background: ${props => props.bgColor || '#FF6B6B'};
+  border: 1px solid ${props => props.borderColor || '#DC2626'};
+  border-radius: 6px;
+  padding: 6px 8px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  min-width: 100px;
+  text-align: center;
+  z-index: 1000;
+  pointer-events: none;
   max-width: 200px;
+  backdrop-filter: blur(4px);
+  animation: pulse 2s infinite;
+  
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 6px rgba(255, 107, 107, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 107, 107, 0);
+    }
+  }
+`;
+
+// Container do componente de busca
+const SearchContainer = styled.div`
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 16px;
+`;
+
+// Dropdown de resultados da busca
+const SearchDropdown = styled.div`
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+  margin-top: 4px;
+`;
+
+// Item individual do resultado da busca
+const SearchResultItem = styled.div`
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &:hover {
+    background-color: #f5f5f5;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+// Ícone do resultado
+const ResultIcon = styled.div`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: white;
+  background-color: ${props => props.bgColor || '#059669'};
+  flex-shrink: 0;
+`;
+
+// Conteúdo do resultado
+const ResultContent = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+// Título do resultado
+const ResultTitle = styled.div`
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(220, 38, 38, 0.8);
-  z-index: 5;
+`;
+
+// Subtítulo do resultado
+const ResultSubtitle = styled.div`
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+// Badge de tipo
+const TypeBadge = styled.div`
+  background-color: ${props => props.bgColor || '#f0f0f0'};
+  color: ${props => props.color || '#666'};
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 `;
 
   const MapDialog = React.memo(({
@@ -122,6 +261,19 @@ const StaticNameOverlay = styled.div`
   const centerRef = useRef(mapCenter);
   const zoomParaExibicaoDetalhes = 17; // Zoom necessário para mostrar detalhes
   const [areaHovered, setAreaHovered] = useState(null);
+  const [mostrarLotesDibau, setMostrarLotesDibau] = useState(true); // Switch para controlar exibição dos lotes DIBAU
+  const [mostrarNomesLotesDibau, setMostrarNomesLotesDibau] = useState(false); // Switch para controlar exibição dos nomes dos lotes DIBAU
+  const [mostrarNomesAreas, setMostrarNomesAreas] = useState(true); // Switch para controlar exibição dos nomes das áreas
+  const [mostrarAreas, setMostrarAreas] = useState(true); // Switch para controlar exibição das áreas existentes
+
+  // Estados para busca
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [areaDestacada, setAreaDestacada] = useState(null);
+  const [loteDestacado, setLoteDestacado] = useState(null);
+  const searchContainerRef = useRef(null);
 
   useEffect(() => {
     setCurrentZoom(mapZoom);
@@ -238,6 +390,254 @@ const StaticNameOverlay = styled.div`
     const center = bounds.getCenter();
     return { lat: center.lat(), lng: center.lng() };
   }, [mapCenter]);
+
+  // Função auxiliar para extrair nomenclatura do HTML da description
+  const extrairNomenclatura = useCallback((description) => {
+    try {
+      if (!description || !description.value) return null;
+      
+      // Buscar o valor de Nomenclatu no HTML usando regex
+      const match = description.value.match(/<td>Nomenclatu<\/td>\s*<td>([^<]+)<\/td>/);
+      return match ? match[1].trim() : null;
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  // Função auxiliar para extrair área (ha) do HTML da description
+  const extrairArea = useCallback((description) => {
+    try {
+      if (!description || !description.value) return null;
+      
+      // Buscar o valor de Area no HTML usando regex
+      const match = description.value.match(/<td>Area<\/td>\s*<td>([^<]+)<\/td>/);
+      if (!match) return null;
+      
+      // Converter vírgula para ponto e parsear para número
+      const areaStr = match[1].trim().replace(',', '.');
+      const area = parseFloat(areaStr);
+      
+      return isNaN(area) ? null : area;
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  // Função para processar as coordenadas dos lotes DIBAU (FeatureCollection)
+  const processTodosDibauCoordinates = useCallback(() => {
+    try {
+      if (!todosDibauData || !todosDibauData.features) {
+        return [];
+      }
+      
+      const lotes = [];
+      
+      todosDibauData.features.forEach((feature, index) => {
+        if (!feature.geometry || !feature.geometry.coordinates) {
+          return;
+        }
+        
+        const geometry = feature.geometry;
+        const properties = feature.properties || {};
+        
+        // Extrair dados do lote
+        const loteNome = properties.name || '';
+        const nomenclatura = extrairNomenclatura(properties.description);
+        const areaHa = extrairArea(properties.description);
+        
+        if (geometry.type === 'Polygon') {
+          // Converter coordenadas para o formato do Google Maps
+          const paths = geometry.coordinates.map(ring => 
+            ring.map(coord => ({
+              lat: coord[1], // latitude
+              lng: coord[0]  // longitude
+            }))
+          );
+          
+          // Calcular centro do polígono
+          const bounds = new window.google.maps.LatLngBounds();
+          paths[0].forEach(coord => bounds.extend(coord));
+          const center = bounds.getCenter();
+          
+          lotes.push({
+            paths,
+            loteNome,
+            nomenclatura,
+            areaHa,
+            center: { lat: center.lat(), lng: center.lng() }
+          });
+        } else if (geometry.type === 'MultiPolygon') {
+          // Processar múltiplos polígonos
+          geometry.coordinates.forEach((polygon, polyIndex) => {
+            const paths = polygon.map(ring => 
+              ring.map(coord => ({
+                lat: coord[1], // latitude
+                lng: coord[0]  // longitude
+              }))
+            );
+            
+            // Calcular centro do polígono
+            const bounds = new window.google.maps.LatLngBounds();
+            paths[0].forEach(coord => bounds.extend(coord));
+            const center = bounds.getCenter();
+            
+            lotes.push({
+              paths,
+              loteNome,
+              nomenclatura,
+              areaHa,
+              center: { lat: center.lat(), lng: center.lng() }
+            });
+          });
+        }
+      });
+      
+      return lotes;
+    } catch (error) {
+      console.error('Erro ao processar coordenadas dos lotes DIBAU:', error);
+      return [];
+    }
+  }, [extrairNomenclatura, extrairArea]);
+  
+  // Processar coordenadas dos lotes DIBAU
+  const todosDibauLotes = useMemo(() => {
+    return processTodosDibauCoordinates();
+  }, [processTodosDibauCoordinates]);
+
+  // Função de busca
+  const buscarAreas = useCallback(async (termo) => {
+    const trimmedTerm = termo.trim();
+    
+    if (trimmedTerm.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    try {
+      // 1. Buscar no backend
+      let areasBackend = [];
+      try {
+        const response = await axiosInstance.get(`/api/areas-agricolas/buscar?termo=${encodeURIComponent(trimmedTerm)}`);
+        areasBackend = response.data || [];
+      } catch (error) {
+        console.error('Erro ao buscar áreas no backend:', error);
+        // Continuar mesmo se der erro no backend
+      }
+
+      // 2. Buscar nos lotes DIBAU localmente
+      const lotesFiltrados = todosDibauLotes
+        .map((lote, originalIndex) => ({ ...lote, originalIndex })) // Add originalIndex
+        .filter(lote => {
+          const nomeMatch = lote.loteNome && lote.loteNome.toLowerCase().includes(trimmedTerm.toLowerCase());
+          const nomenclaturaMatch = lote.nomenclatura && lote.nomenclatura.toLowerCase().includes(trimmedTerm.toLowerCase());
+          return nomeMatch || nomenclaturaMatch;
+        });
+
+      // 3. Combinar resultados
+      const resultados = [
+        // Áreas do sistema (backend)
+        ...areasBackend.map((area) => ({
+          tipo: 'area-sistema',
+          id: area.id,
+          nome: area.nome,
+          nomenclatura: area.nomenclatura,
+          coordenadas: area.coordenadas,
+          categoria: area.categoria,
+          areaTotal: area.areaTotal,
+          culturas: area.culturas
+        })),
+        // Lotes DIBAU (local)
+        ...lotesFiltrados.map((lote) => ({
+          tipo: 'lote-dibau',
+          id: `lote-${lote.originalIndex}`, // Use originalIndex here
+          nome: lote.loteNome,
+          nomenclatura: lote.nomenclatura,
+          areaHa: lote.areaHa,
+          paths: lote.paths,
+          center: lote.center
+        }))
+      ];
+
+      setSearchResults(resultados);
+      setSearchDropdownOpen(resultados.length > 0);
+    } catch (error) {
+      console.error('Erro na busca:', error);
+      setSearchResults([]);
+      setSearchDropdownOpen(false);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [todosDibauLotes]);
+
+  // Debounced search function
+  const debouncedBuscarAreas = useMemo(
+    () => debounce(buscarAreas, 300),
+    [buscarAreas]
+  );
+
+  // Handler para mudança no input de busca
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    if (value.trim().length >= 2) {
+      debouncedBuscarAreas(value);
+    } else {
+      setSearchResults([]);
+      setSearchDropdownOpen(false);
+      setSearchLoading(false);
+    }
+  };
+
+  // Handler para selecionar resultado da busca
+  const handleSelectSearchResult = (resultado) => {
+    setSearchTerm('');
+    setSearchResults([]);
+    setSearchDropdownOpen(false);
+    
+    if (resultado.tipo === 'area-sistema') {
+      // Área do sistema
+      const center = getPolygonCenter(resultado.coordenadas);
+      setMapCenter(center);
+      setMapZoom(15); // Zoom adequado
+      setAreaDestacada(resultado.id);
+      setAreaHovered(resultado.id);
+      
+      // Remover destaque após 10 segundos
+      setTimeout(() => {
+        setAreaDestacada(null);
+        setAreaHovered(null);
+      }, 10000);
+
+    } else if (resultado.tipo === 'lote-dibau') {
+      // Lote DIBAU
+      setMapCenter(resultado.center);
+      setMapZoom(15); // Zoom adequado
+      setLoteDestacado(resultado.id);
+      
+      // Remover destaque após 10 segundos
+      setTimeout(() => {
+        setLoteDestacado(null);
+      }, 10000);
+    }
+  };
+
+  // Handler para clicar fora do componente de busca
+  const handleClickOutside = (event) => {
+    if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+      setSearchDropdownOpen(false);
+    }
+  };
+
+  // useEffect para detectar cliques fora
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const formatarNumero = (numero) => {
     if (numero === null || numero === undefined || isNaN(numero)) return "-";
@@ -458,6 +858,22 @@ const StaticNameOverlay = styled.div`
     zIndex: 1,
   };
 
+  // Opções do polígono dos lotes DIBAU
+  const getLotesDibauPolygonOptions = () => {
+    return {
+      fillColor: '#FF6B6B', // Vermelho coral
+      fillOpacity: 0.15, // Extremamente transparente (15%)
+      strokeColor: '#000000', // Preto para borda
+      strokeOpacity: 0.9, // Bordas visíveis (90%)
+      strokeWeight: 0.5,
+      clickable: false,
+      draggable: false,
+      editable: false,
+      geodesic: false,
+      zIndex: 0, // Abaixo de tudo
+    };
+  };
+
   const markerOptions = {
     draggable: isEditableMode,
     icon: {
@@ -509,64 +925,434 @@ const StaticNameOverlay = styled.div`
       destroyOnClose
     >
       {isEditableMode && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            justifyContent: "space-between",
-            alignItems: isMobile ? "stretch" : "center",
-            marginBottom: isMobile ? 12 : 16,
-            gap: isMobile ? "8px" : "0",
-          }}
-        >
-          <Space wrap size={isMobile ? "small" : "middle"}>
-            {mapMode === "create" && (
+        <>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              justifyContent: "space-between",
+              alignItems: isMobile ? "stretch" : "center",
+              marginBottom: isMobile ? 8 : 12,
+              gap: isMobile ? "8px" : "12px",
+            }}
+          >
+            <Space wrap size={isMobile ? "small" : "middle"}>
+              {mapMode === "create" && (
+                <Button
+                  type={isDrawing ? "primary" : "default"}
+                  icon={<GlobalOutlined />}
+                  size={isMobile ? "small" : "middle"}
+                  onClick={() => {
+                    if (isDrawing) {
+                      setIsDrawing(false);
+                    } else {
+                      setTempCoordinates([]);
+                      setMarkers([]);
+                      setMidpoints([]);
+                      setAreaPoligono(0);
+                      setManualArea(0);
+                      setOriginalArea(0);
+                      setIsDrawing(true);
+                    }
+                  }}
+                  style={{
+                    fontSize: isMobile ? "0.75rem" : "0.875rem",
+                  }}
+                >
+                  {isDrawing ? (isMobile ? "Cancelar" : "Cancelar Desenho") : (isMobile ? "Desenhar" : "Desenhar Área")}
+                </Button>
+              )}
               <Button
-                type={isDrawing ? "primary" : "default"}
-                icon={<GlobalOutlined />}
+                type="default"
+                icon={<ArrowsAltOutlined />}
                 size={isMobile ? "small" : "middle"}
-                onClick={() => {
-                  if (isDrawing) {
-                    setIsDrawing(false);
-                  } else {
-                    setTempCoordinates([]);
-                    setMarkers([]);
-                    setMidpoints([]);
-                    setAreaPoligono(0);
-                    setManualArea(0);
-                    setOriginalArea(0);
-                    setIsDrawing(true);
-                  }
-                }}
+                onClick={() => setIsDrawing(false)}
                 style={{
                   fontSize: isMobile ? "0.75rem" : "0.875rem",
                 }}
               >
-                {isDrawing ? (isMobile ? "Cancelar" : "Cancelar Desenho") : (isMobile ? "Desenhar" : "Desenhar Área")}
+                {isMobile ? "Mover" : "Mover Mapa"}
               </Button>
-            )}
-            <Button
-              type="default"
-              icon={<ArrowsAltOutlined />}
-              size={isMobile ? "small" : "middle"}
-              onClick={() => setIsDrawing(false)}
-              style={{
-                fontSize: isMobile ? "0.75rem" : "0.875rem",
-              }}
-            >
-              {isMobile ? "Mover" : "Mover Mapa"}
-            </Button>
-          </Space>
 
+              {/* Componente unificado Alencar */}
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: isMobile ? "4px" : "10px",
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(4px)",
+                padding: isMobile ? "4px 6px" : "8px 14px",
+                borderRadius: isMobile ? "16px" : "20px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                border: "1px solid rgba(5, 150, 105, 0.2)",
+                transition: "all 0.2s ease",
+                flex: "none"
+              }}>
+                <HomeOutlined 
+                  style={{ 
+                    fontSize: isMobile ? "12px" : "18px",
+                    color: (mostrarAreas || mostrarNomesAreas) ? "#059669" : "#666",
+                    transition: "color 0.2s ease"
+                  }} 
+                />
+                <Typography.Text 
+                  style={{ 
+                    fontSize: isMobile ? "0.5625rem" : "0.8125rem",
+                    fontWeight: "600",
+                    margin: 0,
+                    whiteSpace: "nowrap",
+                    color: (mostrarAreas || mostrarNomesAreas) ? "#059669" : "#666",
+                    transition: "color 0.2s ease"
+                  }}
+                >
+                  Alencar
+                </Typography.Text>
+                
+                {/* Separador visual */}
+                <div style={{
+                  width: "1px",
+                  height: isMobile ? "14px" : "20px",
+                  backgroundColor: "rgba(5, 150, 105, 0.3)",
+                  margin: isMobile ? "0 2px" : "0 4px"
+                }} />
+                
+                {/* Toggle para Áreas */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: isMobile ? "2px" : "6px",
+                  padding: isMobile ? "2px 4px" : "4px 8px",
+                  borderRadius: isMobile ? "8px" : "12px",
+                  backgroundColor: mostrarAreas ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                  transition: "all 0.2s ease"
+                }}>
+                  <Typography.Text 
+                    style={{ 
+                      fontSize: isMobile ? "0.5rem" : "0.75rem",
+                      fontWeight: "500",
+                      margin: 0,
+                      color: mostrarAreas ? "#059669" : "#999",
+                      transition: "color 0.2s ease"
+                    }}
+                  >
+                    Áreas
+                  </Typography.Text>
+                  <Switch
+                    size="small"
+                    checked={mostrarAreas}
+                    onChange={setMostrarAreas}
+                    style={{
+                      backgroundColor: mostrarAreas ? "#059669" : undefined,
+                      transform: isMobile ? "scale(0.8)" : undefined
+                    }}
+                  />
+                </div>
+                
+                {/* Toggle para Nomes */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: isMobile ? "2px" : "6px",
+                  padding: isMobile ? "2px 4px" : "4px 8px",
+                  borderRadius: isMobile ? "8px" : "12px",
+                  backgroundColor: mostrarNomesAreas ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                  transition: "all 0.2s ease"
+                }}>
+                  <Typography.Text 
+                    style={{ 
+                      fontSize: isMobile ? "0.5rem" : "0.75rem",
+                      fontWeight: "500",
+                      margin: 0,
+                      color: mostrarNomesAreas ? "#059669" : "#999",
+                      transition: "color 0.2s ease"
+                    }}
+                  >
+                    Nomes
+                  </Typography.Text>
+                  <Switch
+                    size="small"
+                    checked={mostrarNomesAreas}
+                    onChange={setMostrarNomesAreas}
+                    style={{
+                      backgroundColor: mostrarNomesAreas ? "#059669" : undefined,
+                      transform: isMobile ? "scale(0.8)" : undefined
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Componente unificado DIBAU */}
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: isMobile ? "4px" : "10px",
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(4px)",
+                padding: isMobile ? "4px 6px" : "8px 14px",
+                borderRadius: isMobile ? "16px" : "20px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                border: "1px solid rgba(5, 150, 105, 0.2)",
+                transition: "all 0.2s ease"
+              }}>
+                <GlobalOutlined 
+                  style={{ 
+                    fontSize: isMobile ? "12px" : "18px",
+                    color: mostrarLotesDibau ? "#059669" : "#666",
+                    transition: "color 0.2s ease"
+                  }} 
+                />
+                <Typography.Text 
+                  style={{ 
+                    fontSize: isMobile ? "0.5625rem" : "0.8125rem",
+                    fontWeight: "600",
+                    margin: 0,
+                    whiteSpace: "nowrap",
+                    color: mostrarLotesDibau ? "#059669" : "#666",
+                    transition: "color 0.2s ease"
+                  }}
+                >
+                  DIBAU
+                </Typography.Text>
+                
+                {/* Separador visual */}
+                <div style={{
+                  width: "1px",
+                  height: isMobile ? "14px" : "20px",
+                  backgroundColor: "rgba(5, 150, 105, 0.3)",
+                  margin: isMobile ? "0 2px" : "0 4px"
+                }} />
+                
+                {/* Toggle para Lotes */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: isMobile ? "2px" : "6px",
+                  padding: isMobile ? "2px 4px" : "4px 8px",
+                  borderRadius: isMobile ? "8px" : "12px",
+                  backgroundColor: mostrarLotesDibau ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                  transition: "all 0.2s ease"
+                }}>
+                  <Typography.Text 
+                    style={{ 
+                      fontSize: isMobile ? "0.5rem" : "0.75rem",
+                      fontWeight: "500",
+                      margin: 0,
+                      color: mostrarLotesDibau ? "#059669" : "#999",
+                      transition: "color 0.2s ease"
+                    }}
+                  >
+                    Lotes
+                  </Typography.Text>
+                  <Switch
+                    size="small"
+                    checked={mostrarLotesDibau}
+                    onChange={setMostrarLotesDibau}
+                    style={{
+                      backgroundColor: mostrarLotesDibau ? "#059669" : undefined,
+                      transform: isMobile ? "scale(0.8)" : undefined
+                    }}
+                  />
+                </div>
+                
+                {/* Toggle para Nomes */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: isMobile ? "2px" : "6px",
+                  padding: isMobile ? "2px 4px" : "4px 8px",
+                  borderRadius: isMobile ? "8px" : "12px",
+                  backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+                  transition: "all 0.2s ease",
+                  opacity: mostrarLotesDibau ? 1 : 0.5
+                }}>
+                  <Typography.Text 
+                    style={{ 
+                      fontSize: isMobile ? "0.5rem" : "0.75rem",
+                      fontWeight: "500",
+                      margin: 0,
+                      color: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : "#999",
+                      transition: "color 0.2s ease"
+                    }}
+                  >
+                    Nomes
+                  </Typography.Text>
+                  <Switch
+                    size="small"
+                    checked={mostrarNomesLotesDibau}
+                    onChange={setMostrarNomesLotesDibau}
+                    disabled={!mostrarLotesDibau}
+                    style={{
+                      backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : undefined,
+                      transform: isMobile ? "scale(0.8)" : undefined
+                    }}
+                  />
+                </div>
+              </div>
+            </Space>
+
+            {/* Divider e Componente de busca no desktop */}
+            {!isMobile && (
+              <>
+                {/* Divider vertical */}
+                <div style={{
+                  width: "1px",
+                  height: "32px",
+                  backgroundColor: "rgba(5, 150, 105, 0.2)",
+                  margin: "0 8px"
+                }} />
+
+                {/* Componente de busca ocupando espaço restante */}
+                <SearchContainer ref={searchContainerRef} style={{ 
+                  marginBottom: 0, 
+                  flex: 1,
+                  maxWidth: '100%'
+                }}>
+                  <Input
+                    placeholder="Buscar área por nome..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    prefix={<SearchOutlined />}
+                    suffix={searchLoading ? <LoadingOutlined /> : null}
+                    size="middle"
+                    style={{
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      border: '1px solid #d9d9d9',
+                    }}
+                  />
+                  
+                  {/* Dropdown de resultados */}
+                  {searchDropdownOpen && searchResults.length > 0 && (
+                    <SearchDropdown>
+                      {searchResults.map((resultado) => (
+                        <SearchResultItem
+                          key={resultado.id}
+                          onClick={() => handleSelectSearchResult(resultado)}
+                        >
+                          <ResultIcon bgColor={resultado.tipo === 'area-sistema' ? '#059669' : '#FF6B6B'}>
+                            {resultado.tipo === 'area-sistema' ? <EnvironmentOutlined /> : <AimOutlined />}
+                          </ResultIcon>
+                          
+                          <ResultContent>
+                            <ResultTitle>{resultado.nome}</ResultTitle>
+                            <ResultSubtitle>
+                              {resultado.tipo === 'area-sistema' ? (
+                                <>
+                                  <TypeBadge color={resultado.categoria === 'COLONO' ? '#52c41a' : resultado.categoria === 'TECNICO' ? '#1890ff' : resultado.categoria === 'EMPRESARIAL' ? '#722ed1' : '#fa8c16'}>
+                                    {resultado.categoria}
+                                  </TypeBadge>
+                                  {' • '}
+                                  {formatarNumero(resultado.areaTotal)} ha
+                                </>
+                              ) : (
+                                <>
+                                  <TypeBadge color="#FF6B6B">Lote DIBAU</TypeBadge>
+                                  {resultado.nomenclatura && (
+                                    <> • {resultado.nomenclatura}</>
+                                  )}
+                                  {resultado.areaHa && (
+                                    <> • {formatarNumero(resultado.areaHa)} ha</>
+                                  )}
+                                </>
+                              )}
+                            </ResultSubtitle>
+                          </ResultContent>
+                        </SearchResultItem>
+                      ))}
+                    </SearchDropdown>
+                  )}
+                </SearchContainer>
+              </>
+            )}
+          </div>
+
+          {/* Dica informativa abaixo dos controles - apenas desktop */}
           {!isMobile && (
-            <div style={{ textAlign: "right" }}>
-              <Typography.Text type="secondary" style={{ fontSize: "0.75rem" }}>
-                <InfoCircleOutlined /> Dica: Clique e arraste os pontos azuis para ajustar os vértices.
-                Pontos verdes são para adicionar novos vértices.
-              </Typography.Text>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '12px',
+                flexWrap: 'wrap'
+              }}>
+                <Typography.Text type="secondary" style={{ fontSize: "0.7rem" }}>
+                  <InfoCircleOutlined /> Arraste pontos azuis para ajustar vértices ou pontos verdes para adicionar novos.
+                </Typography.Text>
+                
+                {/* Divider vertical */}
+                <div style={{
+                  width: "1px",
+                  height: "20px",
+                  backgroundColor: "#d9d9d9"
+                }} />
+                
+                <Typography.Text type="warning" style={{ fontSize: "0.7rem" }}>
+                  <ExclamationCircleOutlined /> Dados dos lotes DIBAU (nome e área) são do KML do distrito e apenas referência, podendo apresentar erros.
+                </Typography.Text>
+              </div>
             </div>
           )}
-        </div>
+        </>
+      )}
+
+      {/* Componente de busca mobile */}
+      {isMobile && (
+        <SearchContainer ref={searchContainerRef}>
+          <Input
+            placeholder="Buscar por nome da área..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+            prefix={<SearchOutlined />}
+            suffix={searchLoading ? <LoadingOutlined /> : null}
+            size="middle"
+            style={{
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              border: '1px solid #d9d9d9',
+            }}
+          />
+          
+          {/* Dropdown de resultados */}
+          {searchDropdownOpen && searchResults.length > 0 && (
+            <SearchDropdown>
+              {searchResults.map((resultado) => (
+                <SearchResultItem
+                  key={resultado.id}
+                  onClick={() => handleSelectSearchResult(resultado)}
+                >
+                  <ResultIcon bgColor={resultado.tipo === 'area-sistema' ? '#059669' : '#FF6B6B'}>
+                    {resultado.tipo === 'area-sistema' ? <EnvironmentOutlined /> : <AimOutlined />}
+                  </ResultIcon>
+                  
+                  <ResultContent>
+                    <ResultTitle>{resultado.nome}</ResultTitle>
+                    <ResultSubtitle>
+                      {resultado.tipo === 'area-sistema' ? (
+                        <>
+                          <TypeBadge color={resultado.categoria === 'COLONO' ? '#52c41a' : resultado.categoria === 'TECNICO' ? '#1890ff' : resultado.categoria === 'EMPRESARIAL' ? '#722ed1' : '#fa8c16'}>
+                            {resultado.categoria}
+                          </TypeBadge>
+                          {' • '}
+                          {formatarNumero(resultado.areaTotal)} ha
+                        </>
+                      ) : (
+                        <>
+                          <TypeBadge color="#FF6B6B">Lote DIBAU</TypeBadge>
+                          {resultado.nomenclatura && (
+                            <> • {resultado.nomenclatura}</>
+                          )}
+                          {resultado.areaHa && (
+                            <> • {formatarNumero(resultado.areaHa)} ha</>
+                          )}
+                        </>
+                      )}
+                    </ResultSubtitle>
+                  </ResultContent>
+                </SearchResultItem>
+              ))}
+            </SearchDropdown>
+          )}
+        </SearchContainer>
       )}
       
       <div style={{ position: "relative" }}>
@@ -583,6 +1369,49 @@ const StaticNameOverlay = styled.div`
           onZoomChanged={onZoomChanged}
           onDragEnd={onDragEnd}
           options={{
+            styles: [
+              // Ocultar rótulos de todos os pontos de interesse primeiro
+              {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [{ visibility: "off" }]
+              },
+              // Ocultar pontos de interesse comerciais (restaurantes, supermercados, postos, hotéis)
+              {
+                featureType: "poi.business",
+                stylers: [{ visibility: "off" }]
+              },
+              // Ocultar edifícios governamentais
+              {
+                featureType: "poi.government",
+                stylers: [{ visibility: "off" }]
+              },
+              // Ocultar instalações médicas
+              {
+                featureType: "poi.medical",
+                stylers: [{ visibility: "off" }]
+              },
+              // Ocultar escolas
+              {
+                featureType: "poi.school",
+                stylers: [{ visibility: "off" }]
+              },
+              // Ocultar complexos esportivos
+              {
+                featureType: "poi.sports_complex",
+                stylers: [{ visibility: "off" }]
+              },
+              // Ocultar locais de culto
+              {
+                featureType: "poi.place_of_worship",
+                stylers: [{ visibility: "off" }]
+              },
+              // Ocultar atrações turísticas
+              {
+                featureType: "poi.attraction",
+                stylers: [{ visibility: "off" }]
+              }
+            ],
             disableDefaultUI: false,
             mapTypeControl: true,
             gestureHandling: "greedy",
@@ -599,14 +1428,165 @@ const StaticNameOverlay = styled.div`
             clickableIcons: false,
           }}
         >
+          {/* Renderizar polígonos dos lotes DIBAU */}
+          {mostrarLotesDibau && todosDibauLotes.map((lote, index) => {
+            // Calcular o centro do lote para o tooltip
+            const center = getPolygonCenter(lote.paths[0]); // Usar o primeiro ring
+            
+            // Formatar o texto do tooltip (com área apenas no zoom, não no switch)
+            const tooltipTextSwitch = lote.nomenclatura 
+              ? `${lote.loteNome} (${lote.nomenclatura})`
+              : lote.loteNome;
+            
+            const tooltipTextZoom = (() => {
+              let text = lote.loteNome;
+              if (lote.nomenclatura) text += ` (${lote.nomenclatura})`;
+              if (lote.areaHa) text += ` - ${formatarNumero(lote.areaHa)} ha`;
+              return text;
+            })();
+            
+            // Verificar se este lote está destacado
+            const isDestacado = loteDestacado === `lote-${index}`;
+            
+            // Buscar dados do resultado da busca para tooltip destacado
+            const resultadoBusca = searchResults.find(r => r.id === `lote-${index}` && r.tipo === 'lote-dibau');
+            
+            return (
+              <React.Fragment key={`lote-dibau-${index}`}>
+                {/* Polígono do lote */}
+                <Polygon
+                  paths={lote.paths}
+                  options={{
+                    ...getLotesDibauPolygonOptions(),
+                    fillOpacity: isDestacado ? 0.4 : 0.15,
+                    strokeWeight: isDestacado ? 2 : 0.5,
+                    strokeOpacity: isDestacado ? 0.9 : 0.5,
+                    zIndex: isDestacado ? 3 : 1
+                  }}
+                />
+
+                {/* Marcador central para lote destacado */}
+                {isDestacado && (
+                  <Marker
+                    position={center}
+                    icon={{
+                      url: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+                      scaledSize: new window.google.maps.Size(16, 16),
+                    }}
+                  />
+                )}
+
+                {/* Tooltip destacado para lote selecionado na busca */}
+                {isDestacado && (
+                  <OverlayView
+                    position={center}
+                    mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                    getPixelPositionOffset={getPixelPositionOffset}
+                  >
+                    <LoteTooltipDestacado
+                      bgColor="#FF6B6B"
+                      borderColor="#DC2626"
+                      isMobile={isMobile}
+                      theme={theme}
+                    >
+                      <div style={{ marginBottom: '4px' }}>
+                        <Typography.Text strong style={{
+                          fontSize: isMobile ? '11px' : '13px',
+                          color: 'white',
+                          display: 'block',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          {resultadoBusca?.nome || lote.loteNome}
+                        </Typography.Text>
+                      </div>
+
+                      {(resultadoBusca?.nomenclatura || lote.nomenclatura) && (
+                        <div>
+                          <Typography.Text style={{
+                            fontSize: isMobile ? '10px' : '11px',
+                            color: 'rgba(255, 255, 255, 0.9)',
+                            display: 'block'
+                          }}>
+                            {resultadoBusca?.nomenclatura || lote.nomenclatura}
+                          </Typography.Text>
+                        </div>
+                      )}
+
+                      {(resultadoBusca?.areaHa || lote.areaHa) && (
+                        <div style={{ marginTop: '4px' }}>
+                          <Typography.Text style={{
+                            fontSize: isMobile ? '10px' : '11px',
+                            color: 'rgba(255, 255, 255, 0.9)',
+                            display: 'block'
+                          }}>
+                            {formatarNumero(resultadoBusca?.areaHa || lote.areaHa)} ha
+                          </Typography.Text>
+                        </div>
+                      )}
+
+                      <div style={{
+                        marginTop: '6px',
+                        paddingTop: '6px',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.3)'
+                      }}>
+                        <Typography.Text style={{
+                          fontSize: isMobile ? '9px' : '10px',
+                          color: 'rgba(255, 255, 255, 0.8)',
+                          display: 'block',
+                          fontStyle: 'italic'
+                        }}>
+                          Lote DIBAU
+                        </Typography.Text>
+                      </div>
+                    </LoteTooltipDestacado>
+                  </OverlayView>
+                )}
+
+                {/* Tooltip simples com nome do lote - controlado pelo switch (sem área) */}
+                {!isDestacado && mostrarNomesLotesDibau && currentZoom < zoomParaExibicaoDetalhes && (
+                  <OverlayView
+                    position={center}
+                    mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                    getPixelPositionOffset={(width, height) => ({
+                      x: -(width / 2),
+                      y: -(height / 2)
+                    })}
+                  >
+                    <LoteTooltip>
+                      {tooltipTextSwitch}
+                    </LoteTooltip>
+                  </OverlayView>
+                )}
+
+                {/* Tooltip com área quando zoom é suficiente (não mostra se destacado) */}
+                {!isDestacado && currentZoom >= zoomParaExibicaoDetalhes && (
+                  <OverlayView
+                    position={center}
+                    mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                    getPixelPositionOffset={(width, height) => ({
+                      x: -(width / 2),
+                      y: -(height / 2)
+                    })}
+                  >
+                    <LoteTooltip>
+                      {tooltipTextZoom}
+                    </LoteTooltip>
+                  </OverlayView>
+                )}
+              </React.Fragment>
+            );
+          })}
+
           {/* Renderizar áreas existentes */}
-          {lotesExistentes.map((area, index) => {
+          {mostrarAreas && lotesExistentes.map((area, index) => {
             if (!area.coordenadas || !Array.isArray(area.coordenadas) || area.coordenadas.length < 3) {
               return null;
             }
 
             const center = getPolygonCenter(area.coordenadas);
             const isHovered = areaHovered === area.id;
+            const isDestacada = areaDestacada === area.id;
             
             return (
               <React.Fragment key={`existing-area-${area.id}`}>
@@ -614,32 +1594,50 @@ const StaticNameOverlay = styled.div`
                   paths={area.coordenadas}
                   options={{
                     ...existingPolygonOptions,
-                    fillOpacity: isHovered ? 0.4 : 0.2,
-                    strokeOpacity: isHovered ? 1 : 0.6,
-                    strokeWeight: isHovered ? 3 : 2,
+                    fillOpacity: (isHovered || isDestacada) ? 0.4 : 0.2,
+                    strokeOpacity: (isHovered || isDestacada) ? 1 : 0.6,
+                    strokeWeight: (isHovered || isDestacada) ? 3 : 2,
+                    zIndex: isDestacada ? 3 : 1,
                   }}
                   onMouseOver={() => setAreaHovered(area.id)}
                   onMouseOut={() => setAreaHovered(null)}
                 />
 
-                <Marker
-                  position={center}
-                  icon={{
-                    url: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-                    scaledSize: new window.google.maps.Size(12, 12),
-                  }}
-                />
+                {/* Marcador especial para área destacada */}
+                {isDestacada && (
+                  <Marker
+                    position={center}
+                    icon={{
+                      url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+                      scaledSize: new window.google.maps.Size(20, 20),
+                    }}
+                    zIndex={4}
+                  />
+                )}
 
-                {/* Overlay estático com NOME da área - sempre visível */}
-                <OverlayView
-                  position={center}
-                  mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                  getPixelPositionOffset={getPixelPositionOffset}
-                >
-                  <StaticNameOverlay>
-                    {area.nome}
-                  </StaticNameOverlay>
-                </OverlayView>
+                {/* Marcador normal para área não destacada */}
+                {!isDestacada && (
+                  <Marker
+                    position={center}
+                    icon={{
+                      url: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+                      scaledSize: new window.google.maps.Size(12, 12),
+                    }}
+                  />
+                )}
+
+                {/* Overlay estático com NOME da área - controlado pelo switch */}
+                {mostrarNomesAreas && (
+                  <OverlayView
+                    position={center}
+                    mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                    getPixelPositionOffset={getPixelPositionOffset}
+                  >
+                    <StaticNameOverlay theme={theme}>
+                      {area.nome}
+                    </StaticNameOverlay>
+                  </OverlayView>
+                )}
 
                 {/* Overlay com informações detalhadas da área quando zoom é suficiente */}
                 {(currentZoom >= zoomParaExibicaoDetalhes || isHovered) && (
@@ -916,6 +1914,31 @@ const StaticNameOverlay = styled.div`
               {isMobile ? "Existentes" : "Áreas existentes"}
             </span>
           </div>
+          {/* Entrada dos lotes DIBAU na legenda */}
+          {mostrarLotesDibau && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginTop: '2px',
+              paddingTop: '2px',
+              borderTop: '1px solid #f0f0f0'
+            }}>
+              <span style={{
+                display: "inline-block",
+                width: isMobile ? "8px" : "12px",
+                height: isMobile ? "8px" : "12px",
+                backgroundColor: "#000000",
+                flexShrink: 0
+              }}></span>
+              <span style={{
+                fontSize: isMobile ? "0.625rem" : "0.75rem",
+                whiteSpace: isMobile ? "nowrap" : "normal"
+              }}>
+                {isMobile ? "Lotes" : "Lotes DIBAU"}
+              </span>
+            </div>
+          )}
         </div>
       </div>
       

@@ -250,6 +250,31 @@ const getTheme = (mode) =>
                 text: "#ad4e00",       // Laranja muito escuro para texto
               },
             },
+            
+            // NOVA SEÇÃO: Cores para Culturas (Paleta Diversificada)
+            culturas: {
+              // Paleta de 20 cores distintas e vibrantes para diferentes culturas
+              cor1: "#52c41a",   // Verde vibrante
+              cor2: "#1890ff",   // Azul vibrante
+              cor3: "#722ed1",   // Roxo vibrante
+              cor4: "#fa8c16",   // Laranja vibrante
+              cor5: "#eb2f96",   // Rosa vibrante
+              cor6: "#13c2c2",   // Ciano vibrante
+              cor7: "#fadb14",   // Amarelo vibrante
+              cor8: "#f5222d",   // Vermelho vibrante
+              cor9: "#a0d911",   // Lima vibrante
+              cor10: "#2f54eb",  // Azul índigo
+              cor11: "#fa541c",  // Laranja escuro
+              cor12: "#722ed1",  // Violeta
+              cor13: "#52c41a",  // Verde esmeralda
+              cor14: "#faad14",  // Dourado
+              cor15: "#eb2f96",  // Magenta
+              cor16: "#13c2c2",  // Turquesa
+              cor17: "#1890ff",  // Azul céu
+              cor18: "#fa8c16",  // Laranja queimado
+              cor19: "#a0d911",  // Verde lima
+              cor20: "#f5222d",  // Carmim
+            },
           }
         : {
             // Paleta para o modo escuro
@@ -482,6 +507,31 @@ const getTheme = (mode) =>
                 border: "#fa8c16",     // Laranja para borda
                 text: "#ffa940",       // Laranja claro para texto
               },
+            },
+            
+            // NOVA SEÇÃO: Cores para Culturas (Paleta Diversificada) - Modo Escuro
+            culturas: {
+              // Mesma paleta de 20 cores (mantém destaque no modo escuro)
+              cor1: "#52c41a",   // Verde vibrante
+              cor2: "#1890ff",   // Azul vibrante
+              cor3: "#722ed1",   // Roxo vibrante
+              cor4: "#fa8c16",   // Laranja vibrante
+              cor5: "#eb2f96",   // Rosa vibrante
+              cor6: "#13c2c2",   // Ciano vibrante
+              cor7: "#fadb14",   // Amarelo vibrante
+              cor8: "#f5222d",   // Vermelho vibrante
+              cor9: "#a0d911",   // Lima vibrante
+              cor10: "#2f54eb",  // Azul índigo
+              cor11: "#fa541c",  // Laranja escuro
+              cor12: "#722ed1",  // Violeta
+              cor13: "#52c41a",  // Verde esmeralda
+              cor14: "#faad14",  // Dourado
+              cor15: "#eb2f96",  // Magenta
+              cor16: "#13c2c2",  // Turquesa
+              cor17: "#1890ff",  // Azul céu
+              cor18: "#fa8c16",  // Laranja queimado
+              cor19: "#a0d911",  // Verde lima
+              cor20: "#f5222d",  // Carmim
             },
           }),
     },

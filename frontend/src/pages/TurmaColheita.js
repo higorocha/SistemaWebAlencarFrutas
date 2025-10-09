@@ -86,6 +86,32 @@ const TurmaColheita = () => {
     setCurrentPage(1); // Reset para primeira página ao buscar
   }, []);
 
+  // Filtrar localmente por termo de busca
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setTurmasColheitaFiltradas(turmasColheita);
+    } else {
+      const termo = searchTerm.toLowerCase().trim();
+      const filtrados = turmasColheita.filter((turma) => {
+        return (
+          (turma.colhedor && turma.colhedor.toLowerCase().includes(termo)) ||
+          (turma.chavePix && turma.chavePix.toLowerCase().includes(termo)) ||
+          (turma.observacoes && turma.observacoes.toLowerCase().includes(termo))
+        );
+      });
+      setTurmasColheitaFiltradas(filtrados);
+      setTotalTurmas(filtrados.length || 0);
+    }
+    setCurrentPage(1); // Reset para primeira página quando busca
+  }, [turmasColheita, searchTerm]);
+
+  // Calcular dados paginados para exibição na tabela
+  const dadosPaginados = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return turmasColheitaFiltradas.slice(startIndex, endIndex);
+  }, [turmasColheitaFiltradas, currentPage, pageSize]);
+
   // Função para lidar com mudança de página
   const handlePageChange = useCallback((page, size) => {
     setCurrentPage(page);
@@ -253,7 +279,7 @@ const TurmaColheita = () => {
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
           <TurmaColheitaTable
-            turmasColheita={turmasColheitaFiltradas}
+            turmasColheita={dadosPaginados}
             loading={false}
             onEdit={handleOpenEditModal}
             onDelete={handleDeleteTurma}

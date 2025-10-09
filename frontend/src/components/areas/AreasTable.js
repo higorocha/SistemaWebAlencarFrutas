@@ -1,6 +1,6 @@
 // src/components/areas/AreasTable.js
 
-import React from "react";
+import React, { useState } from "react";
 import { Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
 import {
   EditOutlined,
@@ -8,9 +8,13 @@ import {
   MoreOutlined,
   InfoCircleOutlined,
   EnvironmentOutlined,
+  BarChartOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import ResponsiveTable from "../common/ResponsiveTable";
+import DetalhesAreaModal from "./DetalhesAreaModal";
+import { CentralizedLoader } from "../common/loaders";
+import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 
 const { Text } = Typography;
@@ -80,9 +84,46 @@ const AreasTable = React.memo(({
   onPageChange,
   onShowSizeChange,
 }) => {
+  // Estado do modal de detalhes
+  const [detalhesModalOpen, setDetalhesModalOpen] = useState(false);
+  const [areaSelecionada, setAreaSelecionada] = useState(null);
+  const [loadingDetalhes, setLoadingDetalhes] = useState(false);
+  const [dadosDetalhes, setDadosDetalhes] = useState(null);
+
+  // Função para buscar detalhes da área do backend
+  const handleOpenDetalhesModal = async (area) => {
+    try {
+      setLoadingDetalhes(true);
+      setDetalhesModalOpen(true);
+      setAreaSelecionada(area);
+
+      // Buscar detalhes completos do backend
+      const response = await axiosInstance.get(`/api/areas-agricolas/${area.id}/detalhes`);
+      setDadosDetalhes(response.data);
+
+    } catch (error) {
+      console.error("Erro ao buscar detalhes da área:", error);
+      showNotification("error", "Erro", "Erro ao carregar detalhes da área");
+      setDetalhesModalOpen(false);
+      setAreaSelecionada(null);
+    } finally {
+      setLoadingDetalhes(false);
+    }
+  };
+
   // Função para criar o menu de ações
   const getMenuContent = (record) => {
     const menuItems = [
+      {
+        key: "detalhes",
+        label: (
+          <Space>
+            <BarChartOutlined style={{ color: "#059669" }} />
+            <span style={{ color: "#333" }}>Ver Detalhes</span>
+          </Space>
+        ),
+        onClick: () => handleOpenDetalhesModal(record),
+      },
       {
         key: "map",
         label: (
@@ -267,29 +308,50 @@ const AreasTable = React.memo(({
   };
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      dataSource={areas}
-      loading={loading}
-      rowKey="id"
-      minWidthMobile={800}
-      showScrollHint={true}
-      rowClassName={assignRowClassName}
-      size="middle"
-      bordered={true}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span style={{ color: "#8c8c8c", fontSize: "14px" }}>
-                Nenhuma área agrícola encontrada
-              </span>
-            }
-          />
-        ),
-      }}
-    />
+    <>
+      <ResponsiveTable
+        columns={columns}
+        dataSource={areas}
+        loading={loading}
+        rowKey="id"
+        minWidthMobile={800}
+        showScrollHint={true}
+        rowClassName={assignRowClassName}
+        size="middle"
+        bordered={true}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <span style={{ color: "#8c8c8c", fontSize: "14px" }}>
+                  Nenhuma área agrícola encontrada
+                </span>
+              }
+            />
+          ),
+        }}
+      />
+
+      {/* Modal de Detalhes da Área */}
+      <DetalhesAreaModal
+        open={detalhesModalOpen}
+        onClose={() => {
+          setDetalhesModalOpen(false);
+          setAreaSelecionada(null);
+          setDadosDetalhes(null);
+        }}
+        area={dadosDetalhes}
+        loading={loadingDetalhes}
+      />
+
+      {/* Loading centralizado para buscar detalhes */}
+      <CentralizedLoader
+        visible={loadingDetalhes}
+        message="Carregando detalhes da área..."
+        subMessage="Buscando pedidos, estatísticas e KPIs..."
+      />
+    </>
   );
 });
 

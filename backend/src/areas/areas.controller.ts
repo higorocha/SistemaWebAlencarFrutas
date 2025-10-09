@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AreasService } from './areas.service';
@@ -26,6 +27,13 @@ export class AreasController {
     return this.areasService.create(createAreaDto);
   }
 
+  @Get('buscar')
+  @ApiOperation({ summary: 'Buscar áreas por nome' })
+  @ApiResponse({ status: 200, description: 'Áreas encontradas', type: [AreaResponseDto] })
+  buscarPorNome(@Query('termo') termo: string) {
+    return this.areasService.buscarPorNome(termo);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Buscar todas as áreas agrícolas' })
   @ApiResponse({ status: 200, description: 'Lista de áreas agrícolas retornada com sucesso', type: [AreaResponseDto] })
@@ -39,6 +47,14 @@ export class AreasController {
   @ApiResponse({ status: 404, description: 'Área agrícola não encontrada' })
   findOne(@Param('id', ParseIntPipe) id: string) {
     return this.areasService.findOne(+id);
+  }
+
+  @Get(':id/detalhes')
+  @ApiOperation({ summary: 'Buscar detalhes completos da área com estatísticas e KPIs' })
+  @ApiResponse({ status: 200, description: 'Detalhes da área retornados com sucesso' })
+  @ApiResponse({ status: 404, description: 'Área agrícola não encontrada' })
+  findDetalhes(@Param('id', ParseIntPipe) id: string) {
+    return this.areasService.findDetalhes(+id);
   }
 
   @Patch(':id')

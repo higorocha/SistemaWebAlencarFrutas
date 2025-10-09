@@ -725,6 +725,13 @@ const AreasAgricolas = () => {
     }
   }, [areas, searchQuery]);
 
+  // Calcular dados paginados para exibição na tabela
+  const dadosPaginados = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return areasFiltradas.slice(startIndex, endIndex);
+  }, [areasFiltradas, currentPage, pageSize]);
+
   if (loadError) {
     return (
       <div style={{ padding: 16 }}>
@@ -849,7 +856,7 @@ const AreasAgricolas = () => {
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
           <AreasTable
-            areas={areasFiltradas}
+            areas={dadosPaginados}
             loading={false}
             onEdit={handleEditarArea}
             onDelete={handleExcluirArea}

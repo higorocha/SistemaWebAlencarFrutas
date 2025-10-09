@@ -312,6 +312,13 @@ const Frutas = () => {
     }
   }, [frutas, searchQuery]);
 
+  // Calcular dados paginados para exibição na tabela
+  const dadosPaginados = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return frutasFiltradas.slice(startIndex, endIndex);
+  }, [frutasFiltradas, currentPage, pageSize]);
+
   return (
     <Box
       sx={{
@@ -380,7 +387,7 @@ const Frutas = () => {
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
           <FrutasTable
-            frutas={frutasFiltradas}
+            frutas={dadosPaginados}
             loading={false}
             onEdit={handleEditarFruta}
             onDelete={handleExcluirFruta}
