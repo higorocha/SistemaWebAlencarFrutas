@@ -1,6 +1,7 @@
 // src/pages/MapaGeral.js
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import ReactDOM from "react-dom";
 import { Typography, Button, Space, Alert, Switch, Tooltip, Input } from "antd";
 import { useTheme } from "@mui/material/styles";
 import {
@@ -14,6 +15,8 @@ import {
   SearchOutlined,
   LoadingOutlined,
   ExclamationCircleOutlined,
+  EyeOutlined,
+  EyeInvisibleOutlined,
 } from "@ant-design/icons";
 import { Icon } from "@iconify/react";
 import useResponsive from "../hooks/useResponsive";
@@ -118,14 +121,18 @@ const SearchContainer = styled.div`
 // Estilo para o dropdown de resultados de busca
 const SearchDropdown = styled.div`
   position: absolute;
-  top: calc(100% + 4px);
+  ${props => (props.$isMobile && props.$isFullscreen) ? `
+    bottom: calc(100% + 4px); // ✅ Mobile + Fullscreen: abre para cima
+  ` : `
+    top: calc(100% + 4px); // ✅ Outros casos: abre para baixo
+  `}
   left: 0;
   right: 0;
   background-color: white;
   border: 1px solid #d9d9d9;
   border-radius: 6px;
   box-shadow: 0 3px 6px -4px rgba(0,0,0,0.12), 0 6px 16px 0 rgba(0,0,0,0.08);
-  z-index: 1050;
+  z-index: ${props => props.$isFullscreen ? 10000 : 1050}; // ✅ Z-index alto apenas em fullscreen
   max-height: 300px;
   overflow-y: auto;
   display: ${props => props.$isOpen ? 'block' : 'none'};
@@ -212,6 +219,771 @@ const GlobalStyle = styled.div`
   }
 `;
 
+// Componente da barra de controle memoizado (fora do MapaGeral)
+const ControlesBarraComponent = React.memo(({
+  isMobile,
+  isFullscreen,
+  centralizarMapa,
+  areas,
+  irParaLocalizacaoAtual,
+  carregarAreas,
+  loading,
+  searchContainerRef,
+  searchInputRef,
+  searchTerm,
+  handleSearchChange,
+  handleInputFocus,
+  handleInputBlur,
+  searchLoading,
+  searchDropdownOpen,
+  searchResults,
+  handleSelectSearchResult,
+  theme,
+  numberFormatter,
+  mostrarNomesAreas,
+  setMostrarNomesAreas,
+  mostrarSede,
+  setMostrarSede,
+  mostrarLotesDibau,
+  setMostrarLotesDibau,
+  mostrarNomesLotesDibau,
+  setMostrarNomesLotesDibau,
+  mostrarAreaImovel,
+  setMostrarAreaImovel
+}) => (
+  <Box sx={{ 
+    display: "flex", 
+    justifyContent: "space-between", 
+    alignItems: "center",
+    flexWrap: isMobile ? "wrap" : "nowrap",
+    gap: isMobile ? 0.25 : 1,
+    mb: isMobile ? 0.25 : 0.5,
+    minHeight: isMobile ? "auto" : "40px",
+    ...(isFullscreen && {
+      backgroundColor: "white",
+      padding: isMobile ? "8px" : "12px",
+      borderRadius: "8px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+      width: "100%"
+    })
+  }}>
+    {/* Botões de ação */}
+    <Space wrap size={isMobile ? "small" : "middle"}>
+      <Button
+        type="default"
+        icon={<HomeOutlined />}
+        size={isMobile ? "small" : "middle"}
+        onClick={centralizarMapa}
+        disabled={areas.length === 0}
+        style={{
+          fontSize: isMobile ? "0.6875rem" : "0.875rem",
+          height: isMobile ? "28px" : "40px",
+          padding: isMobile ? "0 6px" : "0 12px",
+        }}
+      >
+        {isMobile ? "Centralizar" : "Centralizar Áreas"}
+      </Button>
+      
+      <Button
+        type="default"
+        icon={<Icon icon="mdi:map" />}
+        size={isMobile ? "small" : "middle"}
+        onClick={irParaLocalizacaoAtual}
+        style={{
+          fontSize: isMobile ? "0.6875rem" : "0.875rem",
+          height: isMobile ? "28px" : "40px",
+          padding: isMobile ? "0 6px" : "0 12px",
+        }}
+      >
+        {isMobile ? "Minha Localização" : "Minha Localização"}
+      </Button>
+
+      <Button
+        type="default"
+        icon={<ReloadOutlined />}
+        size={isMobile ? "small" : "middle"}
+        onClick={carregarAreas}
+        loading={loading}
+        style={{
+          fontSize: isMobile ? "0.6875rem" : "0.875rem",
+          height: isMobile ? "28px" : "40px",
+          padding: isMobile ? "0 6px" : "0 12px",
+        }}
+      >
+        {isMobile ? "Atualizar" : "Atualizar Dados"}
+      </Button>
+    </Space>
+
+    {/* Divider e Campo de Busca - Desktop */}
+    {!isMobile && (
+      <>
+        {/* Divider vertical */}
+        <div style={{
+          width: "1px",
+          height: "32px",
+          backgroundColor: "rgba(5, 150, 105, 0.2)",
+          margin: "0 12px"
+        }} />
+
+        {/* Campo de Busca */}
+        <SearchContainer ref={searchContainerRef} style={{ flex: 1 }}>
+          <Input
+            ref={searchInputRef}
+            placeholder="Buscar área por nome..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+            onFocus={handleInputFocus}
+            onBlur={handleInputBlur}
+            allowClear
+            prefix={searchLoading ? <LoadingOutlined spin /> : <SearchOutlined />}
+            size="middle"
+            style={{
+              borderRadius: '6px',
+              fontSize: '1rem'
+            }}
+          />
+
+          {/* Dropdown de Resultados */}
+          <SearchDropdown $isOpen={searchDropdownOpen} $isMobile={isMobile} $isFullscreen={isFullscreen}>
+            {searchLoading ? (
+              <div style={{
+                padding: '16px',
+                textAlign: 'center',
+                color: '#1890ff'
+              }}>
+                <LoadingOutlined spin style={{ marginRight: '8px' }} />
+                <span>Buscando...</span>
+              </div>
+            ) : (
+              searchResults.map((resultado, index) => {
+                if (resultado.tipo === 'no-results') {
+                  return (
+                    <div key="no-results" style={{
+                      padding: '16px',
+                      textAlign: 'center',
+                      color: '#999',
+                      fontStyle: 'italic'
+                    }}>
+                      {resultado.nome}
+                    </div>
+                  );
+                }
+
+                if (resultado.tipo === 'error') {
+                  return (
+                    <div key="error" style={{
+                      padding: '16px',
+                      textAlign: 'center',
+                      color: '#f5222d'
+                    }}>
+                      ⚠️ {resultado.nome}
+                    </div>
+                  );
+                }
+
+                if (resultado.tipo === 'area-sistema') {
+                  const categoriaConfig = {
+                    'COLONO': { cor: theme?.palette?.areaCategorias?.COLONO?.primary || '#52c41a', nome: 'Colono', icon: '🌱' },
+                    'TECNICO': { cor: theme?.palette?.areaCategorias?.TECNICO?.primary || '#1890ff', nome: 'Técnico', icon: '🔧' },
+                    'EMPRESARIAL': { cor: theme?.palette?.areaCategorias?.EMPRESARIAL?.primary || '#722ed1', nome: 'Empresarial', icon: '🏢' },
+                    'ADJACENTE': { cor: theme?.palette?.areaCategorias?.ADJACENTE?.primary || '#fa8c16', nome: 'Adjacente', icon: '📍' }
+                  };
+
+                  const config = categoriaConfig[resultado.categoria] || { cor: '#999', nome: resultado.categoria, icon: '📍' };
+
+                  return (
+                    <SearchResultItem key={`area-${resultado.id}`} onClick={() => handleSelectSearchResult(resultado)}>
+                      <ResultIcon bgColor={`${config.cor}20`} color={config.cor}>
+                        {config.icon}
+                      </ResultIcon>
+                      <ResultContent>
+                        <ResultTitle>{resultado.nome}</ResultTitle>
+                        <ResultSubtitle>
+                          <TypeBadge color={config.cor}>{config.nome}</TypeBadge>
+                          {' • '}
+                          {numberFormatter(resultado.areaTotal)} ha
+                          {resultado.culturas && resultado.culturas.length > 0 && (
+                            <> • {resultado.culturas.map(c => c.descricao).join(', ')}</>
+                          )}
+                        </ResultSubtitle>
+                      </ResultContent>
+                    </SearchResultItem>
+                  );
+                }
+
+                if (resultado.tipo === 'lote-dibau') {
+                  return (
+                    <SearchResultItem key={resultado.id} onClick={() => handleSelectSearchResult(resultado)}>
+                      <ResultIcon bgColor="#FFF0F0" color="#FF6B6B">
+                        🏞️
+                      </ResultIcon>
+                      <ResultContent>
+                        <ResultTitle>{resultado.nome}</ResultTitle>
+                        <ResultSubtitle>
+                          <TypeBadge color="#FF6B6B">Lote DIBAU</TypeBadge>
+                          {resultado.nomenclatura && (
+                            <> • {resultado.nomenclatura}</>
+                          )}
+                          {resultado.areaHa && (
+                            <> • {numberFormatter(resultado.areaHa)} ha</>
+                          )}
+                        </ResultSubtitle>
+                      </ResultContent>
+                    </SearchResultItem>
+                  );
+                }
+
+                return null;
+              })
+            )}
+          </SearchDropdown>
+        </SearchContainer>
+
+        {/* Divider vertical */}
+        <div style={{
+          width: "1px",
+          height: "32px",
+          backgroundColor: "rgba(5, 150, 105, 0.2)",
+          margin: "0 12px"
+        }} />
+      </>
+    )}
+
+    {/* Switches para controlar exibição */}
+    <div style={{
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      alignItems: isMobile ? "stretch" : "center",
+      gap: isMobile ? "4px" : "12px",
+      flexWrap: "nowrap"
+    }}>
+      {/* Primeira linha no mobile / Todos no desktop */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: isMobile ? "4px" : "12px",
+        flexWrap: "nowrap"
+      }}>
+        {/* Componente unificado Alencar - Desktop e Mobile */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: isMobile ? "4px" : "10px",
+          backgroundColor: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(4px)",
+          padding: isMobile ? "4px 6px" : "8px 14px",
+          borderRadius: isMobile ? "16px" : "20px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+          border: "1px solid rgba(5, 150, 105, 0.2)",
+          transition: "all 0.2s ease",
+          flex: "none"
+        }}>
+          <Icon 
+            icon="mdi:home-outline" 
+            style={{ 
+              fontSize: isMobile ? "12px" : "18px",
+              color: (mostrarNomesAreas || mostrarSede) ? "#059669" : "#666",
+              transition: "color 0.2s ease"
+            }} 
+          />
+          <Typography.Text 
+            style={{ 
+              fontSize: isMobile ? "0.5625rem" : "0.8125rem",
+              fontWeight: "600",
+              margin: 0,
+              whiteSpace: "nowrap",
+              color: (mostrarNomesAreas || mostrarSede) ? "#059669" : "#666",
+              transition: "color 0.2s ease"
+            }}
+          >
+            Alencar
+          </Typography.Text>
+          
+          {/* Separador visual */}
+          <div style={{
+            width: "1px",
+            height: isMobile ? "14px" : "20px",
+            backgroundColor: "rgba(5, 150, 105, 0.3)",
+            margin: isMobile ? "0 2px" : "0 4px"
+          }} />
+          
+          {/* Toggle para Nomes */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? "2px" : "6px",
+            padding: isMobile ? "2px 4px" : "4px 8px",
+            borderRadius: isMobile ? "8px" : "12px",
+            backgroundColor: mostrarNomesAreas ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+            transition: "all 0.2s ease"
+          }}>
+            <Typography.Text 
+              style={{ 
+                fontSize: isMobile ? "0.5rem" : "0.75rem",
+                fontWeight: "500",
+                margin: 0,
+                color: mostrarNomesAreas ? "#059669" : "#999",
+                transition: "color 0.2s ease"
+              }}
+            >
+              Nomes
+            </Typography.Text>
+            <Switch
+              size="small"
+              checked={mostrarNomesAreas}
+              onChange={setMostrarNomesAreas}
+              style={{
+                backgroundColor: mostrarNomesAreas ? "#059669" : undefined,
+                transform: isMobile ? "scale(0.8)" : undefined
+              }}
+            />
+          </div>
+          
+          {/* Toggle para Sede */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? "2px" : "6px",
+            padding: isMobile ? "2px 4px" : "4px 8px",
+            borderRadius: isMobile ? "8px" : "12px",
+            backgroundColor: mostrarSede ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+            transition: "all 0.2s ease"
+          }}>
+            <Typography.Text 
+              style={{ 
+                fontSize: isMobile ? "0.5rem" : "0.75rem",
+                fontWeight: "500",
+                margin: 0,
+                color: mostrarSede ? "#059669" : "#999",
+                transition: "color 0.2s ease"
+              }}
+            >
+              Sede
+            </Typography.Text>
+            <Switch
+              size="small"
+              checked={mostrarSede}
+              onChange={setMostrarSede}
+              style={{
+                backgroundColor: mostrarSede ? "#059669" : undefined,
+                transform: isMobile ? "scale(0.8)" : undefined
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Componente unificado DIBAU - Desktop */}
+        {!isMobile && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(4px)",
+            padding: "8px 14px",
+            borderRadius: "20px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            border: "1px solid rgba(5, 150, 105, 0.2)",
+            transition: "all 0.2s ease"
+          }}>
+            <Icon 
+              icon="mdi:map-legend" 
+              style={{ 
+                fontSize: "18px",
+                color: (mostrarLotesDibau || mostrarAreaImovel) ? "#059669" : "#666",
+                transition: "color 0.2s ease"
+              }} 
+            />
+            <Typography.Text 
+              style={{ 
+                fontSize: "0.8125rem",
+                fontWeight: "600",
+                margin: 0,
+                whiteSpace: "nowrap",
+                color: (mostrarLotesDibau || mostrarAreaImovel) ? "#059669" : "#666",
+                transition: "color 0.2s ease"
+              }}
+            >
+              DIBAU
+            </Typography.Text>
+            
+            {/* Separador visual */}
+            <div style={{
+              width: "1px",
+              height: "20px",
+              backgroundColor: "rgba(5, 150, 105, 0.3)",
+              margin: "0 4px"
+            }} />
+            
+            {/* Toggle para Lotes */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 8px",
+              borderRadius: "12px",
+              backgroundColor: mostrarLotesDibau ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+              transition: "all 0.2s ease"
+            }}>
+              <Typography.Text 
+                style={{ 
+                  fontSize: "0.75rem",
+                  fontWeight: "500",
+                  margin: 0,
+                  color: mostrarLotesDibau ? "#059669" : "#999",
+                  transition: "color 0.2s ease"
+                }}
+              >
+                Lotes
+              </Typography.Text>
+              <Switch
+                size="small"
+                checked={mostrarLotesDibau}
+                onChange={setMostrarLotesDibau}
+                style={{
+                  backgroundColor: mostrarLotesDibau ? "#059669" : undefined
+                }}
+              />
+            </div>
+            
+            {/* Toggle para Nomes */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 8px",
+              borderRadius: "12px",
+              backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+              transition: "all 0.2s ease",
+              opacity: mostrarLotesDibau ? 1 : 0.5
+            }}>
+              <Typography.Text 
+                style={{ 
+                  fontSize: "0.75rem",
+                  fontWeight: "500",
+                  margin: 0,
+                  color: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : "#999",
+                  transition: "color 0.2s ease"
+                }}
+              >
+                Nomes
+              </Typography.Text>
+              <Switch
+                size="small"
+                checked={mostrarNomesLotesDibau}
+                onChange={setMostrarNomesLotesDibau}
+                disabled={!mostrarLotesDibau}
+                style={{
+                  backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : undefined
+                }}
+              />
+            </div>
+            
+            {/* Toggle para CAR */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 8px",
+              borderRadius: "12px",
+              backgroundColor: mostrarAreaImovel ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+              transition: "all 0.2s ease"
+            }}>
+              <Typography.Text 
+                style={{ 
+                  fontSize: "0.75rem",
+                  fontWeight: "500",
+                  margin: 0,
+                  color: mostrarAreaImovel ? "#059669" : "#999",
+                  transition: "color 0.2s ease"
+                }}
+              >
+                CAR
+              </Typography.Text>
+              <Switch
+                size="small"
+                checked={mostrarAreaImovel}
+                onChange={setMostrarAreaImovel}
+                style={{
+                  backgroundColor: mostrarAreaImovel ? "#059669" : undefined
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Segunda linha no mobile apenas */}
+      {isMobile && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          flexWrap: "nowrap"
+        }}>
+          {/* Componente unificado DIBAU - Mobile */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(4px)",
+            padding: "4px 6px",
+            borderRadius: "16px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            border: "1px solid rgba(5, 150, 105, 0.2)",
+            transition: "all 0.2s ease",
+            flex: "1"
+          }}>
+            <Icon 
+              icon="mdi:map-legend" 
+              style={{ 
+                fontSize: "12px",
+                color: (mostrarLotesDibau || mostrarAreaImovel) ? "#059669" : "#666",
+                transition: "color 0.2s ease"
+              }} 
+            />
+            <Typography.Text 
+              style={{ 
+                fontSize: "0.5625rem",
+                fontWeight: "600",
+                margin: 0,
+                whiteSpace: "nowrap",
+                color: (mostrarLotesDibau || mostrarAreaImovel) ? "#059669" : "#666",
+                transition: "color 0.2s ease"
+              }}
+            >
+              DIBAU
+            </Typography.Text>
+            
+            {/* Separador visual mini */}
+            <div style={{
+              width: "1px",
+              height: "14px",
+              backgroundColor: "rgba(5, 150, 105, 0.3)",
+              margin: "0 2px"
+            }} />
+            
+            {/* Toggle compacto para Lotes */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "2px",
+              padding: "2px 4px",
+              borderRadius: "8px",
+              backgroundColor: mostrarLotesDibau ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+              transition: "all 0.2s ease"
+            }}>
+              <Typography.Text 
+                style={{ 
+                  fontSize: "0.5rem",
+                  fontWeight: "500",
+                  margin: 0,
+                  color: mostrarLotesDibau ? "#059669" : "#999",
+                  transition: "color 0.2s ease"
+                }}
+              >
+                Lotes
+              </Typography.Text>
+              <Switch
+                size="small"
+                checked={mostrarLotesDibau}
+                onChange={setMostrarLotesDibau}
+                style={{
+                  backgroundColor: mostrarLotesDibau ? "#059669" : undefined,
+                  transform: "scale(0.8)"
+                }}
+              />
+            </div>
+            
+            {/* Toggle compacto para Nomes */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "2px",
+              padding: "2px 4px",
+              borderRadius: "8px",
+              backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+              transition: "all 0.2s ease",
+              opacity: mostrarLotesDibau ? 1 : 0.5
+            }}>
+              <Typography.Text 
+                style={{ 
+                  fontSize: "0.5rem",
+                  fontWeight: "500",
+                  margin: 0,
+                  color: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : "#999",
+                  transition: "color 0.2s ease"
+                }}
+              >
+                Nomes
+              </Typography.Text>
+              <Switch
+                size="small"
+                checked={mostrarNomesLotesDibau}
+                onChange={setMostrarNomesLotesDibau}
+                disabled={!mostrarLotesDibau}
+                style={{
+                  backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : undefined,
+                  transform: "scale(0.8)"
+                }}
+              />
+            </div>
+            
+            {/* Toggle compacto para CAR */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "2px",
+              padding: "2px 4px",
+              borderRadius: "8px",
+              backgroundColor: mostrarAreaImovel ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
+              transition: "all 0.2s ease"
+            }}>
+              <Typography.Text 
+                style={{ 
+                  fontSize: "0.5rem",
+                  fontWeight: "500",
+                  margin: 0,
+                  color: mostrarAreaImovel ? "#059669" : "#999",
+                  transition: "color 0.2s ease"
+                }}
+              >
+                CAR
+              </Typography.Text>
+              <Switch
+                size="small"
+                checked={mostrarAreaImovel}
+                onChange={setMostrarAreaImovel}
+                style={{
+                  backgroundColor: mostrarAreaImovel ? "#059669" : undefined,
+                  transform: "scale(0.8)"
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* Campo de Busca Mobile - Após os switches */}
+    {isMobile && (
+      <SearchContainer ref={searchContainerRef} style={{ width: '100%', marginTop: '8px' }}>
+        <Input
+          ref={searchInputRef}
+          placeholder="Buscar área..."
+          value={searchTerm}
+          onChange={handleSearchChange}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
+          allowClear
+          prefix={searchLoading ? <LoadingOutlined spin /> : <SearchOutlined />}
+          size="small"
+          style={{
+            borderRadius: '6px',
+            fontSize: '0.875rem'
+          }}
+        />
+
+        {/* Dropdown de Resultados */}
+        <SearchDropdown $isOpen={searchDropdownOpen} $isMobile={isMobile} $isFullscreen={isFullscreen}>
+          {searchLoading ? (
+            <div style={{
+              padding: '16px',
+              textAlign: 'center',
+              color: '#1890ff'
+            }}>
+              <LoadingOutlined spin style={{ marginRight: '8px' }} />
+              <span>Buscando...</span>
+            </div>
+          ) : (
+            searchResults.map((resultado, index) => {
+              if (resultado.tipo === 'no-results') {
+                return (
+                  <div key="no-results" style={{
+                    padding: '16px',
+                    textAlign: 'center',
+                    color: '#999',
+                    fontStyle: 'italic'
+                  }}>
+                    {resultado.nome}
+                  </div>
+                );
+              }
+
+              if (resultado.tipo === 'error') {
+                return (
+                  <div key="error" style={{
+                    padding: '16px',
+                    textAlign: 'center',
+                    color: '#f5222d'
+                  }}>
+                    ⚠️ {resultado.nome}
+                  </div>
+                );
+              }
+
+              if (resultado.tipo === 'area-sistema') {
+                const categoriaConfig = {
+                  'COLONO': { cor: theme?.palette?.areaCategorias?.COLONO?.primary || '#52c41a', nome: 'Colono', icon: '🌱' },
+                  'TECNICO': { cor: theme?.palette?.areaCategorias?.TECNICO?.primary || '#1890ff', nome: 'Técnico', icon: '🔧' },
+                  'EMPRESARIAL': { cor: theme?.palette?.areaCategorias?.EMPRESARIAL?.primary || '#722ed1', nome: 'Empresarial', icon: '🏢' },
+                  'ADJACENTE': { cor: theme?.palette?.areaCategorias?.ADJACENTE?.primary || '#fa8c16', nome: 'Adjacente', icon: '📍' }
+                };
+
+                const config = categoriaConfig[resultado.categoria] || { cor: '#999', nome: resultado.categoria, icon: '📍' };
+
+                return (
+                  <SearchResultItem key={`area-${resultado.id}`} onClick={() => handleSelectSearchResult(resultado)}>
+                    <ResultIcon bgColor={`${config.cor}20`} color={config.cor}>
+                      {config.icon}
+                    </ResultIcon>
+                    <ResultContent>
+                      <ResultTitle>{resultado.nome}</ResultTitle>
+                      <ResultSubtitle>
+                        <TypeBadge color={config.cor}>{config.nome}</TypeBadge>
+                        {' • '}
+                        {numberFormatter(resultado.areaTotal)} ha
+                        {resultado.culturas && resultado.culturas.length > 0 && (
+                          <> • {resultado.culturas.map(c => c.descricao).join(', ')}</>
+                        )}
+                      </ResultSubtitle>
+                    </ResultContent>
+                  </SearchResultItem>
+                );
+              }
+
+              if (resultado.tipo === 'lote-dibau') {
+                return (
+                  <SearchResultItem key={resultado.id} onClick={() => handleSelectSearchResult(resultado)}>
+                    <ResultIcon bgColor="#FFF0F0" color="#FF6B6B">
+                      🏞️
+                    </ResultIcon>
+                    <ResultContent>
+                      <ResultTitle>{resultado.nome}</ResultTitle>
+                      <ResultSubtitle>
+                        <TypeBadge color="#FF6B6B">Lote DIBAU</TypeBadge>
+                        {resultado.nomenclatura && (
+                          <> • {resultado.nomenclatura}</>
+                        )}
+                        {resultado.areaHa && (
+                          <> • {numberFormatter(resultado.areaHa)} ha</>
+                        )}
+                      </ResultSubtitle>
+                    </ResultContent>
+                  </SearchResultItem>
+                );
+              }
+
+              return null;
+            })
+          )}
+        </SearchDropdown>
+      </SearchContainer>
+    )}
+  </Box>
+));
+
 const MapaGeral = () => {
   const theme = useTheme();
   const { isMobile } = useResponsive();
@@ -230,6 +1002,7 @@ const MapaGeral = () => {
   const [transitioning, setTransitioning] = useState(false); // Estado para controlar animação de transição
   const [culturasVisiveis, setCulturasVisiveis] = useState({}); // Estado para controlar visibilidade de culturas
   const [rotationCount, setRotationCount] = useState(0); // Contador de rotações do botão toggle
+  const [legendasOcultasMobile, setLegendasOcultasMobile] = useState(false); // Estado para ocultar legendas no mobile
   
   // Estados do mapa
   const [mapCenter, setMapCenter] = useState({ lat: -3.052397, lng: -40.083981 });
@@ -250,6 +1023,15 @@ const MapaGeral = () => {
   const [areaDestacada, setAreaDestacada] = useState(null); // Área ou lote selecionado pela busca
   const [loteDestacado, setLoteDestacado] = useState(null); // Lote DIBAU destacado
   const searchContainerRef = useRef(null);
+  const searchInputRef = useRef(null); // Ref para o input de busca
+
+  // Estado para detectar modo fullscreen
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const mapContainerRef = useRef(null);
+  const customControlDivRef = useRef(null); // Ref para o div container (sempre existe no DOM)
+  const customLegendDivRef = useRef(null); // Ref para o div da legenda no fullscreen
+  const [legendDivReady, setLegendDivReady] = useState(false); // Estado para forçar re-render quando div estiver pronto
+  const isCheckingFullscreenRef = useRef(false); // Para evitar verificações simultâneas
   
   // Função para processar as coordenadas da área do imóvel
   const processAreaDoImovelCoordinates = useCallback(() => {
@@ -496,6 +1278,37 @@ const MapaGeral = () => {
         });
       }
     }
+    
+    // Função debounced para verificar fullscreen
+    const checkFullscreen = debounce(() => {
+      if (!mapRef.current || isCheckingFullscreenRef.current) return;
+      
+      isCheckingFullscreenRef.current = true;
+      
+      const mapDiv = mapRef.current.getDiv();
+      const mapChild = mapDiv?.firstChild;
+      
+      if (mapChild) {
+        const isCurrentlyFullscreen = (
+          mapChild.clientHeight === window.innerHeight &&
+          mapChild.clientWidth === window.innerWidth
+        );
+        
+        // Só atualizar o estado se realmente mudou
+        setIsFullscreen(prev => {
+          isCheckingFullscreenRef.current = false;
+          if (prev !== isCurrentlyFullscreen) {
+            return isCurrentlyFullscreen;
+          }
+          return prev;
+        });
+      } else {
+        isCheckingFullscreenRef.current = false;
+      }
+    }, 200); // Aumentei para 200ms para mais estabilidade
+    
+    // Detectar mudanças para fullscreen usando bounds_changed
+    window.google.maps.event.addListener(map, 'bounds_changed', checkFullscreen);
   }, [areas]);
 
   // Função para buscar detalhes da área e abrir modal
@@ -693,6 +1506,205 @@ const MapaGeral = () => {
     };
   }, []);
 
+  // Criar e gerenciar o div do controle customizado (fora do React)
+  useEffect(() => {
+    // Criar o div apenas uma vez
+    if (!customControlDivRef.current) {
+      const controlDiv = document.createElement('div');
+      controlDiv.style.backgroundColor = 'white';
+      controlDiv.style.padding = isMobile ? '6px 8px' : '12px'; // Padding reduzido no mobile
+      controlDiv.style.borderRadius = '8px';
+      controlDiv.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+      controlDiv.style.margin = isMobile ? '8px' : '10px'; // Margem menor no mobile
+      controlDiv.style.maxWidth = isMobile ? 'calc(100vw - 16px)' : 'calc(100vw - 20px)'; // Usa quase toda a largura no mobile
+      controlDiv.style.overflow = 'visible'; // ✅ Permite que o dropdown de busca apareça por cima do mapa
+      controlDiv.style.opacity = '0'; // Começa invisível (mas mantém o layout)
+      controlDiv.style.pointerEvents = 'none'; // Desabilita interações quando invisível
+      controlDiv.style.transition = 'opacity 0.2s ease'; // Transição suave
+      controlDiv.id = 'custom-map-control';
+      
+      customControlDivRef.current = controlDiv;
+    }
+    
+    return () => {
+      // Cleanup: remover o div quando o componente desmontar completamente
+      if (customControlDivRef.current && customControlDivRef.current.parentNode) {
+        customControlDivRef.current.parentNode.removeChild(customControlDivRef.current);
+      }
+    };
+  }, [isMobile]);
+
+  // Criar e gerenciar o div da legenda customizada (fora do React)
+  useEffect(() => {
+    // Criar o div apenas uma vez
+    if (!customLegendDivRef.current) {
+      const legendDiv = document.createElement('div');
+      // Aplicar estilos básicos ao container externo (necessário para o Google Maps)
+      legendDiv.style.backgroundColor = 'transparent'; // Transparente, o conteúdo terá cor
+      legendDiv.style.margin = isMobile ? '8px' : '10px';
+      legendDiv.style.opacity = '0'; // Inicialmente invisível
+      legendDiv.style.pointerEvents = 'none'; // Desabilitar interações quando invisível
+      legendDiv.style.transition = 'opacity 0.2s ease'; // Transição suave
+      legendDiv.id = 'custom-map-legend';
+      
+      customLegendDivRef.current = legendDiv;
+      
+      // Forçar re-render para o portal ser criado
+      setLegendDivReady(true);
+    }
+    
+    return () => {
+      // Cleanup: remover o div quando o componente desmontar completamente
+      if (customLegendDivRef.current && customLegendDivRef.current.parentNode) {
+        customLegendDivRef.current.parentNode.removeChild(customLegendDivRef.current);
+      }
+    };
+  }, [isMobile]);
+
+  // Gerenciar o controle customizado no mapa quando em fullscreen
+  useEffect(() => {
+    if (!mapRef.current || !customControlDivRef.current) return;
+    
+    // Escolher posição baseado no dispositivo
+    const controlPosition = isMobile 
+      ? window.google.maps.ControlPosition.BOTTOM_CENTER 
+      : window.google.maps.ControlPosition.TOP_CENTER;
+    
+    const controls = mapRef.current.controls[controlPosition];
+    
+    // Quando está em fullscreen, adiciona o controle ao mapa
+    if (isFullscreen) {
+      // Verificar se o controle já está adicionado
+      let alreadyAdded = false;
+      for (let i = 0; i < controls.getLength(); i++) {
+        if (controls.getAt(i) === customControlDivRef.current) {
+          alreadyAdded = true;
+          break;
+        }
+      }
+      
+      if (!alreadyAdded) {
+        controls.push(customControlDivRef.current);
+      }
+      
+      // Aguardar o Google Maps posicionar o controle antes de mostrar
+      setTimeout(() => {
+        if (customControlDivRef.current) {
+          customControlDivRef.current.style.opacity = '1';
+          customControlDivRef.current.style.pointerEvents = 'auto';
+        }
+      }, 100); // 100ms para o Google Maps calcular a posição correta
+    } 
+    // Quando sai do fullscreen, remove o controle
+    else {
+      // Esconder o controle ANTES de remover
+      if (customControlDivRef.current) {
+        customControlDivRef.current.style.opacity = '0';
+        customControlDivRef.current.style.pointerEvents = 'none';
+      }
+      
+      // Remover após a transição de opacity
+      setTimeout(() => {
+        // Percorrer e remover o controle de ambas as posições (caso tenha mudado de mobile/desktop)
+        const positions = [
+          window.google.maps.ControlPosition.TOP_CENTER,
+          window.google.maps.ControlPosition.BOTTOM_CENTER
+        ];
+        
+        positions.forEach(pos => {
+          const posControls = mapRef.current.controls[pos];
+          for (let i = posControls.getLength() - 1; i >= 0; i--) {
+            if (posControls.getAt(i) === customControlDivRef.current) {
+              posControls.removeAt(i);
+              break;
+            }
+          }
+        });
+      }, 200); // Aguarda a transição completar
+    }
+  }, [isFullscreen, isMobile]);
+
+  // Gerenciar a legenda customizada no mapa quando em fullscreen
+  useEffect(() => {
+    if (!mapRef.current || !customLegendDivRef.current) return;
+    
+    // Escolher posição baseado no dispositivo
+    // Desktop: inferior esquerdo (padrão), Mobile: superior esquerdo
+    const legendPosition = isMobile 
+      ? window.google.maps.ControlPosition.TOP_LEFT 
+      : window.google.maps.ControlPosition.BOTTOM_LEFT;
+    
+    const controls = mapRef.current.controls[legendPosition];
+    
+    // Quando está em fullscreen, adiciona a legenda ao mapa
+    if (isFullscreen) {
+      // Verificar se a legenda já está adicionada
+      let alreadyAdded = false;
+      for (let i = 0; i < controls.getLength(); i++) {
+        if (controls.getAt(i) === customLegendDivRef.current) {
+          alreadyAdded = true;
+          break;
+        }
+      }
+      
+      if (!alreadyAdded) {
+        controls.push(customLegendDivRef.current);
+      }
+      
+      // Ajustar margens específicas para cada dispositivo/posição
+      if (isMobile) {
+        // Mobile: TOP_LEFT - manter margin normal em todos os lados
+        customLegendDivRef.current.style.margin = '8px';
+      } else {
+        // Desktop: BOTTOM_LEFT - usar margens menores para ficar mais próximo da borda
+        customLegendDivRef.current.style.marginLeft = '-40px';
+        customLegendDivRef.current.style.marginRight = '10px';
+        customLegendDivRef.current.style.marginTop = '10px';
+        customLegendDivRef.current.style.marginBottom = '20px';
+      }
+      
+      // Aguardar o Google Maps posicionar a legenda antes de mostrar
+      setTimeout(() => {
+        if (customLegendDivRef.current) {
+          customLegendDivRef.current.style.opacity = '1';
+          customLegendDivRef.current.style.pointerEvents = 'auto';
+        }
+      }, 100); // 100ms para o Google Maps calcular a posição correta
+    } 
+    // Quando sai do fullscreen, remove a legenda
+    else {
+      // Esconder a legenda ANTES de remover
+      if (customLegendDivRef.current) {
+        customLegendDivRef.current.style.opacity = '0';
+        customLegendDivRef.current.style.pointerEvents = 'none';
+      }
+      
+      // Remover após a transição de opacity
+      setTimeout(() => {
+        // Percorrer e remover a legenda de ambas as posições (caso tenha mudado de mobile/desktop)
+        const positions = [
+          window.google.maps.ControlPosition.TOP_LEFT,
+          window.google.maps.ControlPosition.BOTTOM_LEFT
+        ];
+        
+        positions.forEach(pos => {
+          const posControls = mapRef.current.controls[pos];
+          for (let i = posControls.getLength() - 1; i >= 0; i--) {
+            if (posControls.getAt(i) === customLegendDivRef.current) {
+              posControls.removeAt(i);
+              break;
+            }
+          }
+        });
+        
+        // Restaurar margin padrão
+        if (customLegendDivRef.current) {
+          customLegendDivRef.current.style.margin = isMobile ? '8px' : '10px';
+        }
+      }, 200); // Aguarda a transição completar
+    }
+  }, [isFullscreen, isMobile, modolezenda, culturasVisiveis, transitioning, rotationCount]);
+
   // Função para alternar modo de legenda com animação
   const handleToggleLegenda = useCallback(() => {
     setTransitioning(true);
@@ -794,6 +1806,34 @@ const MapaGeral = () => {
         }
       );
     }
+  }, []);
+
+  // Função para lidar com foco do input no mobile fullscreen (scroll para cima quando teclado aparecer)
+  const handleInputFocus = useCallback(() => {
+    // Só aplicar no mobile e quando estiver em fullscreen
+    if (!isMobile || !isFullscreen || !searchInputRef.current) return;
+
+    // Usar setTimeout para aguardar o teclado aparecer
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        // Ant Design Input: acessar o elemento DOM real através de .input
+        const inputElement = searchInputRef.current.input;
+
+        if (inputElement && inputElement.scrollIntoView) {
+          // Scroll suave para trazer o input para a área visível
+          inputElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start', // Alinha o input no topo da viewport visível
+            inline: 'nearest'
+          });
+        }
+      }
+    }, 300); // 300ms para o teclado terminar a animação
+  }, [isMobile, isFullscreen]);
+
+  // Função para lidar quando input perde o foco (restaurar posição se necessário)
+  const handleInputBlur = useCallback(() => {
+    // Comportamento padrão do navegador já resolve
   }, []);
 
 // Função para obter cor da categoria usando o theme
@@ -979,6 +2019,501 @@ const getLotesDibauPolygonOptions = (theme) => {
   };
 };
 
+  // Memoizar o conteúdo do Portal para evitar re-renders desnecessários
+  const controlesBarraProps = useMemo(() => ({
+    isMobile,
+    isFullscreen,
+    centralizarMapa,
+    areas,
+    irParaLocalizacaoAtual,
+    carregarAreas,
+    loading,
+    searchContainerRef,
+    searchInputRef,
+    searchTerm,
+    handleSearchChange,
+    handleInputFocus,
+    handleInputBlur,
+    searchLoading,
+    searchDropdownOpen,
+    searchResults,
+    handleSelectSearchResult,
+    theme,
+    numberFormatter,
+    mostrarNomesAreas,
+    setMostrarNomesAreas,
+    mostrarSede,
+    setMostrarSede,
+    mostrarLotesDibau,
+    setMostrarLotesDibau,
+    mostrarNomesLotesDibau,
+    setMostrarNomesLotesDibau,
+    mostrarAreaImovel,
+    setMostrarAreaImovel
+  }), [
+    isMobile,
+    isFullscreen,
+    areas.length, // Só o length, não o array completo
+    loading,
+    searchTerm,
+    searchLoading,
+    searchDropdownOpen,
+    searchResults.length, // Só o length, não o array completo
+    theme,
+    mostrarNomesAreas,
+    mostrarSede,
+    mostrarLotesDibau,
+    mostrarNomesLotesDibau,
+    mostrarAreaImovel
+    // Callbacks e setters estáveis não precisam estar nas dependências
+  ]);
+
+  const portalContent = useMemo(() => {
+    // Renderizar o Portal APENAS quando em fullscreen
+    if (!customControlDivRef.current || !isFullscreen) return null;
+
+    return ReactDOM.createPortal(
+      <ControlesBarraComponent {...controlesBarraProps} />,
+      customControlDivRef.current
+    );
+  }, [customControlDivRef.current, controlesBarraProps, isFullscreen]);
+
+  // Portal para renderizar a legenda no fullscreen
+  const legendPortalContent = useMemo(() => {
+    // Renderizar o Portal da legenda APENAS quando em fullscreen
+    if (!customLegendDivRef.current || !isFullscreen) return null;
+
+    // Conteúdo da legenda (mesmo conteúdo que é renderizado fora do fullscreen)
+    return ReactDOM.createPortal(
+      <div style={{
+        backgroundColor: "white",
+        padding: isMobile ? "6px 8px" : "10px 12px",
+        borderRadius: "0.25rem",
+        boxShadow: "0 0.125rem 0.375rem rgba(0,0,0,0.3)",
+        fontSize: isMobile ? "0.625rem" : "0.75rem",
+        border: "0.0625rem solid #e0e0e0",
+        // 🎯 AJUSTE AQUI: Largura total da legenda no mobile (teste: 200-280)
+        maxWidth: isMobile ? "170px" : "auto",
+        minWidth: isMobile ? "160px" : "auto"
+        // Nota: opacity e pointerEvents são gerenciados pelo div PAI (customLegendDivRef)
+      }}>
+        {/* Cabeçalho com toggle */}
+        <div style={{
+          marginBottom: "6px",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px'
+        }}>
+          <span style={{
+            fontSize: isMobile ? "0.625rem" : "0.75rem",
+            fontWeight: "600",
+            color: "#333"
+          }}>
+            {/* Se legendas ocultas no mobile, mostrar apenas "Legendas" */}
+            {isMobile && legendasOcultasMobile 
+              ? "Legendas"
+              : (modolezenda === 'categoria' 
+                  ? (isMobile ? "Por Categoria" : "Legenda por Categoria")
+                  : (isMobile ? "Por Cultura" : "Legenda por Cultura")
+                )
+            }
+          </span>
+          
+          {/* Toggle para alternar modo - ocultar se legendas estão ocultas no mobile */}
+          {!(isMobile && legendasOcultasMobile) && (
+            <Tooltip title={`Alternar para ${modolezenda === 'categoria' ? 'Cultura' : 'Categoria'}`}>
+              <Button
+                type="text"
+                icon={<SwapOutlined style={{ fontSize: '12px' }} />}
+                onClick={handleToggleLegenda}
+                style={{
+                  color: '#059669',
+                  border: '1px solid #059669',
+                  borderRadius: '6px',
+                  padding: '4px',
+                  height: 'auto',
+                  minWidth: 'auto',
+                  transform: `rotate(${rotationCount * 180}deg)`,
+                  transition: 'transform 0.3s ease-in-out'
+                }}
+              >
+              </Button>
+            </Tooltip>
+          )}
+
+          {/* Ícone de olho para mostrar legendas - apenas mobile quando ocultas */}
+          {isMobile && legendasOcultasMobile && (
+            <Tooltip title="Mostrar legendas">
+              <Button
+                type="text"
+                icon={<EyeOutlined style={{ fontSize: '12px' }} />}
+                onClick={() => setLegendasOcultasMobile(false)}
+                style={{
+                  color: '#059669',
+                  border: '1px solid #059669',
+                  borderRadius: '6px',
+                  padding: '4px',
+                  height: 'auto',
+                  minWidth: 'auto'
+                }}
+              />
+            </Tooltip>
+          )}
+        </div>
+        
+        {/* Legenda das categorias ou culturas - ocultar no mobile quando legendasOcultasMobile = true */}
+        {!(isMobile && legendasOcultasMobile) && (
+        <div style={{ 
+          marginBottom: "4px",
+          opacity: transitioning ? 0 : 1,
+          transition: 'opacity 0.3s ease-in-out'
+        }}>
+          {modolezenda === 'categoria' ? (
+            // Modo Categoria - Layout em cards
+            (() => {
+              const categoriasPresentes = [...new Set(areas.map(area => area.categoria))];
+              
+              const categoriasConfig = {
+                'COLONO': { 
+                  cor: theme?.palette?.areaCategorias?.COLONO?.primary || '#52c41a', 
+                  nome: 'Colono' 
+                },
+                'TECNICO': { 
+                  cor: theme?.palette?.areaCategorias?.TECNICO?.primary || '#1890ff', 
+                  nome: 'Técnico' 
+                },
+                'EMPRESARIAL': { 
+                  cor: theme?.palette?.areaCategorias?.EMPRESARIAL?.primary || '#722ed1', 
+                  nome: 'Empresarial' 
+                },
+                'ADJACENTE': { 
+                  cor: theme?.palette?.areaCategorias?.ADJACENTE?.primary || '#fa8c16', 
+                  nome: 'Adjacente' 
+                }
+              };
+              
+              const categoriasParaExibir = Object.entries(categoriasConfig)
+                .filter(([categoria]) => categoriasPresentes.includes(categoria))
+                .map(([categoria, config]) => {
+                  const totalHa = areas
+                    .filter(area => area.categoria === categoria)
+                    .reduce((total, area) => total + (area.areaTotal || 0), 0);
+                  
+                  return {
+                    categoria,
+                    ...config,
+                    totalHa
+                  };
+                });
+              
+              return (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: isMobile ? '4px' : '6px'
+                }}>
+                  {categoriasParaExibir.map((config) => (
+                    <div 
+                      key={config.categoria}
+                      style={{ 
+                        display: 'grid',
+                        gridTemplateColumns: isMobile ? '10px 1fr' : '12px 1fr',
+                        alignItems: 'center',
+                        gap: isMobile ? '6px' : '8px',
+                        padding: isMobile ? '4px 6px' : '6px 8px',
+                        backgroundColor: 'rgba(5, 150, 105, 0.05)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(5, 150, 105, 0.15)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {/* Coluna 1: Cor da categoria */}
+                      <span style={{
+                        display: "block",
+                        width: isMobile ? "10px" : "12px",
+                        height: isMobile ? "10px" : "12px",
+                        backgroundColor: config.cor,
+                        flexShrink: 0,
+                        borderRadius: "2px"
+                      }}></span>
+                      
+                      {/* Coluna 2: Nome da categoria + Área */}
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                        minWidth: 0
+                      }}>
+                        <span style={{
+                          fontSize: isMobile ? "0.625rem" : "0.6875rem",
+                          fontWeight: "600",
+                          color: '#333',
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}>
+                          {config.nome}
+                        </span>
+                        <span style={{
+                          fontSize: isMobile ? "0.5rem" : "0.5625rem",
+                          color: '#666'
+                        }}>
+                          {numberFormatter(config.totalHa)} ha
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          ) : (
+            // Modo Cultura - Tabela organizada
+            (() => {
+              const culturas = Object.entries(agruparAreasPorCultura)
+                .sort((a, b) => {
+                  // "Sem Cultura" sempre vai para o final
+                  if (a[0] === 'Sem Cultura') return 1;
+                  if (b[0] === 'Sem Cultura') return -1;
+                  // Demais culturas ordenadas por hectares (maior primeiro)
+                  return b[1].totalHa - a[1].totalHa;
+                });
+              
+              return (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: isMobile ? '4px' : '6px'
+                }}>
+                  {culturas.map(([culturaNome, dados]) => {
+                    const culturaKey = culturaNome;
+                    const isVisible = culturasVisiveis[culturaKey] !== false;
+                    
+                    return (
+                      <div 
+                        key={culturaNome}
+                        style={{ 
+                          display: 'grid',
+                          gridTemplateColumns: isMobile ? '10px 1fr 28px' : '12px 1fr 32px',
+                          alignItems: 'center',
+                          gap: isMobile ? '6px' : '8px',
+                          padding: isMobile ? '4px 6px' : '6px 8px',
+                          backgroundColor: isVisible ? 'rgba(5, 150, 105, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                          borderRadius: '4px',
+                          border: `1px solid ${isVisible ? 'rgba(5, 150, 105, 0.15)' : 'rgba(0, 0, 0, 0.06)'}`,
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {/* Coluna 1: Cor da cultura */}
+                        <span style={{
+                          display: "block",
+                          width: isMobile ? "10px" : "12px",
+                          height: isMobile ? "10px" : "12px",
+                          backgroundColor: mapeamentoCulturaCor[culturaNome] || '#999999',
+                          flexShrink: 0,
+                          borderRadius: "2px",
+                          opacity: isVisible ? 1 : 0.3,
+                          transition: 'opacity 0.2s ease'
+                        }}></span>
+                        
+                        {/* Coluna 2: Nome da cultura + Área */}
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '2px',
+                          minWidth: 0,
+                          // 🎯 AJUSTE AQUI: Largura do nome da cultura (teste: 100-180)
+                          maxWidth: isMobile ? '75px' : '120px'
+                        }}>
+                          <span style={{
+                            fontSize: isMobile ? "0.625rem" : "0.6875rem",
+                            fontWeight: "600",
+                            color: isVisible ? '#333' : '#999',
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            transition: 'color 0.2s ease'
+                          }}>
+                            {/* 🎯 AJUSTE AQUI: Limite de caracteres (teste: 15-35) */}
+                            {culturaNome.length > 14 ? culturaNome.substring(0, 14) + '...' : culturaNome}
+                          </span>
+                          <span style={{
+                            fontSize: isMobile ? "0.5rem" : "0.5625rem",
+                            color: isVisible ? '#666' : '#aaa',
+                            transition: 'color 0.2s ease'
+                          }}>
+                            {numberFormatter(dados.totalHa)} ha
+                          </span>
+                        </div>
+                        
+                        {/* Coluna 3: Switch */}
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          alignItems: 'center'
+                        }}>
+                          <Switch
+                            size="small"
+                            checked={isVisible}
+                            onChange={(checked) => {
+                              setCulturasVisiveis(prev => ({
+                                ...prev,
+                                [culturaKey]: checked
+                              }));
+                            }}
+                            style={{
+                              backgroundColor: isVisible ? "#059669" : undefined,
+                              minWidth: isMobile ? '28px' : '32px'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
+          )}
+          
+          {/* Entrada da área do imóvel na legenda */}
+          {mostrarAreaImovel && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              marginTop: '4px',
+              paddingTop: '4px',
+              borderTop: '1px solid #f0f0f0'
+            }}>
+              <span style={{
+                display: "inline-block",
+                width: isMobile ? "8px" : "10px",
+                height: isMobile ? "8px" : "10px",
+                backgroundColor: '#FFD700',
+                flexShrink: 0,
+                borderRadius: "2px"
+              }}></span>
+              <span style={{
+                fontSize: isMobile ? "0.5625rem" : "0.6875rem",
+                whiteSpace: "nowrap"
+              }}>
+                Área DIBAU
+              </span>
+            </div>
+          )}
+
+          {/* Entrada dos lotes DIBAU na legenda */}
+          {mostrarLotesDibau && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              marginTop: '4px',
+              paddingTop: '4px',
+              borderTop: '1px solid #f0f0f0'
+            }}>
+              <span style={{
+                display: "inline-block",
+                width: isMobile ? "8px" : "10px",
+                height: isMobile ? "8px" : "10px",
+                backgroundColor: '#000000',
+                flexShrink: 0,
+                borderRadius: "2px"
+              }}></span>
+              <span style={{
+                fontSize: isMobile ? "0.5625rem" : "0.6875rem",
+                whiteSpace: "nowrap"
+              }}>
+                Lotes DIBAU
+              </span>
+            </div>
+            )}
+            
+          </div>
+          )}
+
+          {/* Contador de áreas - sempre visível */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            paddingTop: "4px",
+            borderTop: "1px solid #f0f0f0"
+          }}>
+            {(() => {
+              // Calcular total de hectares de todas as áreas
+              const totalHa = areas.reduce((total, area) => total + (area.areaTotal || 0), 0);
+              
+              return (
+                <>
+                  <span style={{
+                    fontSize: isMobile ? "0.5625rem" : "0.75rem", // Responsivo em rem
+                    color: "#666"
+                  }}>
+                    {areas.length} área{areas.length !== 1 ? 's' : ''} - {numberFormatter(totalHa)} ha
+                  </span>
+                  
+                  {/* Ícone de olho para ocultar legendas - apenas mobile quando visíveis */}
+                  {isMobile && !legendasOcultasMobile && (
+                    <Tooltip title="Ocultar legendas">
+                      <Button
+                        type="text"
+                        icon={<EyeInvisibleOutlined style={{ fontSize: '14px', fontWeight: 'bold' }} />}
+                        onClick={() => setLegendasOcultasMobile(true)}
+                        size="small"
+                        style={{
+                          color: '#059669',
+                          backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                          padding: '4px 6px',
+                          height: 'auto',
+                          minWidth: 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(5, 150, 105, 0.2)',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(5, 150, 105, 0.15)';
+                          e.currentTarget.style.borderColor = 'rgba(5, 150, 105, 0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(5, 150, 105, 0.1)';
+                          e.currentTarget.style.borderColor = 'rgba(5, 150, 105, 0.2)';
+                        }}
+                      />
+                    </Tooltip>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+      </div>,
+      customLegendDivRef.current
+    );
+  }, [
+    legendDivReady, // Força re-render quando div for criado
+    customLegendDivRef.current,
+    isFullscreen, // Renderiza apenas quando em fullscreen
+    isMobile,
+    modolezenda,
+    handleToggleLegenda,
+    rotationCount,
+    transitioning,
+    areas,
+    theme,
+    agruparAreasPorCultura,
+    culturasVisiveis,
+    setCulturasVisiveis,
+    mapeamentoCulturaCor,
+    mostrarAreaImovel,
+    mostrarLotesDibau,
+    numberFormatter,
+    legendasOcultasMobile // Adicionado para re-renderizar quando o estado mudar
+  ]);
+
   if (loadError) {
     return (
       <Box sx={{ p: 2 }}>
@@ -1016,7 +2551,8 @@ const getLotesDibauPolygonOptions = (theme) => {
         overflow: "hidden"
       }}
     >
-      {/* Header com título */}
+      {/* Header com título - Ocultar se em fullscreen */}
+      {!isFullscreen && (
       <Box sx={{ mb: 0 }}>
         <Box sx={{ 
           display: 'flex', 
@@ -1046,734 +2582,18 @@ const getLotesDibauPolygonOptions = (theme) => {
           </Title>
         </Box>
       </Box>
+      )}
 
-      {/* Controles do mapa */}
-      <Box sx={{ 
-        display: "flex", 
-        justifyContent: "space-between", 
-        alignItems: "center",
-        flexWrap: isMobile ? "wrap" : "nowrap",
-        gap: isMobile ? 0.25 : 1,
-        mb: isMobile ? 0.25 : 0.5,
-        minHeight: isMobile ? "auto" : "40px"
-      }}>
-        {/* Botões de ação */}
-        <Space wrap size={isMobile ? "small" : "middle"}>
-          <Button
-            type="default"
-            icon={<HomeOutlined />}
-            size={isMobile ? "small" : "middle"}
-            onClick={centralizarMapa}
-            disabled={areas.length === 0}
-            style={{
-              fontSize: isMobile ? "0.6875rem" : "0.875rem",
-              height: isMobile ? "28px" : "40px",
-              padding: isMobile ? "0 6px" : "0 12px",
-            }}
-          >
-            {isMobile ? "Centralizar" : "Centralizar Áreas"}
-          </Button>
-          
-          <Button
-            type="default"
-            icon={<Icon icon="mdi:map" />}
-            size={isMobile ? "small" : "middle"}
-            onClick={irParaLocalizacaoAtual}
-            style={{
-              fontSize: isMobile ? "0.6875rem" : "0.875rem",
-              height: isMobile ? "28px" : "40px",
-              padding: isMobile ? "0 6px" : "0 12px",
-            }}
-          >
-            {isMobile ? "Minha Localização" : "Minha Localização"}
-          </Button>
-
-          <Button
-            type="default"
-            icon={<ReloadOutlined />}
-            size={isMobile ? "small" : "middle"}
-            onClick={carregarAreas}
-            loading={loading}
-            style={{
-              fontSize: isMobile ? "0.6875rem" : "0.875rem",
-              height: isMobile ? "28px" : "40px",
-              padding: isMobile ? "0 6px" : "0 12px",
-            }}
-          >
-            {isMobile ? "Atualizar" : "Atualizar Dados"}
-          </Button>
-        </Space>
-
-        {/* Divider e Campo de Busca - Desktop */}
-        {!isMobile && (
-          <>
-            {/* Divider vertical */}
-            <div style={{
-              width: "1px",
-              height: "32px",
-              backgroundColor: "rgba(5, 150, 105, 0.2)",
-              margin: "0 12px"
-            }} />
-
-            {/* Campo de Busca */}
-            <SearchContainer ref={searchContainerRef} style={{ flex: 1 }}>
-              <Input
-                placeholder="Buscar área por nome..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                allowClear
-                prefix={searchLoading ? <LoadingOutlined spin /> : <SearchOutlined />}
-                size="middle"
-                style={{
-                  borderRadius: '6px',
-                  fontSize: '1rem'
-                }}
-              />
-
-              {/* Dropdown de Resultados */}
-              <SearchDropdown $isOpen={searchDropdownOpen}>
-                {searchLoading ? (
-                  <div style={{
-                    padding: '16px',
-                    textAlign: 'center',
-                    color: '#1890ff'
-                  }}>
-                    <LoadingOutlined spin style={{ marginRight: '8px' }} />
-                    <span>Buscando...</span>
-                  </div>
-                ) : (
-                  searchResults.map((resultado, index) => {
-                    if (resultado.tipo === 'no-results') {
-                      return (
-                        <div key="no-results" style={{
-                          padding: '16px',
-                          textAlign: 'center',
-                          color: '#999',
-                          fontStyle: 'italic'
-                        }}>
-                          {resultado.nome}
-                        </div>
-                      );
-                    }
-
-                    if (resultado.tipo === 'error') {
-                      return (
-                        <div key="error" style={{
-                          padding: '16px',
-                          textAlign: 'center',
-                          color: '#f5222d'
-                        }}>
-                          ⚠️ {resultado.nome}
-                        </div>
-                      );
-                    }
-
-                    if (resultado.tipo === 'area-sistema') {
-                      const categoriaConfig = {
-                        'COLONO': { cor: theme?.palette?.areaCategorias?.COLONO?.primary || '#52c41a', nome: 'Colono', icon: '🌱' },
-                        'TECNICO': { cor: theme?.palette?.areaCategorias?.TECNICO?.primary || '#1890ff', nome: 'Técnico', icon: '🔧' },
-                        'EMPRESARIAL': { cor: theme?.palette?.areaCategorias?.EMPRESARIAL?.primary || '#722ed1', nome: 'Empresarial', icon: '🏢' },
-                        'ADJACENTE': { cor: theme?.palette?.areaCategorias?.ADJACENTE?.primary || '#fa8c16', nome: 'Adjacente', icon: '📍' }
-                      };
-
-                      const config = categoriaConfig[resultado.categoria] || { cor: '#999', nome: resultado.categoria, icon: '📍' };
-
-                      return (
-                        <SearchResultItem key={`area-${resultado.id}`} onClick={() => handleSelectSearchResult(resultado)}>
-                          <ResultIcon bgColor={`${config.cor}20`} color={config.cor}>
-                            {config.icon}
-                          </ResultIcon>
-                          <ResultContent>
-                            <ResultTitle>{resultado.nome}</ResultTitle>
-                            <ResultSubtitle>
-                              <TypeBadge color={config.cor}>{config.nome}</TypeBadge>
-                              {' • '}
-                              {numberFormatter(resultado.areaTotal)} ha
-                              {resultado.culturas && resultado.culturas.length > 0 && (
-                                <> • {resultado.culturas.map(c => c.descricao).join(', ')}</>
-                              )}
-                            </ResultSubtitle>
-                          </ResultContent>
-                        </SearchResultItem>
-                      );
-                    }
-
-                    if (resultado.tipo === 'lote-dibau') {
-                      return (
-                        <SearchResultItem key={resultado.id} onClick={() => handleSelectSearchResult(resultado)}>
-                          <ResultIcon bgColor="#FFF0F0" color="#FF6B6B">
-                            🏞️
-                          </ResultIcon>
-                          <ResultContent>
-                            <ResultTitle>{resultado.nome}</ResultTitle>
-                            <ResultSubtitle>
-                              <TypeBadge color="#FF6B6B">Lote DIBAU</TypeBadge>
-                              {resultado.nomenclatura && (
-                                <> • {resultado.nomenclatura}</>
-                              )}
-                              {resultado.areaHa && (
-                                <> • {numberFormatter(resultado.areaHa)} ha</>
-                              )}
-                            </ResultSubtitle>
-                          </ResultContent>
-                        </SearchResultItem>
-                      );
-                    }
-
-                    return null;
-                  })
-                )}
-              </SearchDropdown>
-            </SearchContainer>
-
-            {/* Divider vertical */}
-            <div style={{
-              width: "1px",
-              height: "32px",
-              backgroundColor: "rgba(5, 150, 105, 0.2)",
-              margin: "0 12px"
-            }} />
-          </>
-        )}
-
-        {/* Switches para controlar exibição */}
-        <div style={{
-          display: "flex",
-          flexDirection: isMobile ? "column" : "row",
-          alignItems: isMobile ? "stretch" : "center",
-          gap: isMobile ? "4px" : "12px",
-          flexWrap: "nowrap"
-        }}>
-          {/* Primeira linha no mobile / Todos no desktop */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: isMobile ? "4px" : "12px",
-            flexWrap: "nowrap"
-          }}>
-            {/* Componente unificado Alencar - Desktop e Mobile */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: isMobile ? "4px" : "10px",
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              backdropFilter: "blur(4px)",
-              padding: isMobile ? "4px 6px" : "8px 14px",
-              borderRadius: isMobile ? "16px" : "20px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-              border: "1px solid rgba(5, 150, 105, 0.2)",
-              transition: "all 0.2s ease",
-              flex: "none"
-            }}>
-              <Icon 
-                icon="mdi:home-outline" 
-                style={{ 
-                  fontSize: isMobile ? "12px" : "18px",
-                  color: (mostrarNomesAreas || mostrarSede) ? "#059669" : "#666",
-                  transition: "color 0.2s ease"
-                }} 
-              />
-              <Typography.Text 
-                style={{ 
-                  fontSize: isMobile ? "0.5625rem" : "0.8125rem",
-                  fontWeight: "600",
-                  margin: 0,
-                  whiteSpace: "nowrap",
-                  color: (mostrarNomesAreas || mostrarSede) ? "#059669" : "#666",
-                  transition: "color 0.2s ease"
-                }}
-              >
-                Alencar
-              </Typography.Text>
-              
-              {/* Separador visual */}
-              <div style={{
-                width: "1px",
-                height: isMobile ? "14px" : "20px",
-                backgroundColor: "rgba(5, 150, 105, 0.3)",
-                margin: isMobile ? "0 2px" : "0 4px"
-              }} />
-              
-              {/* Toggle para Nomes */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: isMobile ? "2px" : "6px",
-                padding: isMobile ? "2px 4px" : "4px 8px",
-                borderRadius: isMobile ? "8px" : "12px",
-                backgroundColor: mostrarNomesAreas ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                transition: "all 0.2s ease"
-              }}>
-                <Typography.Text 
-                  style={{ 
-                    fontSize: isMobile ? "0.5rem" : "0.75rem",
-                    fontWeight: "500",
-                    margin: 0,
-                    color: mostrarNomesAreas ? "#059669" : "#999",
-                    transition: "color 0.2s ease"
-                  }}
-                >
-                  Nomes
-                </Typography.Text>
-                <Switch
-                  size="small"
-                  checked={mostrarNomesAreas}
-                  onChange={setMostrarNomesAreas}
-                  style={{
-                    backgroundColor: mostrarNomesAreas ? "#059669" : undefined,
-                    transform: isMobile ? "scale(0.8)" : undefined
-                  }}
-                />
-              </div>
-              
-              {/* Toggle para Sede */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: isMobile ? "2px" : "6px",
-                padding: isMobile ? "2px 4px" : "4px 8px",
-                borderRadius: isMobile ? "8px" : "12px",
-                backgroundColor: mostrarSede ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                transition: "all 0.2s ease"
-              }}>
-                <Typography.Text 
-                  style={{ 
-                    fontSize: isMobile ? "0.5rem" : "0.75rem",
-                    fontWeight: "500",
-                    margin: 0,
-                    color: mostrarSede ? "#059669" : "#999",
-                    transition: "color 0.2s ease"
-                  }}
-                >
-                  Sede
-                </Typography.Text>
-                <Switch
-                  size="small"
-                  checked={mostrarSede}
-                  onChange={setMostrarSede}
-                  style={{
-                    backgroundColor: mostrarSede ? "#059669" : undefined,
-                    transform: isMobile ? "scale(0.8)" : undefined
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Componente unificado DIBAU - Desktop */}
-            {!isMobile && (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                backgroundColor: "rgba(255, 255, 255, 0.95)",
-                backdropFilter: "blur(4px)",
-                padding: "8px 14px",
-                borderRadius: "20px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                border: "1px solid rgba(5, 150, 105, 0.2)",
-                transition: "all 0.2s ease"
-              }}>
-                <Icon 
-                  icon="mdi:map-legend" 
-                  style={{ 
-                    fontSize: "18px",
-                    color: (mostrarLotesDibau || mostrarAreaImovel) ? "#059669" : "#666",
-                    transition: "color 0.2s ease"
-                  }} 
-                />
-                <Typography.Text 
-                  style={{ 
-                    fontSize: "0.8125rem",
-                    fontWeight: "600",
-                    margin: 0,
-                    whiteSpace: "nowrap",
-                    color: (mostrarLotesDibau || mostrarAreaImovel) ? "#059669" : "#666",
-                    transition: "color 0.2s ease"
-                  }}
-                >
-                  DIBAU
-                </Typography.Text>
-                
-                {/* Separador visual */}
-                <div style={{
-                  width: "1px",
-                  height: "20px",
-                  backgroundColor: "rgba(5, 150, 105, 0.3)",
-                  margin: "0 4px"
-                }} />
-                
-                {/* Toggle para Lotes */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "4px 8px",
-                  borderRadius: "12px",
-                  backgroundColor: mostrarLotesDibau ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                  transition: "all 0.2s ease"
-                }}>
-                  <Typography.Text 
-                    style={{ 
-                      fontSize: "0.75rem",
-                      fontWeight: "500",
-                      margin: 0,
-                      color: mostrarLotesDibau ? "#059669" : "#999",
-                      transition: "color 0.2s ease"
-                    }}
-                  >
-                    Lotes
-                  </Typography.Text>
-                  <Switch
-                    size="small"
-                    checked={mostrarLotesDibau}
-                    onChange={setMostrarLotesDibau}
-                    style={{
-                      backgroundColor: mostrarLotesDibau ? "#059669" : undefined
-                    }}
-                  />
-                </div>
-                
-                {/* Toggle para Nomes */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "4px 8px",
-                  borderRadius: "12px",
-                  backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                  transition: "all 0.2s ease",
-                  opacity: mostrarLotesDibau ? 1 : 0.5
-                }}>
-                  <Typography.Text 
-                    style={{ 
-                      fontSize: "0.75rem",
-                      fontWeight: "500",
-                      margin: 0,
-                      color: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : "#999",
-                      transition: "color 0.2s ease"
-                    }}
-                  >
-                    Nomes
-                  </Typography.Text>
-                  <Switch
-                    size="small"
-                    checked={mostrarNomesLotesDibau}
-                    onChange={setMostrarNomesLotesDibau}
-                    disabled={!mostrarLotesDibau}
-                    style={{
-                      backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : undefined
-                    }}
-                  />
-                </div>
-                
-                {/* Toggle para CAR */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "4px 8px",
-                  borderRadius: "12px",
-                  backgroundColor: mostrarAreaImovel ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                  transition: "all 0.2s ease"
-                }}>
-                  <Typography.Text 
-                    style={{ 
-                      fontSize: "0.75rem",
-                      fontWeight: "500",
-                      margin: 0,
-                      color: mostrarAreaImovel ? "#059669" : "#999",
-                      transition: "color 0.2s ease"
-                    }}
-                  >
-                    CAR
-                  </Typography.Text>
-                  <Switch
-                    size="small"
-                    checked={mostrarAreaImovel}
-                    onChange={setMostrarAreaImovel}
-                    style={{
-                      backgroundColor: mostrarAreaImovel ? "#059669" : undefined
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Segunda linha no mobile apenas */}
-          {isMobile && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              flexWrap: "nowrap"
-            }}>
-              {/* Componente unificado DIBAU - Mobile */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                backgroundColor: "rgba(255, 255, 255, 0.95)",
-                backdropFilter: "blur(4px)",
-                padding: "4px 6px",
-                borderRadius: "16px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                border: "1px solid rgba(5, 150, 105, 0.2)",
-                transition: "all 0.2s ease",
-                flex: "1"
-              }}>
-                <Icon 
-                  icon="mdi:map-legend" 
-                  style={{ 
-                    fontSize: "12px",
-                    color: (mostrarLotesDibau || mostrarAreaImovel) ? "#059669" : "#666",
-                    transition: "color 0.2s ease"
-                  }} 
-                />
-                <Typography.Text 
-                  style={{ 
-                    fontSize: "0.5625rem",
-                    fontWeight: "600",
-                    margin: 0,
-                    whiteSpace: "nowrap",
-                    color: (mostrarLotesDibau || mostrarAreaImovel) ? "#059669" : "#666",
-                    transition: "color 0.2s ease"
-                  }}
-                >
-                  DIBAU
-                </Typography.Text>
-                
-                {/* Separador visual mini */}
-                <div style={{
-                  width: "1px",
-                  height: "14px",
-                  backgroundColor: "rgba(5, 150, 105, 0.3)",
-                  margin: "0 2px"
-                }} />
-                
-                {/* Toggle compacto para Lotes */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "2px",
-                  padding: "2px 4px",
-                  borderRadius: "8px",
-                  backgroundColor: mostrarLotesDibau ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                  transition: "all 0.2s ease"
-                }}>
-                  <Typography.Text 
-                    style={{ 
-                      fontSize: "0.5rem",
-                      fontWeight: "500",
-                      margin: 0,
-                      color: mostrarLotesDibau ? "#059669" : "#999",
-                      transition: "color 0.2s ease"
-                    }}
-                  >
-                    Lotes
-                  </Typography.Text>
-                  <Switch
-                    size="small"
-                    checked={mostrarLotesDibau}
-                    onChange={setMostrarLotesDibau}
-                    style={{
-                      backgroundColor: mostrarLotesDibau ? "#059669" : undefined,
-                      transform: "scale(0.8)"
-                    }}
-                  />
-                </div>
-                
-                {/* Toggle compacto para Nomes */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "2px",
-                  padding: "2px 4px",
-                  borderRadius: "8px",
-                  backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                  transition: "all 0.2s ease",
-                  opacity: mostrarLotesDibau ? 1 : 0.5
-                }}>
-                  <Typography.Text 
-                    style={{ 
-                      fontSize: "0.5rem",
-                      fontWeight: "500",
-                      margin: 0,
-                      color: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : "#999",
-                      transition: "color 0.2s ease"
-                    }}
-                  >
-                    Nomes
-                  </Typography.Text>
-                  <Switch
-                    size="small"
-                    checked={mostrarNomesLotesDibau}
-                    onChange={setMostrarNomesLotesDibau}
-                    disabled={!mostrarLotesDibau}
-                    style={{
-                      backgroundColor: (mostrarLotesDibau && mostrarNomesLotesDibau) ? "#059669" : undefined,
-                      transform: "scale(0.8)"
-                    }}
-                  />
-                </div>
-                
-                {/* Toggle compacto para CAR */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "2px",
-                  padding: "2px 4px",
-                  borderRadius: "8px",
-                  backgroundColor: mostrarAreaImovel ? "rgba(5, 150, 105, 0.1)" : "rgba(0, 0, 0, 0.05)",
-                  transition: "all 0.2s ease"
-                }}>
-                  <Typography.Text 
-                    style={{ 
-                      fontSize: "0.5rem",
-                      fontWeight: "500",
-                      margin: 0,
-                      color: mostrarAreaImovel ? "#059669" : "#999",
-                      transition: "color 0.2s ease"
-                    }}
-                  >
-                    CAR
-                  </Typography.Text>
-                  <Switch
-                    size="small"
-                    checked={mostrarAreaImovel}
-                    onChange={setMostrarAreaImovel}
-                    style={{
-                      backgroundColor: mostrarAreaImovel ? "#059669" : undefined,
-                      transform: "scale(0.8)"
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Campo de Busca Mobile - Após os switches */}
-        {isMobile && (
-          <SearchContainer ref={searchContainerRef} style={{ width: '100%', marginTop: '8px' }}>
-            <Input
-              placeholder="Buscar área..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-              allowClear
-              prefix={searchLoading ? <LoadingOutlined spin /> : <SearchOutlined />}
-              size="small"
-              style={{
-                borderRadius: '6px',
-                fontSize: '0.875rem'
-              }}
-            />
-
-            {/* Dropdown de Resultados */}
-            <SearchDropdown $isOpen={searchDropdownOpen}>
-              {searchLoading ? (
-                <div style={{
-                  padding: '16px',
-                  textAlign: 'center',
-                  color: '#1890ff'
-                }}>
-                  <LoadingOutlined spin style={{ marginRight: '8px' }} />
-                  <span>Buscando...</span>
-                </div>
-              ) : (
-                searchResults.map((resultado, index) => {
-                  if (resultado.tipo === 'no-results') {
-                    return (
-                      <div key="no-results" style={{
-                        padding: '16px',
-                        textAlign: 'center',
-                        color: '#999',
-                        fontStyle: 'italic'
-                      }}>
-                        {resultado.nome}
-                      </div>
-                    );
-                  }
-
-                  if (resultado.tipo === 'error') {
-                    return (
-                      <div key="error" style={{
-                        padding: '16px',
-                        textAlign: 'center',
-                        color: '#f5222d'
-                      }}>
-                        ⚠️ {resultado.nome}
-                      </div>
-                    );
-                  }
-
-                  if (resultado.tipo === 'area-sistema') {
-                    const categoriaConfig = {
-                      'COLONO': { cor: theme?.palette?.areaCategorias?.COLONO?.primary || '#52c41a', nome: 'Colono', icon: '🌱' },
-                      'TECNICO': { cor: theme?.palette?.areaCategorias?.TECNICO?.primary || '#1890ff', nome: 'Técnico', icon: '🔧' },
-                      'EMPRESARIAL': { cor: theme?.palette?.areaCategorias?.EMPRESARIAL?.primary || '#722ed1', nome: 'Empresarial', icon: '🏢' },
-                      'ADJACENTE': { cor: theme?.palette?.areaCategorias?.ADJACENTE?.primary || '#fa8c16', nome: 'Adjacente', icon: '📍' }
-                    };
-
-                    const config = categoriaConfig[resultado.categoria] || { cor: '#999', nome: resultado.categoria, icon: '📍' };
-
-                    return (
-                      <SearchResultItem key={`area-${resultado.id}`} onClick={() => handleSelectSearchResult(resultado)}>
-                        <ResultIcon bgColor={`${config.cor}20`} color={config.cor}>
-                          {config.icon}
-                        </ResultIcon>
-                        <ResultContent>
-                          <ResultTitle>{resultado.nome}</ResultTitle>
-                          <ResultSubtitle>
-                            <TypeBadge color={config.cor}>{config.nome}</TypeBadge>
-                            {' • '}
-                            {numberFormatter(resultado.areaTotal)} ha
-                            {resultado.culturas && resultado.culturas.length > 0 && (
-                              <> • {resultado.culturas.map(c => c.descricao).join(', ')}</>
-                            )}
-                          </ResultSubtitle>
-                        </ResultContent>
-                      </SearchResultItem>
-                    );
-                  }
-
-                  if (resultado.tipo === 'lote-dibau') {
-                    return (
-                      <SearchResultItem key={resultado.id} onClick={() => handleSelectSearchResult(resultado)}>
-                        <ResultIcon bgColor="#FFF0F0" color="#FF6B6B">
-                          🏞️
-                        </ResultIcon>
-                        <ResultContent>
-                          <ResultTitle>{resultado.nome}</ResultTitle>
-                          <ResultSubtitle>
-                            <TypeBadge color="#FF6B6B">Lote DIBAU</TypeBadge>
-                            {resultado.nomenclatura && (
-                              <> • {resultado.nomenclatura}</>
-                            )}
-                            {resultado.areaHa && (
-                              <> • {numberFormatter(resultado.areaHa)} ha</>
-                            )}
-                          </ResultSubtitle>
-                        </ResultContent>
-                      </SearchResultItem>
-                    );
-                  }
-
-                  return null;
-                })
-              )}
-            </SearchDropdown>
-          </SearchContainer>
-        )}
-      </Box>
+      {/* Controles do mapa - Fora do mapa quando NÃO está em fullscreen */}
+      {!isFullscreen && <ControlesBarraComponent {...controlesBarraProps} />}
 
       {/* Container do mapa */}
       <Box sx={{
         flex: 1,
         position: "relative",
-        minHeight: isMobile ? "200px" : "300px", // Altura mínima segura
-        overflow: "hidden" // Evita scroll desnecessário
-      }}>
+        minHeight: isMobile ? "200px" : "300px",
+        overflow: "hidden"
+      }} ref={mapContainerRef}>
         <GoogleMap
           mapContainerStyle={{
             height: "100%",
@@ -2244,7 +3064,8 @@ const getLotesDibauPolygonOptions = (theme) => {
           </Space>
         </div>
         
-        {/* Legenda do mapa */}
+        {/* Legenda do mapa - Ocultar se em fullscreen */}
+        {!isFullscreen && (
         <div style={{
           position: "absolute",
           bottom: isMobile ? "8px" : "10px",
@@ -2271,34 +3092,60 @@ const getLotesDibauPolygonOptions = (theme) => {
               fontWeight: "600",
               color: "#333"
             }}>
-              {modolezenda === 'categoria' 
-                ? (isMobile ? "Por Categoria" : "Legenda por Categoria")
-                : (isMobile ? "Por Cultura" : "Legenda por Cultura")
+              {/* Se legendas ocultas no mobile, mostrar apenas "Legendas" */}
+              {isMobile && legendasOcultasMobile 
+                ? "Legendas"
+                : (modolezenda === 'categoria' 
+                    ? (isMobile ? "Por Categoria" : "Legenda por Categoria")
+                    : (isMobile ? "Por Cultura" : "Legenda por Cultura")
+                  )
               }
             </span>
             
-            {/* Toggle para alternar modo */}
-            <Tooltip title={`Alternar para ${modolezenda === 'categoria' ? 'Cultura' : 'Categoria'}`}>
-              <Button
-                type="text"
-                icon={<SwapOutlined style={{ fontSize: '12px' }} />}
-                onClick={handleToggleLegenda}
-                style={{
-                  color: '#059669',
-                  border: '1px solid #059669',
-                  borderRadius: '6px',
-                  padding: '4px',
-                  height: 'auto',
-                  minWidth: 'auto',
-                  transform: `rotate(${rotationCount * 180}deg)`,
-                  transition: 'transform 0.3s ease-in-out'
-                }}
-              >
-              </Button>
-            </Tooltip>
+            {/* Toggle para alternar modo - ocultar se legendas estão ocultas no mobile */}
+            {!(isMobile && legendasOcultasMobile) && (
+              <Tooltip title={`Alternar para ${modolezenda === 'categoria' ? 'Cultura' : 'Categoria'}`}>
+                <Button
+                  type="text"
+                  icon={<SwapOutlined style={{ fontSize: '12px' }} />}
+                  onClick={handleToggleLegenda}
+                  style={{
+                    color: '#059669',
+                    border: '1px solid #059669',
+                    borderRadius: '6px',
+                    padding: '4px',
+                    height: 'auto',
+                    minWidth: 'auto',
+                    transform: `rotate(${rotationCount * 180}deg)`,
+                    transition: 'transform 0.3s ease-in-out'
+                  }}
+                >
+                </Button>
+              </Tooltip>
+            )}
+
+            {/* Ícone de olho para mostrar legendas - apenas mobile quando ocultas */}
+            {isMobile && legendasOcultasMobile && (
+              <Tooltip title="Mostrar legendas">
+                <Button
+                  type="text"
+                  icon={<EyeOutlined style={{ fontSize: '12px' }} />}
+                  onClick={() => setLegendasOcultasMobile(false)}
+                  style={{
+                    color: '#059669',
+                    border: '1px solid #059669',
+                    borderRadius: '6px',
+                    padding: '4px',
+                    height: 'auto',
+                    minWidth: 'auto'
+                  }}
+                />
+              </Tooltip>
+            )}
           </div>
           
-          {/* Legenda das categorias ou culturas */}
+          {/* Legenda das categorias ou culturas - ocultar no mobile quando legendasOcultasMobile = true */}
+          {!(isMobile && legendasOcultasMobile) && (
           <div style={{ 
             marginBottom: "4px",
             opacity: transitioning ? 0 : 1,
@@ -2456,7 +3303,9 @@ const getLotesDibauPolygonOptions = (theme) => {
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '2px',
-                            minWidth: 0
+                            minWidth: 0,
+                            // 🎯 AJUSTE AQUI: Largura do nome da cultura (teste: 100-180)
+                            maxWidth: isMobile ? '75px' : '120px'
                           }}>
                             <span style={{
                               fontSize: isMobile ? "0.625rem" : "0.6875rem",
@@ -2467,7 +3316,8 @@ const getLotesDibauPolygonOptions = (theme) => {
                               textOverflow: "ellipsis",
                               transition: 'color 0.2s ease'
                             }}>
-                              {culturaNome}
+                              {/* 🎯 AJUSTE AQUI: Limite de caracteres (teste: 15-35) */}
+                              {culturaNome.length > 14 ? culturaNome.substring(0, 14) + '...' : culturaNome}
                             </span>
                             <span style={{
                               fontSize: isMobile ? "0.5rem" : "0.5625rem",
@@ -2562,30 +3412,68 @@ const getLotesDibauPolygonOptions = (theme) => {
             )}
             
           </div>
+        )}
 
-          {/* Contador de áreas */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            paddingTop: "4px",
-            borderTop: "1px solid #f0f0f0"
-          }}>
-            {(() => {
-              // Calcular total de hectares de todas as áreas
-              const totalHa = areas.reduce((total, area) => total + (area.areaTotal || 0), 0);
-              
-              return (
+        {/* Contador de áreas - sempre visível */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          paddingTop: "4px",
+          borderTop: "1px solid #f0f0f0"
+        }}>
+          {(() => {
+            // Calcular total de hectares de todas as áreas
+            const totalHa = areas.reduce((total, area) => total + (area.areaTotal || 0), 0);
+            
+            return (
+              <>
                 <span style={{
                   fontSize: isMobile ? "0.5625rem" : "0.75rem", // Responsivo em rem
                   color: "#666"
                 }}>
                   {areas.length} área{areas.length !== 1 ? 's' : ''} - {numberFormatter(totalHa)} ha
                 </span>
-              );
-            })()}
-          </div>
+                
+                  {/* Ícone de olho para ocultar legendas - apenas mobile quando visíveis */}
+                  {isMobile && !legendasOcultasMobile && (
+                    <Tooltip title="Ocultar legendas">
+                      <Button
+                        type="text"
+                        icon={<EyeInvisibleOutlined style={{ fontSize: '14px', fontWeight: 'bold' }} />}
+                        onClick={() => setLegendasOcultasMobile(true)}
+                        size="small"
+                        style={{
+                          color: '#059669',
+                          backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                          padding: '4px 6px',
+                          height: 'auto',
+                          minWidth: 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(5, 150, 105, 0.2)',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(5, 150, 105, 0.15)';
+                          e.currentTarget.style.borderColor = 'rgba(5, 150, 105, 0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(5, 150, 105, 0.1)';
+                          e.currentTarget.style.borderColor = 'rgba(5, 150, 105, 0.2)';
+                        }}
+                      />
+                    </Tooltip>
+                  )}
+              </>
+            );
+          })()}
         </div>
+        </div>
+        )}
       </Box>
 
       {/* Informação sobre dados dos lotes DIBAU */}
@@ -2594,7 +3482,7 @@ const getLotesDibauPolygonOptions = (theme) => {
           <Alert
             message={
               <span style={{ fontSize: '0.75rem' }}>
-                <ExclamationCircleOutlined /> Dados dos lotes DIBAU (nome e área) são do KML do distrito e apenas referência, podendo apresentar erros.
+                <ExclamationCircleOutlined /> Dados dos lotes DIBAU (nome e área) são do KML do distrito e apenas para referência, podendo apresentar erros.
               </span>
             }
             type="warning"
@@ -2621,6 +3509,12 @@ const getLotesDibauPolygonOptions = (theme) => {
         area={dadosDetalhesArea}
         loading={loadingDetalhesArea}
       />
+
+      {/* Portal para renderizar controles no fullscreen (memoizado) */}
+      {portalContent}
+      
+      {/* Portal para renderizar legenda no fullscreen (memoizado) */}
+      {legendPortalContent}
     </Box>
   );
 };

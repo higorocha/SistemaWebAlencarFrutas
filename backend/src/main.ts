@@ -23,7 +23,7 @@ async function bootstrap() {
   }));
   
   // Configurar CORS para permitir conexão com frontend (local e rede)
-  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3002,http://192.168.1.145:3002';
+  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3002,http://192.168.0.122:3002';
   console.log('🔧 CORS_ORIGIN from env:', corsOrigin);
   
   const allowedOrigins = corsOrigin === '*' ? true : corsOrigin.split(',').map(origin => origin.trim());
@@ -53,9 +53,9 @@ async function bootstrap() {
   
   console.log(`🚀 Servidor NestJS rodando na porta ${port}`);
   console.log(`📱 Frontend Local: http://localhost:3002`);
-  console.log(`📱 Frontend Rede: http://192.168.1.145:3002`);
+  console.log(`📱 Frontend Rede: http://192.168.0.122:3002`);
   console.log(`🔧 Backend Local: http://localhost:${port}`);
-  console.log(`🔧 Backend Rede: http://192.168.1.145:${port}`);
-  console.log(`📚 Documentação: http://192.168.1.145:${port}/api`);
+  console.log(`🔧 Backend Rede: http://192.168.0.122:${port}`);
+  console.log(`📚 Documentação: http://192.168.0.122:${port}/api`);
 }
 bootstrap();

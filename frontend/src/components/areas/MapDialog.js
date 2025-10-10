@@ -1287,7 +1287,7 @@ const TypeBadge = styled.div`
                 }} />
                 
                 <Typography.Text type="warning" style={{ fontSize: "0.7rem" }}>
-                  <ExclamationCircleOutlined /> Dados dos lotes DIBAU (nome e área) são do KML do distrito e apenas referência, podendo apresentar erros.
+                  <ExclamationCircleOutlined /> Dados dos lotes DIBAU (nome e área) são do KML do distrito e apenas para referência, podendo apresentar erros.
                 </Typography.Text>
               </div>
             </div>
