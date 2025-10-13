@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, Row, Col, Typography, Statistic, Space, Badge, Button, Progress, List, Avatar, Tag, message } from "antd";
 import { Icon } from "@iconify/react";
+import { useNavigate } from "react-router-dom";
 import {
   DashboardOutlined,
   UserOutlined,
@@ -156,6 +157,7 @@ const PAGAMENTOS_MODOS = {
 
 const Dashboard = () => {
   const { isMobile, isTablet, screenSize, isSmallMobile } = useResponsive();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [bananaPrevisoes, setBananaPrevisoes] = useState([]);
   const [modoPagamentos, setModoPagamentos] = useState(PAGAMENTOS_MODOS.PENDENTES);
@@ -221,6 +223,22 @@ const Dashboard = () => {
   });
   const theme = useTheme();
 
+  // Funções de navegação para os cards
+  const handleNavigateToClientes = () => {
+    navigate('/clientes');
+  };
+
+  const handleNavigateToPedidos = () => {
+    navigate('/pedidos');
+  };
+
+  const handleNavigateToAreas = () => {
+    navigate('/areas-agricolas');
+  };
+
+  const handleNavigateToFrutas = () => {
+    navigate('/frutas');
+  };
 
   // Função para buscar dados reais do backend
   const fetchDashboardData = async () => {
@@ -609,7 +627,10 @@ const Dashboard = () => {
           </CardStyled>
 
           {/* Card 3: Clientes Ativos */}
-          <CardStyled style={{ margin: 0 }}>
+          <CardStyled 
+            style={{ margin: 0, cursor: 'pointer' }}
+            onClick={handleNavigateToClientes}
+          >
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -629,7 +650,10 @@ const Dashboard = () => {
           </CardStyled>
 
           {/* Card 4: Pedidos Ativos */}
-          <CardStyled style={{ margin: 0 }}>
+          <CardStyled 
+            style={{ margin: 0, cursor: 'pointer' }}
+            onClick={handleNavigateToPedidos}
+          >
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -649,7 +673,10 @@ const Dashboard = () => {
           </CardStyled>
 
           {/* Card 5: Áreas Produtivas */}
-          <CardStyled style={{ margin: 0 }}>
+          <CardStyled 
+            style={{ margin: 0, cursor: 'pointer' }}
+            onClick={handleNavigateToAreas}
+          >
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -669,7 +696,10 @@ const Dashboard = () => {
           </CardStyled>
 
           {/* Card 6: Frutas Cadastradas */}
-          <CardStyled style={{ margin: 0 }}>
+          <CardStyled 
+            style={{ margin: 0, cursor: 'pointer' }}
+            onClick={handleNavigateToFrutas}
+          >
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -740,7 +770,10 @@ const Dashboard = () => {
           </Col>
 
           <Col xs={24} sm={12} md={8} lg={4}>
-            <CardStyled>
+            <CardStyled 
+              style={{ cursor: 'pointer' }}
+              onClick={handleNavigateToClientes}
+            >
               <Statistic
                 title="Clientes Ativos"
                 value={dashboardData.totalClientes}
@@ -758,7 +791,10 @@ const Dashboard = () => {
           </Col>
 
           <Col xs={24} sm={12} md={8} lg={4}>
-            <CardStyled>
+            <CardStyled 
+              style={{ cursor: 'pointer' }}
+              onClick={handleNavigateToPedidos}
+            >
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
                 <Statistic
                   title="Pedidos Ativos"
@@ -783,7 +819,10 @@ const Dashboard = () => {
           </Col>
 
           <Col xs={24} sm={12} md={8} lg={4}>
-            <CardStyled>
+            <CardStyled 
+              style={{ cursor: 'pointer' }}
+              onClick={handleNavigateToAreas}
+            >
               <Statistic
                 title="Áreas Produtivas"
                 value={dashboardData.areasProdutivasHa}
@@ -803,7 +842,10 @@ const Dashboard = () => {
           </Col>
 
           <Col xs={24} sm={12} md={8} lg={4}>
-            <CardStyled>
+            <CardStyled 
+              style={{ cursor: 'pointer' }}
+              onClick={handleNavigateToFrutas}
+            >
               <Statistic
                 title="Frutas Cadastradas"
                 value={dashboardData.frutasCadastradas}
