@@ -90,6 +90,26 @@ const AreasTable = React.memo(({
   const [loadingDetalhes, setLoadingDetalhes] = useState(false);
   const [dadosDetalhes, setDadosDetalhes] = useState(null);
 
+  // Função para extrair culturas únicas para filtros
+  const getCulturasFilters = () => {
+    const culturasSet = new Set();
+    
+    areas.forEach(area => {
+      const culturas = area.culturas || area.culturasDetalhadas || [];
+      culturas.forEach(cultura => {
+        const descricao = cultura.descricao || `Cultura ${cultura.culturaId}`;
+        culturasSet.add(descricao);
+      });
+    });
+    
+    return Array.from(culturasSet)
+      .sort()
+      .map(cultura => ({
+        text: cultura,
+        value: cultura
+      }));
+  };
+
   // Função para buscar detalhes da área do backend
   const handleOpenDetalhesModal = async (area) => {
     try {
@@ -232,6 +252,15 @@ const AreasTable = React.memo(({
     {
       title: "Culturas",
       key: "culturas",
+      filters: getCulturasFilters(),
+      onFilter: (value, record) => {
+        const culturas = record.culturas || record.culturasDetalhadas || [];
+        return culturas.some(cultura => {
+          const descricao = cultura.descricao || `Cultura ${cultura.culturaId}`;
+          return descricao === value;
+        });
+      },
+      filterSearch: true,
       render: (_, record) => {
         const culturas = record.culturas || record.culturasDetalhadas || [];
         if (culturas.length === 0) {

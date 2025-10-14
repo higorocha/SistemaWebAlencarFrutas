@@ -44,6 +44,7 @@ import PagamentosPendentesModal from "../components/dashboard/PagamentosPendente
 import PagamentosEfetuadosModal from "../components/dashboard/PagamentosEfetuadosModal";
 import ModalDetalhesSemana from "../components/producao/ModalDetalhesSemana";
 import ColheitaModal from "../components/pedidos/ColheitaModal";
+import { numberFormatter } from "../utils/formatters";
 
 const { Title } = Typography;
 
@@ -229,7 +230,7 @@ const Dashboard = () => {
   };
 
   const handleNavigateToPedidos = () => {
-    navigate('/pedidos');
+    navigate('/pedidos-dashboard');
   };
 
   const handleNavigateToAreas = () => {
@@ -687,7 +688,7 @@ const Dashboard = () => {
             }}>
               <EnvironmentOutlined style={{ fontSize: '28px', color: '#059669', marginBottom: '8px' }} />
               <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#059669', lineHeight: 1.2, marginBottom: '6px' }}>
-                {dashboardData.areasProdutivasHa.toFixed(1)} ha
+                {numberFormatter(dashboardData.areasProdutivasHa)} ha
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
                 Áreas Produtivas
@@ -825,10 +826,9 @@ const Dashboard = () => {
             >
               <Statistic
                 title="Áreas Produtivas"
-                value={dashboardData.areasProdutivasHa}
+                value={numberFormatter(dashboardData.areasProdutivasHa)}
                 suffix={<span style={{ fontSize: '1.25rem' }}>ha</span>}
                 prefix={<EnvironmentOutlined style={{ color: '#059669' }} />}
-                precision={1}
                 valueStyle={{
                   color: '#059669',
                   fontSize: '1.25rem',
