@@ -75,6 +75,7 @@ const calcularAreaPlantadaTotal = (culturas) => {
 
 const AreasTable = React.memo(({
   areas,
+  allAreas = [], // Todos os dados para gerar filtros corretos
   loading = false,
   onEdit,
   onDelete,
@@ -90,11 +91,14 @@ const AreasTable = React.memo(({
   const [loadingDetalhes, setLoadingDetalhes] = useState(false);
   const [dadosDetalhes, setDadosDetalhes] = useState(null);
 
-  // Função para extrair culturas únicas para filtros
+  // Função para extrair culturas únicas para filtros - usa todos os dados disponíveis
   const getCulturasFilters = () => {
     const culturasSet = new Set();
     
-    areas.forEach(area => {
+    // Usar allAreas se disponível, senão usar areas como fallback
+    const dadosParaFiltro = allAreas.length > 0 ? allAreas : areas;
+    
+    dadosParaFiltro.forEach(area => {
       const culturas = area.culturas || area.culturasDetalhadas || [];
       culturas.forEach(cultura => {
         const descricao = cultura.descricao || `Cultura ${cultura.culturaId}`;
@@ -386,6 +390,7 @@ const AreasTable = React.memo(({
 
 AreasTable.propTypes = {
   areas: PropTypes.array.isRequired,
+  allAreas: PropTypes.array, // Todos os dados para gerar filtros corretos
   loading: PropTypes.bool,
   onEdit: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
