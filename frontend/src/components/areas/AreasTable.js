@@ -1,6 +1,6 @@
 // src/components/areas/AreasTable.js
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
 import {
   EditOutlined,
@@ -91,8 +91,8 @@ const AreasTable = React.memo(({
   const [loadingDetalhes, setLoadingDetalhes] = useState(false);
   const [dadosDetalhes, setDadosDetalhes] = useState(null);
 
-  // Função para extrair culturas únicas para filtros - usa todos os dados disponíveis
-  const getCulturasFilters = () => {
+  // Calcular filtros de culturas usando TODOS os dados (useMemo garante cálculo único)
+  const culturasFilters = useMemo(() => {
     const culturasSet = new Set();
     
     // Usar allAreas se disponível, senão usar areas como fallback
@@ -112,7 +112,7 @@ const AreasTable = React.memo(({
         text: cultura,
         value: cultura
       }));
-  };
+  }, [allAreas, areas]); // Recalcula apenas quando allAreas ou areas mudam
 
   // Função para buscar detalhes da área do backend
   const handleOpenDetalhesModal = async (area) => {
@@ -256,7 +256,7 @@ const AreasTable = React.memo(({
     {
       title: "Culturas",
       key: "culturas",
-      filters: getCulturasFilters(),
+      filters: culturasFilters,
       onFilter: (value, record) => {
         const culturas = record.culturas || record.culturasDetalhadas || [];
         return culturas.some(cultura => {

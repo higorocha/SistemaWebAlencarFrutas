@@ -857,6 +857,7 @@ const AreasAgricolas = () => {
         <Suspense fallback={<LoadingFallback />}>
           <AreasTable
             areas={dadosPaginados}
+            allAreas={areasFiltradas}
             loading={false}
             onEdit={handleEditarArea}
             onDelete={handleExcluirArea}
