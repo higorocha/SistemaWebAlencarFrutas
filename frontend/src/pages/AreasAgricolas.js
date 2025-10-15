@@ -105,6 +105,10 @@ const AreasAgricolas = () => {
   // Estados para paginação controlada
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  
+  // Estados para filtros da tabela
+  const [filtrosAplicados, setFiltrosAplicados] = useState({});
+  const [areasFiltradasPorTabela, setAreasFiltradasPorTabela] = useState([]);
 
   const [mapOpen, setMapOpen] = useState(false);
   const [mapMode, setMapMode] = useState("view");
@@ -710,6 +714,35 @@ const AreasAgricolas = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Função para aplicar filtros da tabela
+  const aplicarFiltrosTabela = useCallback((areasParaFiltrar, filtros) => {
+    if (!filtros || Object.keys(filtros).length === 0) {
+      return areasParaFiltrar;
+    }
+
+    return areasParaFiltrar.filter(area => {
+      // Filtro de culturas
+      if (filtros.culturas && filtros.culturas.length > 0) {
+        const culturas = area.culturas || area.culturasDetalhadas || [];
+        const temCulturaFiltrada = culturas.some(cultura => {
+          const descricao = cultura.descricao || `Cultura ${cultura.culturaId}`;
+          return filtros.culturas.includes(descricao);
+        });
+        if (!temCulturaFiltrada) return false;
+      }
+
+      // Adicionar outros filtros aqui conforme necessário
+      return true;
+    });
+  }, []);
+
+  // Effect para aplicar filtros da tabela
+  useEffect(() => {
+    const areasComFiltrosTabela = aplicarFiltrosTabela(areasFiltradas, filtrosAplicados);
+    setAreasFiltradasPorTabela(areasComFiltrosTabela);
+    setCurrentPage(1); // Reset para primeira página quando filtros mudam
+  }, [areasFiltradas, filtrosAplicados, aplicarFiltrosTabela]);
+
   useEffect(() => {
     if (searchQuery.trim() === "") {
       setAreasFiltradas(areas);
@@ -725,12 +758,17 @@ const AreasAgricolas = () => {
     }
   }, [areas, searchQuery]);
 
-  // Calcular dados paginados para exibição na tabela
+  // Calcular dados paginados para exibição na tabela (usar dados com filtros da tabela aplicados)
   const dadosPaginados = React.useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
-    return areasFiltradas.slice(startIndex, endIndex);
-  }, [areasFiltradas, currentPage, pageSize]);
+    return areasFiltradasPorTabela.slice(startIndex, endIndex);
+  }, [areasFiltradasPorTabela, currentPage, pageSize]);
+
+  // Handler para mudanças de filtros da tabela
+  const handleTableFilterChange = useCallback((filters) => {
+    setFiltrosAplicados(filters);
+  }, []);
 
   if (loadError) {
     return (
@@ -866,16 +904,17 @@ const AreasAgricolas = () => {
             pageSize={pageSize}
             onPageChange={handlePageChange}
             onShowSizeChange={handleShowSizeChange}
+            onFilterChange={handleTableFilterChange}
           />
         </Suspense>
 
         {/* Paginação */}
-        {areasFiltradas.length > 0 && (
+        {areasFiltradasPorTabela.length > 0 && (
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0 }}>
             <Pagination
               current={currentPage}
               pageSize={pageSize}
-              total={areasFiltradas.length}
+              total={areasFiltradasPorTabela.length}
               onChange={handlePageChange}
               onShowSizeChange={handleShowSizeChange}
               showSizeChanger={!isMobile}

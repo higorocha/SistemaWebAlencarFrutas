@@ -84,6 +84,7 @@ const AreasTable = React.memo(({
   pageSize = 20,
   onPageChange,
   onShowSizeChange,
+  onFilterChange,
 }) => {
   // Estado do modal de detalhes
   const [detalhesModalOpen, setDetalhesModalOpen] = useState(false);
@@ -258,6 +259,7 @@ const AreasTable = React.memo(({
       key: "culturas",
       filters: culturasFilters,
       onFilter: (value, record) => {
+        // Este filtro não será usado, mas mantemos para compatibilidade
         const culturas = record.culturas || record.culturasDetalhadas || [];
         return culturas.some(cultura => {
           const descricao = cultura.descricao || `Cultura ${cultura.culturaId}`;
@@ -265,6 +267,7 @@ const AreasTable = React.memo(({
         });
       },
       filterSearch: true,
+      filteredValue: null, // Desabilitar filtro nativo
       render: (_, record) => {
         const culturas = record.culturas || record.culturasDetalhadas || [];
         if (culturas.length === 0) {
@@ -352,6 +355,12 @@ const AreasTable = React.memo(({
         rowClassName={assignRowClassName}
         size="middle"
         bordered={true}
+        onChange={(pagination, filters, sorter) => {
+          // Callback para mudanças de filtros
+          if (onFilterChange) {
+            onFilterChange(filters);
+          }
+        }}
         locale={{
           emptyText: (
             <Empty
@@ -399,6 +408,7 @@ AreasTable.propTypes = {
   pageSize: PropTypes.number,
   onPageChange: PropTypes.func,
   onShowSizeChange: PropTypes.func,
+  onFilterChange: PropTypes.func, // Callback para mudanças de filtros
 };
 
 AreasTable.displayName = 'AreasTable';
