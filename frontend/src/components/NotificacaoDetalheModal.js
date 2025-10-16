@@ -55,43 +55,119 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
     alta: '#f5222d'
   };
   
-  // Função para renderizar os dados adicionais em formato JSON
+  // Função para renderizar os dados adicionais em formato amigável
   const renderizarDadosAdicionais = () => {
-    if (!notificacao?.dados_adicionais) return null;
+    if (!notificacao?.dadosAdicionais) return null;
     
     try {
-      const dados = typeof notificacao.dados_adicionais === 'string' 
-        ? JSON.parse(notificacao.dados_adicionais) 
-        : notificacao.dados_adicionais;
+      const dados = typeof notificacao.dadosAdicionais === 'string' 
+        ? JSON.parse(notificacao.dadosAdicionais) 
+        : notificacao.dadosAdicionais;
       
+      // Se for uma notificação de certificados, exibir informações específicas
+      if (dados?.tipo_alerta === 'certificados_vencendo_breve' || dados?.tipo_alerta === 'certificados_vencidos') {
+        return (
+          <Card 
+            size="small" 
+            title="📋 Informações Técnicas" 
+            style={{ marginTop: 16 }}
+            styles={{ 
+              body: {
+                background: '#f8f9fa', 
+                padding: 16
+              }
+            }}
+          >
+            <Row gutter={[16, 8]}>
+              <Col span={12}>
+                <Text strong>Tipo de Alerta:</Text>
+                <br />
+                <Tag color={dados.tipo_alerta === 'certificados_vencidos' ? 'red' : 'orange'}>
+                  {dados.tipo_alerta === 'certificados_vencidos' ? 'Certificados Vencidos' : 'Certificados Vencendo'}
+                </Tag>
+              </Col>
+              <Col span={12}>
+                <Text strong>Prioridade:</Text>
+                <br />
+                <Tag color={dados.prioridade === 'ALTA' ? 'red' : dados.prioridade === 'MEDIA' ? 'orange' : 'green'}>
+                  {dados.prioridade}
+                </Tag>
+              </Col>
+              <Col span={24}>
+                <Text strong>Certificados Afetados:</Text>
+                <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+                  {(dados.certificados_vencendo_breve || dados.certificados_vencidos || []).map((cert, index) => (
+                    <li key={index} style={{ marginBottom: 4 }}>
+                      <Text code style={{ fontSize: '12px' }}>{cert}</Text>
+                    </li>
+                  ))}
+                </ul>
+              </Col>
+              <Col span={24}>
+                <Text strong>Ação Necessária:</Text>
+                <br />
+                <Text type="secondary">{dados.acao_necessaria}</Text>
+              </Col>
+              {dados.timestamp && (
+                <Col span={24}>
+                  <Text strong>Data da Verificação:</Text>
+                  <br />
+                  <Text type="secondary">
+                    {new Date(dados.timestamp).toLocaleString('pt-BR')}
+                  </Text>
+                </Col>
+              )}
+            </Row>
+          </Card>
+        );
+      }
+      
+      // Para outros tipos de notificação, exibir informações básicas
       return (
         <Card 
           size="small" 
-          title="Dados adicionais" 
+          title="📋 Informações Adicionais" 
           style={{ marginTop: 16 }}
           styles={{ 
             body: {
-              background: '#fafafa', 
-              padding: 16,
-              maxHeight: '200px',
-              overflow: 'auto'
+              background: '#f8f9fa', 
+              padding: 16
             }
           }}
         >
-          <pre style={{ 
-            margin: 0, 
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontSize: '13px'
-          }}>
-            {JSON.stringify(dados, null, 2)}
-          </pre>
+          <Row gutter={[16, 8]}>
+            {dados.prioridade && (
+              <Col span={12}>
+                <Text strong>Prioridade:</Text>
+                <br />
+                <Tag color={dados.prioridade === 'ALTA' ? 'red' : dados.prioridade === 'MEDIA' ? 'orange' : 'green'}>
+                  {dados.prioridade}
+                </Tag>
+              </Col>
+            )}
+            {dados.timestamp && (
+              <Col span={12}>
+                <Text strong>Data:</Text>
+                <br />
+                <Text type="secondary">
+                  {new Date(dados.timestamp).toLocaleString('pt-BR')}
+                </Text>
+              </Col>
+            )}
+            {dados.acao_necessaria && (
+              <Col span={24}>
+                <Text strong>Ação:</Text>
+                <br />
+                <Text type="secondary">{dados.acao_necessaria}</Text>
+              </Col>
+            )}
+          </Row>
         </Card>
       );
     } catch (error) {
       return (
         <Alert
-          message="Erro ao processar dados adicionais"
+          message="Erro ao processar informações adicionais"
           type="error"
           showIcon
         />
@@ -101,42 +177,74 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
 
   // Função para renderizar o conteúdo formatado com tratamento especial para mensagens informativas
   const renderizarConteudoFormatado = () => {
-    if (!notificacao?.conteudo) return null;
+    // Parsear dadosAdicionais se for string
+    let dadosAdicionais = notificacao?.dadosAdicionais;
+    if (typeof dadosAdicionais === 'string') {
+      try {
+        dadosAdicionais = JSON.parse(dadosAdicionais);
+      } catch (error) {
+        // Erro silencioso ao parsear dados
+      }
+    }
     
-    // Dividir o conteúdo pelo marcador \n\n que separa a mensagem principal da informativa
-    const partes = notificacao.conteudo.split('\n\n');
+    // Verificar se há conteúdo específico do modal nos dados adicionais
+    let conteudoParaExibir = notificacao?.conteudo;
+    
+    if (dadosAdicionais?.modal?.conteudo) {
+      conteudoParaExibir = dadosAdicionais.modal.conteudo;
+    }
+    
+    if (!conteudoParaExibir) return null;
+    
+    // Dividir o conteúdo por quebras de linha para melhor formatação
+    const linhas = conteudoParaExibir.split('\n');
     
     return (
-      <>
-        <Paragraph style={{ fontSize: '16px', marginBottom: 4 }}>
-          {partes[0]}
-        </Paragraph>
-        
-        {partes.length > 1 && partes.slice(1).map((parte, index) => {
-          // Verificar se é uma parte informativa (começa com *)
-          if (parte.startsWith('*')) {
+      <div style={{ whiteSpace: 'pre-line', lineHeight: '1.6' }}>
+        {linhas.map((linha, index) => {
+          // Verificar se é um cabeçalho (contém emojis e está em maiúsculo)
+          if (linha.match(/^[🚨⚠️📋⏰💡🔧📅].*[A-ZÁÉÍÓÚÂÊÔÇÃÕ]{3,}/)) {
             return (
-              <Paragraph 
-                key={index}
-                style={{ 
-                  color: '#8c8c8c', 
-                  fontSize: '13px', 
-                  marginTop: 12,
-                  fontStyle: 'italic'
-                }}
-              >
-                {parte}
-              </Paragraph>
-            );
-          } else {
-            return (
-              <Paragraph key={index} style={{ fontSize: '16px', marginTop: 8 }}>
-                {parte}
-              </Paragraph>
+              <div key={index} style={{ 
+                fontWeight: 'bold', 
+                fontSize: '16px', 
+                marginTop: index > 0 ? '16px' : '0',
+                marginBottom: '8px',
+                color: '#1890ff'
+              }}>
+                {linha}
+              </div>
             );
           }
+          // Verificar se é um item de lista (começa com •)
+          else if (linha.startsWith('•')) {
+            return (
+              <div key={index} style={{ 
+                marginLeft: '16px', 
+                marginBottom: '4px',
+                fontSize: '14px'
+              }}>
+                {linha}
+              </div>
+            );
+          }
+          // Linha normal
+          else if (linha.trim()) {
+            return (
+              <div key={index} style={{ 
+                marginBottom: '8px',
+                fontSize: '14px'
+              }}>
+                {linha}
+              </div>
+            );
+          }
+          // Linha vazia
+          else {
+            return <div key={index} style={{ height: '8px' }} />;
+          }
         })}
-      </>
+      </div>
     );
   };
 
@@ -147,7 +255,20 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
           <Tag color={cores[notificacao?.tipo] || cores.sistema}>
             {notificacao?.tipo?.toUpperCase() || 'SISTEMA'}
           </Tag>
-          <span>{notificacao?.titulo || 'Detalhes da notificação'}</span>
+          <span>
+            {(() => {
+              // Parsear dadosAdicionais se for string
+              let dadosAdicionais = notificacao?.dadosAdicionais;
+              if (typeof dadosAdicionais === 'string') {
+                try {
+                  dadosAdicionais = JSON.parse(dadosAdicionais);
+                } catch (error) {
+                  console.error('Erro ao parsear dados_adicionais no título:', error);
+                }
+              }
+              return dadosAdicionais?.modal?.titulo || notificacao?.titulo || 'Detalhes da notificação';
+            })()}
+          </span>
         </Space>
       }
       open={open}
@@ -157,6 +278,33 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
         <Button key="close" onClick={onClose}>
           Fechar
         </Button>,
+        // Ações customizadas do modal (ex: botão "Verificar Certificados")
+        (() => {
+          // Parsear dadosAdicionais se for string
+          let dadosAdicionais = notificacao?.dadosAdicionais;
+          if (typeof dadosAdicionais === 'string') {
+            try {
+              dadosAdicionais = JSON.parse(dadosAdicionais);
+            } catch (error) {
+              console.error('Erro ao parsear dados_adicionais nas ações:', error);
+            }
+          }
+          return dadosAdicionais?.modal?.acoes?.map((acao, index) => (
+            <Button 
+              key={`acao-${index}`}
+              type={acao.tipo === 'primary' ? 'primary' : 'default'}
+              onClick={() => {
+                if (acao.onClick === 'navigate_to_certificates') {
+                  navigate('/configuracoes?tab=5'); // Navegar para aba de certificados
+                  onClose();
+                }
+              }}
+            >
+              {acao.texto}
+            </Button>
+          ));
+        })(),
+        // Link tradicional (fallback)
         notificacao?.link && (
           <Button 
             key="link" 
@@ -183,10 +331,29 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
             </Col>
             <Col>
               <Space>
-                <ExclamationCircleFilled style={{ color: coresPrioridade[notificacao.prioridade] || coresPrioridade.media }} />
-                <Text strong style={{ color: coresPrioridade[notificacao.prioridade] || coresPrioridade.media }}>
-                  Prioridade {notificacao.prioridade || 'média'}
-                </Text>
+                {(() => {
+                  // Parsear dadosAdicionais se for string
+                  let dadosAdicionais = notificacao?.dadosAdicionais;
+                  if (typeof dadosAdicionais === 'string') {
+                    try {
+                      dadosAdicionais = JSON.parse(dadosAdicionais);
+                    } catch (error) {
+                      // Erro silencioso
+                    }
+                  }
+                  
+                  const prioridade = dadosAdicionais?.prioridade || notificacao.prioridade || 'média';
+                  const corPrioridade = coresPrioridade[prioridade.toLowerCase()] || coresPrioridade.media;
+                  
+                  return (
+                    <>
+                      <ExclamationCircleFilled style={{ color: corPrioridade }} />
+                      <Text strong style={{ color: corPrioridade }}>
+                        Prioridade {prioridade}
+                      </Text>
+                    </>
+                  );
+                })()}
               </Space>
             </Col>
           </Row>

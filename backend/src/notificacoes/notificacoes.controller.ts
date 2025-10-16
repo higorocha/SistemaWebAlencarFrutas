@@ -113,33 +113,4 @@ export class NotificacoesController {
   }
 
   // Rotas para criação de notificações específicas (para uso interno do sistema)
-  @Post('sistema')
-  @ApiOperation({ summary: 'Criar notificação do sistema' })
-  @ApiResponse({ status: 201, description: 'Notificação do sistema criada', type: NotificacaoResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autorizado' })
-  criarNotificacaoSistema(
-    @Body() body: { titulo: string; conteudo: string; dadosAdicionais?: Record<string, any> },
-    @Request() req
-  ) {
-    return this.notificacoesService.criarNotificacaoSistema(
-      body.titulo,
-      body.conteudo,
-      body.dadosAdicionais
-    );
-  }
-
-  @Post('pagamento')
-  @ApiOperation({ summary: 'Criar notificação de pagamento' })
-  @ApiResponse({ status: 201, description: 'Notificação de pagamento criada', type: NotificacaoResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autorizado' })
-  criarNotificacaoPagamento(
-    @Body() body: { nomeCliente: string; valor: number; tipo: 'PIX' | 'BOLETO' },
-    @Request() req
-  ) {
-    return this.notificacoesService.criarNotificacaoPagamento(
-      body.nomeCliente,
-      body.valor,
-      body.tipo
-    );
-  }
 } 

@@ -261,10 +261,13 @@ As cores das categorias de área estão centralizadas no `theme.js` e devem ser 
 - **APIs Bancárias**: Credenciais para integração
 - **Email/WhatsApp**: Configurações de comunicação
 
-### 🔔 **Sistema de Notificações**
+### 🔔 **Sistema de Notificações Avançado**
 - **Tempo Real**: WebSocket para notificações instantâneas
+- **Estrutura Completa**: Controle total sobre exibição (toast, menu, modal)
+- **Backend-Driven**: Notificações com estrutura específica definida pelo backend
 - **Tipos Variados**: Sucesso, erro, warning, informação
-- **Integração**: Em todo o sistema
+- **Integração**: Em todo o sistema com z-index correto
+- **Monitoramento de Certificados**: Notificações automáticas para vencimentos
 
 ---
 
@@ -739,6 +742,18 @@ GET    /historico-fitas                # Histórico completo de operações
 GET    /historico-fitas/controle/:id   # Histórico de lote específico
 ```
 
+### **Sistema de Monitoramento de Certificados**
+```
+# Monitoramento Automático
+GET    /api/certificate-monitor/status     # Status do monitoramento
+POST   /api/certificate-monitor/check      # Verificação manual
+POST   /api/certificate-monitor/simulate-cron  # Simular cron job
+
+# Gestão de Certificados
+GET    /api/certificate-monitor/certificates  # Status dos certificados
+POST   /api/certificate-monitor/backup     # Backup de certificados
+```
+
 ### **Configurações**
 ```
 GET    /api/config                     # Dados da empresa
@@ -988,47 +1003,125 @@ const LinhaComAnimacao = styled.tr`
 - **Validação de Função**: Verificação de disponibilidade antes de executar reload
 - **Logging Inteligente**: Console logs informativos para debugging
 
-### **🔔 Sistema de Notificações Avançado com Z-index Correto**
+### **🔔 Sistema de Notificações Avançado com Estrutura Completa**
 
-**🎯 Problema Identificado:**
-- **Static Methods Limitados**: `notification.*` e `message.*` não acessam ConfigProvider
-- **Z-index Conflitante**: Notificações apareciam atrás de modais (z-index 1000 vs 100000)
-- **Contexto Perdido**: Methods estáticos renderizam em DOM nodes independentes
+**🎯 Nova Arquitetura Implementada:**
+- **Backend-Driven**: Notificações com estrutura específica definida pelo backend
+- **Controle Total**: Títulos e conteúdos específicos para toast, menu e modal
+- **Estrutura Limpa**: Código simplificado sem métodos antigos
+- **Z-index Correto**: Notificações sempre aparecem sobre modais
 
-**✅ Solução Hook-based:**
-- **useNotificationWithContext**: Hook personalizado que respeita ConfigProvider
-- **Z-index Configurado**: `zIndexPopupBase: 100001` no App.js para todas notificações
-- **API Familiar**: Mantém sintaxe idêntica ao `showNotification` existente
-- **Context-Aware**: Renderização dentro da árvore React com `contextHolder`
-
-**🔧 Implementação:**
-```javascript
-// Hook com API familiar
-const { success, error, info, warning, contextHolder } = useNotificationWithContext();
-
-// Uso idêntico ao showNotification
-success('Sucesso', 'Operação realizada!');
-error('Erro', 'Algo deu errado!');
-
-// OBRIGATÓRIO: contextHolder no JSX
-return (
-  <>
-    {contextHolder}
-    <Modal>...</Modal>
-  </>
-);
+**✅ Estrutura de Notificação Completa:**
+```typescript
+// Backend - DTO para notificações completas
+interface CreateNotificacaoCompletaDto {
+  titulo: string;
+  conteudo: string;
+  tipo: TipoNotificacao;
+  
+  // Estruturas específicas de exibição
+  toast?: {
+    titulo: string;
+    conteudo: string;
+    tipo: 'success' | 'error' | 'warning' | 'info';
+  };
+  
+  menu?: {
+    titulo: string;
+    resumo: string;
+    icone?: string;
+  };
+  
+  modal?: {
+    titulo: string;
+    conteudo: string;
+    acoes?: AcaoModalDto[];
+  };
+  
+  dadosAdicionais?: Record<string, any>;
+}
 ```
 
-**📋 Configuração Global:**
-- **ConfigProvider** (App.js): `zIndexPopupBase: 100001` para Message e Notification
-- **CSS Existente**: Utiliza `globalNotifications.css` para estilo consistente
-- **Migração Opcional**: Use apenas onde `showNotification` tem problema de z-index
+**🔧 Implementação Frontend Simplificada:**
+```javascript
+// Context simplificado - apenas nova estrutura
+const formatarTextoToast = (notificacao) => {
+  // Se tem estrutura de toast definida, usa ela
+  if (notificacao.dados_adicionais?.toast) {
+    return {
+      titulo: notificacao.dados_adicionais.toast.titulo,
+      conteudo: notificacao.dados_adicionais.toast.conteudo,
+      tipo: notificacao.dados_adicionais.toast.tipo
+    };
+  }
+  
+  // Fallback padrão simples
+  return {
+    titulo: notificacao.titulo,
+    conteudo: notificacao.conteudo,
+    tipo: 'info'
+  };
+};
+```
+
+**📋 Funcionalidades Implementadas:**
+- **Método Único**: `criarNotificacaoCompleta()` - único método para criar notificações
+- **Estrutura Flexível**: Controle específico para cada contexto de exibição
+- **Código Limpo**: Remoção de métodos antigos e fallbacks complexos
+- **Monitoramento Automático**: Notificações de certificados vencidos/vencendo
+- **Z-index Configurado**: `zIndexPopupBase: 100001` para aparecer sobre modais
+
+**🎨 Benefícios da Nova Estrutura:**
+- **Controle Total**: Backend define exatamente como cada notificação deve aparecer
+- **Sem Duplicação**: Títulos e conteúdos específicos para cada contexto
+- **Manutenibilidade**: Código limpo e fácil de manter
+- **Flexibilidade**: Suporte a ações customizadas em modais
+- **Consistência**: Visual padronizado em todo o sistema
+
+### **🔐 Sistema de Monitoramento de Certificados**
+
+**🎯 Monitoramento Automático:**
+- **Cron Job Diário**: Verificação automática às 06:00 (horário de Brasília)
+- **Detecção de Vencimentos**: Identifica certificados vencidos e vencendo em breve (≤30 dias)
+- **Notificações Inteligentes**: Alertas específicos para cada tipo de problema
+- **Interface de Gestão**: Aba "Certificados" em Configurações com controles manuais
+
+**✅ Funcionalidades Implementadas:**
+- **Verificação Automática**: Cron job diário com `@nestjs/schedule`
+- **Verificação Manual**: Botão "Verificar Agora" para checagem imediata
+- **Simulação de Cron**: Botão "Simular Cron Job" para testar notificações
+- **Status em Tempo Real**: Exibição do status atual dos certificados
+- **Backup Automático**: Sistema de backup de certificados
+- **CLI de Gestão**: Script `manage-certificates.js` para operações via terminal
+
+**🔧 Estrutura Técnica:**
+```typescript
+// Service de monitoramento
+@Injectable()
+export class CertificateMonitorService {
+  @Cron('0 6 * * *') // Diário às 06:00
+  async checkCertificateExpiryDaily() {
+    // Verificação automática com notificações
+  }
+  
+  async simulateCronJob() {
+    // Simulação para testes
+  }
+}
+```
+
+**📊 Interface de Usuário:**
+- **Aba Certificados**: Nova aba em Configurações.js
+- **Status Visual**: Cards com indicadores de status (válido, vencendo, vencido)
+- **Controles Manuais**: Botões para verificação e simulação
+- **Loading States**: CentralizedLoader para feedback visual
+- **Notificações Reais**: Sistema de notificações integrado
 
 **🎨 Benefícios:**
-- **Z-index Definitivo**: Sempre aparece sobre modais (z-index 100001)
-- **Estilo Consistente**: Visual idêntico ao sistema atual
-- **API Compatível**: Sem necessidade de mudança de código significativa
-- **Documentação Completa**: README-useNotificationWithContext.md com exemplos
+- **Prevenção de Falhas**: Detecta problemas antes que afetem as APIs
+- **Manutenção Proativa**: Alertas antecipados para substituição
+- **Interface Amigável**: Controles simples para gestão
+- **Integração Completa**: Notificações em tempo real no sistema
 
 ### **🛡️ Sistema de Validação de Fechamento de Modais**
 
@@ -1282,8 +1375,8 @@ const fasesColheita = {
 - **Paleta de Cores** padronizada (Verde #059669 como cor principal)
 - **Modais Inteligentes** com headers coloridos e sistema de cards
 - **Loading States** otimizados sem "flickering"
-- **Sistema de Notificações** centralizado com tipos variados
-- **Hook useNotificationWithContext** - Notificações que respeitam ConfigProvider e z-index correto
+- **Sistema de Notificações Avançado** com estrutura completa backend-driven
+- **Controle Total de Exibição** - títulos e conteúdos específicos para toast, menu e modal
 - **Sistema de Validação de Fechamento de Modais** - Prevenção de perda acidental de dados
 
 ---
@@ -1462,9 +1555,13 @@ npx prisma db seed           # Popular com dados
 - [x] Tratamento correto de cancelamento de requisições (CanceledError)
 - [x] Otimização de performance com atualizações específicas por tipo de operação
 - [x] Integração transparente com todos os modais do sistema de pedidos
-- [x] Hook useNotificationWithContext para notificações com z-index correto
-- [x] Sistema de notificações que respeitam ConfigProvider
-- [x] Correção de z-index conflitante entre modais e notificações
+- [x] Sistema de notificações avançado com estrutura completa backend-driven
+- [x] Controle total de exibição com títulos e conteúdos específicos
+- [x] Código limpo sem métodos antigos e fallbacks complexos
+- [x] Sistema de monitoramento de certificados com cron job automático
+- [x] Interface de gestão de certificados com verificação manual e simulação
+- [x] Notificações automáticas para certificados vencidos e vencendo em breve
+- [x] CLI de gestão de certificados com backup e verificação
 - [x] CentralizedLoader com backdrop blur e z-index global otimizado
 - [x] Sistema de validação de fechamento de modais com prevenção de perda de dados
 - [x] Componente ConfirmCloseModal reutilizável para confirmação de fechamento
@@ -1740,7 +1837,7 @@ ModalComponent.propTypes = {
 2. **Footer sempre `null`** - criar footer customizado
 3. **zIndex consistente** - usar hierarquia clara
 4. **Loading states** - overlay interno para operações
-5. **Notificações** - usar `showNotification` do sistema
+5. **Notificações** - usar sistema de notificações avançado com estrutura completa
 6. **Validações** - usar hooks customizados quando aplicável
 7. **Styled Components** - para tabelas e elementos customizados
 

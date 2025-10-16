@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificacaoDto, UpdateNotificacaoDto, NotificacaoResponseDto, TipoNotificacao, StatusNotificacao } from './dto';
+import { CreateNotificacaoCompletaDto } from './dto/create-notificacao-completa.dto';
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server } from 'socket.io';
 
@@ -258,29 +259,29 @@ export class NotificacoesService {
     this.emitNotificacaoDescartada(id, eraNaoLida);
   }
 
-  async criarNotificacaoSistema(titulo: string, conteudo: string, dadosAdicionais?: Record<string, any>): Promise<NotificacaoResponseDto> {
+
+  /**
+   * Cria uma notificação com estrutura completa de exibição
+   */
+  async criarNotificacaoCompleta(dto: CreateNotificacaoCompletaDto): Promise<NotificacaoResponseDto> {
+    const dadosAdicionais = {
+      // Informações de exibição
+      toast: dto.toast,
+      menu: dto.menu,
+      modal: dto.modal,
+      // Dados adicionais existentes
+      ...dto.dadosAdicionais
+    };
+
     return this.create({
-      titulo,
-      conteudo,
-      tipo: TipoNotificacao.SISTEMA,
-      dadosAdicionais,
+      titulo: dto.titulo,
+      conteudo: dto.conteudo,
+      tipo: dto.tipo,
+      prioridade: dto.prioridade,
+      dadosAdicionais
     });
   }
 
-  async criarNotificacaoPagamento(nomeCliente: string, valor: number, tipo: 'PIX' | 'BOLETO'): Promise<NotificacaoResponseDto> {
-    const conteudo = `O Irrigante ${nomeCliente} pagou um ${tipo.toLowerCase()} no valor de R$ ${valor.toFixed(2).replace('.', ',')}`;
-    
-    return this.create({
-      titulo: `Pagamento ${tipo} recebido`,
-      conteudo,
-      tipo: tipo === 'PIX' ? TipoNotificacao.PIX : TipoNotificacao.BOLETO,
-      dadosAdicionais: {
-        cliente: nomeCliente,
-        valor,
-        tipo_pagamento: tipo,
-      },
-    });
-  }
 
   async limparNotificacoesExpiradas(): Promise<void> {
     await this.prisma.notificacao.deleteMany({

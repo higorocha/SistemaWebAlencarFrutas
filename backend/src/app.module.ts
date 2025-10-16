@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -25,9 +26,13 @@ import { TurmaColheitaModule } from './turma-colheita/turma-colheita.module';
 import { CnpjModule } from './cnpj/cnpj.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PixModule } from './pix/pix.module';
+import { ExtratosModule } from './extratos/extratos.module';
+import { CertificateMonitorModule } from './certificate-monitor/certificate-monitor.module';
 
 @Module({
   imports: [
+    // Configuração do Schedule Module para cron jobs
+    ScheduleModule.forRoot(),
     // Configuração do Rate Limiting
     ThrottlerModule.forRoot([
       {
@@ -62,6 +67,8 @@ import { PixModule } from './pix/pix.module';
     CnpjModule,
     DashboardModule,
     PixModule,
+    ExtratosModule,
+    CertificateMonitorModule,
   ],
   controllers: [AppController],
   providers: [AppService],

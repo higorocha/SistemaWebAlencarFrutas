@@ -8,7 +8,7 @@ import { QueryTransacoesPixDto, ConsultaTransacoesPixResponseDto, ErroPixRespons
  * Fornece endpoints para consulta de transações PIX recebidas
  */
 @ApiTags('PIX')
-@Controller('pix')
+@Controller('api/pix')
 export class PixController {
   constructor(private readonly pixService: PixService) {}
 

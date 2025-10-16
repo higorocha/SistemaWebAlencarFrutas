@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import { Typography, Card, Tabs } from "antd";
 import { motion, AnimatePresence } from "framer-motion";
-import { BankOutlined, SettingOutlined, UserOutlined } from "@ant-design/icons";
+import { BankOutlined, SettingOutlined, UserOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import CentralizedLoader from "components/common/loaders/CentralizedLoader";
 import { MailOutlined } from "@mui/icons-material";
 import { showNotification } from "config/notificationConfig";
@@ -26,6 +26,9 @@ const DadosBancarios = lazy(() =>
 const Usuarios = lazy(() => import("../components/configuracoes/Usuarios"));
 const Preferencias = lazy(() =>
   import("../components/configuracoes/ConfigServers")
+);
+const Certificados = lazy(() =>
+  import("../components/configuracoes/Certificados")
 );
 
 // Styled components para aplicar o estilo do sistema
@@ -209,6 +212,19 @@ const Configuracoes = () => {
         </Suspense>
       </motion.div>
     ),
+    5: (
+      <motion.div
+        key="5"
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        variants={tabVariants}
+      >
+        <Suspense fallback={<CentralizedLoader visible={true} message="Carregando monitoramento de certificados..." />}>
+          <Certificados />
+        </Suspense>
+      </motion.div>
+    ),
   };
 
   // Configuração das abas (label, key, etc.)
@@ -272,6 +288,21 @@ const Configuracoes = () => {
         </span>
       ),
       key: "4",
+    },
+    {
+      label: (
+        <span>
+          <SafetyCertificateOutlined
+            style={{
+              fontSize: "20px",
+              verticalAlign: "middle",
+              marginRight: "8px",
+            }}
+          />
+          <span style={{ fontSize: "16px" }}>Certificados</span>
+        </span>
+      ),
+      key: "5",
     },
   ];
 
