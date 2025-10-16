@@ -24,6 +24,7 @@ import { HistoricoFitasModule } from './historico-fitas/historico-fitas.module';
 import { TurmaColheitaModule } from './turma-colheita/turma-colheita.module';
 import { CnpjModule } from './cnpj/cnpj.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { PixModule } from './pix/pix.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     TurmaColheitaModule,
     CnpjModule,
     DashboardModule,
+    PixModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -230,7 +230,7 @@ const Dashboard = () => {
   };
 
   const handleNavigateToPedidos = () => {
-    navigate('/pedidos-dashboard');
+    navigate('/pedidos/dashboard');
   };
 
   const handleNavigateToAreas = () => {

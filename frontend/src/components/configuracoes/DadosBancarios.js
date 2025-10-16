@@ -324,10 +324,25 @@ const DadosBancarios = () => {
       }
       form.resetFields();
     } catch (error) {
+      console.error('❌ Erro ao salvar conta corrente:', error);
+      
+      // Extrair mensagem de erro mais específica
+      let errorMessage = "Erro ao salvar conta corrente!";
+      
+      if (error.response?.data?.message) {
+        if (Array.isArray(error.response.data.message)) {
+          errorMessage = error.response.data.message.join(", ");
+        } else {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
       showNotification(
         "error",
-        "Dados Bancários",
-        "Erro ao salvar conta corrente!"
+        "❌ Erro nos Dados Bancários",
+        errorMessage
       );
     }
   };
@@ -597,7 +612,7 @@ const DadosBancarios = () => {
                      </Text>
                    }
                    rules={[
-                     { required: true, message: "Selecione o banco" },
+                     { required: true, message: "⚠️ Seleção do banco é obrigatória" },
                    ]}
                  >
                    <Select size="large" placeholder="Selecione o banco">
@@ -623,7 +638,15 @@ const DadosBancarios = () => {
                       rules={[
                         {
                           required: true,
-                          message: "Informe o número da agência",
+                          message: "⚠️ Número da agência é obrigatório",
+                        },
+                        {
+                          max: 10,
+                          message: "⚠️ Agência deve ter no máximo 10 caracteres",
+                        },
+                        {
+                          pattern: /^[0-9]+$/,
+                          message: "⚠️ Agência deve conter apenas números",
                         },
                       ]}
                     >
@@ -642,7 +665,15 @@ const DadosBancarios = () => {
                       rules={[
                         {
                           required: true,
-                          message: "Informe o dígito da agência",
+                          message: "⚠️ Dígito da agência é obrigatório",
+                        },
+                        {
+                          max: 2,
+                          message: "⚠️ Dígito da agência deve ter no máximo 2 caracteres",
+                        },
+                        {
+                          pattern: /^[0-9]+$/,
+                          message: "⚠️ Dígito da agência deve conter apenas números",
                         },
                       ]}
                     >
@@ -665,7 +696,15 @@ const DadosBancarios = () => {
                       rules={[
                         {
                           required: true,
-                          message: "Informe o número da conta corrente",
+                          message: "⚠️ Número da conta corrente é obrigatório",
+                        },
+                        {
+                          max: 20,
+                          message: "⚠️ Conta corrente deve ter no máximo 20 caracteres",
+                        },
+                        {
+                          pattern: /^[0-9]+$/,
+                          message: "⚠️ Conta corrente deve conter apenas números",
                         },
                       ]}
                     >
@@ -684,7 +723,15 @@ const DadosBancarios = () => {
                       rules={[
                         {
                           required: true,
-                          message: "Informe o dígito da conta",
+                          message: "⚠️ Dígito da conta corrente é obrigatório",
+                        },
+                        {
+                          max: 2,
+                          message: "⚠️ Dígito da conta deve ter no máximo 2 caracteres",
+                        },
+                        {
+                          pattern: /^[0-9]+$/,
+                          message: "⚠️ Dígito da conta deve conter apenas números",
                         },
                       ]}
                     >
