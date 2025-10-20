@@ -41,6 +41,26 @@ export class AreasService {
 
   async findAll(): Promise<AreaResponseDto[]> {
     const areas = await this.prisma.areaAgricola.findMany({
+      where: {
+        desativar: false, // ✅ Filtrar apenas áreas ativas
+      },
+      include: {
+        lotes: {
+          include: {
+            cultura: true,
+          },
+        },
+      },
+      orderBy: {
+        nome: 'asc',
+      },
+    });
+
+    return areas.map(this.mapToResponseDto);
+  }
+
+  async findAllIncludingInactive(): Promise<AreaResponseDto[]> {
+    const areas = await this.prisma.areaAgricola.findMany({
       include: {
         lotes: {
           include: {
@@ -67,6 +87,7 @@ export class AreasService {
           contains: termo.trim(),
           mode: 'insensitive',
         },
+        desativar: false, // ✅ Filtrar apenas áreas ativas
       },
       include: {
         lotes: {
@@ -169,6 +190,41 @@ export class AreasService {
     await this.prisma.areaAgricola.delete({
       where: { id },
     });
+  }
+
+  async toggleDesativar(id: number): Promise<AreaResponseDto> {
+    // Verificar se a área existe
+    const existingArea = await this.prisma.areaAgricola.findUnique({
+      where: { id },
+      include: {
+        lotes: {
+          include: {
+            cultura: true,
+          },
+        },
+      },
+    });
+
+    if (!existingArea) {
+      throw new NotFoundException('Área agrícola não encontrada');
+    }
+
+    // Alternar o status de desativar
+    const area = await this.prisma.areaAgricola.update({
+      where: { id },
+      data: {
+        desativar: !existingArea.desativar,
+      },
+      include: {
+        lotes: {
+          include: {
+            cultura: true,
+          },
+        },
+      },
+    });
+
+    return this.mapToResponseDto(area);
   }
 
   /**
@@ -669,6 +725,7 @@ export class AreasService {
       categoria: area.categoria,
       areaTotal: area.areaTotal,
       coordenadas: area.coordenadas,
+      desativar: area.desativar || false,
       culturas: area.lotes.map(lc => ({
         culturaId: lc.culturaId,
         areaPlantada: lc.areaPlantada,

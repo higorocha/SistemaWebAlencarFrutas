@@ -29,6 +29,7 @@ import {
   TeamOutlined,
   EditOutlined,
   DeleteFilled,
+  AppleOutlined,
 } from "@ant-design/icons";
 import styled from "styled-components";
 import axiosInstance from "../../api/axiosConfig";
@@ -197,6 +198,7 @@ const CustomEmailInput = ({ value = '', onChange, placeholder }) => {
 const API_URL = {
   usuarios: "/auth/users",
   updatePassword: "/auth/update-password",
+  culturas: "/api/culturas",
 };
 
 const Usuarios = () => {
@@ -209,6 +211,9 @@ const Usuarios = () => {
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingUsuario, setEditingUsuario] = useState(null);
+  const [culturas, setCulturas] = useState([]);
+  const [nivelSelecionado, setNivelSelecionado] = useState(null);
+  const [nivelEdicao, setNivelEdicao] = useState(null);
 
   const loadUsuarios = async () => {
     try {
@@ -222,30 +227,42 @@ const Usuarios = () => {
     }
   };
 
+  const loadCulturas = async () => {
+    try {
+      const response = await axiosInstance.get(API_URL.culturas);
+      setCulturas(response.data);
+    } catch (error) {
+      showNotification("error", "Erro", "Erro ao carregar culturas.");
+    }
+  };
+
   useEffect(() => {
     loadUsuarios();
+    loadCulturas();
   }, []);
 
   const onFinishUsuario = async (values) => {
     try {
       const cpfFormatado = values.cpf.replace(/[^\d]/g, '');
-      
+
       const dadosUsuario = {
         nome: values.nome,
         cpf: cpfFormatado,
         email: values.email,
         senha: values.senha,
         nivel: values.nivel,
+        ...(values.culturaId && { culturaId: values.culturaId }),
       };
 
       await axiosInstance.post(API_URL.usuarios, dadosUsuario);
       showNotification("success", "Sucesso", "Usuário cadastrado com sucesso!");
       usuarioForm.resetFields();
+      setNivelSelecionado(null);
       loadUsuarios();
     } catch (error) {
       const msg =
-        error.response?.data?.message || 
-        error.response?.data?.mensagem || 
+        error.response?.data?.message ||
+        error.response?.data?.mensagem ||
         "Erro ao cadastrar usuário.";
       showNotification("error", "Erro", msg);
     }
@@ -282,17 +299,19 @@ const Usuarios = () => {
 
   const openEditModal = (usuario) => {
     setEditingUsuario(usuario);
-    
+    setNivelEdicao(usuario.nivel);
+
     // Garantir que o CPF esteja formatado corretamente
-    const cpfFormatado = usuario.cpf 
+    const cpfFormatado = usuario.cpf
       ? usuario.cpf.replace(/[^\d]/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
       : '';
-    
+
     editForm.setFieldsValue({
       nome: usuario.nome,
       cpf: cpfFormatado,
       email: usuario.email,
-      nivel: usuario.nivel
+      nivel: usuario.nivel,
+      culturaId: usuario.culturaId
     });
     setEditModalVisible(true);
   };
@@ -323,27 +342,29 @@ const Usuarios = () => {
       setLoading(true);
       console.log("Valores do formulário:", values);
       console.log("ID do usuário:", editingUsuario.id);
-      
+
       const cpfFormatado = values.cpf.replace(/[^\d]/g, '');
-      
+
       const dadosAtualizacao = {
         nome: values.nome,
         cpf: cpfFormatado,
         email: values.email,
         nivel: values.nivel,
+        ...(values.culturaId && { culturaId: values.culturaId }),
       };
-      
+
       console.log("Dados para envio:", dadosAtualizacao);
-      
+
       await axiosInstance.put(`${API_URL.usuarios}/${editingUsuario.id}`, dadosAtualizacao);
       showNotification("success", "Sucesso", `Usuário ${values.nome} atualizado com sucesso!`);
       setEditModalVisible(false);
+      setNivelEdicao(null);
       loadUsuarios();
     } catch (error) {
       console.error("Erro ao atualizar usuário:", error);
       const msg =
-        error.response?.data?.message || 
-        error.response?.data?.mensagem || 
+        error.response?.data?.message ||
+        error.response?.data?.mensagem ||
         "Erro ao atualizar usuário.";
       showNotification("error", "Erro", msg);
     } finally {
@@ -372,6 +393,7 @@ const Usuarios = () => {
       >
         <StyledForm form={usuarioForm} layout="vertical" onFinish={onFinishUsuario}>
           <Row gutter={[16, 16]}>
+            {/* Primeira Linha: Nome e CPF */}
             <Col xs={24} sm={12}>
               <Form.Item
                 name="nome"
@@ -395,20 +417,50 @@ const Usuarios = () => {
                 </InputMask>
               </Form.Item>
             </Col>
-            <Col xs={24} sm={8}>
+
+            {/* Segunda Linha: Nível, Cultura (condicional), Email, Senha */}
+            <Col xs={24} sm={12} md={nivelSelecionado === 'GERENTE_CULTURA' ? 6 : 8}>
               <Form.Item
                 name="nivel"
                 label={<Text strong><NumberOutlined style={{ marginRight: 8 }} /> Nível</Text>}
                 rules={[{ required: true, message: "Selecione o nível" }]}
               >
-                <Select size="large" placeholder="Selecione o nível">
+                <Select
+                  size="large"
+                  placeholder="Selecione o nível"
+                  onChange={(value) => {
+                    setNivelSelecionado(value);
+                    // Limpar culturaId se não for GERENTE_CULTURA
+                    if (value !== 'GERENTE_CULTURA') {
+                      usuarioForm.setFieldValue('culturaId', undefined);
+                    }
+                  }}
+                >
                   <Option value="ADMINISTRADOR">Administrador</Option>
-                  <Option value="USUARIO">Usuário</Option>
-                  <Option value="CONVIDADO">Convidado</Option>
+                  <Option value="GERENTE_GERAL">Gerente Geral</Option>
+                  <Option value="ESCRITORIO">Escritório</Option>
+                  <Option value="GERENTE_CULTURA">Gerente de Cultura</Option>
                 </Select>
               </Form.Item>
             </Col>
-            <Col xs={24} sm={8}>
+
+            {nivelSelecionado === 'GERENTE_CULTURA' && (
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="culturaId"
+                  label={<Text strong><AppleOutlined style={{ marginRight: 8 }} /> Cultura</Text>}
+                  rules={[{ required: true, message: "Selecione a cultura" }]}
+                >
+                  <Select size="large" placeholder="Selecione a cultura">
+                    {culturas.map((cultura) => (
+                      <Option key={cultura.id} value={cultura.id}>{cultura.descricao}</Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+            )}
+
+            <Col xs={24} sm={12} md={nivelSelecionado === 'GERENTE_CULTURA' ? 6 : 8}>
               <Form.Item
                 name="email"
                 label={<Text strong><MailOutlined style={{ marginRight: 8 }} />Email</Text>}
@@ -433,7 +485,8 @@ const Usuarios = () => {
                 <CustomEmailInput placeholder="Usuário" />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={8}>
+
+            <Col xs={24} sm={12} md={nivelSelecionado === 'GERENTE_CULTURA' ? 6 : 8}>
               <Form.Item
                 name="senha"
                 label={<Text strong><LockOutlined style={{ marginRight: 8 }} />Senha</Text>}
@@ -497,7 +550,18 @@ const Usuarios = () => {
                     <Text>
                       <strong>CPF:</strong> {usuario.cpf ? usuario.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '-'} <br />
                       <strong>Email:</strong> {usuario.email} <br />
-                      <strong>Nível:</strong> {usuario.nivel} <br />
+                      <strong>Nível:</strong> {
+                        usuario.nivel === 'ADMINISTRADOR' ? 'Administrador' :
+                        usuario.nivel === 'GERENTE_GERAL' ? 'Gerente Geral' :
+                        usuario.nivel === 'ESCRITORIO' ? 'Escritório' :
+                        usuario.nivel === 'GERENTE_CULTURA' ? 'Gerente de Cultura' :
+                        usuario.nivel
+                      } <br />
+                      {usuario.culturaId && (
+                        <>
+                          <strong>Cultura:</strong> {culturas.find(c => c.id === usuario.culturaId)?.descricao || 'N/A'} <br />
+                        </>
+                      )}
                       <strong>Data de Cadastro:</strong>{" "}
                       {usuario.dataCadastro ? new Date(usuario.dataCadastro).toLocaleDateString('pt-BR') : "-"} <br />
                       <strong>Último Acesso:</strong>{" "}
@@ -741,12 +805,31 @@ const Usuarios = () => {
               label={<Text strong><NumberOutlined style={{ marginRight: 8 }} />Nível de Acesso</Text>}
               rules={[{ required: true, message: "Selecione o nível de acesso" }]}
             >
-              <Select placeholder="Selecione o nível" style={{ borderRadius: 6 }}>
+              <Select
+                placeholder="Selecione o nível"
+                style={{ borderRadius: 6 }}
+                onChange={(value) => setNivelEdicao(value)}
+              >
                 <Option value="ADMINISTRADOR">Administrador</Option>
-                <Option value="USUARIO">Usuário</Option>
-                <Option value="CONVIDADO">Convidado</Option>
+                <Option value="GERENTE_GERAL">Gerente Geral</Option>
+                <Option value="ESCRITORIO">Escritório</Option>
+                <Option value="GERENTE_CULTURA">Gerente de Cultura</Option>
               </Select>
             </Form.Item>
+
+            {nivelEdicao === 'GERENTE_CULTURA' && (
+              <Form.Item
+                name="culturaId"
+                label={<Text strong><AppleOutlined style={{ marginRight: 8 }} />Cultura</Text>}
+                rules={[{ required: true, message: "Selecione a cultura" }]}
+              >
+                <Select placeholder="Selecione a cultura" style={{ borderRadius: 6 }}>
+                  {culturas.map((cultura) => (
+                    <Option key={cultura.id} value={cultura.id}>{cultura.descricao}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            )}
           </StyledForm>
         </Card>
 

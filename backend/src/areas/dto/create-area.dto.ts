@@ -73,6 +73,15 @@ export class CreateAreaDto {
   coordenadas?: any;
 
   @ApiProperty({
+    description: 'Flag para desativar a área',
+    example: false,
+    default: false,
+    required: false,
+  })
+  @IsOptional()
+  desativar?: boolean;
+
+  @ApiProperty({
     description: 'Culturas da área',
     type: [CulturaAreaDto],
   })

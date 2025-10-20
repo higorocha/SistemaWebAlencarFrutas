@@ -1,9 +1,10 @@
-import { 
-  IsEmail, 
-  IsString, 
-  MinLength, 
-  IsOptional, 
-  IsEnum, 
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsEnum,
+  IsInt,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { NivelUsuario } from './register.dto';
@@ -44,10 +45,19 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'Nível de acesso do usuário',
     enum: NivelUsuario,
-    default: NivelUsuario.USUARIO,
+    default: NivelUsuario.ESCRITORIO,
   })
-  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, USUARIO ou CONVIDADO' })
+  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO ou GERENTE_CULTURA' })
   nivel: NivelUsuario;
+
+  @ApiProperty({
+    description: 'ID da cultura vinculada (obrigatório apenas para GERENTE_CULTURA)',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt({ message: 'ID da cultura deve ser um número inteiro' })
+  culturaId?: number;
 }
 
 export class UpdateUserDto {
@@ -86,8 +96,17 @@ export class UpdateUserDto {
     required: false,
   })
   @IsOptional()
-  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, USUARIO ou CONVIDADO' })
+  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO ou GERENTE_CULTURA' })
   nivel?: NivelUsuario;
+
+  @ApiProperty({
+    description: 'ID da cultura vinculada (obrigatório apenas para GERENTE_CULTURA)',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt({ message: 'ID da cultura deve ser um número inteiro' })
+  culturaId?: number;
 }
 
 export class UserResponseDto {
@@ -117,9 +136,16 @@ export class UserResponseDto {
 
   @ApiProperty({
     description: 'Nível de acesso',
-    example: 'USUARIO',
+    example: 'ESCRITORIO',
   })
   nivel: string;
+
+  @ApiProperty({
+    description: 'ID da cultura vinculada (apenas para GERENTE_CULTURA)',
+    example: 1,
+    required: false,
+  })
+  culturaId?: number | null;
 
   @ApiProperty({
     description: 'Data de cadastro',

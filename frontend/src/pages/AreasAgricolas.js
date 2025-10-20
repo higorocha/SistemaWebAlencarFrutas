@@ -145,7 +145,8 @@ const AreasAgricolas = () => {
   const [mapZoom, setMapZoom] = useState(defaultZoom);
   const isEditableMode = mapMode === "edit" || mapMode === "create";
   const API_URL = {
-    areas: "/api/areas-agricolas",
+    areas: "/api/areas-agricolas/todas", // ✅ Usar endpoint que inclui áreas desativadas para administração
+    areasCrud: "/api/areas-agricolas", // ✅ Endpoint para CRUD (sem /todas)
     culturas: "/api/culturas",
   };
   const { isLoaded, loadError } = useLoadScript({
@@ -344,7 +345,7 @@ const AreasAgricolas = () => {
       if (mode === "view") {
         setIsLoading(true);
         axiosInstance
-          .get(`${API_URL.areas}/${area.id}`)
+          .get(`${API_URL.areasCrud}/${area.id}`)
           .then((response) => {
             setAreaDetalhes(response.data);
             setOpenDetalhesDialog(true);
@@ -397,7 +398,7 @@ const AreasAgricolas = () => {
       
       setMapOpen(true);
     },
-    [defaultCenter, API_URL.areas]
+    [defaultCenter, API_URL.areasCrud]
   );
 
   // CORREÇÃO 2: Lógica de salvar centralizada no componente pai
@@ -456,10 +457,10 @@ const AreasAgricolas = () => {
       if (editando) {
         // Para edição, remover o id do payload se existir
         const { id, ...dadosParaUpdate } = dadosParaEnvio;
-        await axiosInstance.patch(`${API_URL.areas}/${areaAtual.id}`, dadosParaUpdate);
+        await axiosInstance.patch(`${API_URL.areasCrud}/${areaAtual.id}`, dadosParaUpdate);
         showNotification("success", "Sucesso", "Área atualizada com sucesso!");
       } else {
-        await axiosInstance.post(API_URL.areas, dadosParaEnvio);
+        await axiosInstance.post(API_URL.areasCrud, dadosParaEnvio);
         showNotification("success", "Sucesso", "Área cadastrada com sucesso!");
       }
       
@@ -537,7 +538,7 @@ const AreasAgricolas = () => {
               setCentralizedLoading(true);
               setLoadingMessage("Removendo área...");
               
-              await axiosInstance.delete(`${API_URL.areas}/${id}`);
+              await axiosInstance.delete(`${API_URL.areasCrud}/${id}`);
               showNotification(
                 "success",
                 "Sucesso",
@@ -573,7 +574,7 @@ const AreasAgricolas = () => {
         },
       });
     },
-    [API_URL.areas, buscarAreas]
+    [API_URL.areasCrud, buscarAreas]
   );
 
   const handleChange = useCallback((fieldName, value) => {
@@ -716,13 +717,23 @@ const AreasAgricolas = () => {
 
   // Função para aplicar filtros da tabela
   const aplicarFiltrosTabela = useCallback((areasParaFiltrar, filtros) => {
+    // Se não há filtros ou todos os filtros estão vazios, retorna todas as áreas
     if (!filtros || Object.keys(filtros).length === 0) {
+      return areasParaFiltrar;
+    }
+
+    // Verificar se todos os filtros estão vazios (reset)
+    const todosFiltrosVazios = Object.values(filtros).every(filtro => 
+      !filtro || (Array.isArray(filtro) && filtro.length === 0)
+    );
+    
+    if (todosFiltrosVazios) {
       return areasParaFiltrar;
     }
 
     return areasParaFiltrar.filter(area => {
       // Filtro de culturas
-      if (filtros.culturas && filtros.culturas.length > 0) {
+      if (filtros.culturas && Array.isArray(filtros.culturas) && filtros.culturas.length > 0) {
         const culturas = area.culturas || area.culturasDetalhadas || [];
         const temCulturaFiltrada = culturas.some(cultura => {
           const descricao = cultura.descricao || `Cultura ${cultura.culturaId}`;
@@ -731,7 +742,12 @@ const AreasAgricolas = () => {
         if (!temCulturaFiltrada) return false;
       }
 
-      // Adicionar outros filtros aqui conforme necessário
+      // Filtro de status (desativar)
+      if (filtros.status && Array.isArray(filtros.status) && filtros.status.length > 0) {
+        const statusArea = area.desativar || false;
+        if (!filtros.status.includes(statusArea)) return false;
+      }
+
       return true;
     });
   }, []);
@@ -905,6 +921,8 @@ const AreasAgricolas = () => {
             onPageChange={handlePageChange}
             onShowSizeChange={handleShowSizeChange}
             onFilterChange={handleTableFilterChange}
+            onReload={buscarAreas}
+            filtrosAplicados={filtrosAplicados}
           />
         </Suspense>
 
@@ -978,7 +996,7 @@ const AreasAgricolas = () => {
           calculateAreaPolygon={calcularAreaPolygon}
           setAreaPoligono={setAreaPoligono}
           areaPoligono={areaPoligono}
-          lotesExistentes={areas.filter((l) => l.id !== areaAtual?.id)}
+          lotesExistentes={areas.filter((l) => l.id !== areaAtual?.id && !l.desativar)}
         />
       </Suspense>
 

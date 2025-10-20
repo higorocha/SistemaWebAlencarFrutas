@@ -42,10 +42,17 @@ export class PedidosController {
   getDashboardStats(
     @Query('paginaFinalizados') paginaFinalizados?: string,
     @Query('limitFinalizados') limitFinalizados?: string,
+    @Req() request?: any,
   ) {
+    // Extrair dados do usuário do JWT
+    const usuarioNivel = request?.user?.nivel;
+    const usuarioCulturaId = request?.user?.culturaId;
+
     return this.pedidosService.getDashboardStats(
       paginaFinalizados ? parseInt(paginaFinalizados) : 1,
-      limitFinalizados ? parseInt(limitFinalizados) : 10
+      limitFinalizados ? parseInt(limitFinalizados) : 10,
+      usuarioNivel,
+      usuarioCulturaId,
     );
   }
 
@@ -221,9 +228,14 @@ export class PedidosController {
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
     @Query('filters') filters?: string[],
+    @Req() request?: any,
   ) {
     const dataInicioDate = dataInicio ? new Date(dataInicio) : undefined;
     const dataFimDate = dataFim ? new Date(dataFim) : undefined;
+
+    // Extrair dados do usuário do JWT
+    const usuarioNivel = request?.user?.nivel;
+    const usuarioCulturaId = request?.user?.culturaId;
 
     return this.pedidosService.findAll(
       page,
@@ -234,7 +246,9 @@ export class PedidosController {
       clienteId,
       dataInicioDate,
       dataFimDate,
-      filters
+      filters,
+      usuarioNivel,
+      usuarioCulturaId,
     );
   }
 
@@ -263,8 +277,18 @@ export class PedidosController {
   findByCliente(
     @Param('clienteId') clienteId: string,
     @Query('status') status?: string,
+    @Req() request?: any,
   ) {
-    return this.pedidosService.findByCliente(+clienteId, status);
+    // Extrair dados do usuário do JWT
+    const usuarioNivel = request?.user?.nivel;
+    const usuarioCulturaId = request?.user?.culturaId;
+
+    return this.pedidosService.findByCliente(
+      +clienteId,
+      status,
+      usuarioNivel,
+      usuarioCulturaId,
+    );
   }
 
   @Get(':id')
@@ -278,8 +302,15 @@ export class PedidosController {
     status: HttpStatus.NOT_FOUND,
     description: 'Pedido não encontrado',
   })
-  findOne(@Param('id') id: string): Promise<PedidoResponseDto> {
-    return this.pedidosService.findOne(+id);
+  findOne(
+    @Param('id') id: string,
+    @Req() request?: any,
+  ): Promise<PedidoResponseDto> {
+    // Extrair dados do usuário do JWT
+    const usuarioNivel = request?.user?.nivel;
+    const usuarioCulturaId = request?.user?.culturaId;
+
+    return this.pedidosService.findOne(+id, usuarioNivel, usuarioCulturaId);
   }
 
   @Patch(':id')

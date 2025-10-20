@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto';
 import { TipoLogin } from './dto/login.dto';
+import { NivelUsuario } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
@@ -80,12 +81,18 @@ export class AuthService {
 
   async login(email: string, senha: string, tipoLogin: TipoLogin = TipoLogin.WEB) {
     console.log(`🚀 [AUTH] Iniciando login para: ${email} (${tipoLogin})`);
-    
+
     const usuario = await this.validateUser(email, senha);
-    
+
     if (!usuario) {
       console.log(`❌ [AUTH] Login falhou para: ${email}`);
       throw new UnauthorizedException('Credenciais inválidas');
+    }
+
+    // Validar se o tipo de usuário pode acessar o tipo de login solicitado
+    if (tipoLogin === TipoLogin.WEB && usuario.nivel === 'GERENTE_CULTURA') {
+      console.log(`❌ [AUTH] GERENTE_CULTURA não tem acesso ao sistema web: ${email}`);
+      throw new UnauthorizedException('Gerentes de Cultura só têm acesso ao aplicativo mobile');
     }
 
     // Atualizar último acesso
@@ -94,9 +101,9 @@ export class AuthService {
       data: { ultimoAcesso: new Date() },
     });
 
-    const payload = { 
-      sub: usuario.id, 
-      email: usuario.email, 
+    const payload = {
+      sub: usuario.id,
+      email: usuario.email,
       nivel: usuario.nivel,
       tipoLogin: tipoLogin,
       expiracao: this.calcularExpiracao(tipoLogin).toISOString()
@@ -104,7 +111,7 @@ export class AuthService {
 
     // Calcular duração do JWT
     const duracaoSegundos = this.calcularDuracaoJWT(tipoLogin);
-    
+
     console.log(`⏰ [AUTH] Token expira em: ${this.calcularExpiracao(tipoLogin).toLocaleString()}`);
     console.log(`📱 [AUTH] Tipo de login: ${tipoLogin}`);
 
@@ -127,15 +134,21 @@ export class AuthService {
     cpf: string;
     email: string;
     senha: string;
-    nivel?: 'ADMINISTRADOR' | 'USUARIO' | 'CONVIDADO';
+    nivel?: NivelUsuario;
+    culturaId?: number;
   }) {
+    // Validar culturaId se necessário
+    if (data.nivel) {
+      await this.validarCulturaId(data.nivel, data.culturaId);
+    }
+
     const hashedPassword = await bcrypt.hash(data.senha, 10);
-    
+
     return this.prisma.usuario.create({
       data: {
         ...data,
         senha: hashedPassword,
-        nivel: data.nivel || 'USUARIO',
+        nivel: data.nivel || NivelUsuario.ESCRITORIO,
       },
       select: {
         id: true,
@@ -143,6 +156,7 @@ export class AuthService {
         email: true,
         cpf: true,
         nivel: true,
+        culturaId: true,
         dataCadastro: true,
         createdAt: true,
       },
@@ -168,6 +182,26 @@ export class AuthService {
   // MÉTODOS DE GERENCIAMENTO DE USUÁRIOS
   // ===========================================
 
+  /**
+   * Valida se culturaId é obrigatório para GERENTE_CULTURA e se a cultura existe
+   */
+  private async validarCulturaId(nivel: NivelUsuario, culturaId?: number): Promise<void> {
+    if (nivel === NivelUsuario.GERENTE_CULTURA) {
+      if (!culturaId) {
+        throw new BadRequestException('culturaId é obrigatório para usuários do tipo GERENTE_CULTURA');
+      }
+
+      // Verificar se a cultura existe
+      const culturaExiste = await this.prisma.cultura.findUnique({
+        where: { id: culturaId },
+      });
+
+      if (!culturaExiste) {
+        throw new NotFoundException(`Cultura com ID ${culturaId} não encontrada`);
+      }
+    }
+  }
+
   async findAllUsers(): Promise<UserResponseDto[]> {
     return this.prisma.usuario.findMany({
       select: {
@@ -176,6 +210,7 @@ export class AuthService {
         cpf: true,
         email: true,
         nivel: true,
+        culturaId: true,
         dataCadastro: true,
         ultimoAcesso: true,
         createdAt: true,
@@ -196,6 +231,7 @@ export class AuthService {
         cpf: true,
         email: true,
         nivel: true,
+        culturaId: true,
         dataCadastro: true,
         ultimoAcesso: true,
         createdAt: true,
@@ -212,8 +248,11 @@ export class AuthService {
 
   async createUser(createUserDto: CreateUserDto): Promise<UserResponseDto> {
     try {
+      // Validar culturaId se necessário
+      await this.validarCulturaId(createUserDto.nivel, createUserDto.culturaId);
+
       const hashedPassword = await bcrypt.hash(createUserDto.senha, 10);
-      
+
       return await this.prisma.usuario.create({
         data: {
           ...createUserDto,
@@ -225,6 +264,7 @@ export class AuthService {
           cpf: true,
           email: true,
           nivel: true,
+          culturaId: true,
           dataCadastro: true,
           ultimoAcesso: true,
           createdAt: true,
@@ -241,6 +281,11 @@ export class AuthService {
 
   async updateUser(id: number, updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
     try {
+      // Validar culturaId se o nível estiver sendo atualizado
+      if (updateUserDto.nivel) {
+        await this.validarCulturaId(updateUserDto.nivel, updateUserDto.culturaId);
+      }
+
       return await this.prisma.usuario.update({
         where: { id },
         data: updateUserDto,
@@ -250,6 +295,7 @@ export class AuthService {
           cpf: true,
           email: true,
           nivel: true,
+          culturaId: true,
           dataCadastro: true,
           ultimoAcesso: true,
           createdAt: true,

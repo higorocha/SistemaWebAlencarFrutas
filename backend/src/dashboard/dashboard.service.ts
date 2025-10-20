@@ -180,10 +180,11 @@ export class DashboardService {
   }
 
   private async getProgramacaoColheita(): Promise<ProgramacaoColheitaDto[]> {
-    const dataAtual = new Date();
+    // ✅ CORREÇÃO: Normalizar data atual para início do dia (00:00:00)
+    const hoje = new Date();
+    const dataAtual = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
 
-    // Buscar TODOS os pedidos com status de colheita (futuros e atrasados)
-    // Ordenar por data: atrasados primeiro (prioridade), depois futuros
+    // ✅ CORREÇÃO: Buscar TODOS os pedidos pendentes (remover limite artificial)
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         status: {
@@ -210,16 +211,24 @@ export class DashboardService {
       orderBy: {
         dataPrevistaColheita: 'asc', // Mais antigos primeiro (atrasados têm prioridade)
       },
-      take: 15, // Aumentar limite para mostrar mais pedidos
+      // ✅ CORREÇÃO: Remover limite para mostrar TODOS os pedidos pendentes
     });
 
     const programacao: ProgramacaoColheitaDto[] = [];
 
     pedidos.forEach(pedido => {
       const clienteNome = pedido.cliente.razaoSocial || pedido.cliente.nome;
-      const diasRestantes = Math.ceil(
-        (pedido.dataPrevistaColheita.getTime() - dataAtual.getTime()) / (1000 * 60 * 60 * 24)
+      
+      // ✅ CORREÇÃO: Normalizar data prevista para início do dia (ignorar horário)
+      const dataPrevistaNormalizada = new Date(
+        pedido.dataPrevistaColheita.getFullYear(),
+        pedido.dataPrevistaColheita.getMonth(),
+        pedido.dataPrevistaColheita.getDate()
       );
+      
+      // ✅ CORREÇÃO: Calcular diferença em dias (sem considerar horário)
+      const diferencaMs = dataPrevistaNormalizada.getTime() - dataAtual.getTime();
+      const diasRestantes = Math.round(diferencaMs / (1000 * 60 * 60 * 24));
 
       const statusVisualizacao = diasRestantes < 0 ? 'ATRASADO' : pedido.status;
 

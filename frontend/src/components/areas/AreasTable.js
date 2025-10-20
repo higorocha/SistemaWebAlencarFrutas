@@ -16,6 +16,7 @@ import DetalhesAreaModal from "./DetalhesAreaModal";
 import { CentralizedLoader } from "../common/loaders";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 
 const { Text } = Typography;
 
@@ -85,12 +86,18 @@ const AreasTable = React.memo(({
   onPageChange,
   onShowSizeChange,
   onFilterChange,
+  onReload, // Nova prop para recarregar dados
+  filtrosAplicados = {}, // Filtros atualmente aplicados
 }) => {
   // Estado do modal de detalhes
   const [detalhesModalOpen, setDetalhesModalOpen] = useState(false);
   const [areaSelecionada, setAreaSelecionada] = useState(null);
   const [loadingDetalhes, setLoadingDetalhes] = useState(false);
   const [dadosDetalhes, setDadosDetalhes] = useState(null);
+
+  // Estado do modal de confirmação para desativar/reativar
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [areaParaToggle, setAreaParaToggle] = useState(null);
 
   // Calcular filtros de culturas usando TODOS os dados (useMemo garante cálculo único)
   const culturasFilters = useMemo(() => {
@@ -115,6 +122,20 @@ const AreasTable = React.memo(({
       }));
   }, [allAreas, areas]); // Recalcula apenas quando allAreas ou areas mudam
 
+  // Calcular filtros de status usando TODOS os dados (useMemo garante cálculo único)
+  const statusFilters = useMemo(() => {
+    return [
+      {
+        text: "Ativa",
+        value: false
+      },
+      {
+        text: "Desativada", 
+        value: true
+      }
+    ];
+  }, []); // Filtros de status são fixos
+
   // Função para buscar detalhes da área do backend
   const handleOpenDetalhesModal = async (area) => {
     try {
@@ -134,6 +155,44 @@ const AreasTable = React.memo(({
     } finally {
       setLoadingDetalhes(false);
     }
+  };
+
+  // Função para abrir modal de confirmação para desativar/reativar área
+  const handleToggleDesativar = (area) => {
+    setAreaParaToggle(area);
+    setConfirmModalOpen(true);
+  };
+
+  // Função para executar a desativação/reativação após confirmação
+  const handleConfirmToggleDesativar = async () => {
+    if (!areaParaToggle) return;
+
+    try {
+      const response = await axiosInstance.patch(`/api/areas-agricolas/${areaParaToggle.id}/toggle-desativar`);
+      
+      if (response.data) {
+        const statusText = response.data.desativar ? "desativada" : "reativada";
+        showNotification("success", "Sucesso", `Área ${statusText} com sucesso!`);
+        
+        // Recarregar a lista de áreas
+        if (onReload) {
+          onReload();
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao alterar status da área:", error);
+      const errorMessage = error.response?.data?.message || "Erro ao alterar status da área";
+      showNotification("error", "Erro", errorMessage);
+    } finally {
+      setConfirmModalOpen(false);
+      setAreaParaToggle(null);
+    }
+  };
+
+  // Função para cancelar a confirmação
+  const handleCancelToggleDesativar = () => {
+    setConfirmModalOpen(false);
+    setAreaParaToggle(null);
   };
 
   // Função para criar o menu de ações
@@ -171,6 +230,18 @@ const AreasTable = React.memo(({
           </Space>
         ),
         onClick: () => onEdit(record),
+      },
+      {
+        key: "toggle-desativar",
+        label: (
+          <Space>
+            <InfoCircleOutlined style={{ color: record.desativar ? "#10b981" : "#f59e0b" }} />
+            <span style={{ color: "#333" }}>
+              {record.desativar ? "Reativar Área" : "Desativar Área"}
+            </span>
+          </Space>
+        ),
+        onClick: () => handleToggleDesativar(record),
       },
       {
         key: "delete",
@@ -213,6 +284,31 @@ const AreasTable = React.memo(({
       key: "categoria",
       sorter: (a, b) => a.categoria.localeCompare(b.categoria),
       render: (categoria) => categoria ? formatarCategoria(categoria) : "-",
+    },
+    {
+      title: "Status",
+      dataIndex: "desativar",
+      key: "status",
+      width: 100,
+      align: "center",
+      filters: statusFilters,
+      onFilter: (value, record) => {
+        return record.desativar === value;
+      },
+      filterSearch: true,
+      filteredValue: filtrosAplicados.status || null, // Sincronizar com filtros aplicados
+      render: (desativar) => (
+        <Tag
+          color={desativar ? "red" : "green"}
+          style={{
+            borderRadius: "4px",
+            fontWeight: "500",
+            fontSize: "12px",
+          }}
+        >
+          {desativar ? "Desativada" : "Ativa"}
+        </Tag>
+      ),
     },
     {
       title: "Área Total",
@@ -267,7 +363,7 @@ const AreasTable = React.memo(({
         });
       },
       filterSearch: true,
-      filteredValue: null, // Desabilitar filtro nativo
+      filteredValue: filtrosAplicados.culturas || null, // Sincronizar com filtros aplicados
       render: (_, record) => {
         const culturas = record.culturas || record.culturasDetalhadas || [];
         if (culturas.length === 0) {
@@ -392,6 +488,20 @@ const AreasTable = React.memo(({
         visible={loadingDetalhes}
         message="Carregando detalhes da área..."
         subMessage="Buscando pedidos, estatísticas e KPIs..."
+      />
+
+      {/* Modal de confirmação para desativar/reativar área */}
+      <ConfirmActionModal
+        open={confirmModalOpen}
+        onConfirm={handleConfirmToggleDesativar}
+        onCancel={handleCancelToggleDesativar}
+        title={areaParaToggle?.desativar ? "Reativar Área" : "Desativar Área"}
+        message={`Tem certeza que deseja ${areaParaToggle?.desativar ? "reativar" : "desativar"} a área "${areaParaToggle?.nome}"?`}
+        confirmText={areaParaToggle?.desativar ? "Sim, Reativar" : "Sim, Desativar"}
+        cancelText="Cancelar"
+        confirmButtonDanger={!areaParaToggle?.desativar}
+        icon={<InfoCircleOutlined />}
+        iconColor={areaParaToggle?.desativar ? "#10b981" : "#f59e0b"}
       />
     </>
   );

@@ -1,0 +1,309 @@
+/* ProgramacaoColheitaGrid.css */
+
+.programacao-colheita-grid {
+  width: 100%;
+  padding: 0;
+}
+
+.grid-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+/* Coluna de dia - COMPACTADO */
+.coluna-dia {
+  transition: all 0.3s ease;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.coluna-dia:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* Header da coluna - ULTRA COMPACTADO */
+.header-coluna {
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.dia-label {
+  margin-bottom: 1px;
+}
+
+.data-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.contador-colheitas {
+  margin-top: 1px;
+}
+
+/* Lista de colheitas - ULTRA COMPACTADO */
+.colheitas-lista {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 160px;
+}
+
+.lista-items {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Item de colheita - ULTRA COMPACTADO */
+.item-colheita {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 3px;
+  padding: 4px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.item-colheita:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0,0,0,0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* Informações do cliente - ULTRA COMPACTADO */
+.cliente-info {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 3px;
+}
+
+.cliente-icon {
+  color: #1890ff;
+  font-size: 0.625rem;
+}
+
+.cliente-nome {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Informações da fruta e quantidade - ULTRA COMPACTADO */
+.fruta-quantidade {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fruta-info {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.fruta-icon {
+  flex-shrink: 0;
+}
+
+.fruta-nome {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quantidade-info {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.quantidade-icon {
+  color: #52c41a;
+  font-size: 0.5625rem;
+}
+
+.quantidade {
+  font-weight: 600;
+}
+
+/* Estado sem colheitas - ULTRA COMPACTADO */
+.sem-colheitas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+  padding: 6px;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .programacao-colheita-grid {
+    padding: 0 8px;
+  }
+  
+  .coluna-dia {
+    margin-bottom: 12px;
+  }
+  
+  .item-colheita {
+    padding: 6px;
+  }
+  
+  .cliente-info {
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  
+  .fruta-quantidade {
+    gap: 3px;
+  }
+}
+
+/* Scroll horizontal para muitas colunas - RESPONSIVO */
+.programacao-colheita-grid .ant-row {
+  overflow-x: auto !important;
+  flex-wrap: nowrap !important;
+  padding-bottom: 8px;
+  display: flex !important;
+  width: 100%;
+}
+
+.programacao-colheita-grid .ant-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+.programacao-colheita-grid .ant-row::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.programacao-colheita-grid .ant-row::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.programacao-colheita-grid .ant-row::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Largura responsiva das colunas - MÍNIMA + CRESCIMENTO */
+.programacao-colheita-grid .ant-col {
+  min-width: 160px !important;
+  flex: 1 1 160px; /* flex-grow: 1, flex-shrink: 1, flex-basis: 160px */
+  max-width: 250px; /* Largura máxima para não ficar muito largo */
+}
+
+@media (max-width: 576px) {
+  .grid-header {
+    margin-bottom: 12px;
+  }
+  
+  .coluna-dia {
+    margin-bottom: 8px;
+  }
+  
+  .item-colheita {
+    padding: 4px;
+  }
+  
+  .cliente-info {
+    gap: 3px;
+    margin-bottom: 3px;
+  }
+  
+  .fruta-quantidade {
+    gap: 2px;
+  }
+}
+
+/* Scrollbar customizada */
+.colheitas-lista::-webkit-scrollbar {
+  width: 4px;
+}
+
+.colheitas-lista::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.1);
+  border-radius: 2px;
+}
+
+.colheitas-lista::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.3);
+  border-radius: 2px;
+}
+
+.colheitas-lista::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.5);
+}
+
+/* Animações */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.item-colheita {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* Estados especiais */
+.coluna-dia.atrasado {
+  border-left: 4px solid #f5222d;
+}
+
+.coluna-dia.hoje {
+  border-left: 4px solid #faad14;
+}
+
+.coluna-dia.amanha {
+  border-left: 4px solid #fa8c16;
+}
+
+.coluna-dia.normal {
+  border-left: 4px solid #52c41a;
+}
+
+/* Melhorias de acessibilidade */
+.item-colheita:focus {
+  outline: 2px solid #1890ff;
+  outline-offset: 2px;
+}
+
+/* Estados de loading */
+.programacao-colheita-grid.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.programacao-colheita-grid.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #1890ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

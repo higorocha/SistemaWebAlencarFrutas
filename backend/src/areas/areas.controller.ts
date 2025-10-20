@@ -35,10 +35,17 @@ export class AreasController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Buscar todas as áreas agrícolas' })
-  @ApiResponse({ status: 200, description: 'Lista de áreas agrícolas retornada com sucesso', type: [AreaResponseDto] })
+  @ApiOperation({ summary: 'Buscar todas as áreas agrícolas ativas' })
+  @ApiResponse({ status: 200, description: 'Lista de áreas agrícolas ativas retornada com sucesso', type: [AreaResponseDto] })
   findAll() {
     return this.areasService.findAll();
+  }
+
+  @Get('todas')
+  @ApiOperation({ summary: 'Buscar todas as áreas agrícolas (incluindo desativadas) - Para administração' })
+  @ApiResponse({ status: 200, description: 'Lista completa de áreas agrícolas retornada com sucesso', type: [AreaResponseDto] })
+  findAllIncludingInactive() {
+    return this.areasService.findAllIncludingInactive();
   }
 
   @Get(':id')
@@ -72,5 +79,13 @@ export class AreasController {
   @ApiResponse({ status: 404, description: 'Área agrícola não encontrada' })
   remove(@Param('id', ParseIntPipe) id: string) {
     return this.areasService.remove(+id);
+  }
+
+  @Patch(':id/toggle-desativar')
+  @ApiOperation({ summary: 'Desativar/Reativar uma área agrícola' })
+  @ApiResponse({ status: 200, description: 'Status da área alterado com sucesso', type: AreaResponseDto })
+  @ApiResponse({ status: 404, description: 'Área agrícola não encontrada' })
+  toggleDesativar(@Param('id', ParseIntPipe) id: string) {
+    return this.areasService.toggleDesativar(+id);
   }
 } 

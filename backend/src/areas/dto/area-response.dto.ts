@@ -34,6 +34,12 @@ export class AreaResponseDto {
   coordenadas?: any;
 
   @ApiProperty({
+    description: 'Flag para desativar a área',
+    example: false,
+  })
+  desativar: boolean;
+
+  @ApiProperty({
     description: 'Culturas da área',
     type: [CulturaAreaDto],
   })

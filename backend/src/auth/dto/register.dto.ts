@@ -1,10 +1,11 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsEnum, IsInt } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum NivelUsuario {
   ADMINISTRADOR = 'ADMINISTRADOR',
-  USUARIO = 'USUARIO',
-  CONVIDADO = 'CONVIDADO',
+  GERENTE_GERAL = 'GERENTE_GERAL',
+  ESCRITORIO = 'ESCRITORIO',
+  GERENTE_CULTURA = 'GERENTE_CULTURA',
 }
 
 export class RegisterDto {
@@ -43,10 +44,19 @@ export class RegisterDto {
   @ApiProperty({
     description: 'Nível de acesso do usuário',
     enum: NivelUsuario,
-    default: NivelUsuario.USUARIO,
+    default: NivelUsuario.ESCRITORIO,
     required: false,
   })
   @IsOptional()
-  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, USUARIO ou CONVIDADO' })
+  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO ou GERENTE_CULTURA' })
   nivel?: NivelUsuario;
+
+  @ApiProperty({
+    description: 'ID da cultura vinculada (obrigatório apenas para GERENTE_CULTURA)',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt({ message: 'ID da cultura deve ser um número inteiro' })
+  culturaId?: number;
 } 

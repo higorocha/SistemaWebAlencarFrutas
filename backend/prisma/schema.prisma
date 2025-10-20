@@ -12,19 +12,23 @@ model Usuario {
   nome         String
   cpf          String       @unique
   email        String       @unique
-  nivel        NivelUsuario @default(USUARIO)
+  nivel        NivelUsuario @default(ESCRITORIO)
   senha        String
   dataCadastro DateTime     @default(now())
   ultimoAcesso DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  // NOVO: Vinculação com cultura (para GERENTE_CULTURA)
+  culturaId    Int?         @map("cultura_id")
+  cultura      Cultura?     @relation(fields: [culturaId], references: [id], onDelete: SetNull)
+
   // Relação com Notificacao
   notificacoes Notificacao[]
-  
+
   // Relações com Sistema de Controle de Banana
   fitasBanana      FitaBanana[]      // Fitas criadas pelo usuário
-  controlesBanana  ControleBanana[]  // Controles registrados pelo usuário  
+  controlesBanana  ControleBanana[]  // Controles registrados pelo usuário
   historicosFitas  HistoricoFitas[]  // Histórico de ações do usuário
 
   @@map("usuarios")
@@ -148,8 +152,11 @@ model ConfigWhatsApp {
 
 enum NivelUsuario {
   ADMINISTRADOR
-  USUARIO
-  CONVIDADO
+  GERENTE_GERAL
+  ESCRITORIO
+  GERENTE_CULTURA
+  USUARIO        // Mantido para compatibilidade (não usar em novos cadastros)
+  CONVIDADO      // Mantido para compatibilidade (não usar em novos cadastros)
 }
 
 enum TipoNotificacao {
@@ -217,8 +224,9 @@ model Cultura {
 
   // Relações
   lotesCulturas     LotesCulturas[]
-  areasFornecedores AreaFornecedor[]     // NOVA: Relação com áreas de fornecedores
+  areasFornecedores AreaFornecedor[]     // Relação com áreas de fornecedores
   frutas            Fruta[]              // Relação 1:N com Frutas
+  usuarios          Usuario[]            // NOVO: Gerentes de cultura
 
   @@map("culturas")
 }
@@ -230,6 +238,7 @@ model AreaAgricola {
   categoria       CategoriaArea    @default(COLONO)
   areaTotal       Float            @map("area_total")
   coordenadas     Json?            // Coordenadas geográficas no formato GeoJSON
+  desativar       Boolean          @default(false) // Flag para desativar área
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 

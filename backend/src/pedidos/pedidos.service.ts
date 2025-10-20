@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ControleBananaService } from '../controle-banana/controle-banana.service';
 import { 
@@ -19,17 +19,41 @@ export class PedidosService {
     private controleBananaService: ControleBananaService
   ) {}
 
-  async getDashboardStats(paginaFinalizados: number = 1, limitFinalizados: number = 10): Promise<any> {
+  async getDashboardStats(
+    paginaFinalizados: number = 1,
+    limitFinalizados: number = 10,
+    usuarioNivel?: string,
+    usuarioCulturaId?: number,
+  ): Promise<any> {
     // Validar e garantir que os parâmetros sejam números válidos
     const paginaValida = Math.max(1, Math.floor(paginaFinalizados) || 1);
     const limitValido = Math.max(1, Math.floor(limitFinalizados) || 10);
+
+    // ✅ FILTRO BASE PARA PEDIDOS ATIVOS
+    const whereAtivos: any = {
+      status: {
+        notIn: ['PEDIDO_FINALIZADO', 'CANCELADO']
+      }
+    };
+
+    // ✅ FILTRO POR CULTURA PARA GERENTE_CULTURA
+    if (usuarioNivel === 'GERENTE_CULTURA' && usuarioCulturaId) {
+      whereAtivos.frutasPedidos = {
+        some: {
+          fruta: {
+            culturaId: usuarioCulturaId
+          }
+        }
+      };
+      // Gerentes de cultura só veem pedidos em fases específicas
+      whereAtivos.status = {
+        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA']
+      };
+    }
+
     // Buscar pedidos ativos (não finalizados) com dados completos para dashboard
     const pedidosAtivos = await this.prisma.pedido.findMany({
-      where: {
-        status: {
-          notIn: ['PEDIDO_FINALIZADO', 'CANCELADO']
-        }
-      },
+      where: whereAtivos,
       include: {
         cliente: {
           select: {
@@ -110,8 +134,27 @@ export class PedidosService {
       ]
     });
 
+    // ✅ FILTRO BASE PARA TODOS OS PEDIDOS (ESTATÍSTICAS)
+    const whereTodos: any = {};
+
+    // ✅ FILTRO POR CULTURA PARA GERENTE_CULTURA (estatísticas)
+    if (usuarioNivel === 'GERENTE_CULTURA' && usuarioCulturaId) {
+      whereTodos.frutasPedidos = {
+        some: {
+          fruta: {
+            culturaId: usuarioCulturaId
+          }
+        }
+      };
+      // Gerentes de cultura só veem pedidos em fases específicas
+      whereTodos.status = {
+        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA']
+      };
+    }
+
     // Buscar todos os pedidos apenas para estatísticas
     const todosPedidos = await this.prisma.pedido.findMany({
+      where: whereTodos,
       select: {
         id: true,
         status: true,
@@ -680,11 +723,30 @@ export class PedidosService {
     dataInicio?: Date,
     dataFim?: Date,
     filters?: string[],
+    usuarioNivel?: string,
+    usuarioCulturaId?: number,
   ): Promise<{ data: PedidoResponseDto[]; total: number; page: number; limit: number }> {
     const skip = page && limit ? (page - 1) * limit : 0;
     const take = limit || 10;
 
     const where: any = {};
+
+    // ✅ FILTRO POR CULTURA PARA GERENTE_CULTURA
+    if (usuarioNivel === 'GERENTE_CULTURA' && usuarioCulturaId) {
+      // Gerentes de cultura só veem pedidos com frutas da sua cultura
+      where.frutasPedidos = {
+        some: {
+          fruta: {
+            culturaId: usuarioCulturaId
+          }
+        }
+      };
+
+      // Gerentes de cultura só veem pedidos em fases específicas (colheita)
+      where.status = {
+        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA']
+      };
+    }
 
     if (search) {
       // Se searchType foi especificado, buscar por tipo específico
@@ -1012,7 +1074,12 @@ export class PedidosService {
     };
   }
 
-  async findByCliente(clienteId: number, statusFilter?: string): Promise<{
+  async findByCliente(
+    clienteId: number,
+    statusFilter?: string,
+    usuarioNivel?: string,
+    usuarioCulturaId?: number,
+  ): Promise<{
     data: PedidoResponseDto[];
     total: number;
     statusFiltrados?: string[];
@@ -1031,13 +1098,37 @@ export class PedidosService {
     const where: any = { clienteId };
     let statusFiltrados: string[] = [];
 
+    // ✅ FILTRO POR CULTURA PARA GERENTE_CULTURA
+    if (usuarioNivel === 'GERENTE_CULTURA' && usuarioCulturaId) {
+      where.frutasPedidos = {
+        some: {
+          fruta: {
+            culturaId: usuarioCulturaId
+          }
+        }
+      };
+    }
+
     if (statusFilter) {
       statusFiltrados = statusFilter.split(',').map(s => s.trim()).filter(Boolean);
       if (statusFiltrados.length > 0) {
-        where.status = {
-          in: statusFiltrados
-        };
+        // Se é GERENTE_CULTURA, garantir que os status filtrados sejam apenas os permitidos
+        if (usuarioNivel === 'GERENTE_CULTURA') {
+          const statusPermitidos = ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA'];
+          statusFiltrados = statusFiltrados.filter(s => statusPermitidos.includes(s));
+        }
+
+        if (statusFiltrados.length > 0) {
+          where.status = {
+            in: statusFiltrados
+          };
+        }
       }
+    } else if (usuarioNivel === 'GERENTE_CULTURA') {
+      // Se não há filtro de status, aplicar filtro padrão para GERENTE_CULTURA
+      where.status = {
+        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA']
+      };
     }
 
     // Buscar pedidos do cliente com filtros
@@ -1110,7 +1201,7 @@ export class PedidosService {
     };
   }
 
-  async findOne(id: number): Promise<PedidoResponseDto> {
+  async findOne(id: number, usuarioNivel?: string, usuarioCulturaId?: number): Promise<PedidoResponseDto> {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id },
       include: {
@@ -1120,8 +1211,8 @@ export class PedidosService {
         frutasPedidos: {
           include: {
             fruta: {
-              select: { 
-                id: true, 
+              select: {
+                id: true,
                 nome: true,
                 cultura: {
                   select: {
@@ -1137,8 +1228,8 @@ export class PedidosService {
                   select: { id: true, nome: true }
                 },
                 areaFornecedor: {
-                  select: { 
-                    id: true, 
+                  select: {
+                    id: true,
                     nome: true,
                     cultura: {
                       select: {
@@ -1183,6 +1274,24 @@ export class PedidosService {
 
     if (!pedido) {
       throw new NotFoundException('Pedido não encontrado');
+    }
+
+    // ✅ VALIDAÇÃO DE PERMISSÃO PARA GERENTE_CULTURA
+    if (usuarioNivel === 'GERENTE_CULTURA' && usuarioCulturaId) {
+      // Verificar se o pedido contém frutas da cultura do usuário
+      const temFrutaDaCultura = pedido.frutasPedidos.some(
+        fp => fp.fruta.cultura?.id === usuarioCulturaId
+      );
+
+      if (!temFrutaDaCultura) {
+        throw new ForbiddenException('Você não tem permissão para acessar este pedido');
+      }
+
+      // Verificar se o pedido está em uma fase permitida
+      const statusPermitidos = ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA'];
+      if (!statusPermitidos.includes(pedido.status)) {
+        throw new ForbiddenException('Você não tem permissão para acessar pedidos nesta fase');
+      }
     }
 
     const pedidoAdaptado = this.adaptPedidoResponse(pedido);
