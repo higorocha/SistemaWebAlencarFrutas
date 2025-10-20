@@ -7,13 +7,16 @@ import { createBrowserHistory } from 'history';
 
 // Função para detectar automaticamente a URL do backend
 const getBackendUrl = () => {
+  const hostname = window.location.hostname;
+  
   // Se estiver acessando via IP da rede local, usar o mesmo IP para o backend
-  if (window.location.hostname === '192.168.0.122') {
-    return 'http://192.168.0.122:5002';
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.includes('onrender.com')) {
+    // É um IP da rede local (ex: 192.168.x.x, 10.x.x.x, 172.x.x.x)
+    return `http://${hostname}:5002`;
   }
   
   // Se estiver em localhost, usar localhost
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5002';
   }
   

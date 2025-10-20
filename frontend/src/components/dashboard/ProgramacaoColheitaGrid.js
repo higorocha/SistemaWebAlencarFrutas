@@ -4,6 +4,7 @@ import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined } from '@
 import useResponsive from '../../hooks/useResponsive';
 import { formatarData } from '../../utils/dateUtils';
 import { intFormatter, capitalizeName } from '../../utils/formatters';
+import { getFruitIcon } from '../../utils/fruitIcons';
 import './ProgramacaoColheitaGrid.css';
 
 const { Text, Title } = Typography;
@@ -11,41 +12,16 @@ const { Text, Title } = Typography;
 const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) => {
   const { isMobile, isTablet } = useResponsive();
 
-  // Função para obter ícone da fruta
-  const getFruitIcon = (frutaNome) => {
-    if (!frutaNome) return "🍎";
-    
-    const nome = frutaNome.toLowerCase().trim();
-    
-    const fruitMap = {
-      'banana': '🍌',
-      'maçã': '🍎',
-      'maca': '🍎',
-      'apple': '🍎',
-      'melancia': '🍉',
-      'uva': '🍇',
-      'uvas': '🍇',
-      'coco': '🥥',
-      'côco': '🥥',
-      'coconut': '🥥',
-      'cacao': '🍫',
-      'cacau': '🍫',
-      'tomate': '🍅',
-    };
-
-    // Busca por correspondência exata primeiro
-    if (fruitMap[nome]) {
-      return fruitMap[nome];
-    }
-
-    // Busca por palavras-chave dentro do nome
-    for (const [key, icon] of Object.entries(fruitMap)) {
-      if (nome.includes(key)) {
-        return icon;
+  // Função para obter ícone da fruta (agora usando SVG)
+  const getFruitIconComponent = (frutaNome) => {
+    return getFruitIcon(frutaNome, {
+      width: isMobile ? '16' : '20',
+      height: isMobile ? '16' : '20',
+      style: { 
+        flexShrink: 0,
+        marginRight: '4px'
       }
-    }
-
-    return "🍎"; // Fallback
+    });
   };
 
   // Função para formatar quantidade
@@ -181,15 +157,12 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
         
         <div className="fruta-quantidade">
           <div className="fruta-info">
-            <span className="fruta-icon" style={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
-              {getFruitIcon(item.fruta)}
-            </span>
+            {getFruitIconComponent(item.fruta)}
             <Text 
               className="fruta-nome"
               style={{ 
                 fontSize: isMobile ? '0.6875rem' : '0.75rem',
-                color: '#666',
-                marginLeft: '4px'
+                color: '#666'
               }}
             >
               {capitalizeName(item.fruta)}
@@ -258,8 +231,9 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
             backgroundColor: statusConfig.cor,
             borderColor: statusConfig.border,
             borderWidth: '2px',
-            height: '100%',
-            minHeight: isMobile ? '180px' : '250px'
+            height: isMobile ? '300px' : '350px',
+            minHeight: isMobile ? '300px' : '350px',
+            maxHeight: isMobile ? '300px' : '350px'
           }}
           bodyStyle={{
             padding: isMobile ? '4px' : '6px',
@@ -383,7 +357,9 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
           gutter={isMobile ? [8, 8] : [12, 12]} 
           style={{ 
             margin: 0,
-            minHeight: isMobile ? '180px' : '250px',
+            height: isMobile ? '300px' : '350px',
+            minHeight: isMobile ? '300px' : '350px',
+            maxHeight: isMobile ? '300px' : '350px',
             overflowX: 'auto',
             flexWrap: 'nowrap',
             display: 'flex'

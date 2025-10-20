@@ -76,7 +76,9 @@
     "start:unix": "PORT=3002 react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "network": "node scripts/network-info.js",
+    "dev": "npm run network && npm run start"
   },
   "eslintConfig": {
     "extends": [
@@ -98,6 +100,7 @@
   },
   "devDependencies": {
     "@ant-design/moment-webpack-plugin": "^1.0.0",
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@svgr/webpack": "^8.1.0"
   }
 }
