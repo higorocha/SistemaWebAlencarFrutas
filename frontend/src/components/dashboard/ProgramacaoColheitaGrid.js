@@ -3,6 +3,7 @@ import { Card, Typography, Row, Col, Space, Tag, Tooltip } from 'antd';
 import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined } from '@ant-design/icons';
 import useResponsive from '../../hooks/useResponsive';
 import { formatarData } from '../../utils/dateUtils';
+import { intFormatter } from '../../utils/formatters';
 import './ProgramacaoColheitaGrid.css';
 
 const { Text, Title } = Typography;
@@ -49,10 +50,9 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
 
   // Função para formatar quantidade
   const formatarQuantidade = (quantidade, unidade) => {
-    if (quantidade >= 1000) {
-      return `${(quantidade / 1000).toFixed(1)}k ${unidade}`;
-    }
-    return `${quantidade} ${unidade}`;
+    // ✅ FORMATAR: Números com separador de milhar
+    const quantidadeFormatada = intFormatter(quantidade);
+    return `${quantidadeFormatada} ${unidade}`;
   };
 
   // Função para obter cores e status por dias restantes
@@ -104,15 +104,17 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
     
     // Adicionar próximos 5 dias (hoje + 4)
     for (let i = 0; i < 5; i++) {
-      const data = new Date(hoje);
-      data.setDate(hoje.getDate() + i);
+      // ✅ CORREÇÃO: Normalizar data para início do dia
+      const data = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + i, 0, 0, 0, 0);
       const dataStr = data.toISOString().split('T')[0];
       datasUnicas.add(dataStr);
     }
     
     // Criar colunas para todas as datas (passadas + futuras)
     datasUnicas.forEach(dataStr => {
-      const data = new Date(dataStr);
+      // ✅ CORREÇÃO: Criar data normalizada para início do dia
+      const [ano, mes, dia] = dataStr.split('-');
+      const data = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia), 0, 0, 0, 0);
       colunas[dataStr] = {
         data: data,
         colheitas: [],
@@ -214,17 +216,30 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
 
   // Renderizar coluna de dia
   const renderColunaDia = ([dataStr, colunaData]) => {
-    // Calcular dias restantes baseado na data da coluna
+    // ✅ CORREÇÃO: Normalizar datas para início do dia (00:00:00) para evitar problemas de fuso
     const hoje = new Date();
-    const dataAtual = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    const dataAtual = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0, 0);
+    
+    // Normalizar a data da coluna também para início do dia
     const dataColuna = new Date(colunaData.data);
-    const dataColunaNormalizada = new Date(dataColuna.getFullYear(), dataColuna.getMonth(), dataColuna.getDate());
+    const dataColunaNormalizada = new Date(dataColuna.getFullYear(), dataColuna.getMonth(), dataColuna.getDate(), 0, 0, 0, 0);
     
     const diferencaMs = dataColunaNormalizada.getTime() - dataAtual.getTime();
     const diasRestantes = Math.round(diferencaMs / (1000 * 60 * 60 * 24));
     
     const statusConfig = getStatusConfig(diasRestantes);
     const dataFormatada = formatarData(colunaData.data);
+    
+    // ✅ DEBUG: Log para verificar cálculo
+    console.log('🔍 Debug Data:', {
+      dataStr,
+      dataAtual: dataAtual.toISOString(),
+      dataColuna: dataColuna.toISOString(),
+      dataColunaNormalizada: dataColunaNormalizada.toISOString(),
+      diferencaMs,
+      diasRestantes,
+      statusLabel: diasRestantes === 0 ? 'HOJE' : dataFormatada
+    });
     
     return (
       <Col 
@@ -244,17 +259,17 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
             borderColor: statusConfig.border,
             borderWidth: '2px',
             height: '100%',
-            minHeight: isMobile ? '200px' : '300px'
+            minHeight: isMobile ? '180px' : '250px'
           }}
           bodyStyle={{
-            padding: isMobile ? '6px' : '8px',
+            padding: isMobile ? '4px' : '6px',
             height: '100%',
             display: 'flex',
             flexDirection: 'column'
           }}
         >
           {/* Header da coluna */}
-          <div className="header-coluna" style={{ marginBottom: '6px' }}>
+          <div className="header-coluna" style={{ marginBottom: '4px' }}>
             {/* Mostrar "HOJE" como badge ou data como badge */}
             <div className="dia-label" style={{ textAlign: 'center', marginBottom: '1px' }}>
               <Tag
@@ -368,7 +383,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
           gutter={isMobile ? [8, 8] : [12, 12]} 
           style={{ 
             margin: 0,
-            minHeight: isMobile ? '200px' : '300px',
+            minHeight: isMobile ? '180px' : '250px',
             overflowX: 'auto',
             flexWrap: 'nowrap',
             display: 'flex'

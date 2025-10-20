@@ -22,11 +22,11 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
-/* Header da coluna - ULTRA COMPACTADO */
+/* Header da coluna - COMPACTADO PARA SCROLL */
 .header-coluna {
   border-bottom: 1px solid rgba(0,0,0,0.1);
-  padding-bottom: 4px;
-  margin-bottom: 6px;
+  padding-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .dia-label {
@@ -44,11 +44,12 @@
   margin-top: 1px;
 }
 
-/* Lista de colheitas - ULTRA COMPACTADO */
+/* Lista de colheitas - AJUSTE DE ALTURA */
 .colheitas-lista {
   flex: 1;
   overflow-y: auto;
-  max-height: 160px;
+  max-height: 200px;
+  min-height: 120px;
 }
 
 .lista-items {
