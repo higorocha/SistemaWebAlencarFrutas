@@ -53,7 +53,7 @@ async function testarPixService() {
   // Teste 1: Health Check
   console.log('\n📋 TESTE 1: Health Check');
   console.log('─'.repeat(50));
-  const healthResult = await makeRequest('GET', '/pix/health');
+  const healthResult = await makeRequest('GET', '/api/pix/health');
   
   if (healthResult?.status === 'healthy') {
     console.log('✅ Serviço PIX está operacional!');
@@ -72,7 +72,7 @@ async function testarPixService() {
   
   console.log(`📅 Período: ${dataHoje} até ${dataHoje} (apenas hoje)`);
   
-  const transacoesResult = await makeRequest('GET', '/pix/transacoes', {
+  const transacoesResult = await makeRequest('GET', '/api/pix/transacoes', {
     inicio: dataHoje,
     fim: dataHoje
   });
@@ -101,7 +101,7 @@ async function testarPixService() {
   
   console.log(`📅 Período: ${dataInicio3} até ${dataHoje}`);
   
-  const transacoes3Result = await makeRequest('GET', '/pix/transacoes', {
+  const transacoes3Result = await makeRequest('GET', '/api/pix/transacoes', {
     inicio: dataInicio3,
     fim: dataHoje
   });

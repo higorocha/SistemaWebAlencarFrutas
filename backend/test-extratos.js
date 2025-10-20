@@ -69,7 +69,7 @@ async function testarExtratosService() {
   // Teste 1: Health Check
   console.log('\n📋 TESTE 1: Health Check');
   console.log('─'.repeat(50));
-  const healthResult = await makeRequest('GET', '/extratos/health');
+  const healthResult = await makeRequest('GET', '/api/extratos/health');
   
   if (healthResult?.status === 'healthy') {
     console.log('✅ Serviço de extratos está operacional!');
@@ -91,7 +91,7 @@ async function testarExtratosService() {
   
   console.log(`📅 Período: ${dataHoje} até ${dataHoje} (apenas hoje)`);
   
-  const extratosResult = await makeRequest('GET', '/extratos', {
+  const extratosResult = await makeRequest('GET', '/api/extratos', {
     dataInicio: dataHoje,
     dataFim: dataHoje
   });
@@ -128,10 +128,10 @@ testarExtratosService()
     console.log('   1. Health Check - Verificação do status do serviço');
     console.log('   2. Consulta de Extratos (Hoje) - Formato DDMMYYYY');
     console.log('\n💡 Para usar os endpoints:');
-    console.log('   • GET /extratos/health - Verificar status');
-    console.log('   • GET /extratos?dataInicio=DDMMYYYY&dataFim=DDMMYYYY - Consulta básica');
-    console.log('   • GET /extratos/mensal - Extratos mensais com cache');
-    console.log('   • GET /extratos/periodo?inicio=DD-MM-YYYY&fim=DD-MM-YYYY - Consulta por período');
+    console.log('   • GET /api/extratos/health - Verificar status');
+    console.log('   • GET /api/extratos?dataInicio=DDMMYYYY&dataFim=DDMMYYYY - Consulta básica');
+    console.log('   • GET /api/extratos/mensal - Extratos mensais com cache');
+    console.log('   • GET /api/extratos/periodo?inicio=DD-MM-YYYY&fim=DD-MM-YYYY - Consulta por período');
     process.exit(0);
   })
   .catch((error) => {

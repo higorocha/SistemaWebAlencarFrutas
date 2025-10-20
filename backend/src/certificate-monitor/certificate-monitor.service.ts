@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
-import { checkCertificateExpiry } from '../utils/certificate-manager';
+import { checkCertificateExpiry, validateAllCertificates } from '../utils/certificate-manager';
 import { CreateNotificacaoCompletaDto } from '../notificacoes/dto/create-notificacao-completa.dto';
 import { TipoNotificacao, PrioridadeNotificacao } from '../notificacoes/dto';
 
@@ -180,6 +180,7 @@ export class CertificateMonitorService {
     hasExpiringSoon: boolean;
     expiredCerts: string[];
     expiringSoonCerts: string[];
+    certificates?: any;
   }> {
     this.logger.log('🔍 Executando verificação manual de certificados...');
     
@@ -197,7 +198,13 @@ export class CertificateMonitorService {
       this.logger.log('✅ Todos os certificados estão válidos');
     }
     
-    return expiryCheck;
+    // Adicionar informações detalhadas dos certificados
+    const detailedCertificates = this.getDetailedCertificateInfo();
+    
+    return {
+      ...expiryCheck,
+      certificates: detailedCertificates
+    };
   }
 
   /**
@@ -283,5 +290,34 @@ export class CertificateMonitorService {
       nextCheck: 'Todos os dias às 06:00 (horário de Brasília)',
       timeZone: 'America/Sao_Paulo'
     };
+  }
+
+  /**
+   * Obtém informações detalhadas de todos os certificados
+   */
+  private getDetailedCertificateInfo(): any {
+    const statuses = validateAllCertificates();
+    const certificates: any = {};
+    
+    statuses.forEach(status => {
+      certificates[status.apiName] = {
+        apiName: status.apiName,
+        status: status.overallStatus,
+        certificates: {
+          clientCert: status.certificates.clientCert.path,
+          clientKey: status.certificates.clientKey.path,
+          caCerts: status.certificates.caCerts.map(ca => ca.path)
+        },
+        issues: status.issues,
+        expiryInfo: {
+          isExpired: status.certificates.clientCert.isExpired,
+          isExpiringSoon: status.certificates.clientCert.isExpiringSoon,
+          expiryDate: status.certificates.clientCert.expiryDate?.toISOString(),
+          daysUntilExpiry: status.certificates.clientCert.daysUntilExpiry
+        }
+      };
+    });
+    
+    return certificates;
   }
 }
