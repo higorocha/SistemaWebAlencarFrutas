@@ -90,9 +90,10 @@
 
 .cliente-nome {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+  word-wrap: break-word;
+  line-height: 1.2;
 }
 
 /* Informações da fruta e quantidade - ULTRA COMPACTADO */
@@ -114,9 +115,10 @@
 
 .fruta-nome {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+  word-wrap: break-word;
+  line-height: 1.2;
 }
 
 .quantidade-info {

@@ -3,7 +3,7 @@ import { Card, Typography, Row, Col, Space, Tag, Tooltip } from 'antd';
 import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined } from '@ant-design/icons';
 import useResponsive from '../../hooks/useResponsive';
 import { formatarData } from '../../utils/dateUtils';
-import { intFormatter } from '../../utils/formatters';
+import { intFormatter, capitalizeName } from '../../utils/formatters';
 import './ProgramacaoColheitaGrid.css';
 
 const { Text, Title } = Typography;
@@ -175,7 +175,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
               color: '#333'
             }}
           >
-            {item.cliente}
+            {capitalizeName(item.cliente)}
           </Text>
         </div>
         
@@ -192,7 +192,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
                 marginLeft: '4px'
               }}
             >
-              {item.fruta}
+              {capitalizeName(item.fruta)}
             </Text>
           </div>
           
