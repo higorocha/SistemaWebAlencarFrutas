@@ -35,7 +35,7 @@ import {
   ShoppingOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
-import { formatarValorMonetario, intFormatter, formatarNumero } from "../../utils/formatters";
+import { formatarValorMonetario, intFormatter, formatarNumero, capitalizeName } from "../../utils/formatters";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 
@@ -326,7 +326,7 @@ const PedidosTable = ({
       sorter: (a, b) => (a.cliente?.nome || '').localeCompare(b.cliente?.nome || ''),
       render: (text) => (
         <Text style={{ fontWeight: 500 }}>
-          {text || '-'}
+          {capitalizeName(text) || '-'}
         </Text>
       ),
     },
@@ -345,7 +345,7 @@ const PedidosTable = ({
         if (record.frutasPedidos.length === 1) {
           return (
             <Tag color="green" style={{ cursor: 'default' }}>
-              {record.frutasPedidos[0].fruta?.nome || '-'}
+              {capitalizeName(record.frutasPedidos[0].fruta?.nome || '-')}
             </Tag>
           );
         }

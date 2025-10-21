@@ -302,17 +302,24 @@
   .pedido-info-item::before,
   .pedido-frutas::before {
     content: attr(data-label);
-    font-weight: 600;
+    font-weight: 900;
     color: #666;
     min-width: 80px;
     font-size: 12px;
     margin-right: 8px;
     flex-shrink: 0;
   }
+
+  /* Ajuste específico para label de frutas - reduzir espaço para caber melhor */
+  .pedido-frutas::before {
+    min-width: 60px;
+    margin-right: 4px;
+  }
   
   .pedido-numero::before {
     content: "Pedido:";
   }
+
   
   .pedido-cliente::before {
     content: "Cliente:";

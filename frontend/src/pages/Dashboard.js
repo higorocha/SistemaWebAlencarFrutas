@@ -45,7 +45,7 @@ import PagamentosEfetuadosModal from "../components/dashboard/PagamentosEfetuado
 import ModalDetalhesSemana from "../components/producao/ModalDetalhesSemana";
 import ColheitaModal from "../components/pedidos/ColheitaModal";
 import ProgramacaoColheitaGrid from "../components/dashboard/ProgramacaoColheitaGrid";
-import { numberFormatter } from "../utils/formatters";
+import { numberFormatter, capitalizeNameShort, capitalizeName } from "../utils/formatters";
 
 const { Title } = Typography;
 
@@ -878,20 +878,25 @@ const Dashboard = () => {
       {/* Seção de Gráficos - Responsivos */}
       <Row gutter={isMobile ? [8, 8] : [24, 24]} style={{ marginBottom: isMobile ? '16px' : '32px' }}>
         <Col xs={24} lg={12}>
-          <CardStyled>
+          <CardStyled
+            bodyStyle={{
+              padding: isMobile ? '12px' : '16px'
+            }}
+          >
             <Title
               level={4}
               style={{
                 color: '#2E7D32',
-                marginBottom: '16px',
-                fontSize: '1rem'
+                marginBottom: isMobile ? '8px' : '12px',
+                fontSize: '1rem',
+                marginTop: 0
               }}
             >
               📊 {isMobile ? 'Receita Mensal (6 Meses)' : 'Receita Mensal (Últimos 6 Meses)'}
             </Title>
 {isMobile ? (
               // Mobile: Gráfico de Pizza compacto
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={dashboardData.receitaMensal}
@@ -937,8 +942,8 @@ const Dashboard = () => {
               </ResponsiveContainer>
             ) : (
               // Desktop: Gráfico de Barras original
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={dashboardData.receitaMensal}>
+              <ResponsiveContainer width="100%" height={450}>
+                <BarChart data={dashboardData.receitaMensal} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="mes"
@@ -969,8 +974,12 @@ const Dashboard = () => {
         </Col>
 
         <Col xs={24} lg={12}>
-          <CardStyled>
-            <ProgramacaoColheitaGrid 
+          <CardStyled
+            bodyStyle={{
+              padding: isMobile ? '12px' : '16px'
+            }}
+          >
+            <ProgramacaoColheitaGrid
               programacaoColheita={dashboardData.programacaoColheita || []}
               onColheitaClick={abrirModalColheita}
             />
@@ -1374,7 +1383,7 @@ const Dashboard = () => {
             <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 
-              height: '300px',
+              height: '396px',
               position: 'relative'
             }}>
               <div style={{ 
@@ -1506,7 +1515,7 @@ const Dashboard = () => {
                               lineHeight: '1.3',
                               marginBottom: '2px'
                             }}>
-                              {item.nomeColhedor}
+                              {capitalizeName(item.nomeColhedor)}
                             </div>
                           }
                           description={

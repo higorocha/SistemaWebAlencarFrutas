@@ -11,7 +11,7 @@ import {
   CalendarOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
-import { formatarValorMonetario } from "../../../utils/formatters";
+import { formatarValorMonetario, capitalizeName, capitalizeNameShort } from "../../../utils/formatters";
 import useResponsive from "../../../hooks/useResponsive";
 
 const { Text } = Typography;
@@ -61,7 +61,7 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
     if (pedido.frutasPedidos.length === 1) {
       return (
         <Tag color="green" style={{ margin: 0 }}>
-          {pedido.frutasPedidos[0].fruta?.nome || "N/A"}
+          {capitalizeName(pedido.frutasPedidos[0].fruta?.nome || "N/A")}
         </Tag>
       );
     }
@@ -104,9 +104,9 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
         <div className="pedido-card-content">
           <div className="pedido-info-container">
             {/* Coluna 1: Nº Pedido + Valor */}
-            <div className="pedido-info-item pedido-numero" style={{ flex: "0 0 auto", minWidth: "140px", flexDirection: "column", alignItems: "flex-start", gap: "2px", textAlign: "left", justifyContent: "flex-start" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", width: "100%" }}>
-                <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "1" }}>
+            <div className="pedido-info-item pedido-numero" style={{ flex: "0 0 auto", minWidth: "140px", flexDirection: "row", alignItems: "center", gap: "8px", textAlign: "left", justifyContent: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap" }}>
                   {pedido.numeroPedido}
                 </Text>
                 {isVencido && (
@@ -118,15 +118,16 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
               <Text style={{ 
                 color: pedido.valorFinal ? "#059669" : "#999", 
                 fontSize: "12px", 
-                whiteSpace: "nowrap", 
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                whiteSpace: "normal",
+                wordWrap: "break-word",
+                overflowWrap: "break-word",
                 fontWeight: "600",
                 backgroundColor: pedido.valorFinal ? "#f0fdf4" : "#f9f9f9",
                 padding: "2px 6px",
                 borderRadius: "4px",
                 border: pedido.valorFinal ? "1px solid #bbf7d0" : "1px solid #e5e5e5",
-                width: "100%"
+                flex: "1",
+                minWidth: "0"
               }}>
                 {pedido.valorFinal ? formatarValorMonetario(pedido.valorFinal) : "A definir"}
               </Text>
@@ -135,14 +136,14 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
             {/* Coluna 2: Cliente */}
             <div className="pedido-info-item pedido-cliente" style={{ flex: "1 1 0", minWidth: "0", textAlign: "left", justifyContent: "flex-start" }}>
               <UserOutlined style={{ color: "#666", fontSize: "12px" }} />
-              <Tooltip title={pedido.cliente?.nome || "N/A"}>
-                <Text className="text-ellipsis" style={{ fontSize: "13px" }}>
-                  {pedido.cliente?.nome && pedido.cliente.nome.length > 15 
-                    ? `${pedido.cliente.nome.substring(0, 15)}...` 
-                    : (pedido.cliente?.nome || "N/A")
-                  }
-                </Text>
-              </Tooltip>
+              <Text style={{ 
+                fontSize: "13px", 
+                whiteSpace: "normal", 
+                wordWrap: "break-word",
+                lineHeight: "1.3"
+              }}>
+                {capitalizeNameShort(pedido.cliente?.nome || "N/A")}
+              </Text>
             </div>
             
             {/* Coluna 3: Frutas */}
@@ -225,14 +226,14 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
             {/* Coluna 2: Cliente */}
             <div className="pedido-info-item pedido-cliente" style={{ flex: "1 1 0", minWidth: "0", textAlign: "left", justifyContent: "flex-start" }}>
               <UserOutlined style={{ color: "#666", fontSize: "12px" }} />
-              <Tooltip title={pedido.cliente?.nome || "N/A"}>
-                <Text className="text-ellipsis" style={{ fontSize: "13px" }}>
-                  {pedido.cliente?.nome && pedido.cliente.nome.length > 15 
-                    ? `${pedido.cliente.nome.substring(0, 15)}...` 
-                    : (pedido.cliente?.nome || "N/A")
-                  }
-                </Text>
-              </Tooltip>
+              <Text style={{ 
+                fontSize: "13px", 
+                whiteSpace: "normal", 
+                wordWrap: "break-word",
+                lineHeight: "1.3"
+              }}>
+                {capitalizeNameShort(pedido.cliente?.nome || "N/A")}
+              </Text>
             </div>
             
             {/* Coluna 3: Frutas */}

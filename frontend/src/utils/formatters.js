@@ -51,6 +51,16 @@ export const capitalizeName = (name) => {
     .join(" ");
 }
 
+export const capitalizeNameShort = (name) => {
+  if (!name) return "";
+  
+  // Cortar no hífen e pegar apenas a primeira parte
+  const shortName = name.split('-')[0].trim();
+  
+  // Aplicar capitalizeName na parte cortada
+  return capitalizeName(shortName);
+}
+
 export const formataLeitura = (value) => {
   // Aceita 0, mas trata null ou undefined como valor ausente
   if (value === null || value === undefined) return "-";

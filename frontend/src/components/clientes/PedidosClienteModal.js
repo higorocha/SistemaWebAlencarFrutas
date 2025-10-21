@@ -21,7 +21,7 @@ import { showNotification } from "../../config/notificationConfig";
 import { SearchInput } from "../common/search";
 import VisualizarPedidoModal from "../pedidos/VisualizarPedidoModal";
 import Chart from "react-apexcharts";
-import { formatCurrency } from "../../utils/formatters";
+import { formatCurrency, capitalizeName } from "../../utils/formatters";
 import MiniSelectPersonalizavel from "../common/MiniComponents/MiniSelectPersonalizavel";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 import useResponsive from "../../hooks/useResponsive";
@@ -608,7 +608,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           borderRadius: "0.5rem 0.5rem 0 0",  // 8px
         }}>
           <ShoppingCartOutlined style={{ marginRight: "0.5rem" }} />
-          {isMobile ? `Pedidos - ${cliente?.nome || "Cliente"}` : `Pedidos de ${cliente?.nome || "Cliente"}`}
+          {isMobile ? `Pedidos - ${capitalizeName(cliente?.nome || "Cliente")}` : `Pedidos de ${capitalizeName(cliente?.nome || "Cliente")}`}
         </span>
       }
       open={open}

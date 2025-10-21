@@ -49,8 +49,8 @@
   flex: 1;
   overflow-y: auto;
   height: 100%;
-  min-height: 200px;
-  max-height: 280px; /* Limitar altura máxima para forçar scroll */
+  min-height: 220px;
+  max-height: 330px; /* Limitar altura máxima para forçar scroll */
 }
 
 .lista-items {
@@ -159,7 +159,8 @@
   }
   
   .colheitas-lista {
-    max-height: 240px; /* Altura menor para mobile */
+    max-height: 277px; /* Altura menor para mobile */
+    min-height: 198px; /* Altura mínima ajustada para mobile */
   }
   
   .item-colheita {
@@ -205,9 +206,9 @@
 
 /* Largura responsiva das colunas - MÍNIMA + CRESCIMENTO */
 .programacao-colheita-grid .ant-col {
-  min-width: 160px !important;
-  flex: 1 1 160px; /* flex-grow: 1, flex-shrink: 1, flex-basis: 160px */
-  max-width: 250px; /* Largura máxima para não ficar muito largo */
+  min-width: 200px !important;
+  flex: 1 1 200px; /* flex-grow: 1, flex-shrink: 1, flex-basis: 200px */
+  max-width: 280px; /* Largura máxima para não ficar muito largo */
 }
 
 @media (max-width: 576px) {

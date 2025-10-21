@@ -217,7 +217,7 @@ export class DashboardService {
     const programacao: ProgramacaoColheitaDto[] = [];
 
     pedidos.forEach(pedido => {
-      const clienteNome = pedido.cliente.razaoSocial || pedido.cliente.nome;
+      const clienteNome = pedido.cliente.nome || pedido.cliente.razaoSocial || 'Cliente sem nome';
       
       // ✅ CORREÇÃO: Normalizar data prevista para início do dia (ignorar horário)
       const dataPrevistaNormalizada = new Date(

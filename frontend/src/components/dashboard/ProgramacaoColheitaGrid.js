@@ -3,7 +3,7 @@ import { Card, Typography, Row, Col, Space, Tag, Tooltip } from 'antd';
 import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined } from '@ant-design/icons';
 import useResponsive from '../../hooks/useResponsive';
 import { formatarData } from '../../utils/dateUtils';
-import { intFormatter, capitalizeName } from '../../utils/formatters';
+import { intFormatter, capitalizeName, capitalizeNameShort } from '../../utils/formatters';
 import { getFruitIcon } from '../../utils/fruitIcons';
 import './ProgramacaoColheitaGrid.css';
 
@@ -98,11 +98,16 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
       };
     });
 
-    // Agrupar colheitas por data
+    // Agrupar colheitas por data (filtrando quantidades = 1)
     programacaoColheita.forEach(item => {
+      // Ocultar colheitas com quantidade exatamente igual a 1
+      if (item.quantidadePrevista === 1) {
+        return; // Pula esta colheita
+      }
+
       const dataColheita = new Date(item.dataPrevistaColheita);
       const dataStr = dataColheita.toISOString().split('T')[0];
-      
+
       if (colunas[dataStr]) {
         colunas[dataStr].colheitas.push(item);
         colunas[dataStr].totalColheitas++;
@@ -151,16 +156,16 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
               color: '#333'
             }}
           >
-            {capitalizeName(item.cliente)}
+            {capitalizeNameShort(item.cliente)}
           </Text>
         </div>
         
         <div className="fruta-quantidade">
           <div className="fruta-info">
             {getFruitIconComponent(item.fruta)}
-            <Text 
+            <Text
               className="fruta-nome"
-              style={{ 
+              style={{
                 fontSize: isMobile ? '0.6875rem' : '0.75rem',
                 color: '#666'
               }}
@@ -168,12 +173,12 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
               {capitalizeName(item.fruta)}
             </Text>
           </div>
-          
+
           <div className="quantidade-info">
             <NumberOutlined className="quantidade-icon" />
-            <Text 
+            <Text
               className="quantidade"
-              style={{ 
+              style={{
                 fontSize: isMobile ? '0.6875rem' : '0.75rem',
                 fontWeight: '600',
                 color: '#333'
@@ -215,13 +220,13 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
     });
     
     return (
-      <Col 
+      <Col
         key={dataStr}
         span={24}
-        style={{ 
-          minWidth: '160px',
-          maxWidth: '250px',
-          flex: '1 1 160px',
+        style={{
+          minWidth: '230px',
+          maxWidth: '322px',
+          flex: '1 1 230px',
           marginBottom: isMobile ? '16px' : '0'
         }}
       >
@@ -231,12 +236,12 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
             backgroundColor: statusConfig.cor,
             borderColor: statusConfig.border,
             borderWidth: '2px',
-            height: isMobile ? '300px' : '350px',
-            minHeight: isMobile ? '300px' : '350px',
-            maxHeight: isMobile ? '300px' : '350px'
+            height: isMobile ? '350px' : '400px',
+            minHeight: isMobile ? '350px' : '400px',
+            maxHeight: isMobile ? '350px' : '400px'
           }}
           bodyStyle={{
-            padding: isMobile ? '4px' : '6px',
+            padding: isMobile ? '6px' : '8px',
             height: '100%',
             display: 'flex',
             flexDirection: 'column'
@@ -304,12 +309,12 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
 
   return (
     <div className="programacao-colheita-grid">
-      <div className="grid-header" style={{ marginBottom: isMobile ? '12px' : '16px' }}>
-        <Title 
-          level={4} 
-          style={{ 
-            color: '#2E7D32', 
-            margin: 0, 
+      <div className="grid-header" style={{ marginBottom: isMobile ? '8px' : '10px' }}>
+        <Title
+          level={4}
+          style={{
+            color: '#2E7D32',
+            margin: 0,
             fontSize: isMobile ? '0.875rem' : '1rem',
             textAlign: 'left'
           }}
@@ -317,13 +322,13 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
           📅 Programação de Colheita
         </Title>
         {programacaoColheita.length > 0 && (
-          <Text 
-            style={{ 
+          <Text
+            style={{
               fontSize: isMobile ? '0.6875rem' : '0.75rem',
               color: '#666',
               textAlign: 'left',
               display: 'block',
-              marginTop: '4px'
+              marginTop: '2px'
             }}
           >
             {programacaoColheita.length} colheita{programacaoColheita.length > 1 ? 's' : ''} programada{programacaoColheita.length > 1 ? 's' : ''}
@@ -353,13 +358,10 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
           </Text>
         </div>
       ) : (
-        <Row 
-          gutter={isMobile ? [8, 8] : [12, 12]} 
-          style={{ 
+        <Row
+          gutter={isMobile ? [8, 8] : [12, 12]}
+          style={{
             margin: 0,
-            height: isMobile ? '300px' : '350px',
-            minHeight: isMobile ? '300px' : '350px',
-            maxHeight: isMobile ? '300px' : '350px',
             overflowX: 'auto',
             flexWrap: 'nowrap',
             display: 'flex'

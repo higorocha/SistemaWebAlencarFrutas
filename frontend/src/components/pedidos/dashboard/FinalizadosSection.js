@@ -4,7 +4,7 @@ import React from "react";
 import { Card, Typography, Row, Col, Empty, Badge, Button, Tag, Tooltip, Pagination } from "antd";
 import { CheckCircleOutlined, EyeOutlined, UserOutlined, CalendarOutlined } from "@ant-design/icons";
 import moment from "moment";
-import { formatarValorMonetario } from "../../../utils/formatters";
+import { formatarValorMonetario, capitalizeName } from "../../../utils/formatters";
 import useResponsive from "../../../hooks/useResponsive";
 
 const { Title, Text } = Typography;
@@ -65,7 +65,7 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
     if (frutasPedidos.length === 1) {
       return (
         <Tag color="green" style={{ margin: 0, fontSize: "11px" }}>
-          {frutasPedidos[0].fruta?.nome || '-'}
+          {capitalizeName(frutasPedidos[0].fruta?.nome || '-')}
         </Tag>
       );
     }
@@ -250,8 +250,8 @@ const FinalizadosSection = ({ pedidos = [], paginacao = {}, onPaginacaoChange, o
                       {/* Cliente */}
                       <div className="pedido-info-item pedido-cliente" style={{ flex: "1.5 1 0", minWidth: "0", textAlign: "left", justifyContent: "flex-start" }}>
                         <UserOutlined style={{ color: "#666", fontSize: "12px" }} />
-                        <Text className="text-ellipsis" style={{ fontSize: "12px" }} title={pedido.cliente?.nome}>
-                          {pedido.cliente?.nome || "N/A"}
+                        <Text className="text-ellipsis" style={{ fontSize: "12px" }} title={capitalizeName(pedido.cliente?.nome)}>
+                          {capitalizeName(pedido.cliente?.nome) || "N/A"}
                         </Text>
                       </div>
 
