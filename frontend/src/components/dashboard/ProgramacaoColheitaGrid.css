@@ -50,6 +50,7 @@
   overflow-y: auto;
   height: 100%;
   min-height: 200px;
+  max-height: 280px; /* Limitar altura máxima para forçar scroll */
 }
 
 .lista-items {
@@ -155,6 +156,10 @@
   
   .coluna-dia {
     margin-bottom: 12px;
+  }
+  
+  .colheitas-lista {
+    max-height: 240px; /* Altura menor para mobile */
   }
   
   .item-colheita {

@@ -311,7 +311,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
             color: '#2E7D32', 
             margin: 0, 
             fontSize: isMobile ? '0.875rem' : '1rem',
-            textAlign: 'center'
+            textAlign: 'left'
           }}
         >
           📅 Programação de Colheita
@@ -321,7 +321,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
             style={{ 
               fontSize: isMobile ? '0.6875rem' : '0.75rem',
               color: '#666',
-              textAlign: 'center',
+              textAlign: 'left',
               display: 'block',
               marginTop: '4px'
             }}
