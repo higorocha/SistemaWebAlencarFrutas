@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ControleBananaService } from '../controle-banana/controle-banana.service';
+import { capitalizeName } from '../utils/formatters';
 import { 
   CreatePedidoDto, 
   UpdatePedidoDto, 
@@ -732,20 +733,26 @@ export class PedidosService {
     const where: any = {};
 
     // ✅ FILTRO POR CULTURA PARA GERENTE_CULTURA
+
     if (usuarioNivel === 'GERENTE_CULTURA' && usuarioCulturaId) {
-      // Gerentes de cultura só veem pedidos com frutas da sua cultura
-      where.frutasPedidos = {
-        some: {
-          fruta: {
-            culturaId: usuarioCulturaId
+      // Gerentes de cultura só veem pedidos com frutas da sua cultura E em fases de colheita
+      // Seguindo a mesma lógica do dashboard: PEDIDO_CRIADO + AGUARDANDO_COLHEITA
+      where.AND = [
+        {
+          frutasPedidos: {
+            some: {
+              fruta: {
+                culturaId: usuarioCulturaId
+              }
+            }
+          }
+        },
+        {
+          status: {
+            in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO']
           }
         }
-      };
-
-      // Gerentes de cultura só veem pedidos em fases específicas (colheita)
-      where.status = {
-        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA']
-      };
+      ];
     }
 
     if (search) {
@@ -1114,7 +1121,7 @@ export class PedidosService {
       if (statusFiltrados.length > 0) {
         // Se é GERENTE_CULTURA, garantir que os status filtrados sejam apenas os permitidos
         if (usuarioNivel === 'GERENTE_CULTURA') {
-          const statusPermitidos = ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA'];
+          const statusPermitidos = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'];
           statusFiltrados = statusFiltrados.filter(s => statusPermitidos.includes(s));
         }
 
@@ -1127,7 +1134,7 @@ export class PedidosService {
     } else if (usuarioNivel === 'GERENTE_CULTURA') {
       // Se não há filtro de status, aplicar filtro padrão para GERENTE_CULTURA
       where.status = {
-        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA']
+        in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO']
       };
     }
 
@@ -1288,7 +1295,7 @@ export class PedidosService {
       }
 
       // Verificar se o pedido está em uma fase permitida
-      const statusPermitidos = ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA'];
+      const statusPermitidos = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'];
       if (!statusPermitidos.includes(pedido.status)) {
         throw new ForbiddenException('Você não tem permissão para acessar pedidos nesta fase');
       }
@@ -1977,6 +1984,16 @@ export class PedidosService {
   // TODO: Este método precisa ser atualizado para suportar múltiplas áreas e fitas
   // Por ora, comentando funcionalidades que usam campos removidos
   async updateCompleto(id: number, updatePedidoCompletoDto: UpdatePedidoCompletoDto, usuarioId: number): Promise<PedidoResponseDto> {
+    console.log('🔍 DEBUG updateCompleto - Iniciando:', {
+      pedidoId: id,
+      frutasEnviadas: updatePedidoCompletoDto.frutas?.length || 0,
+      frutasDetalhes: updatePedidoCompletoDto.frutas?.map(f => ({
+        frutaPedidoId: f.frutaPedidoId,
+        frutaId: f.frutaId,
+        quantidadePrevista: f.quantidadePrevista
+      })) || []
+    });
+
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -1990,6 +2007,27 @@ export class PedidosService {
     if (existingPedido.status === 'PEDIDO_FINALIZADO' || existingPedido.status === 'CANCELADO') {
       throw new BadRequestException('Não é possível atualizar pedidos finalizados ou cancelados');
     }
+
+    // 🔍 DEBUG: Buscar frutas atuais do pedido
+    const frutasAtuaisBanco = await this.prisma.frutasPedidos.findMany({
+      where: { pedidoId: id },
+      select: {
+        id: true,
+        frutaId: true,
+        quantidadePrevista: true,
+        unidadeMedida1: true,
+        unidadeMedida2: true
+      }
+    });
+
+    console.log('🔍 DEBUG updateCompleto - Frutas atuais no banco:', {
+      quantidadeFrutasBanco: frutasAtuaisBanco.length,
+      frutasBanco: frutasAtuaisBanco.map(f => ({
+        id: f.id,
+        frutaId: f.frutaId,
+        quantidadePrevista: f.quantidadePrevista
+      }))
+    });
 
     // ✅ NOVA VALIDAÇÃO: Verificar se há pagamentos que impedem redução da precificação
     if (updatePedidoCompletoDto.frutas && updatePedidoCompletoDto.frutas.length > 0) {
@@ -2091,118 +2129,228 @@ export class PedidosService {
       // Atualizar frutas se fornecidas e recalcular valorTotal conforme unidadePrecificada
       let houveAlteracaoFrutas = false;
       if (updatePedidoCompletoDto.frutas) {
+        // ✅ PRIMEIRO: Remover frutas que não estão mais no array enviado
+        const frutasPedidoIdsEnviadas = updatePedidoCompletoDto.frutas
+          .filter(f => f.frutaPedidoId)
+          .map(f => f.frutaPedidoId);
+        
+        const frutasParaRemover = frutasAtuaisBanco.filter(
+          frutaBanco => !frutasPedidoIdsEnviadas.includes(frutaBanco.id)
+        );
+
+        console.log('🔍 DEBUG updateCompleto - Análise de remoção:', {
+          frutasPedidoIdsEnviadas,
+          frutasParaRemover: frutasParaRemover.map(f => ({
+            id: f.id,
+            frutaId: f.frutaId,
+            quantidadePrevista: f.quantidadePrevista
+          })),
+          quantidadeParaRemover: frutasParaRemover.length
+        });
+
+        // ✅ IMPLEMENTAR: Remover frutas que não estão mais no array
+        if (frutasParaRemover.length > 0) {
+          console.log('🗑️ DEBUG updateCompleto - Removendo frutas:', frutasParaRemover);
+          
+          for (const frutaParaRemover of frutasParaRemover) {
+            // Remover áreas vinculadas primeiro
+            await prisma.frutasPedidosAreas.deleteMany({
+              where: { frutaPedidoId: frutaParaRemover.id }
+            });
+
+            // Remover fitas vinculadas primeiro
+            await prisma.frutasPedidosFitas.deleteMany({
+              where: { frutaPedidoId: frutaParaRemover.id }
+            });
+
+            // Remover a fruta do pedido
+            await prisma.frutasPedidos.delete({
+              where: { id: frutaParaRemover.id }
+            });
+
+            console.log(`✅ Fruta ${frutaParaRemover.id} removida com sucesso`);
+          }
+          
+          houveAlteracaoFrutas = true;
+        }
         for (const fruta of updatePedidoCompletoDto.frutas) {
+          console.log('🔍 DEBUG updateCompleto - Processando fruta:', {
+            frutaPedidoId: fruta.frutaPedidoId,
+            frutaId: fruta.frutaId,
+            quantidadePrevista: fruta.quantidadePrevista,
+            unidadeMedida1: fruta.unidadeMedida1,
+            unidadeMedida2: fruta.unidadeMedida2,
+            isEdicao: !!fruta.frutaPedidoId,
+            isNovaFruta: !fruta.frutaPedidoId
+          });
+
+          console.log('🔄 DEBUG updateCompleto - INÍCIO DO LOOP - Fruta atual:', {
+            frutaPedidoId: fruta.frutaPedidoId,
+            frutaId: fruta.frutaId,
+            status: fruta.frutaPedidoId ? 'EDITANDO' : 'CRIANDO'
+          });
+
           // Atualização por frutaPedidoId (quando informado)
           if (fruta.frutaPedidoId) {
+            console.log('✏️ DEBUG updateCompleto - Editando fruta existente:', fruta.frutaPedidoId);
+            
             // Aplicar a mesma lógica do updatePrecificacao para unidade precificada
             const frutaPedidoAtual = await prisma.frutasPedidos.findUnique({ where: { id: fruta.frutaPedidoId } });
             if (!frutaPedidoAtual) {
               throw new NotFoundException(`Fruta do pedido com ID ${fruta.frutaPedidoId} não encontrada`);
             }
 
-            // Normalizar strings para comparação segura (mesma lógica do updatePrecificacao)
-            const unidadeInput = fruta.unidadePrecificada?.trim()?.toUpperCase();
-            const unidadeSalva = frutaPedidoAtual.unidadePrecificada?.toString().trim().toUpperCase();
-            const unidadeMedida1 = frutaPedidoAtual.unidadeMedida1?.toString().trim().toUpperCase();
-            const unidadeMedida2 = frutaPedidoAtual.unidadeMedida2?.toString().trim().toUpperCase();
+            // ✅ NOVA LÓGICA: Verificar se a fruta mudou de tipo
+            const frutaMudouTipo = frutaPedidoAtual.frutaId !== fruta.frutaId;
+            
+            if (frutaMudouTipo) {
+              console.log('🔄 DEBUG updateCompleto - Fruta mudou de tipo, removendo e recriando:', {
+                frutaAntiga: frutaPedidoAtual.frutaId,
+                frutaNova: fruta.frutaId
+              });
 
-            // Inferir unidade efetiva de precificação (mesma lógica do updatePrecificacao)
-            let unidadeEfetiva = unidadeInput || unidadeSalva || undefined;
-            if (!unidadeEfetiva) {
-              // Se não veio no payload e não há salva, decidir por quantidade disponível
-              const quantidadeReal2Atualizada = fruta.quantidadeReal2 ?? frutaPedidoAtual.quantidadeReal2;
-              if (unidadeMedida2 && (quantidadeReal2Atualizada || 0) > 0) {
-                unidadeEfetiva = unidadeMedida2;
-              } else {
-                unidadeEfetiva = unidadeMedida1;
-              }
-            }
-
-            // Determinar a quantidade para cálculo conforme a unidade efetiva
-            let quantidadeParaCalculo = 0;
-            if (unidadeEfetiva === unidadeMedida1) {
-              quantidadeParaCalculo = (fruta.quantidadeReal ?? frutaPedidoAtual.quantidadeReal) || 0;
-            } else if (unidadeEfetiva === unidadeMedida2) {
-              quantidadeParaCalculo = (fruta.quantidadeReal2 ?? frutaPedidoAtual.quantidadeReal2) || 0;
-            } else {
-              // Fallback seguro
-              quantidadeParaCalculo = (fruta.quantidadeReal ?? frutaPedidoAtual.quantidadeReal) || 0;
-            }
-
-            const valorUnitarioEfetivo = (fruta.valorUnitario ?? frutaPedidoAtual.valorUnitario) || 0;
-            const valorTotalCalculado = Number((quantidadeParaCalculo * valorUnitarioEfetivo).toFixed(2));
-
-            await prisma.frutasPedidos.update({
-              where: { id: fruta.frutaPedidoId },
-              data: {
-                quantidadePrevista: fruta.quantidadePrevista,
-                quantidadeReal: fruta.quantidadeReal,
-                quantidadeReal2: fruta.quantidadeReal2,
-                unidadeMedida1: fruta.unidadeMedida1,
-                unidadeMedida2: fruta.unidadeMedida2,
-                valorUnitario: valorUnitarioEfetivo,
-                unidadePrecificada: unidadeEfetiva as any,
-                quantidadePrecificada: fruta.quantidadePrecificada || quantidadeParaCalculo,
-                valorTotal: valorTotalCalculado,
-                // fitaColheita removido - agora está em FrutasPedidosFitas
-              },
-            });
-
-            // Atualizar áreas vinculadas (se fornecidas)
-            if (fruta.areas && fruta.areas.length > 0) {
-              // Remover áreas existentes
+              // Remover fruta antiga completamente (áreas, fitas e fruta)
               await prisma.frutasPedidosAreas.deleteMany({
                 where: { frutaPedidoId: fruta.frutaPedidoId }
               });
 
-              // Adicionar novas áreas
-              for (const area of fruta.areas) {
-                if (area.areaPropriaId || area.areaFornecedorId) {
-                  await prisma.frutasPedidosAreas.create({
-                    data: {
-                      frutaPedidoId: fruta.frutaPedidoId,
-                      areaPropriaId: area.areaPropriaId || undefined,
-                      areaFornecedorId: area.areaFornecedorId || undefined,
-                      observacoes: area.observacoes || ''
-                    }
-                  });
-                }
-              }
-            }
-
-            // Atualizar fitas vinculadas (se fornecidas) - NOVA LÓGICA com detalhesAreas
-            if (fruta.fitas && fruta.fitas.length > 0) {
-              // ✅ CAPTURAR FITAS ANTIGAS ANTES DE DELETAR (para liberar estoque depois)
-              const fitasAntigas = await prisma.frutasPedidosFitas.findMany({
-                where: { frutaPedidoId: fruta.frutaPedidoId },
-                include: {
-                  controleBanana: {
-                    select: {
-                      areaAgricolaId: true
-                    }
-                  }
-                }
+              await prisma.frutasPedidosFitas.deleteMany({
+                where: { frutaPedidoId: fruta.frutaPedidoId }
               });
 
-              // ✅ VALIDAÇÃO DE ESTOQUE PARA EDIÇÃO (considera fitas já vinculadas ao pedido atual)
-              await this.validarEstoqueParaEdicao(fruta.fitas, id, prisma);
-              
-              // ✅ NOVA LÓGICA: Atualização inteligente de fitas (sem deletar/recriar)
-              await this.atualizarFitasInteligentemente(fruta.frutaPedidoId, fruta.fitas, fitasAntigas, usuarioId, prisma);
+              await prisma.frutasPedidos.delete({
+                where: { id: fruta.frutaPedidoId }
+              });
+
+              console.log(`🗑️ Fruta antiga ${fruta.frutaPedidoId} removida, será recriada como nova fruta`);
+
+              // Marcar como nova fruta para ser criada
+              fruta.frutaPedidoId = undefined;
+
+              console.log('🔄 DEBUG updateCompleto - FRUTA MARCADA COMO NOVA:', {
+                frutaPedidoId: fruta.frutaPedidoId,
+                frutaId: fruta.frutaId,
+                status: 'MUDOU_TIPO_AGORA_E_NOVA'
+              });
+
+              // ✅ CORREÇÃO: Remover 'continue' para que a fruta seja criada na sequência
+              // O fluxo continua para a seção de criação (linha 2339)
+              console.log('🔄 DEBUG updateCompleto - CONTINUANDO FLUXO - Vai criar nova fruta na mesma iteração');
             }
 
-            houveAlteracaoFrutas = true;
-            continue;
+            // ✅ SEÇÃO DE ATUALIZAÇÃO: Só executa se frutaPedidoId existe (fruta não mudou de tipo)
+            if (fruta.frutaPedidoId) {
+              // Normalizar strings para comparação segura (mesma lógica do updatePrecificacao)
+              const unidadeInput = fruta.unidadePrecificada?.trim()?.toUpperCase();
+              const unidadeSalva = frutaPedidoAtual.unidadePrecificada?.toString().trim().toUpperCase();
+              const unidadeMedida1 = frutaPedidoAtual.unidadeMedida1?.toString().trim().toUpperCase();
+              const unidadeMedida2 = frutaPedidoAtual.unidadeMedida2?.toString().trim().toUpperCase();
+
+              // Inferir unidade efetiva de precificação (mesma lógica do updatePrecificacao)
+              let unidadeEfetiva = unidadeInput || unidadeSalva || undefined;
+              if (!unidadeEfetiva) {
+                // Se não veio no payload e não há salva, decidir por quantidade disponível
+                const quantidadeReal2Atualizada = fruta.quantidadeReal2 ?? frutaPedidoAtual.quantidadeReal2;
+                if (unidadeMedida2 && (quantidadeReal2Atualizada || 0) > 0) {
+                  unidadeEfetiva = unidadeMedida2;
+                } else {
+                  unidadeEfetiva = unidadeMedida1;
+                }
+              }
+
+              // Determinar a quantidade para cálculo conforme a unidade efetiva
+              let quantidadeParaCalculo = 0;
+              if (unidadeEfetiva === unidadeMedida1) {
+                quantidadeParaCalculo = (fruta.quantidadeReal ?? frutaPedidoAtual.quantidadeReal) || 0;
+              } else if (unidadeEfetiva === unidadeMedida2) {
+                quantidadeParaCalculo = (fruta.quantidadeReal2 ?? frutaPedidoAtual.quantidadeReal2) || 0;
+              } else {
+                // Fallback seguro
+                quantidadeParaCalculo = (fruta.quantidadeReal ?? frutaPedidoAtual.quantidadeReal) || 0;
+              }
+
+              const valorUnitarioEfetivo = (fruta.valorUnitario ?? frutaPedidoAtual.valorUnitario) || 0;
+              const valorTotalCalculado = Number((quantidadeParaCalculo * valorUnitarioEfetivo).toFixed(2));
+
+              await prisma.frutasPedidos.update({
+                where: { id: fruta.frutaPedidoId },
+                data: {
+                  quantidadePrevista: fruta.quantidadePrevista,
+                  quantidadeReal: fruta.quantidadeReal,
+                  quantidadeReal2: fruta.quantidadeReal2,
+                  unidadeMedida1: fruta.unidadeMedida1,
+                  unidadeMedida2: fruta.unidadeMedida2,
+                  valorUnitario: valorUnitarioEfetivo,
+                  unidadePrecificada: unidadeEfetiva as any,
+                  quantidadePrecificada: fruta.quantidadePrecificada || quantidadeParaCalculo,
+                  valorTotal: valorTotalCalculado,
+                  // fitaColheita removido - agora está em FrutasPedidosFitas
+                },
+              });
+
+              // Atualizar áreas vinculadas (se fornecidas)
+              if (fruta.areas && fruta.areas.length > 0) {
+                // Remover áreas existentes
+                await prisma.frutasPedidosAreas.deleteMany({
+                  where: { frutaPedidoId: fruta.frutaPedidoId }
+                });
+
+                // Adicionar novas áreas
+                for (const area of fruta.areas) {
+                  if (area.areaPropriaId || area.areaFornecedorId) {
+                    await prisma.frutasPedidosAreas.create({
+                      data: {
+                        frutaPedidoId: fruta.frutaPedidoId,
+                        areaPropriaId: area.areaPropriaId || undefined,
+                        areaFornecedorId: area.areaFornecedorId || undefined,
+                        observacoes: area.observacoes || ''
+                      }
+                    });
+                  }
+                }
+              }
+
+              // Atualizar fitas vinculadas (se fornecidas) - NOVA LÓGICA com detalhesAreas
+              if (fruta.fitas && fruta.fitas.length > 0) {
+                // ✅ CAPTURAR FITAS ANTIGAS ANTES DE DELETAR (para liberar estoque depois)
+                const fitasAntigas = await prisma.frutasPedidosFitas.findMany({
+                  where: { frutaPedidoId: fruta.frutaPedidoId },
+                  include: {
+                    controleBanana: {
+                      select: {
+                        areaAgricolaId: true
+                      }
+                    }
+                  }
+                });
+
+                // ✅ VALIDAÇÃO DE ESTOQUE PARA EDIÇÃO (considera fitas já vinculadas ao pedido atual)
+                await this.validarEstoqueParaEdicao(fruta.fitas, id, prisma);
+
+                // ✅ NOVA LÓGICA: Atualização inteligente de fitas (sem deletar/recriar)
+                await this.atualizarFitasInteligentemente(fruta.frutaPedidoId, fruta.fitas, fitasAntigas, usuarioId, prisma);
+              }
+
+              houveAlteracaoFrutas = true;
+              continue;
+            } // ✅ FIM DA SEÇÃO DE ATUALIZAÇÃO
           }
 
           // ========================================
           // 🆕 LÓGICA DE CREATE: Nova fruta adicionada durante edição
           // ========================================
           if (fruta.frutaId && !fruta.frutaPedidoId) {
-            console.log(`🆕 Detectada nova fruta para criar no pedido ${id}:`, {
+            console.log('🆕 DEBUG updateCompleto - Criando nova fruta:', {
+              pedidoId: id,
               frutaId: fruta.frutaId,
               quantidadePrevista: fruta.quantidadePrevista,
               unidadeMedida1: fruta.unidadeMedida1,
+            });
+
+            console.log('🆕 DEBUG updateCompleto - ENTRANDO NA LÓGICA DE CRIAÇÃO DE NOVA FRUTA:', {
+              frutaPedidoId: fruta.frutaPedidoId,
+              frutaId: fruta.frutaId,
+              status: 'CRIANDO_NOVA_FRUTA'
             });
 
             // ✅ Validações obrigatórias
@@ -2433,7 +2581,10 @@ export class PedidosService {
               houveAlteracaoFrutas = true;
             }
           }
+
         }
+
+        console.log('🔄 DEBUG updateCompleto - FIM DO LOOP PRINCIPAL - Todas as frutas processadas');
       }
 
       // Recalcular valor final se houver alterações financeiras ou nas frutas
@@ -2545,6 +2696,27 @@ export class PedidosService {
 
     // Buscar dados completos para retorno
     const pedidoCompleto = await this.findOne(id);
+    
+    // 🔍 DEBUG: Verificar resultado final
+    const frutasFinaisBanco = await this.prisma.frutasPedidos.findMany({
+      where: { pedidoId: id },
+      select: {
+        id: true,
+        frutaId: true,
+        quantidadePrevista: true
+      }
+    });
+
+    console.log('🔍 DEBUG updateCompleto - Resultado final:', {
+      pedidoId: id,
+      frutasFinais: frutasFinaisBanco.map(f => ({
+        id: f.id,
+        frutaId: f.frutaId,
+        quantidadePrevista: f.quantidadePrevista
+      })),
+      quantidadeFrutasFinal: frutasFinaisBanco.length
+    });
+
     return pedidoCompleto;
   }
 
@@ -3098,7 +3270,7 @@ export class PedidosService {
             value: pedido.numeroPedido,
             icon: '📋',
             color: '#1890ff',
-            description: `${pedido.numeroPedido} - ${pedido.cliente.nome} (${pedido.status.replace(/_/g, ' ')})`,
+            description: `${pedido.numeroPedido} - ${capitalizeName(pedido.cliente.nome)} (${pedido.status.replace(/_/g, ' ')})`,
             metadata: {
               id: pedido.id,
               status: pedido.status,
@@ -3138,10 +3310,10 @@ export class PedidosService {
         suggestions.push({
           type: 'cliente',
           label: 'Cliente',
-          value: cliente.nome,
+          value: capitalizeName(cliente.nome),
           icon: '👤',
           color: '#52c41a',
-          description: `${cliente.nome}${cliente.razaoSocial && cliente.razaoSocial !== cliente.nome ? ` (${cliente.razaoSocial})` : ''} - ${cliente._count.pedidos} pedidos`,
+          description: `${capitalizeName(cliente.nome)}${cliente.razaoSocial && cliente.razaoSocial !== cliente.nome ? ` (${capitalizeName(cliente.razaoSocial)})` : ''} - ${cliente._count.pedidos} pedidos`,
           metadata: {
             id: cliente.id,
             documento: documento,

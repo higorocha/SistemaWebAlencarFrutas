@@ -19,7 +19,7 @@ import {
   CalendarOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
-import { formatarValorMonetario } from "../../utils/formatters";
+import { formatarValorMonetario, capitalizeName } from "../../utils/formatters";
 
 const { Title, Text } = Typography;
 
@@ -35,7 +35,7 @@ const FrutasPedidoModal = ({ open, onClose, pedido }) => {
       width: 120,
       render: (text) => (
         <Text strong style={{ color: "#059669" }}>
-          {text}
+          {capitalizeName(text)}
         </Text>
       ),
     },
@@ -44,20 +44,27 @@ const FrutasPedidoModal = ({ open, onClose, pedido }) => {
       key: "area",
       width: 150,
       render: (_, record) => {
-        if (record.areaPropria) {
+        if (record.areas && record.areas.length > 0) {
           return (
-            <Tag color="blue">
-              <Text style={{ fontSize: 12 }}>Própria: {record.areaPropria.nome}</Text>
-            </Tag>
-          );
-        }
-        if (record.areaFornecedor) {
-          return (
-            <Tag color="green">
-              <Text style={{ fontSize: 12 }}>
-                {record.areaFornecedor.fornecedor?.nome} - {record.areaFornecedor.nome}
-              </Text>
-            </Tag>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', wordWrap: 'break-word' }}>
+              {record.areas.map((area, index) => {
+                if (area.areaPropria) {
+                  return (
+                    <Tag key={index} color="blue" style={{ fontSize: 11, wordWrap: 'break-word', whiteSpace: 'normal' }}>
+                      {area.areaPropria.nome}
+                    </Tag>
+                  );
+                }
+                if (area.areaFornecedor) {
+                  return (
+                    <Tag key={index} color="green" style={{ fontSize: 11, wordWrap: 'break-word', whiteSpace: 'normal' }}>
+                      {area.areaFornecedor.nome} (Terceiro)
+                    </Tag>
+                  );
+                }
+                return null;
+              })}
+            </div>
           );
         }
         return <Text type="secondary">-</Text>;
@@ -189,7 +196,7 @@ const FrutasPedidoModal = ({ open, onClose, pedido }) => {
           <Col span={6}>
             <Text strong>Cliente:</Text>
             <br />
-            <Text>{pedido.cliente?.nome}</Text>
+            <Text>{capitalizeName(pedido.cliente?.nome)}</Text>
           </Col>
           <Col span={6}>
             <Text strong>Data do Pedido:</Text>

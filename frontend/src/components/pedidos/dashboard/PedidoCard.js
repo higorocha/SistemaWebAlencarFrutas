@@ -58,17 +58,36 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
       return <Text type="secondary">Sem frutas</Text>;
     }
 
-    if (pedido.frutasPedidos.length === 1) {
+    // Filtrar frutas onde a quantidade prevista > 1
+    const frutasComColheita = pedido.frutasPedidos.filter(fruta => fruta.quantidadePrevista > 1);
+    
+    // Se não há frutas com quantidade de colheita > 1, mostrar todas as frutas normalmente
+    if (frutasComColheita.length === 0) {
+      if (pedido.frutasPedidos.length === 1) {
+        return (
+          <Tag color="green" style={{ margin: 0 }}>
+            {capitalizeName(pedido.frutasPedidos[0].fruta?.nome || "N/A")}
+          </Tag>
+        );
+      }
+      return (
+        <Tag color="blue" style={{ margin: 0 }}>
+          {pedido.frutasPedidos.length} frutas
+        </Tag>
+      );
+    }
+
+    if (frutasComColheita.length === 1) {
       return (
         <Tag color="green" style={{ margin: 0 }}>
-          {capitalizeName(pedido.frutasPedidos[0].fruta?.nome || "N/A")}
+          {capitalizeName(frutasComColheita[0].fruta?.nome || "N/A")}
         </Tag>
       );
     }
 
     return (
       <Tag color="blue" style={{ margin: 0 }}>
-        {pedido.frutasPedidos.length} frutas
+        {frutasComColheita.length} frutas
       </Tag>
     );
   };
@@ -104,7 +123,7 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
         <div className="pedido-card-content">
           <div className="pedido-info-container">
             {/* Coluna 1: Nº Pedido + Valor */}
-            <div className="pedido-info-item pedido-numero" style={{ flex: "0 0 auto", minWidth: "140px", flexDirection: "row", alignItems: "center", gap: "8px", textAlign: "left", justifyContent: "flex-start", flexWrap: "wrap" }}>
+            <div className="pedido-info-item pedido-numero" style={{ flex: "0 0 auto", minWidth: "140px", flexDirection: "column", alignItems: "flex-start", gap: "4px", textAlign: "left", justifyContent: "flex-start" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
                 <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap" }}>
                   {pedido.numeroPedido}
@@ -126,8 +145,8 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
                 padding: "2px 6px",
                 borderRadius: "4px",
                 border: pedido.valorFinal ? "1px solid #bbf7d0" : "1px solid #e5e5e5",
-                flex: "1",
-                minWidth: "0"
+                width: "100%",
+                textAlign: "left"
               }}>
                 {pedido.valorFinal ? formatarValorMonetario(pedido.valorFinal) : "A definir"}
               </Text>

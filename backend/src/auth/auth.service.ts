@@ -18,6 +18,9 @@ export class AuthService {
     
     const usuario = await this.prisma.usuario.findUnique({
       where: { email },
+      include: {
+        cultura: true, // Incluir dados da cultura
+      },
     });
 
     if (!usuario) {
@@ -26,6 +29,7 @@ export class AuthService {
     }
 
     console.log(`✅ [AUTH] Usuário encontrado: ${usuario.nome}`);
+    console.log(`🌱 [AUTH] Cultura do usuário:`, usuario.cultura);
     
     const senhaValida = await bcrypt.compare(senha, usuario.senha);
     console.log(`🔐 [AUTH] Senha válida: ${senhaValida}`);
@@ -105,6 +109,7 @@ export class AuthService {
       sub: usuario.id,
       email: usuario.email,
       nivel: usuario.nivel,
+      culturaId: usuario.culturaId, // Incluir culturaId no JWT
       tipoLogin: tipoLogin,
       expiracao: this.calcularExpiracao(tipoLogin).toISOString()
     };
@@ -122,7 +127,9 @@ export class AuthService {
         nome: usuario.nome,
         email: usuario.email,
         nivel: usuario.nivel,
+        culturaId: usuario.culturaId, // Incluir culturaId para filtros
         ultimoAcesso: new Date(), // Adicionar último acesso atualizado
+        cultura: usuario.cultura, // Incluir dados da cultura
       },
       expiracao: this.calcularExpiracao(tipoLogin).toISOString(),
       tipoLogin: tipoLogin,

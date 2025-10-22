@@ -12,11 +12,14 @@ import {
   CalculatorOutlined,
   FileTextOutlined,
   PlusOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  WarningOutlined
 } from "@ant-design/icons";
 import { MonetaryInput, MaskedDatePicker } from "../../../components/common/inputs";
+import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
 import axiosInstance from "../../../api/axiosConfig";
 import { showNotification } from "../../../config/notificationConfig";
+import { capitalizeName } from "../../../utils/formatters";
 import moment from "moment";
 
 const { Option } = Select;
@@ -36,6 +39,10 @@ const DadosBasicosTab = ({
   isSaving,
 }) => {
   const [frutas, setFrutas] = useState([]);
+
+  // Estados para confirmação de mudança de fruta
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [pendingFrutaChange, setPendingFrutaChange] = useState(null);
 
   // Carregar frutas ativas
   useEffect(() => {
@@ -109,6 +116,46 @@ const DadosBasicosTab = ({
 
   // Atualizar fruta específica
   const handleFrutaChange = (index, field, value) => {
+    // ✅ VALIDAÇÃO ESPECIAL: Se mudou frutaId, verificar se tem áreas/fitas vinculadas
+    if (field === 'frutaId') {
+      const frutaAtual = pedidoAtual.frutas[index];
+
+      // Verificar se a fruta mudou
+      if (frutaAtual.frutaId !== value) {
+        // Verificar se tem áreas vinculadas (não placeholders)
+        const temAreasVinculadas = frutaAtual.areas?.some(area =>
+          area.areaPropriaId || area.areaFornecedorId
+        ) || false;
+
+        // Verificar se tem fitas vinculadas
+        const temFitasVinculadas = frutaAtual.fitas?.length > 0 || false;
+
+        // Se tem áreas ou fitas vinculadas, mostrar confirmação
+        if (temAreasVinculadas || temFitasVinculadas) {
+          const frutaNomeAntiga = frutas.find(f => f.id === frutaAtual.frutaId)?.nome || 'fruta anterior';
+          const frutaNomeNova = frutas.find(f => f.id === value)?.nome || 'nova fruta';
+
+          setPendingFrutaChange({
+            index,
+            field,
+            value,
+            frutaNomeAntiga: capitalizeName(frutaNomeAntiga),
+            frutaNomeNova: capitalizeName(frutaNomeNova),
+            temAreasVinculadas,
+            temFitasVinculadas
+          });
+          setConfirmModalOpen(true);
+          return; // Não aplicar mudança ainda
+        }
+      }
+    }
+
+    // Aplicar mudança normalmente (para outros campos ou quando não há conflito)
+    aplicarMudancaFruta(index, field, value);
+  };
+
+  // Função auxiliar para aplicar mudança de fruta
+  const aplicarMudancaFruta = (index, field, value, limparAreasEFitas = false) => {
     setPedidoAtual(prev => {
       const novasFrutas = prev.frutas.map((fruta, i) => {
         if (i === index) {
@@ -117,7 +164,7 @@ const DadosBasicosTab = ({
           if (field === 'unidadeMedida2' && (value === '' || value === undefined)) {
             processedValue = null;
           }
-          
+
           // Para campos numéricos, garantir que seja um número válido ou undefined
           if (['quantidadePrevista', 'quantidadeReal', 'quantidadeReal2', 'valorUnitario', 'valorTotal'].includes(field)) {
             if (value === null || value === '' || value === undefined) {
@@ -126,36 +173,59 @@ const DadosBasicosTab = ({
               processedValue = Number(value);
             }
           }
-          
+
           const frutaAtualizada = { ...fruta, [field]: processedValue };
-          
+
+          // ✅ LIMPAR áreas e fitas se solicitado (mudança de fruta confirmada)
+          if (limparAreasEFitas) {
+            frutaAtualizada.areas = [];
+            frutaAtualizada.fitas = [];
+          }
+
           // Ajustar unidadePrecificada quando há inconsistência
           if (field === 'unidadeMedida1' || field === 'unidadeMedida2') {
             const unidade1 = field === 'unidadeMedida1' ? processedValue : fruta.unidadeMedida1;
             const unidade2 = field === 'unidadeMedida2' ? processedValue : fruta.unidadeMedida2;
             const unidadePrecificadaAtual = fruta.unidadePrecificada;
-            
+
             // Se a unidade precificada não coincide mais com nenhuma das unidades disponíveis
-            if (unidadePrecificadaAtual && 
-                unidadePrecificadaAtual !== unidade1 && 
+            if (unidadePrecificadaAtual &&
+                unidadePrecificadaAtual !== unidade1 &&
                 unidadePrecificadaAtual !== unidade2) {
               // Definir a unidade primária como padrão para precificação
               frutaAtualizada.unidadePrecificada = unidade1;
             }
-            
+
             // Se não há unidade precificada definida, definir a primária como padrão
             if (!frutaAtualizada.unidadePrecificada && unidade1) {
               frutaAtualizada.unidadePrecificada = unidade1;
             }
           }
-          
+
           return frutaAtualizada;
         }
         return fruta;
       });
-      
+
       return { ...prev, frutas: novasFrutas };
     });
+  };
+
+  // Confirmar mudança de fruta
+  const handleConfirmarMudancaFruta = () => {
+    if (pendingFrutaChange) {
+      const { index, field, value } = pendingFrutaChange;
+      aplicarMudancaFruta(index, field, value, true); // true = limpar áreas e fitas
+      showNotification("success", "Fruta Alterada", "Áreas e fitas foram limpas. Você precisará vinculá-las novamente na aba de Colheita.");
+    }
+    setConfirmModalOpen(false);
+    setPendingFrutaChange(null);
+  };
+
+  // Cancelar mudança de fruta
+  const handleCancelarMudancaFruta = () => {
+    setConfirmModalOpen(false);
+    setPendingFrutaChange(null);
   };
 
   const unidadesMedida = [
@@ -276,7 +346,7 @@ const DadosBasicosTab = ({
                 >
                   {clientes.map((cliente) => (
                     <Option key={cliente.id} value={cliente.id}>
-                      {cliente.nome}
+                      {capitalizeName(cliente.nome)}
                     </Option>
                   ))}
                 </Select>
@@ -437,7 +507,7 @@ const DadosBasicosTab = ({
                     >
                       {frutas.map((frutaOption) => (
                         <Option key={frutaOption.id} value={frutaOption.id}>
-                          {frutaOption.nome}
+                          {capitalizeName(frutaOption.nome)}
                         </Option>
                       ))}
                     </Select>
@@ -649,6 +719,30 @@ const DadosBasicosTab = ({
           </Button>
         </div>
       )}
+
+      {/* Modal de Confirmação de Mudança de Fruta */}
+      <ConfirmActionModal
+        open={confirmModalOpen}
+        onConfirm={handleConfirmarMudancaFruta}
+        onCancel={handleCancelarMudancaFruta}
+        title="Confirmar Mudança de Fruta"
+        message={
+          pendingFrutaChange
+            ? `Você está alterando de "${pendingFrutaChange.frutaNomeAntiga}" para "${pendingFrutaChange.frutaNomeNova}".
+
+               ${pendingFrutaChange.temAreasVinculadas ? '• As áreas vinculadas serão removidas\n' : ''}${pendingFrutaChange.temFitasVinculadas ? '• As fitas vinculadas serão removidas\n' : ''}
+
+               Você precisará vincular novamente as áreas${pendingFrutaChange.temFitasVinculadas ? ' e fitas' : ''} na aba de Colheita.
+
+               Deseja continuar?`
+            : "Deseja confirmar a mudança de fruta?"
+        }
+        confirmText="Sim, Mudar Fruta"
+        cancelText="Não, Manter Fruta Atual"
+        confirmButtonDanger={true}
+        icon={<WarningOutlined />}
+        iconColor="#faad14"
+      />
     </div>
     </>
   );

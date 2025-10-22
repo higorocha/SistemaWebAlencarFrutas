@@ -15,6 +15,10 @@ export class LoginResponseDto {
       nome: 'João Silva',
       email: 'joao@alencarfrutas.com.br',
       nivel: 'USUARIO',
+      cultura: {
+        id: 1,
+        descricao: 'Banana'
+      }
     },
   })
   usuario: {
@@ -23,6 +27,10 @@ export class LoginResponseDto {
     email: string;
     nivel: string;
     ultimoAcesso: Date;
+    cultura?: {
+      id: number;
+      descricao: string;
+    } | null;
   };
 
   @ApiProperty({

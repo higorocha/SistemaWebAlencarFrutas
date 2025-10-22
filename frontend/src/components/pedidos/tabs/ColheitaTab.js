@@ -24,6 +24,7 @@ import { MonetaryInput, MaskedDatePicker } from "../../../components/common/inpu
 import { FormButton } from "../../common/buttons";
 import axiosInstance from "../../../api/axiosConfig";
 import { showNotification } from "../../../config/notificationConfig";
+import { capitalizeName } from "../../../utils/formatters";
 import moment from "moment";
 import VincularAreasModal from "../VincularAreasModal";
 import VincularFitasModal from "../VincularFitasModal";
@@ -173,7 +174,7 @@ const ColheitaTab = ({
       ...fruta,
       index: frutaIndex,
       // ✅ ADICIONAR: Nome da fruta para VincularAreasModal
-      frutaNome: frutas.find(f => f.id === fruta.frutaId)?.nome || '',
+      frutaNome: capitalizeName(frutas.find(f => f.id === fruta.frutaId)?.nome || ''),
       // ✅ ADICIONAR: Objeto fruta completo (com cultura) para filtragem por cultura
       fruta: frutas.find(f => f.id === fruta.frutaId) || null
     };
@@ -191,7 +192,7 @@ const ColheitaTab = ({
       ...fruta,
       index: frutaIndex,
       // ✅ ADICIONAR: Nome da fruta para VincularFitasModal
-      frutaNome: frutas.find(f => f.id === fruta.frutaId)?.nome || '',
+      frutaNome: capitalizeName(frutas.find(f => f.id === fruta.frutaId)?.nome || ''),
       // Processar fitas ATUAIS para o VincularFitasModal
       fitas: fruta.fitas?.length > 0 ? fruta.fitas.map(fita => ({
         id: fita.id,
@@ -625,7 +626,7 @@ const ColheitaTab = ({
                 <Form.Item>
                   <Input
                     disabled
-                    value={frutas.find(f => f.id === fruta.frutaId)?.nome || ''}
+                    value={capitalizeName(frutas.find(f => f.id === fruta.frutaId)?.nome || '')}
                     style={{
                       borderRadius: "6px",
                       borderColor: "#d9d9d9",

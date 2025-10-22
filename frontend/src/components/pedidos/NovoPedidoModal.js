@@ -19,6 +19,7 @@ import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs"
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { validarFrutasDuplicadas, validarPedidoCompleto } from "../../utils/pedidoValidation";
+import { capitalizeName } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import moment from "moment";
 
@@ -312,7 +313,7 @@ const NovoPedidoModal = ({
                 >
                   {clientes.map((cliente) => (
                     <Option key={cliente.id} value={cliente.id}>
-                      {cliente.nome}
+                      {capitalizeName(cliente.nome)}
                     </Option>
                   ))}
                 </Select>
@@ -489,7 +490,7 @@ const NovoPedidoModal = ({
                           >
                             {frutas.map((fruta) => (
                               <Option key={fruta.id} value={fruta.id}>
-                                {fruta.nome}
+                                {capitalizeName(fruta.nome)}
                               </Option>
                             ))}
                           </Select>

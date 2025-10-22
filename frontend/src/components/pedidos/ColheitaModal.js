@@ -23,6 +23,7 @@ import {
 } from "@ant-design/icons";
 import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
+import { capitalizeName } from "../../utils/formatters";
 import moment from "moment";
 import axiosInstance from "../../api/axiosConfig";
 import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs";
@@ -111,7 +112,7 @@ const ColheitaModal = ({
       const frutasForm = pedido.frutasPedidos?.map(fruta => ({
         frutaPedidoId: fruta.id,
         frutaId: fruta.frutaId,
-        frutaNome: fruta.fruta?.nome,
+        frutaNome: capitalizeName(fruta.fruta?.nome),
         fruta: fruta.fruta, // ✅ Incluir objeto fruta completo (com cultura)
         quantidadePrevista: fruta.quantidadePrevista,
         unidadeMedida1: fruta.unidadeMedida1,
@@ -655,7 +656,7 @@ const ColheitaModal = ({
               <Col xs={24} md={6}>
                 <Text strong>Cliente:</Text>
                 <br />
-                <Text>{pedido.cliente?.nome}</Text>
+                <Text>{capitalizeName(pedido.cliente?.nome)}</Text>
               </Col>
               <Col xs={24} md={6}>
                 <Text strong>Data Prevista:</Text>
@@ -904,7 +905,7 @@ const ColheitaModal = ({
                             <Input
                               disabled
                               size={isMobile ? "small" : "middle"}
-                              value={fruta?.frutaNome || fruta?.fruta?.nome || ''}
+                              value={capitalizeName(fruta?.frutaNome || fruta?.fruta?.nome || '')}
                               style={{
                                 borderRadius: "6px",
                                 borderColor: "#d9d9d9",

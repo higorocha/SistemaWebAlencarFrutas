@@ -32,7 +32,7 @@ import {
   TagOutlined,
   BuildOutlined
 } from "@ant-design/icons";
-import { formatarValorMonetario, numberFormatter } from "../../utils/formatters";
+import { formatarValorMonetario, numberFormatter, capitalizeName } from "../../utils/formatters";
 import { PDFButton } from "../common/buttons";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
@@ -94,7 +94,7 @@ const VisualizarPedidoModal = ({
       width: 150,
       render: (nome) => (
         <Text strong style={{ color: "#059669" }}>
-          {nome || '-'}
+          {capitalizeName(nome) || '-'}
         </Text>
       ),
     },
@@ -534,7 +534,7 @@ const VisualizarPedidoModal = ({
                 }}>
                   <Text strong style={{ color: "#059669", fontSize: "16px", display: "block", marginBottom: "12px" }}>
                     <AppleOutlined style={{ marginRight: 8 }} />
-                    {frutaPedido.fruta?.nome}
+                    {capitalizeName(frutaPedido.fruta?.nome)}
                   </Text>
                   
                   <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>

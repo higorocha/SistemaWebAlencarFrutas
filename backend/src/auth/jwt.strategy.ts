@@ -17,6 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       id: payload.sub,
       email: payload.email,
       nivel: payload.nivel,
+      culturaId: payload.culturaId, // Incluir culturaId no usuário autenticado
     };
   }
 } 
