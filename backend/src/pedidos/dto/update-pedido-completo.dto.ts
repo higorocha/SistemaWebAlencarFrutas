@@ -45,6 +45,26 @@ export class UpdateCompletoAreaDto {
   @IsOptional()
   @IsString()
   observacoes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade colhida nesta área (unidade 1)',
+    example: 500.25,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  quantidadeColhidaUnidade1?: number;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade colhida nesta área (unidade 2)',
+    example: 25.5,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  quantidadeColhidaUnidade2?: number;
 }
 
 // DTO para fita da fruta no update completo

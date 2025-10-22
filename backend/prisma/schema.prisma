@@ -549,6 +549,10 @@ model FrutasPedidosAreas {
   // Observações opcionais
   observacoes       String?          @db.Text
   
+  // NOVOS CAMPOS: Quantidade colhida por área
+  quantidadeColhidaUnidade1  Decimal? @db.Decimal(10, 2)  // Quantidade colhida na área (unidade 1)
+  quantidadeColhidaUnidade2  Decimal? @db.Decimal(10, 2)  // Quantidade colhida na área (unidade 2)
+  
   // Metadados
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt

@@ -32,6 +32,24 @@ export class FrutaAreaDto {
   @IsOptional()
   @IsString()
   observacoes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade colhida nesta área (unidade 1)',
+    example: 500.25,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  quantidadeColhidaUnidade1?: number;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade colhida nesta área (unidade 2)',
+    example: 25.5,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  quantidadeColhidaUnidade2?: number;
 }
 
 // DTO para fita da fruta (específico para bananas)
