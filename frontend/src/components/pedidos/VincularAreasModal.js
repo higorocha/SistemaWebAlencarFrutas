@@ -157,25 +157,13 @@ const VincularAreasModal = ({
       const quantidadesIniciais = {};
       realAreas.forEach(area => {
         const key = `${area.areaPropriaId || area.areaFornecedorId}_${area.areaPropriaId ? 'propria' : 'fornecedor'}`;
-        
-        // ✅ CORREÇÃO: Extrair valor do objeto Decimal do Prisma
-        const getDecimalValue = (decimalObj) => {
-          if (!decimalObj) return '';
-          if (typeof decimalObj === 'number') return String(decimalObj);
-          if (typeof decimalObj === 'string') return decimalObj;
-          if (decimalObj.d && Array.isArray(decimalObj.d)) {
-            // Formato Prisma Decimal: { s: 1, e: 4, d: [22000] }
-            const value = decimalObj.d.join('');
-            return decimalObj.s === -1 ? `-${value}` : value;
-          }
-          return '';
-        };
-        
+
+        // ✅ Valores agora são inteiros diretos (não mais Decimal)
         quantidadesIniciais[key] = {
-          quantidade1: getDecimalValue(area.quantidadeColhidaUnidade1),
-          quantidade2: getDecimalValue(area.quantidadeColhidaUnidade2)
+          quantidade1: area.quantidadeColhidaUnidade1 ? String(area.quantidadeColhidaUnidade1) : '',
+          quantidade2: area.quantidadeColhidaUnidade2 ? String(area.quantidadeColhidaUnidade2) : ''
         };
-        
+
       });
       
       setQuantidadesPorArea(quantidadesIniciais);

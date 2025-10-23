@@ -268,7 +268,28 @@ export const formatarChavePix = (chavePix) => {
 };
 
 /**
- * Converte valores Decimal do Prisma para número JavaScript
+ * ⚠️ FUNÇÃO LEGADA - NÃO MAIS NECESSÁRIA (mantida apenas para referência histórica)
+ *
+ * Esta função era utilizada para converter valores Decimal do Prisma para número JavaScript.
+ *
+ * CONTEXTO HISTÓRICO:
+ * - Antes de 2025-10-23: Campos como quantidadeColhidaUnidade1 e quantidadeColhidaUnidade2
+ *   eram do tipo Decimal no schema Prisma (@db.Decimal(10, 2))
+ * - O Prisma retornava esses valores como objetos complexos: { s: 1, e: 4, d: [13333] }
+ *   onde 's' é o sinal, 'e' é o expoente, 'd' são os dígitos
+ * - Esta função era necessária para extrair o valor numérico desses objetos
+ *
+ * MUDANÇA:
+ * - Em 2025-10-23: Campos de quantidade foram alterados de Decimal para Int
+ * - Migration: 20251023160633_change_quantidade_colhida_to_int
+ * - Agora o banco retorna valores inteiros diretos (ex: 500, 1000)
+ * - Esta função não é mais necessária - use o valor diretamente
+ *
+ * USO ATUAL:
+ * - ANTES: const qtd = converterDecimalPrisma(area.quantidadeColhidaUnidade1);
+ * - AGORA:  const qtd = area.quantidadeColhidaUnidade1 || 0;
+ *
+ * @deprecated Não use esta função em código novo. Use os valores inteiros diretamente.
  * @param {any} valor - Valor que pode ser um objeto Decimal do Prisma ou número
  * @returns {number} - Número convertido
  */
@@ -279,10 +300,10 @@ export const converterDecimalPrisma = (valor) => {
     // Onde 's' é o sinal, 'e' é o expoente, 'd' são os dígitos
     const numero = parseFloat(valor.d.join(''));
     const expoente = valor.e || 0;
-    
+
     // Se o expoente for menor que o número de dígitos, é um número inteiro
     const numeroDigitos = valor.d.join('').length;
-    
+
     if (expoente < numeroDigitos) {
       // É um número inteiro, retorna sem divisão
       return numero;

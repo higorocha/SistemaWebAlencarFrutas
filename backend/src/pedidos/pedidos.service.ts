@@ -2020,15 +2020,6 @@ export class PedidosService {
   // TODO: Este método precisa ser atualizado para suportar múltiplas áreas e fitas
   // Por ora, comentando funcionalidades que usam campos removidos
   async updateCompleto(id: number, updatePedidoCompletoDto: UpdatePedidoCompletoDto, usuarioId: number): Promise<PedidoResponseDto> {
-    console.log('🔍 DEBUG updateCompleto - Iniciando:', {
-      pedidoId: id,
-      frutasEnviadas: updatePedidoCompletoDto.frutas?.length || 0,
-      frutasDetalhes: updatePedidoCompletoDto.frutas?.map(f => ({
-        frutaPedidoId: f.frutaPedidoId,
-        frutaId: f.frutaId,
-        quantidadePrevista: f.quantidadePrevista
-      })) || []
-    });
 
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
@@ -2056,14 +2047,6 @@ export class PedidosService {
       }
     });
 
-    console.log('🔍 DEBUG updateCompleto - Frutas atuais no banco:', {
-      quantidadeFrutasBanco: frutasAtuaisBanco.length,
-      frutasBanco: frutasAtuaisBanco.map(f => ({
-        id: f.id,
-        frutaId: f.frutaId,
-        quantidadePrevista: f.quantidadePrevista
-      }))
-    });
 
     // ✅ NOVA VALIDAÇÃO: Verificar se há pagamentos que impedem redução da precificação
     if (updatePedidoCompletoDto.frutas && updatePedidoCompletoDto.frutas.length > 0) {
@@ -2174,15 +2157,6 @@ export class PedidosService {
           frutaBanco => !frutasPedidoIdsEnviadas.includes(frutaBanco.id)
         );
 
-        console.log('🔍 DEBUG updateCompleto - Análise de remoção:', {
-          frutasPedidoIdsEnviadas,
-          frutasParaRemover: frutasParaRemover.map(f => ({
-            id: f.id,
-            frutaId: f.frutaId,
-            quantidadePrevista: f.quantidadePrevista
-          })),
-          quantidadeParaRemover: frutasParaRemover.length
-        });
 
         // ✅ IMPLEMENTAR: Remover frutas que não estão mais no array
         if (frutasParaRemover.length > 0) {
@@ -2210,25 +2184,10 @@ export class PedidosService {
           houveAlteracaoFrutas = true;
         }
         for (const fruta of updatePedidoCompletoDto.frutas) {
-          console.log('🔍 DEBUG updateCompleto - Processando fruta:', {
-            frutaPedidoId: fruta.frutaPedidoId,
-            frutaId: fruta.frutaId,
-            quantidadePrevista: fruta.quantidadePrevista,
-            unidadeMedida1: fruta.unidadeMedida1,
-            unidadeMedida2: fruta.unidadeMedida2,
-            isEdicao: !!fruta.frutaPedidoId,
-            isNovaFruta: !fruta.frutaPedidoId
-          });
 
-          console.log('🔄 DEBUG updateCompleto - INÍCIO DO LOOP - Fruta atual:', {
-            frutaPedidoId: fruta.frutaPedidoId,
-            frutaId: fruta.frutaId,
-            status: fruta.frutaPedidoId ? 'EDITANDO' : 'CRIANDO'
-          });
 
           // Atualização por frutaPedidoId (quando informado)
           if (fruta.frutaPedidoId) {
-            console.log('✏️ DEBUG updateCompleto - Editando fruta existente:', fruta.frutaPedidoId);
             
             // Aplicar a mesma lógica do updatePrecificacao para unidade precificada
             const frutaPedidoAtual = await prisma.frutasPedidos.findUnique({ where: { id: fruta.frutaPedidoId } });
@@ -2263,15 +2222,9 @@ export class PedidosService {
               // Marcar como nova fruta para ser criada
               fruta.frutaPedidoId = undefined;
 
-              console.log('🔄 DEBUG updateCompleto - FRUTA MARCADA COMO NOVA:', {
-                frutaPedidoId: fruta.frutaPedidoId,
-                frutaId: fruta.frutaId,
-                status: 'MUDOU_TIPO_AGORA_E_NOVA'
-              });
 
               // ✅ CORREÇÃO: Remover 'continue' para que a fruta seja criada na sequência
               // O fluxo continua para a seção de criação (linha 2339)
-              console.log('🔄 DEBUG updateCompleto - CONTINUANDO FLUXO - Vai criar nova fruta na mesma iteração');
             }
 
             // ✅ SEÇÃO DE ATUALIZAÇÃO: Só executa se frutaPedidoId existe (fruta não mudou de tipo)
@@ -2747,15 +2700,6 @@ export class PedidosService {
       }
     });
 
-    console.log('🔍 DEBUG updateCompleto - Resultado final:', {
-      pedidoId: id,
-      frutasFinais: frutasFinaisBanco.map(f => ({
-        id: f.id,
-        frutaId: f.frutaId,
-        quantidadePrevista: f.quantidadePrevista
-      })),
-      quantidadeFrutasFinal: frutasFinaisBanco.length
-    });
 
     return pedidoCompleto;
   }

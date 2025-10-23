@@ -31,6 +31,7 @@ import {
 } from "@ant-design/icons";
 import { IMaskInput } from "react-imask";
 import { validarDocumento } from "../../utils/documentValidation";
+import { capitalizeName } from "../../utils/formatters";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import useResponsive from "../../hooks/useResponsive";
@@ -49,6 +50,7 @@ const FornecedorForm = ({
   const { isMobile, isTablet } = useResponsive();
   const [areas, setAreas] = useState([]);
   const [loadingAreas, setLoadingAreas] = useState(false);
+  const [savingAreas, setSavingAreas] = useState(false);
   const [culturas, setCulturas] = useState([]);
   const [loadingCulturas, setLoadingCulturas] = useState(false);
 
@@ -173,17 +175,34 @@ const FornecedorForm = ({
     }
   };
 
+  // Validar nome único da área
+  const validarNomeUnico = (nome, index) => {
+    if (!nome.trim()) return true; // Nome vazio é válido (será validado em outro lugar)
+    
+    const outrasAreas = areas.filter((_, i) => i !== index);
+    return !outrasAreas.some(area => 
+      area.nome.toLowerCase().trim() === nome.toLowerCase().trim()
+    );
+  };
+
   // Atualizar nome da área
   const atualizarNomeArea = (index, nome) => {
+    const isNomeUnico = validarNomeUnico(nome, index);
+    
     setAreas(prev => prev.map((area, i) => 
-      i === index ? { ...area, nome } : area
+      i === index ? { 
+        ...area, 
+        nome, 
+        modified: !area.isNew,
+        nomeDuplicado: !isNomeUnico
+      } : area
     ));
   };
 
   // Atualizar cultura da área
   const atualizarCulturaArea = (index, culturaId) => {
     setAreas(prev => prev.map((area, i) => 
-      i === index ? { ...area, culturaId } : area
+      i === index ? { ...area, culturaId, modified: !area.isNew } : area
     ));
   };
 
@@ -199,18 +218,38 @@ const FornecedorForm = ({
       return;
     }
 
+    // Verificar se há nomes duplicados
+    if (areas.some(area => area.nomeDuplicado)) {
+      showNotification("error", "Erro", "Existem nomes duplicados nas áreas. Corrija antes de salvar.");
+      return;
+    }
+
     try {
+      setSavingAreas(true);
       console.log('Iniciando salvamento das áreas...');
+      
       // Salvar novas áreas
       for (const area of areas) {
         if (area.isNew && area.nome.trim()) {
-          console.log('Salvando área:', area);
+          console.log('Salvando área nova:', area);
           const response = await axiosInstance.post("/api/areas-fornecedores", {
             fornecedorId: fornecedorAtual.id,
             nome: area.nome.trim(),
             culturaId: area.culturaId || null,
           });
           console.log('Área salva com sucesso:', response.data);
+        }
+      }
+
+      // Atualizar áreas existentes modificadas
+      for (const area of areas) {
+        if (!area.isNew && area.modified && area.nome.trim()) {
+          console.log('Atualizando área existente:', area);
+          const response = await axiosInstance.patch(`/api/areas-fornecedores/${area.id}`, {
+            nome: area.nome.trim(),
+            culturaId: area.culturaId || null,
+          });
+          console.log('Área atualizada com sucesso:', response.data);
         }
       }
 
@@ -222,6 +261,8 @@ const FornecedorForm = ({
     } catch (error) {
       console.error("Erro ao salvar áreas:", error);
       showNotification("error", "Erro", "Erro ao salvar áreas");
+    } finally {
+      setSavingAreas(false);
     }
   };
 
@@ -492,11 +533,17 @@ const FornecedorForm = ({
                           onChange={(e) => atualizarNomeArea(index, e.target.value)}
                           style={{
                             borderRadius: "6px",
-                            borderColor: "#d9d9d9",
+                            borderColor: area.nomeDuplicado ? "#ff4d4f" : "#d9d9d9",
                             height: 36,
                           }}
                           size="middle"
+                          status={area.nomeDuplicado ? "error" : ""}
                         />
+                        {area.nomeDuplicado && (
+                          <div style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px" }}>
+                            Nome já existe em outra área
+                          </div>
+                        )}
                       </div>
                       
                       <div style={{ marginBottom: 12 }}>
@@ -517,7 +564,7 @@ const FornecedorForm = ({
                         >
                           {culturas.map((cultura) => (
                             <Option key={cultura.id} value={cultura.id}>
-                              {cultura.descricao}
+                              {capitalizeName(cultura.descricao)}
                             </Option>
                           ))}
                         </Select>
@@ -607,10 +654,16 @@ const FornecedorForm = ({
                           onChange={(e) => atualizarNomeArea(index, e.target.value)}
                           style={{
                             borderRadius: "6px",
-                            borderColor: "#d9d9d9",
+                            borderColor: area.nomeDuplicado ? "#ff4d4f" : "#d9d9d9",
                           }}
                           size="large"
+                          status={area.nomeDuplicado ? "error" : ""}
                         />
+                        {area.nomeDuplicado && (
+                          <div style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px" }}>
+                            Nome já existe em outra área
+                          </div>
+                        )}
                       </Col>
 
                       <Col xs={24} md={8}>
@@ -628,7 +681,7 @@ const FornecedorForm = ({
                         >
                           {culturas.map((cultura) => (
                             <Option key={cultura.id} value={cultura.id}>
-                              {cultura.descricao}
+                              {capitalizeName(cultura.descricao)}
                             </Option>
                           ))}
                         </Select>
@@ -737,19 +790,19 @@ const FornecedorForm = ({
                   <Button
                     type="primary"
                     onClick={salvarAreas}
-                    loading={loadingAreas}
-                    disabled={loadingAreas || areas.every(area => !area.nome.trim() || !area.culturaId)}
-                    icon={loadingAreas ? undefined : <SaveOutlined />}
+                    loading={savingAreas}
+                    disabled={savingAreas || areas.every(area => !area.nome.trim() || !area.culturaId) || areas.some(area => area.nomeDuplicado)}
+                    icon={savingAreas ? undefined : <SaveOutlined />}
                     style={{
-                      backgroundColor: loadingAreas ? "#10b981" : "#059669",
-                      borderColor: loadingAreas ? "#10b981" : "#059669",
+                      backgroundColor: savingAreas ? "#10b981" : "#059669",
+                      borderColor: savingAreas ? "#10b981" : "#059669",
                       borderRadius: "6px",
                       minWidth: isMobile ? "120px" : "140px",
                       transition: "all 0.3s ease",
                     }}
                     size={isMobile ? "middle" : "large"}
                   >
-                    {loadingAreas ? (
+                    {savingAreas ? (
                       <span>
                         Salvando... <span style={{ fontSize: "12px", opacity: 0.8 }}>({areas.filter(area => area.isNew && area.nome.trim()).length} nova{areas.filter(area => area.isNew && area.nome.trim()).length > 1 ? 's' : ''})</span>
                       </span>

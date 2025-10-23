@@ -360,9 +360,9 @@ model FrutasPedidosAreas {
   observacoes               String?
   createdAt                 DateTime        @default(now())
   updatedAt                 DateTime        @updatedAt
-  quantidadeColhidaUnidade1 Decimal?        @db.Decimal(10, 2)
-  quantidadeColhidaUnidade2 Decimal?        @db.Decimal(10, 2)
-  areaFornecedor            AreaFornecedor? @relation(fields: [areaFornecedorId], references: [id])
+  quantidadeColhidaUnidade1 Int?
+  quantidadeColhidaUnidade2 Int?
+  areaFornecedor            AreaFornecedor? @relation(fields: [areaFornecedorId], references: [id], onDelete: SetNull)
   areaPropria               AreaAgricola?   @relation(fields: [areaPropriaId], references: [id])
   frutaPedido               FrutasPedidos   @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
 

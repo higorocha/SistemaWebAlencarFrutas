@@ -32,7 +32,7 @@ import {
   TagOutlined,
   BuildOutlined
 } from "@ant-design/icons";
-import { formatarValorMonetario, numberFormatter, capitalizeName, converterDecimalPrisma } from "../../utils/formatters";
+import { formatarValorMonetario, numberFormatter, capitalizeName } from "../../utils/formatters";
 import { PDFButton } from "../common/buttons";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
@@ -558,16 +558,6 @@ const VisualizarPedidoModal = ({
                       {frutaPedido.areas && frutaPedido.areas.length > 0 ? (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                           {frutaPedido.areas.map((area, areaIndex) => {
-                            // DEBUG: Log específico para quantidades colhidas
-                            console.log(`=== ÁREA ${areaIndex + 1} ===`);
-                            console.log('Área completa:', JSON.stringify(area, null, 2));
-                            console.log('quantidadeColhidaUnidade1 (original):', area.quantidadeColhidaUnidade1);
-                            console.log('quantidadeColhidaUnidade1 (convertido):', converterDecimalPrisma(area.quantidadeColhidaUnidade1));
-                            console.log('quantidadeColhidaUnidade2 (convertido):', converterDecimalPrisma(area.quantidadeColhidaUnidade2));
-                            console.log('Tipo de quantidadeColhidaUnidade1:', typeof area.quantidadeColhidaUnidade1);
-                            console.log('Valor convertido > 0?', converterDecimalPrisma(area.quantidadeColhidaUnidade1) > 0);
-                            console.log('========================');
-                            
                             return (
                             <div key={areaIndex} style={{ marginBottom: "4px" }}>
                               <Tag
@@ -579,11 +569,10 @@ const VisualizarPedidoModal = ({
                                     <EnvironmentOutlined style={{ marginRight: 4 }} />
                                     {area.areaPropria.nome}
                                     {(() => {
-                                      const qtd = converterDecimalPrisma(area.quantidadeColhidaUnidade1);
-                                      const qtdInteira = Math.round(qtd);
-                                      return qtdInteira > 0 && (
+                                      const qtd = area.quantidadeColhidaUnidade1 || 0;
+                                      return qtd > 0 && (
                                         <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
-                                          ({qtdInteira.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
+                                          ({qtd.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
                                         </span>
                                       );
                                     })()}
@@ -593,11 +582,10 @@ const VisualizarPedidoModal = ({
                                     <UserOutlined style={{ marginRight: 4 }} />
                                     {area.areaFornecedor.fornecedor?.nome} • {area.areaFornecedor.nome}
                                     {(() => {
-                                      const qtd = converterDecimalPrisma(area.quantidadeColhidaUnidade1);
-                                      const qtdInteira = Math.round(qtd);
-                                      return qtdInteira > 0 && (
+                                      const qtd = area.quantidadeColhidaUnidade1 || 0;
+                                      return qtd > 0 && (
                                         <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
-                                          ({qtdInteira.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
+                                          ({qtd.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
                                         </span>
                                       );
                                     })()}

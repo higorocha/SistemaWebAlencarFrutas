@@ -233,14 +233,19 @@ export class AreasFornecedoresService {
     // Verificar se a área existe
     const existingArea = await this.prisma.areaFornecedor.findUnique({
       where: { id },
+      include: { 
+        frutasPedidosAreas: true 
+      },
     });
 
     if (!existingArea) {
       throw new NotFoundException('Área não encontrada');
     }
 
-    // Verificar se a área tem frutas associadas (futuro)
-    // Por enquanto, permitir remoção
+    // Verificar se a área tem frutas associadas em pedidos
+    if (existingArea.frutasPedidosAreas.length > 0) {
+      throw new ConflictException('Não é possível remover área com frutas associadas em pedidos');
+    }
 
     await this.prisma.areaFornecedor.delete({
       where: { id },
