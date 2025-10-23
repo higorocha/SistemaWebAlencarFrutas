@@ -190,9 +190,13 @@ const PedidosDashboard = () => {
     setPagamentoModalOpen(true);
   };
 
-  const handleVisualizar = (pedido) => {
-    setPedidoSelecionado(pedido);
-    setVisualizarModalOpen(true);
+  const handleVisualizar = async (pedido) => {
+    // Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
+    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
+    if (pedidoAtualizado) {
+      setPedidoSelecionado(pedidoAtualizado);
+      setVisualizarModalOpen(true);
+    }
   };
 
   const handleNovoPedido = () => {

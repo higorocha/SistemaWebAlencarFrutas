@@ -36,7 +36,7 @@ import {
 import styled from "styled-components";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
-import { formatCurrency } from "../../utils/formatters";
+import { formatCurrency, capitalizeNameShort, capitalizeName } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
@@ -183,6 +183,26 @@ const PagamentosPendentesModal = ({
     return dados.colheitas
       .filter(c => colheitasSelecionadas.includes(c.id) && c.status !== 'PAGO')
       .reduce((acc, c) => acc + c.valorColheita, 0);
+  };
+
+  // Função para calcular total colhido agrupado por unidade de medida
+  const calcularTotalColhido = () => {
+    if (!dados) return [];
+    
+    const totaisPorUnidade = {};
+    
+    dados.colheitas.forEach(colheita => {
+      const unidade = colheita.unidadeMedida || 'un';
+      if (!totaisPorUnidade[unidade]) {
+        totaisPorUnidade[unidade] = 0;
+      }
+      totaisPorUnidade[unidade] += colheita.quantidadeColhida || 0;
+    });
+    
+    return Object.entries(totaisPorUnidade).map(([unidade, total]) => ({
+      unidade,
+      total
+    }));
   };
 
   // Função para mapear nomes de frutas aos ícones disponíveis
@@ -405,6 +425,7 @@ const PagamentosPendentesModal = ({
       key: 'cliente',
       width: 200,
       ellipsis: true,
+      render: (nome) => capitalizeNameShort(nome || ''),
     },
     {
       title: 'Fruta',
@@ -414,7 +435,7 @@ const PagamentosPendentesModal = ({
       render: (nome) => (
         <Space>
           {getFrutaIcon(nome)}
-          <span style={{ fontWeight: '500' }}>{nome}</span>
+          <span style={{ fontWeight: '500' }}>{capitalizeName(nome || '')}</span>
         </Space>
       ),
     },
@@ -498,7 +519,7 @@ const PagamentosPendentesModal = ({
           borderRadius: "8px 8px 0 0",
         }}>
           <DollarOutlined style={{ marginRight: 8 }} />
-          Pagamentos Pendentes - {turmaNome}
+          Pagamentos Pendentes - {capitalizeName(turmaNome || '')}
         </span>
       }
       open={open}
@@ -599,6 +620,30 @@ const PagamentosPendentesModal = ({
             }}
           >
 
+            {/* Nome da Turma */}
+            <div style={{
+              marginBottom: isMobile ? '16px' : '20px',
+              padding: isMobile ? '8px 0' : '12px 0'
+            }}>
+              <div style={{
+                fontSize: isMobile ? '12px' : '14px',
+                color: '#8c8c8c',
+                fontWeight: '500',
+                marginBottom: '8px'
+              }}>
+                Nome da Turma
+              </div>
+              <div style={{
+                fontSize: isMobile ? '16px' : '18px',
+                fontWeight: '600',
+                color: '#0c4a6e',
+                marginBottom: '8px'
+              }}>
+                🏢 {capitalizeName(turmaNome || '')}
+              </div>
+              <Divider style={{ margin: '8px 0' }} />
+            </div>
+
             <Row gutter={isMobile ? [12, 12] : [24, 16]}>
               <Col xs={12} sm={12} lg={6}>
                 <Statistic
@@ -646,6 +691,7 @@ const PagamentosPendentesModal = ({
                 />
               </Col>
             </Row>
+
 
             {dados.turma.chavePix && (
               <div style={{ marginTop: '16px' }}>
@@ -728,7 +774,7 @@ const PagamentosPendentesModal = ({
                   borderRadius: '8px'
                 }}>
                   <Row gutter={isMobile ? [8, 12] : [16, 16]} align="middle">
-                    <Col xs={12} md={8}>
+                    <Col xs={12} md={6}>
                       <Statistic
                         title={
                           isMobile
@@ -743,7 +789,55 @@ const PagamentosPendentesModal = ({
                         }}
                       />
                     </Col>
-                    <Col xs={12} md={8}>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title={isMobile ? "Colhido" : "Total Colhido"}
+                        value={calcularTotalColhido().map(item => `${item.total.toLocaleString('pt-BR')} ${item.unidade}`).join(', ')}
+                        prefix={<AppleOutlined />}
+                        valueStyle={{
+                          color: '#0ea5e9',
+                          fontSize: isMobile ? '1rem' : '1.5rem'
+                        }}
+                        formatter={(value) => (
+                          <div style={{ 
+                            fontSize: isMobile ? '1rem' : '1.5rem',
+                            color: '#0ea5e9',
+                            fontWeight: '600'
+                          }}>
+                            {calcularTotalColhido().map((item, index) => (
+                              <span key={index} style={{ marginRight: '8px' }}>
+                                <span style={{ fontSize: isMobile ? '1rem' : '1.5rem' }}>
+                                  {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                                <span style={{ 
+                                  fontSize: isMobile ? '0.6rem' : '0.7rem',
+                                  color: '#8c8c8c',
+                                  marginLeft: '4px',
+                                  textTransform: 'uppercase',
+                                  fontWeight: 'normal'
+                                }}>
+                                  {item.unidade}
+                                </span>
+                                {index < calcularTotalColhido().length - 1 && !isMobile && (
+                                  <span style={{ 
+                                    color: '#000000',
+                                    margin: '0 15px',
+                                    fontSize: '1.5rem',
+                                    verticalAlign: 'middle',
+                                    display: 'inline-block',
+                                    lineHeight: '1',
+                                    transform: 'translateY(-4px)'
+                                  }}>
+                                    •
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
                       <Statistic
                         title={isMobile ? "A Pagar" : "Total a Pagar"}
                         value={colheitasSelecionadas.length > 0 ? calcularTotalSelecionado() : dados.resumo.totalPendente}
@@ -755,7 +849,7 @@ const PagamentosPendentesModal = ({
                         }}
                       />
                     </Col>
-                    <Col xs={24} md={8}>
+                    <Col xs={24} md={6}>
                       <Button
                         type="primary"
                         size={isMobile ? "middle" : "large"}

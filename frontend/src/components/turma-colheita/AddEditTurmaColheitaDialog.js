@@ -22,6 +22,7 @@ const AddEditTurmaColheitaDialog = ({
   const [turmaAtual, setTurmaAtual] = useState({
     nomeColhedor: "",
     chavePix: "",
+    responsavelChavePix: "",
     observacoes: "",
   });
   const [editando, setEditando] = useState(false);
@@ -36,10 +37,13 @@ const AddEditTurmaColheitaDialog = ({
     // Verifica dados de pagamento
     const hasPaymentData = data.chavePix?.trim();
     
+    // Verifica responsável pela chave PIX
+    const hasResponsavelData = data.responsavelChavePix?.trim();
+    
     // Verifica outros campos
     const hasOtherData = data.observacoes?.trim();
     
-    return hasBasicData || hasPaymentData || hasOtherData;
+    return hasBasicData || hasPaymentData || hasResponsavelData || hasOtherData;
   };
 
   // Hook customizado para gerenciar confirmação de fechamento
@@ -71,6 +75,7 @@ const AddEditTurmaColheitaDialog = ({
       setTurmaAtual({
         nomeColhedor: turmaColheita.nomeColhedor || "",
         chavePix: turmaColheita.chavePix || "",
+        responsavelChavePix: turmaColheita.responsavelChavePix || "",
         observacoes: turmaColheita.observacoes || "",
       });
       setEditando(true);
@@ -78,6 +83,7 @@ const AddEditTurmaColheitaDialog = ({
       setTurmaAtual({
         nomeColhedor: "",
         chavePix: "",
+        responsavelChavePix: "",
         observacoes: "",
       });
       setEditando(false);
@@ -115,6 +121,17 @@ const AddEditTurmaColheitaDialog = ({
         } else if (numeros.length > 14) {
           novosErros.chavePix = "Chave PIX muito longa (máximo 14 dígitos)";
         }
+      }
+    }
+
+    // Validação do responsável pela chave PIX
+    if (turmaAtual.responsavelChavePix?.trim()) {
+      const responsavel = turmaAtual.responsavelChavePix.trim();
+      
+      if (responsavel.length < 2) {
+        novosErros.responsavelChavePix = "Nome do responsável deve ter pelo menos 2 caracteres";
+      } else if (responsavel.length > 100) {
+        novosErros.responsavelChavePix = "Nome do responsável muito longo (máximo 100 caracteres)";
       }
     }
 
@@ -157,6 +174,7 @@ const AddEditTurmaColheitaDialog = ({
     setTurmaAtual({
       nomeColhedor: "",
       chavePix: "",
+      responsavelChavePix: "",
       observacoes: "",
     });
     setErros({});

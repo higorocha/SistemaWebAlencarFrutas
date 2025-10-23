@@ -11,7 +11,7 @@ import {
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import { showNotification } from "../../config/notificationConfig";
-import { formatarChavePix, formatCurrency } from "../../utils/formatters";
+import { formatarChavePix, formatCurrency, capitalizeName } from "../../utils/formatters";
 import EstatisticasTurmaModal from "./EstatisticasTurmaModal";
 import ResponsiveTable from "../common/ResponsiveTable";
 
@@ -77,7 +77,7 @@ const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, on
       render: (text) => (
         <Space>
           <UserOutlined style={{ color: "#059669" }} />
-          <Text strong>{text || "Não informado"}</Text>
+          <Text strong>{text ? capitalizeName(text) : "Não informado"}</Text>
         </Space>
       ),
     },
@@ -89,6 +89,17 @@ const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, on
       render: (text) => (
         <Text style={{ fontSize: "13px" }}>
           {formatarChavePix(text)}
+        </Text>
+      ),
+    },
+    {
+      title: "Responsável PIX",
+      dataIndex: "responsavelChavePix",
+      key: "responsavelChavePix",
+      align: "center",
+      render: (text) => (
+        <Text style={{ fontSize: "13px" }}>
+          {text ? capitalizeName(text) : "Não informado"}
         </Text>
       ),
     },

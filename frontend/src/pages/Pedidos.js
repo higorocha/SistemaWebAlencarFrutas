@@ -1,7 +1,7 @@
 // src/pages/Pedidos.js
 
 import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
-import { Typography, Button, Space, Modal, Spin, Select, DatePicker, Tag } from "antd";
+import { Typography, Button, Space, Modal, Spin, Select, DatePicker, Tag, Segmented, Divider } from "antd";
 import {
   ShoppingCartOutlined,
   PlusCircleOutlined,
@@ -12,6 +12,7 @@ import {
   CreditCardOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 // Importar ícones do Iconify
 import { Icon } from "@iconify/react";
@@ -21,7 +22,7 @@ import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
 import { CentralizedLoader } from "components/common/loaders";
-import { PrimaryButton, SecondaryButton } from "components/common/buttons";
+import { PrimaryButton, SecondaryButton, PDFButton } from "components/common/buttons";
 import { SearchInput, SearchInputInteligente } from "components/common/search";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../components/Icons/PaymentIcons";
 import useResponsive from "../hooks/useResponsive";
@@ -61,6 +62,8 @@ const Pedidos = () => {
    const [searchTerm, setSearchTerm] = useState(""); // ✅ Mantido para o input de busca
    const [appliedFilters, setAppliedFilters] = useState([]); // Filtros aplicados via sugestão
    const [statusFilter, setStatusFilter] = useState(""); // Valor vazio = "Todos"
+   const [dateFilterType, setDateFilterType] = useState("criacao"); // 'criacao' ou 'colheita'
+   const [quickDateFilter, setQuickDateFilter] = useState(""); // Filtro rápido de período
    const [dateRange, setDateRange] = useState([]);
 
   // Estados dos modais
@@ -96,7 +99,7 @@ const Pedidos = () => {
   }, [appliedFilters]);
 
   // ✅ FUNÇÃO ATUALIZADA: Buscar pedidos com suporte a filtros aninhados
-  const fetchPedidos = useCallback(async (page = 1, limit = 20, filters = {}, status = "", dataInicio = null, dataFim = null) => {
+  const fetchPedidos = useCallback(async (page = 1, limit = 20, filters = {}, status = "", dataInicio = null, dataFim = null, tipoData = 'criacao') => {
     try {
       setCentralizedLoading(true);
       setLoadingMessage("Carregando pedidos...");
@@ -108,6 +111,7 @@ const Pedidos = () => {
       if (status) params.append('status', status);
       if (dataInicio) params.append('dataInicio', dataInicio);
       if (dataFim) params.append('dataFim', dataFim);
+      if (tipoData) params.append('tipoData', tipoData); // 'criacao' ou 'colheita'
 
       // ✅ ENVIAR FILTROS ANINHADOS PARA O BACKEND
       if (Object.keys(filters).length > 0) {
@@ -159,17 +163,99 @@ const Pedidos = () => {
   useEffect(() => {
     fetchClientes();
     // Carregar todos os pedidos na inicialização (sem filtros)
-    fetchPedidos(1, pageSize, {}, "", null, null);
+    fetchPedidos(1, pageSize, {}, "", null, null, 'criacao');
   }, [fetchClientes, fetchPedidos, pageSize]);
+
+  // Função para calcular datas dos períodos rápidos
+  const calculateQuickDateRange = useCallback((period) => {
+    const hoje = moment();
+    let dataInicio, dataFim;
+
+    switch (period) {
+      case 'hoje':
+        dataInicio = hoje.startOf('day');
+        dataFim = hoje.endOf('day');
+        break;
+      case 'semana':
+        // ISO Week: Segunda-feira a Domingo (padrão brasileiro)
+        // Exemplo: Se hoje é quinta 23/10, pega segunda 20/10 até domingo 26/10
+        dataInicio = hoje.clone().startOf('isoWeek');
+        dataFim = hoje.clone().endOf('isoWeek');
+        break;
+      case 'ultimos7':
+        dataInicio = hoje.clone().subtract(7, 'days').startOf('day');
+        dataFim = hoje.endOf('day');
+        break;
+      case 'ultimos15':
+        dataInicio = hoje.clone().subtract(15, 'days').startOf('day');
+        dataFim = hoje.endOf('day');
+        break;
+      case 'ultimos30':
+        dataInicio = hoje.clone().subtract(30, 'days').startOf('day');
+        dataFim = hoje.endOf('day');
+        break;
+      default:
+        return null;
+    }
+
+    return [dataInicio, dataFim];
+  }, []);
 
   // ✅ NOVA LÓGICA: Processar todos os filtros aninhados corretamente
   useEffect(() => {
-    const dataInicio = dateRange[0] ? dateRange[0].toISOString() : null;
-    const dataFim = dateRange[1] ? dateRange[1].toISOString() : null;
+    let dataInicio = null;
+    let dataFim = null;
+
+    // Se tem período rápido selecionado, calcular as datas
+    if (quickDateFilter) {
+      const calculatedDates = calculateQuickDateRange(quickDateFilter);
+      if (calculatedDates) {
+        dataInicio = calculatedDates[0].toISOString();
+        dataFim = calculatedDates[1].toISOString();
+      }
+    } 
+    // Senão, usar o RangePicker se estiver preenchido
+    else if (dateRange && dateRange.length === 2) {
+      dataInicio = dateRange[0].toISOString();
+      dataFim = dateRange[1].toISOString();
+    }
 
     // ✅ Usar função auxiliar para criar filtros aninhados
-    fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, dataInicio, dataFim);
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateRange]);
+    // Só passa o tipoData se houver filtros de data ativos
+    const tipoDataParaEnviar = (dataInicio && dataFim) ? dateFilterType : 'criacao';
+    
+    fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, dataInicio, dataFim, tipoDataParaEnviar);
+    
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateRange, quickDateFilter, calculateQuickDateRange]);
+
+  // ✅ Efeito separado para reaplicar filtros quando mudar o tipo de data (se houver filtros ativos)
+  useEffect(() => {
+    // Só reaplica se houver filtros de data ativos
+    const temFiltroDeData = quickDateFilter || (dateRange && dateRange.length === 2);
+    
+    if (temFiltroDeData) {
+      let dataInicio = null;
+      let dataFim = null;
+
+      // Recalcular as datas
+      if (quickDateFilter) {
+        const calculatedDates = calculateQuickDateRange(quickDateFilter);
+        if (calculatedDates) {
+          dataInicio = calculatedDates[0].toISOString();
+          dataFim = calculatedDates[1].toISOString();
+        }
+      } else if (dateRange && dateRange.length === 2) {
+        dataInicio = dateRange[0].toISOString();
+        dataFim = dateRange[1].toISOString();
+      }
+
+      // Reaplicar filtro com o novo tipo
+      if (dataInicio && dataFim) {
+        fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, dataInicio, dataFim, dateFilterType);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilterType]); // Só monitora mudanças no dateFilterType
 
   // Funções de manipulação de filtros
   const handleSearch = useCallback((value) => {
@@ -228,8 +314,23 @@ const Pedidos = () => {
     setCurrentPage(1);
   }, []);
 
+  // Handler para filtro rápido de período
+  const handleQuickDateChange = useCallback((value) => {
+    setQuickDateFilter(value);
+    if (value) {
+      // Limpa o RangePicker (excludente)
+      setDateRange([]);
+    }
+    setCurrentPage(1);
+  }, []);
+
+  // Handler para RangePicker
   const handleDateRangeChange = useCallback((dates) => {
     setDateRange(dates || []);
+    if (dates && dates.length > 0) {
+      // Limpa o período rápido (excludente)
+      setQuickDateFilter("");
+    }
     setCurrentPage(1);
   }, []);
 
@@ -238,9 +339,175 @@ const Pedidos = () => {
      setSearchTerm("");
      setAppliedFilters([]);
      setStatusFilter(""); // Reset para "Todos"
+     setDateFilterType("criacao"); // Reset para "Criação"
+     setQuickDateFilter(""); // Reset filtro rápido de período
      setDateRange([]);
      setCurrentPage(1);
    }, []);
+
+  /**
+   * ✅ Função para gerar PDF dos pedidos
+   * 
+   * IMPLEMENTAÇÃO FUTURA:
+   * Esta função será responsável por gerar um relatório PDF dos pedidos filtrados.
+   * 
+   * Opções de implementação:
+   * 
+   * 1. PASSAR FILTROS PARA O BACKEND:
+   *    - Enviar todos os filtros ativos para uma rota de PDF no backend
+   *    - Backend executa a query com os filtros e gera o PDF
+   *    - Vantagem: Backend controla a geração, melhor para grandes volumes
+   *    - Endpoint sugerido: POST /api/pedidos/exportar-pdf
+   * 
+   * 2. PASSAR DADOS JÁ FILTRADOS:
+   *    - Usar o array 'pedidos' que já está filtrado no frontend
+   *    - Enviar os dados para o backend ou gerar no próprio frontend
+   *    - Vantagem: Garante que o PDF contém exatamente o que o usuário vê
+   *    - Bibliotecas sugeridas: jsPDF, pdfmake, react-pdf
+   * 
+   * 3. HÍBRIDO:
+   *    - Enviar filtros + dados de paginação
+   *    - Backend valida e complementa informações
+   *    - Retorna PDF com dados completos e formatados
+   * 
+   * DADOS A INCLUIR NO PDF:
+   * - Título: "Relatório de Pedidos"
+   * - Data de geração
+   * - Filtros aplicados (descrição legível)
+   * - Tabela com pedidos: número, cliente, data, frutas, status, valores
+   * - Totalizadores: quantidade de pedidos, valor total, etc.
+   * - Logo da empresa (opcional)
+   * 
+   * BIBLIOTECAS RECOMENDADAS:
+   * - Backend: PDFKit (Node.js), Puppeteer (HTML to PDF)
+   * - Frontend: jsPDF, pdfmake, react-pdf
+   */
+  const handleGeneratePdf = useCallback(() => {
+    // ✅ COLETA DE FILTROS ATIVOS
+    const filtrosAtivos = [];
+
+    // Filtros de busca com chips
+    if (appliedFilters.length > 0) {
+      appliedFilters.forEach(filter => {
+        filtrosAtivos.push(`${filter.label}: ${filter.displayValue || filter.value}`);
+      });
+    }
+
+    // Filtro de status
+    if (statusFilter) {
+      filtrosAtivos.push(`Status: ${statusFilter.replace(/_/g, ' ')}`);
+    }
+
+    // Filtro de período rápido
+    if (quickDateFilter) {
+      const periodoNome = 
+        quickDateFilter === 'hoje' ? 'Hoje' :
+        quickDateFilter === 'semana' ? 'Esta semana' :
+        quickDateFilter === 'ultimos7' ? 'Últimos 7 dias' :
+        quickDateFilter === 'ultimos15' ? 'Últimos 15 dias' :
+        quickDateFilter === 'ultimos30' ? 'Últimos 30 dias' : quickDateFilter;
+      
+      const tipoDt = dateFilterType === 'criacao' ? 'Criação' : 'Previsão Colheita';
+      filtrosAtivos.push(`${tipoDt}: ${periodoNome}`);
+    }
+
+    // Filtro de range de datas
+    if (dateRange.length > 0) {
+      const tipoDt = dateFilterType === 'criacao' ? 'Criação' : 'Previsão Colheita';
+      const periodo = `${dateRange[0]?.format('DD/MM/YYYY')} - ${dateRange[1]?.format('DD/MM/YYYY')}`;
+      filtrosAtivos.push(`${tipoDt}: ${periodo}`);
+    }
+
+    // ✅ INFORMAÇÕES ADICIONAIS PARA O PDF
+    const dadosParaPdf = {
+      // Filtros aplicados
+      filtros: filtrosAtivos,
+      
+      // Dados dos pedidos (usar o array 'pedidos' que já está no estado)
+      pedidos: pedidos,
+      
+      // Total de registros
+      totalRegistros: totalPedidos,
+      
+      // Paginação atual
+      paginacao: {
+        paginaAtual: currentPage,
+        registrosPorPagina: pageSize,
+        totalPaginas: Math.ceil(totalPedidos / pageSize)
+      },
+      
+      // Data de geração
+      dataGeracao: moment().format('DD/MM/YYYY HH:mm:ss'),
+      
+      // Tipo de data usado no filtro
+      tipoDataFiltro: dateFilterType,
+    };
+
+    // ✅ POR ENQUANTO: Mostrar notificação com os filtros ativos
+    // PRÓXIMO PASSO: Chamar API ou biblioteca de PDF
+    if (filtrosAtivos.length === 0) {
+      showNotification(
+        'info',
+        'Gerar PDF',
+        'Nenhum filtro ativo. O PDF será gerado com todos os pedidos da página atual.'
+      );
+    } else {
+      const mensagem = filtrosAtivos.join(' | ');
+      showNotification(
+        'success',
+        'Em desenvolvimento',
+        `Filtros que serão aplicados: ${mensagem}`
+      );
+    }
+
+    // TODO: Implementar geração de PDF
+    console.log('📄 Dados preparados para PDF:', dadosParaPdf);
+    
+    /*
+    // EXEMPLO DE CHAMADA AO BACKEND (descomentar quando implementar):
+    
+    try {
+      const response = await axiosInstance.post('/api/pedidos/exportar-pdf', {
+        filtros: dadosParaPdf.filtros,
+        // Opção 1: Enviar apenas os filtros
+        filtrosQuery: {
+          appliedFilters,
+          statusFilter,
+          dateRange: dateRange.length > 0 ? {
+            inicio: dateRange[0].toISOString(),
+            fim: dateRange[1].toISOString()
+          } : null,
+          quickDateFilter,
+          dateFilterType
+        },
+        // Opção 2: Enviar os dados já filtrados
+        dadosPedidos: pedidos,
+        // Metadados
+        metadata: {
+          dataGeracao: dadosParaPdf.dataGeracao,
+          totalRegistros: dadosParaPdf.totalRegistros,
+          paginacao: dadosParaPdf.paginacao
+        }
+      }, {
+        responseType: 'blob' // Para receber o PDF como blob
+      });
+
+      // Criar URL do blob e fazer download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `pedidos_${moment().format('YYYY-MM-DD_HH-mm-ss')}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      showNotification('success', 'PDF gerado com sucesso!', 'O download iniciará em instantes.');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      showNotification('error', 'Erro ao gerar PDF', error.message);
+    }
+    */
+  }, [appliedFilters, statusFilter, quickDateFilter, dateRange, dateFilterType, pedidos, totalPedidos, currentPage, pageSize]);
 
   // Funções de manipulação de modais
   const handleOpenCreateModal = useCallback(() => {
@@ -287,7 +554,7 @@ const Pedidos = () => {
       
       handleCloseModal();
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
       
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);
@@ -297,7 +564,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, handleCloseModal]);
+  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateFilterType, handleCloseModal]);
 
   // Função para atualizar colheita
   const handleSaveColheita = useCallback(async (colheitaData) => {
@@ -312,7 +579,7 @@ const Pedidos = () => {
       setColheitaModalOpen(false);
       setPedidoSelecionado(null);
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
       
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
@@ -322,7 +589,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter]);
+  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateFilterType]);
 
   // Função para atualizar precificação
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {
@@ -339,7 +606,7 @@ const Pedidos = () => {
 
       setLoadingMessage("Atualizando lista de pedidos...");
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
 
     } catch (error) {
       console.error("Erro ao definir precificação:", error);
@@ -349,7 +616,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter]);
+  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateFilterType]);
 
   // Função para criar novo pagamento
   const handleNovoPagamento = useCallback(async (pagamentoData) => {
@@ -372,7 +639,7 @@ const Pedidos = () => {
       setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -404,7 +671,7 @@ const Pedidos = () => {
       setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -589,6 +856,93 @@ const Pedidos = () => {
             </Select>
           </Box>
 
+          {/* Divider entre filtros de status e toggle de data */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+            <Text style={{ display: "block", marginBottom: 8 }}>&nbsp;</Text>
+            <Divider 
+              type="vertical" 
+              style={{ 
+                height: isMobile ? "32px" : "48px",
+                margin: 0,
+                borderColor: "#d9d9d9",
+                borderWidth: "1px"
+              }} 
+            />
+          </Box>
+
+          {/* Toggle de Tipo de Data */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+            <Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
+              Data:
+            </Text>
+            <Segmented
+              options={[
+                { label: 'Criação', value: 'criacao' },
+                { label: 'Colheita', value: 'colheita' }
+              ]}
+              value={dateFilterType}
+              onChange={setDateFilterType}
+              size={isMobile ? "small" : "middle"}
+              style={{
+                fontWeight: "500"
+              }}
+            />
+          </Box>
+
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 180px" } }}>
+            <Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
+              Período:
+            </Text>
+            <Select
+              value={quickDateFilter}
+              onChange={handleQuickDateChange}
+              size={isMobile ? "small" : "middle"}
+              placeholder="Selecione"
+              allowClear
+              style={{
+                width: "100%",
+                height: isMobile ? "32px" : "40px",
+                marginBottom: "0",
+                fontSize: isMobile ? '0.875rem' : '1rem'
+              }}
+            >
+              <Option value="">
+                <CalendarOutlined style={{ marginRight: 8, color: '#8c8c8c' }} />
+                Personalizado
+              </Option>
+              <Option value="hoje">
+                <CalendarOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                Hoje
+              </Option>
+              <Option value="semana">
+                <CalendarOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+                Esta semana
+              </Option>
+              <Option value="ultimos7">
+                <CalendarOutlined style={{ marginRight: 8, color: '#faad14' }} />
+                Últimos 7 dias
+              </Option>
+              <Option value="ultimos15">
+                <CalendarOutlined style={{ marginRight: 8, color: '#fa8c16' }} />
+                Últimos 15 dias
+              </Option>
+              <Option value="ultimos30">
+                <CalendarOutlined style={{ marginRight: 8, color: '#eb2f96' }} />
+                Últimos 30 dias
+              </Option>
+            </Select>
+          </Box>
+
           <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 240px" } }}>
             <Text style={{
               display: "block",
@@ -596,7 +950,7 @@ const Pedidos = () => {
               fontWeight: 500,
               fontSize: isMobile ? '0.8125rem' : '0.875rem'
             }}>
-              Data de Criação:
+              {dateFilterType === 'criacao' ? 'Data de Criação:' : 'Data Prevista Colheita:'}
             </Text>
                          <RangePicker
                value={dateRange}
@@ -633,7 +987,7 @@ const Pedidos = () => {
         </Box>
 
         {/* Resumo dos filtros ativos */}
-        {(appliedFilters.length > 0 || statusFilter || dateRange.length > 0) && (
+        {(appliedFilters.length > 0 || statusFilter || quickDateFilter || dateRange.length > 0) && (
           <Box
             sx={{
               mt: 2,
@@ -642,15 +996,26 @@ const Pedidos = () => {
               display: "flex",
               flexWrap: "wrap",
               gap: isMobile ? 0.5 : 1,
-              alignItems: "center"
+              alignItems: "center",
+              justifyContent: "space-between"
             }}
           >
-            <Text strong style={{
-              fontSize: isMobile ? "0.6875rem" : "0.75rem",
-              color: "#666"
-            }}>
-              Filtros ativos:
-            </Text>
+            {/* Container dos filtros à esquerda */}
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: isMobile ? 0.5 : 1,
+                alignItems: "center",
+                flex: 1
+              }}
+            >
+              <Text strong style={{
+                fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                color: "#666"
+              }}>
+                Filtros ativos:
+              </Text>
             {appliedFilters.map((filter, index) => (
               <Tag
                 key={`${filter.type}-${filter.value}-${index}`}
@@ -686,6 +1051,25 @@ const Pedidos = () => {
                 Status: {statusFilter.replace(/_/g, ' ')}
               </Tag>
             )}
+            {quickDateFilter && (
+              <Tag
+                color="purple"
+                closable
+                onClose={() => setQuickDateFilter("")}
+                style={{
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
+                }}
+              >
+                {dateFilterType === 'criacao' ? '📅 Criação' : '📅 Previsão Colheita'}: {
+                  quickDateFilter === 'hoje' ? 'Hoje' :
+                  quickDateFilter === 'semana' ? 'Esta semana' :
+                  quickDateFilter === 'ultimos7' ? 'Últimos 7 dias' :
+                  quickDateFilter === 'ultimos15' ? 'Últimos 15 dias' :
+                  quickDateFilter === 'ultimos30' ? 'Últimos 30 dias' : quickDateFilter
+                }
+              </Tag>
+            )}
             {dateRange.length > 0 && (
               <Tag
                 color="orange"
@@ -696,9 +1080,34 @@ const Pedidos = () => {
                   padding: isMobile ? "2px 6px" : "4px 8px"
                 }}
               >
-                Período: {dateRange[0]?.format('DD/MM/YYYY')} - {dateRange[1]?.format('DD/MM/YYYY')}
+                {dateFilterType === 'criacao' ? '📅 Criação' : '📅 Previsão Colheita'}: {dateRange[0]?.format('DD/MM/YYYY')} - {dateRange[1]?.format('DD/MM/YYYY')}
               </Tag>
             )}
+            </Box>
+
+            {/* Botão PDF à direita */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                ml: isMobile ? 0 : 2,
+                mt: isMobile ? 1 : 0,
+                width: isMobile ? "100%" : "auto"
+              }}
+            >
+              <PDFButton
+                onClick={handleGeneratePdf}
+                size={isMobile ? "small" : "middle"}
+                tooltip="Gerar relatório PDF com os filtros ativos"
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  fontSize: isMobile ? "0.75rem" : "0.875rem",
+                  height: isMobile ? "28px" : "32px"
+                }}
+              >
+                Gerar PDF
+              </PDFButton>
+            </Box>
           </Box>
         )}
       </Box>
@@ -752,7 +1161,7 @@ const Pedidos = () => {
                 setPageSize(size);
               }}
               showSizeChanger={!isMobile}
-              showQuickJumper={!isMobile}
+              showQuickJumper={false}
               showTotal={(total, range) =>
                 isMobile
                   ? `${range[0]}-${range[1]}/${total}`

@@ -30,9 +30,11 @@ import {
   BankOutlined,
   InfoCircleOutlined,
   TagOutlined,
-  BuildOutlined
+  BuildOutlined,
+  CloseCircleOutlined,
+  CheckCircleOutlined
 } from "@ant-design/icons";
-import { formatarValorMonetario, numberFormatter, capitalizeName } from "../../utils/formatters";
+import { formatarValorMonetario, numberFormatter, capitalizeName, intFormatter } from "../../utils/formatters";
 import { PDFButton } from "../common/buttons";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
@@ -305,18 +307,6 @@ const VisualizarPedidoModal = ({
 
   if (!pedido) return null;
 
-  // DEBUG: Log dos dados do pedido para verificar estrutura
-  console.log('=== DEBUG VISUALIZAR PEDIDO ===');
-  console.log('Pedido completo:', JSON.stringify(pedido, null, 2));
-  console.log('Frutas do pedido:', JSON.stringify(pedido.frutasPedidos, null, 2));
-  if (pedido.frutasPedidos && pedido.frutasPedidos.length > 0) {
-    pedido.frutasPedidos.forEach((frutaPedido, index) => {
-      console.log(`Fruta ${index + 1} - Áreas:`, JSON.stringify(frutaPedido.areas, null, 2));
-      console.log(`Fruta ${index + 1} - Fitas:`, JSON.stringify(frutaPedido.fitas, null, 2));
-    });
-  }
-  console.log('=== FIM DEBUG ===');
-
   const statusConfig = getStatusConfig(pedido.status);
 
   return (
@@ -387,7 +377,8 @@ const VisualizarPedidoModal = ({
           borderBottom: "0.125rem solid #047857", 
           padding: 0 
         },
-        wrapper: { zIndex: 1000 }
+        wrapper: { zIndex: 1200 },
+        mask: { zIndex: 1200 }
       }}
     >
       {/* Seção 1: Dados Básicos */}
@@ -867,6 +858,326 @@ const VisualizarPedidoModal = ({
               </Paragraph>
             </div>
           )}
+        </Card>
+      )}
+
+      {/* Seção 3.5: Custos de Colheita (Mão de Obra) */}
+      {pedido.custosColheita && pedido.custosColheita.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <UserOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                Custos de Colheita (Mão de Obra)
+              </span>
+            </Space>
+          }
+          style={{ 
+            marginBottom: isMobile ? 12 : 16,
+            border: "0.0625rem solid #e8e8e8",
+            borderRadius: "0.5rem"
+          }}
+          styles={{ 
+            header: { 
+              backgroundColor: "#059669", 
+              color: "#ffffff", 
+              borderRadius: "0.5rem 0.5rem 0 0",
+              borderBottom: "0.125rem solid #047857",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: { 
+              padding: isMobile ? "12px" : "16px" 
+            }
+          }}
+        >
+          {/* Lista de Turmas com Scroll */}
+          <div style={{
+            maxHeight: pedido.custosColheita.length > 5 ? "400px" : "auto",
+            overflowY: pedido.custosColheita.length > 5 ? "auto" : "visible",
+            marginBottom: "16px",
+            paddingRight: pedido.custosColheita.length > 5 ? "8px" : "0"
+          }}>
+            {pedido.custosColheita.map((custo, index) => (
+              <div 
+                key={custo.id || index}
+                style={{
+                  backgroundColor: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  padding: "16px",
+                  marginBottom: index < pedido.custosColheita.length - 1 ? "12px" : "0"
+                }}
+              >
+                <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]} align="middle">
+                  {/* Turma */}
+                  <Col xs={24} sm={12} md={8}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <UserOutlined style={{ fontSize: "18px", color: "#059669" }} />
+                      <div>
+                        <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                          TURMA / COLHEDOR
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#1e293b", display: "block", marginTop: "2px" }}>
+                          {capitalizeName(custo.turmaColheita?.nomeColhedor || 'Não informado')}
+                        </Text>
+                      </div>
+                    </div>
+                  </Col>
+
+                  {/* Fruta */}
+                  <Col xs={24} sm={12} md={5}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <AppleOutlined style={{ fontSize: "18px", color: "#10b981" }} />
+                      <div>
+                        <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                          FRUTA
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#1e293b", display: "block", marginTop: "2px" }}>
+                          {capitalizeName(custo.fruta?.nome || '-')}
+                        </Text>
+                      </div>
+                    </div>
+                  </Col>
+
+                  {/* Quantidade */}
+                  <Col xs={12} sm={8} md={5}>
+                    <div>
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                        QUANTIDADE
+                      </Text>
+                      <Text strong style={{ fontSize: "14px", color: "#1e293b", display: "block", marginTop: "2px" }}>
+                        {numberFormatter(custo.quantidadeColhida || 0)} {custo.unidadeMedida || ''}
+                      </Text>
+                    </div>
+                  </Col>
+
+                  {/* Valor */}
+                  <Col xs={12} sm={8} md={6}>
+                    <div>
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                        VALOR
+                      </Text>
+                      <Text strong style={{ 
+                        fontSize: "16px", 
+                        color: "#059669", 
+                        display: "block", 
+                        marginTop: "2px",
+                        fontWeight: "700"
+                      }}>
+                        {formatarValorMonetario(custo.valorColheita || 0)}
+                      </Text>
+                    </div>
+                  </Col>
+                </Row>
+
+                {/* Observações - se existir */}
+                {custo.observacoes && (
+                  <div style={{ 
+                    marginTop: "12px",
+                    paddingTop: "12px",
+                    borderTop: "1px solid #e2e8f0"
+                  }}>
+                    <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600" }}>
+                      Observações:
+                    </Text>
+                    <Text style={{ 
+                      fontSize: "13px", 
+                      color: "#475569", 
+                      fontStyle: "italic",
+                      marginLeft: "8px"
+                    }}>
+                      {custo.observacoes}
+                    </Text>
+                  </div>
+                )}
+
+                {/* Status de Pagamento */}
+                <div style={{ 
+                  marginTop: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}>
+                  {custo.pagamentoEfetuado ? (
+                    <>
+                      <CheckCircleOutlined style={{ color: "#10b981", fontSize: "16px" }} />
+                      <Tag color="success" style={{ margin: 0 }}>Pagamento Efetuado</Tag>
+                      {custo.dataPagamento && (
+                        <Text style={{ fontSize: "12px", color: "#64748b", marginLeft: "8px" }}>
+                          em {formatarData(custo.dataPagamento)}
+                        </Text>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <CloseCircleOutlined style={{ color: "#f59e0b", fontSize: "16px" }} />
+                      <Tag color="warning" style={{ margin: 0 }}>Pagamento Pendente</Tag>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Resumo - Fora do Scroll */}
+          <div style={{
+            backgroundColor: "#ecfdf5",
+            border: "2px solid #10b981",
+            borderRadius: "12px",
+            padding: "20px",
+            marginTop: "16px"
+          }}>
+            <Title level={5} style={{ 
+              color: "#059669", 
+              marginBottom: "16px", 
+              marginTop: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
+            }}>
+              <CalculatorOutlined />
+              Resumo dos Custos de Colheita
+            </Title>
+            
+            <Row gutter={[16, 16]}>
+              {/* Total de Turmas */}
+              <Col xs={24} sm={12} md={8}>
+                <div style={{ textAlign: "center" }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                    QUANTIDADE DE TURMAS 
+                  </Text>
+                  <Text style={{ 
+                    fontSize: "24px", 
+                    fontWeight: "700", 
+                    color: "#059669",
+                    display: "block",
+                    marginTop: "4px"
+                  }}>
+                    {pedido.custosColheita.length}
+                  </Text>
+                </div>
+              </Col>
+
+              {/* Quantidade Total */}
+              <Col xs={24} sm={12} md={8}>
+                <div style={{ textAlign: "center" }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                    QUANTIDADE TOTAL
+                  </Text>
+                  {(() => {
+                    // Agrupar quantidades por unidade de medida
+                    const quantidadesPorUnidade = pedido.custosColheita.reduce((acc, custo) => {
+                      const unidade = custo.unidadeMedida || 'Sem unidade';
+                      if (!acc[unidade]) {
+                        acc[unidade] = 0;
+                      }
+                      acc[unidade] += custo.quantidadeColhida || 0;
+                      return acc;
+                    }, {});
+
+                    const unidades = Object.keys(quantidadesPorUnidade);
+
+                    return (
+                      <div style={{ 
+                        marginTop: "4px",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        gap: "12px"
+                      }}>
+                        {unidades.map((unidade, index) => (
+                          <React.Fragment key={unidade}>
+                            <div style={{ 
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center"
+                            }}>
+                              <Text style={{ 
+                                fontSize: "24px", 
+                                fontWeight: "700", 
+                                color: "#059669",
+                                display: "block",
+                                lineHeight: "1"
+                              }}>
+                                {intFormatter(quantidadesPorUnidade[unidade])}
+                              </Text>
+                              <Text style={{ 
+                                fontSize: "11px", 
+                                color: "#64748b", 
+                                display: "block",
+                                marginTop: "4px"
+                              }}>
+                                {unidade}
+                              </Text>
+                            </div>
+                            {index < unidades.length - 1 && (
+                              <div style={{
+                                width: "6px",
+                                height: "6px",
+                                backgroundColor: "#94a3b8",
+                                borderRadius: "50%",
+                                flexShrink: 0
+                              }} />
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </Col>
+
+              {/* Valor Total */}
+              <Col xs={24} sm={24} md={8}>
+                <div style={{ textAlign: "center" }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                    VALOR TOTAL
+                  </Text>
+                  <Text style={{ 
+                    fontSize: "28px", 
+                    fontWeight: "700", 
+                    color: "#059669",
+                    display: "block",
+                    marginTop: "4px"
+                  }}>
+                    {formatarValorMonetario(
+                      pedido.custosColheita.reduce((total, custo) => 
+                        total + (custo.valorColheita || 0), 0
+                      )
+                    )}
+                  </Text>
+                </div>
+              </Col>
+            </Row>
+
+            {/* Indicador de Pagamentos */}
+            <Divider style={{ margin: "16px 0" }} />
+            <Row gutter={[16, 8]}>
+              <Col xs={12}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <CheckCircleOutlined style={{ color: "#10b981", fontSize: "16px" }} />
+                  <Text style={{ fontSize: "13px", color: "#475569" }}>
+                    <Text strong style={{ color: "#059669" }}>
+                      {pedido.custosColheita.filter(c => c.pagamentoEfetuado).length}
+                    </Text>
+                    {' '}pagamento(s) efetuado(s)
+                  </Text>
+                </div>
+              </Col>
+              <Col xs={12}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <CloseCircleOutlined style={{ color: "#f59e0b", fontSize: "16px" }} />
+                  <Text style={{ fontSize: "13px", color: "#475569" }}>
+                    <Text strong style={{ color: "#d97706" }}>
+                      {pedido.custosColheita.filter(c => !c.pagamentoEfetuado).length}
+                    </Text>
+                    {' '}pagamento(s) pendente(s)
+                  </Text>
+                </div>
+              </Col>
+            </Row>
+          </div>
         </Card>
       )}
 

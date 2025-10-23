@@ -227,6 +227,7 @@ export class PedidosController {
     @Query('clienteId') clienteId?: number,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: 'criacao' | 'colheita',
     @Query('filters') filters?: string[],
     @Req() request?: any,
   ) {
@@ -246,6 +247,7 @@ export class PedidosController {
       clienteId,
       dataInicioDate,
       dataFimDate,
+      tipoData,
       filters,
       usuarioNivel,
       usuarioCulturaId,

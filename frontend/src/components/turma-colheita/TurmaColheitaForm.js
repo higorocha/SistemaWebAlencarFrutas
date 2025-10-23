@@ -135,6 +135,34 @@ const TurmaColheitaForm = ({
             </Col>
           </Row>
 
+          <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]}>
+            <Col xs={24}>
+              <Form.Item
+                label={
+                  <Space>
+                    <UserOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Responsável pela Chave PIX (Opcional)</span>
+                  </Space>
+                }
+                validateStatus={erros.responsavelChavePix ? "error" : ""}
+                help={erros.responsavelChavePix}
+              >
+                <Input
+                  placeholder="Nome da pessoa responsável pela chave PIX"
+                  value={turmaAtual.responsavelChavePix}
+                  onChange={(e) => handleFieldChange("responsavelChavePix", e.target.value)}
+                  maxLength={100}
+                  style={{
+                    borderRadius: "6px",
+                    borderColor: erros.responsavelChavePix ? "#ff4d4f" : "#d9d9d9",
+                    height: isMobile ? 36 : undefined,
+                  }}
+                  size={isMobile ? "middle" : "large"}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
         </Card>
 
         {/* Seção 2: Observações */}

@@ -436,14 +436,15 @@ model HistoricoFitas {
 }
 
 model TurmaColheita {
-  id             Int                        @id @default(autoincrement())
-  nomeColhedor   String                     @db.VarChar(100)
-  chavePix       String?                    @db.VarChar(100)
-  observacoes    String?
-  createdAt      DateTime                   @default(now())
-  updatedAt      DateTime                   @updatedAt
-  dataCadastro   DateTime                   @default(now())
-  custosColheita TurmaColheitaPedidoCusto[]
+  id                   Int                        @id @default(autoincrement())
+  nomeColhedor         String                     @db.VarChar(100)
+  chavePix             String?                    @db.VarChar(100)
+  responsavelChavePix  String?                   @db.VarChar(100)
+  observacoes          String?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  dataCadastro         DateTime                   @default(now())
+  custosColheita       TurmaColheitaPedidoCusto[]
 
   @@map("turma_colheita")
 }

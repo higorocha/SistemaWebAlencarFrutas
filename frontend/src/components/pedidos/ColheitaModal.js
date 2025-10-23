@@ -21,6 +21,7 @@ import {
   PlusOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
+  DollarOutlined,
 } from "@ant-design/icons";
 import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
@@ -38,8 +39,162 @@ const { Option } = Select;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+// Componente de Resumo com atualização em tempo real
+const ResumoMaoObra = ({ form, isMobile }) => {
+  // ✅ Monitorar mudanças em tempo real
+  const maoObraAtual = Form.useWatch('maoObra', form) || [];
 
+  // Filtrar apenas itens válidos (com todos os campos preenchidos)
+  const maoObraValida = maoObraAtual.filter(item =>
+    item && item.turmaColheitaId && item.quantidadeColhida && item.valorColheita
+  );
 
+  // Calcular resumo
+  const resumo = {
+    totalColheitadores: maoObraValida.length,
+    quantidadePorUnidade: {},
+    valorTotal: 0
+  };
+
+  maoObraValida.forEach(item => {
+    const unidade = item.unidadeMedida || 'N/A';
+    const quantidade = parseInt(item.quantidadeColhida) || 0; // ✅ Inteiro, não decimal
+    const valor = parseFloat(item.valorColheita) || 0;
+
+    if (!resumo.quantidadePorUnidade[unidade]) {
+      resumo.quantidadePorUnidade[unidade] = 0;
+    }
+
+    resumo.quantidadePorUnidade[unidade] += quantidade;
+    resumo.valorTotal += valor;
+  });
+
+  // ✅ Sempre exibir (não condicional)
+  return (
+    <div style={{ marginTop: isMobile ? "12px" : "16px" }}>
+      <Row gutter={[isMobile ? 8 : 20, isMobile ? 8 : 16]} align="middle">
+        {/* Card 1: Colheitadores */}
+        <Col xs={24} sm={8}>
+          <div style={{
+            backgroundColor: "#f0f9ff",
+            border: "2px solid #0ea5e9",
+            borderRadius: "12px",
+            padding: "16px",
+            textAlign: "center",
+            boxShadow: "0 2px 8px rgba(14, 165, 233, 0.15)",
+            minHeight: "100px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center"
+          }}>
+            <div style={{ marginBottom: "8px" }}>
+              <TeamOutlined style={{ fontSize: "24px", color: "#0ea5e9" }} />
+            </div>
+            <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+              COLHEITADORES
+            </Text>
+            <Text style={{ fontSize: "20px", fontWeight: "700", color: "#0f172a", display: "block" }}>
+              {resumo.totalColheitadores}
+            </Text>
+          </div>
+        </Col>
+
+        {/* Card 2: Quantidade Total */}
+        <Col xs={24} sm={8}>
+          <div style={{
+            backgroundColor: "#f0fdf4",
+            border: "2px solid #22c55e",
+            borderRadius: "12px",
+            padding: "16px",
+            textAlign: "center",
+            boxShadow: "0 2px 8px rgba(34, 197, 94, 0.15)",
+            minHeight: "100px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center"
+          }}>
+            <div style={{ marginBottom: "8px" }}>
+              <CalculatorOutlined style={{ fontSize: "24px", color: "#22c55e" }} />
+            </div>
+            <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+              QUANTIDADE TOTAL
+            </Text>
+            <div style={{ 
+              fontSize: "20px", 
+              fontWeight: "700", 
+              color: "#15803d",
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: isMobile ? "4px" : "8px",
+              lineHeight: "1.2"
+            }}>
+              {Object.keys(resumo.quantidadePorUnidade).length > 0 ? (
+                Object.entries(resumo.quantidadePorUnidade).map(([unidade, qtd], idx) => (
+                  <React.Fragment key={idx}>
+                    <span style={{ 
+                      fontSize: "16px",
+                      display: "inline-block",
+                      whiteSpace: "nowrap"
+                    }}>
+                      {qtd.toLocaleString('pt-BR')} {unidade}
+                    </span>
+                    {idx < Object.entries(resumo.quantidadePorUnidade).length - 1 && (
+                      <span style={{
+                        fontSize: "12px",
+                        color: "#22c55e",
+                        margin: "0 4px",
+                        display: "inline-block"
+                      }}>
+                        •
+                      </span>
+                    )}
+                  </React.Fragment>
+                ))
+              ) : (
+                <span style={{ color: "#94a3b8", fontSize: "16px" }}>-</span>
+              )}
+            </div>
+          </div>
+        </Col>
+
+        {/* Card 3: Valor Total */}
+        <Col xs={24} sm={8}>
+          <div style={{
+            backgroundColor: "#fffbeb",
+            border: "2px solid #f59e0b",
+            borderRadius: "12px",
+            padding: "16px",
+            textAlign: "center",
+            boxShadow: "0 2px 8px rgba(245, 158, 11, 0.15)",
+            minHeight: "100px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center"
+          }}>
+            <div style={{ marginBottom: "8px" }}>
+              <DollarOutlined style={{ fontSize: "24px", color: "#f59e0b" }} />
+            </div>
+            <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+              VALOR TOTAL
+            </Text>
+            <Text style={{ fontSize: "20px", fontWeight: "700", color: "#d97706", display: "block" }}>
+              {resumo.valorTotal > 0 ? (
+                `R$ ${resumo.valorTotal.toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })}`
+              ) : (
+                <span style={{ color: "#94a3b8" }}>R$ 0,00</span>
+              )}
+            </Text>
+          </div>
+        </Col>
+      </Row>
+    </div>
+  );
+};
 
 const ColheitaModal = ({
   open,
@@ -1583,48 +1738,55 @@ const ColheitaModal = ({
           <Form.List name="maoObra">
             {(fields, { add, remove }) => (
               <>
-                {/* Cabeçalho das colunas */}
-                {!isMobile && (
-                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
-                    <Col xs={24} md={6}>
-                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                        <TeamOutlined style={{ marginRight: "0.5rem" }} />
-                        Turma de Colheita
-                      </span>
-                    </Col>
-                    <Col xs={24} md={4}>
-                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                        <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
-                        Quantidade
-                      </span>
-                    </Col>
-                    <Col xs={24} md={3}>
-                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                        <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
-                        Unidade
-                      </span>
-                    </Col>
-                    <Col xs={24} md={4}>
-                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                        <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
-                        Valor (R$)
-                      </span>
-                    </Col>
-                    <Col xs={24} md={5}>
-                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                        <FileTextOutlined style={{ marginRight: "0.5rem" }} />
-                        Observações
-                      </span>
-                    </Col>
-                    <Col xs={24} md={2}>
-                      <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                        Ações
-                      </span>
-                    </Col>
-                  </Row>
-                )}
+                  {/* Área de scroll com altura máxima para 5 linhas */}
+                  <div style={{
+                    maxHeight: isMobile ? 'auto' : '480px', // ~96px por linha × 5 linhas
+                    overflowY: fields.length > 5 ? 'auto' : 'visible',
+                    marginBottom: isMobile ? '12px' : '16px',
+                    paddingRight: fields.length > 5 ? '8px' : '0'
+                  }}>
+                    {/* Cabeçalho das colunas */}
+                    {!isMobile && (
+                      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
+                        <Col xs={24} md={6}>
+                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                            <TeamOutlined style={{ marginRight: "0.5rem" }} />
+                            Turma de Colheita
+                          </span>
+                        </Col>
+                        <Col xs={24} md={4}>
+                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                            <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                            Quantidade
+                          </span>
+                        </Col>
+                        <Col xs={24} md={3}>
+                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                            <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                            Unidade
+                          </span>
+                        </Col>
+                        <Col xs={24} md={4}>
+                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                            <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                            Valor (R$)
+                          </span>
+                        </Col>
+                        <Col xs={24} md={5}>
+                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                            <FileTextOutlined style={{ marginRight: "0.5rem" }} />
+                            Observações
+                          </span>
+                        </Col>
+                        <Col xs={24} md={2}>
+                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                            Ações
+                          </span>
+                        </Col>
+                      </Row>
+                    )}
 
-                {fields.map(({ key, name, ...restField }, index) => {
+                    {fields.map(({ key, name, ...restField }, index) => {
                   // Obter dados da turma selecionada para exibir no identificador
                   const maoObraItem = form.getFieldValue('maoObra')?.[index];
                   const turmaSelecionada = turmasColheita.find(t => t.id === maoObraItem?.turmaColheitaId);
@@ -1725,8 +1887,13 @@ const ColheitaModal = ({
                             }}
                           >
                             {turmasColheita.map((turma) => (
-                              <Option key={turma.id} value={turma.id}>
-                                {turma.nomeColhedor}
+                              <Option 
+                                key={turma.id} 
+                                value={turma.id}
+                              >
+                                <Tooltip title={capitalizeName(turma.nomeColhedor)} placement="top">
+                                  <span>{capitalizeName(turma.nomeColhedor)}</span>
+                                </Tooltip>
                               </Option>
                             ))}
                           </Select>
@@ -1975,8 +2142,12 @@ const ColheitaModal = ({
                   </div>
                   );
                 })}
-              </>
-            )}
+                  </div>
+
+                  {/* 📊 RESUMO FIXO DA MÃO DE OBRA */}
+                  <ResumoMaoObra form={form} isMobile={isMobile} />
+                </>
+              )}
           </Form.List>
         </Card>
 

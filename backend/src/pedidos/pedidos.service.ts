@@ -133,6 +133,26 @@ export class PedidosService {
             createdAt: true,
             updatedAt: true
           }
+        },
+        custosColheita: {
+          include: {
+            turmaColheita: {
+              select: {
+                id: true,
+                nomeColhedor: true,
+                chavePix: true,
+                responsavelChavePix: true,
+                observacoes: true,
+                dataCadastro: true
+              }
+            },
+            fruta: {
+              select: {
+                id: true,
+                nome: true
+              }
+            }
+          }
         }
       },
       orderBy: [
@@ -733,6 +753,7 @@ export class PedidosService {
     clienteId?: number,
     dataInicio?: Date,
     dataFim?: Date,
+    tipoData?: 'criacao' | 'colheita',
     filters?: string[],
     usuarioNivel?: string,
     usuarioCulturaId?: number,
@@ -1001,10 +1022,20 @@ export class PedidosService {
       const endOfDay = new Date(dataFim);
       endOfDay.setHours(23, 59, 59, 999);
 
-      where.createdAt = {
-        gte: startOfDay,
-        lte: endOfDay,
-      };
+      // Filtrar por tipo de data: criacao (dataPedido) ou colheita (dataPrevistaColheita)
+      if (tipoData === 'colheita') {
+        // Quando filtrar por colheita, usar dataPrevistaColheita
+        where.dataPrevistaColheita = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
+      } else {
+        // Padrão: filtrar por data de criação (dataPedido ou createdAt)
+        where.createdAt = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
+      }
     }
 
     const [pedidos, total] = await Promise.all([
@@ -1012,7 +1043,7 @@ export class PedidosService {
         where,
         skip,
         take,
-        orderBy: { dataPedido: 'desc' },
+        orderBy: { updatedAt: 'desc' },
         include: {
           cliente: {
             select: { id: true, nome: true, industria: true }
@@ -1083,7 +1114,27 @@ export class PedidosService {
               }
             }
           },
-          pagamentosPedidos: true
+          pagamentosPedidos: true,
+          custosColheita: {
+            include: {
+              turmaColheita: {
+                select: {
+                  id: true,
+                  nomeColhedor: true,
+                  chavePix: true,
+                  responsavelChavePix: true,
+                  observacoes: true,
+                  dataCadastro: true
+                }
+              },
+              fruta: {
+                select: {
+                  id: true,
+                  nome: true
+                }
+              }
+            }
+          }
         }
       }),
       this.prisma.pedido.count({ where }),
@@ -1158,7 +1209,7 @@ export class PedidosService {
     const [pedidos, total] = await Promise.all([
       this.prisma.pedido.findMany({
         where,
-        orderBy: { dataPedido: 'desc' },
+        orderBy: { updatedAt: 'desc' },
         include: {
           cliente: {
             select: { id: true, nome: true, industria: true }
@@ -1217,7 +1268,27 @@ export class PedidosService {
               }
             }
           },
-          pagamentosPedidos: true
+          pagamentosPedidos: true,
+          custosColheita: {
+            include: {
+              turmaColheita: {
+                select: {
+                  id: true,
+                  nomeColhedor: true,
+                  chavePix: true,
+                  responsavelChavePix: true,
+                  observacoes: true,
+                  dataCadastro: true
+                }
+              },
+              fruta: {
+                select: {
+                  id: true,
+                  nome: true
+                }
+              }
+            }
+          }
         }
       }),
       this.prisma.pedido.count({ where })
@@ -1303,7 +1374,27 @@ export class PedidosService {
             }
           }
         },
-        pagamentosPedidos: true
+        pagamentosPedidos: true,
+        custosColheita: {
+          include: {
+            turmaColheita: {
+              select: {
+                id: true,
+                nomeColhedor: true,
+                chavePix: true,
+                responsavelChavePix: true,
+                observacoes: true,
+                dataCadastro: true
+              }
+            },
+            fruta: {
+              select: {
+                id: true,
+                nome: true
+              }
+            }
+          }
+        }
       }
     });
 
@@ -1410,7 +1501,27 @@ export class PedidosService {
             }
           }
         },
-        pagamentosPedidos: true
+        pagamentosPedidos: true,
+        custosColheita: {
+          include: {
+            turmaColheita: {
+              select: {
+                id: true,
+                nomeColhedor: true,
+                chavePix: true,
+                responsavelChavePix: true,
+                observacoes: true,
+                dataCadastro: true
+              }
+            },
+            fruta: {
+              select: {
+                id: true,
+                nome: true
+              }
+            }
+          }
+        }
       }
     });
 
@@ -2199,10 +2310,6 @@ export class PedidosService {
             const frutaMudouTipo = frutaPedidoAtual.frutaId !== fruta.frutaId;
             
             if (frutaMudouTipo) {
-              console.log('🔄 DEBUG updateCompleto - Fruta mudou de tipo, removendo e recriando:', {
-                frutaAntiga: frutaPedidoAtual.frutaId,
-                frutaNova: fruta.frutaId
-              });
 
               // Remover fruta antiga completamente (áreas, fitas e fruta)
               await prisma.frutasPedidosAreas.deleteMany({
@@ -2577,7 +2684,6 @@ export class PedidosService {
 
         }
 
-        console.log('🔄 DEBUG updateCompleto - FIM DO LOOP PRINCIPAL - Todas as frutas processadas');
       }
 
       // Recalcular valor final se houver alterações financeiras ou nas frutas

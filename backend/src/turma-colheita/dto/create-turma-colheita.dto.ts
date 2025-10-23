@@ -19,6 +19,14 @@ export class CreateTurmaColheitaDto {
   chavePix?: string;
 
   @ApiPropertyOptional({
+    description: 'Responsável pela chave PIX',
+    example: 'Maria Santos',
+  })
+  @IsOptional()
+  @IsString()
+  responsavelChavePix?: string;
+
+  @ApiPropertyOptional({
     description: 'Data de cadastro da turma',
     example: '2024-12-15T10:00:00Z',
   })

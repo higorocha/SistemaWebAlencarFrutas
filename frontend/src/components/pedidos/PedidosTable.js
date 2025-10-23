@@ -143,10 +143,26 @@ const PedidosTable = ({
     setFrutasModalOpen(true);
   };
 
+  // Função para buscar pedido atualizado do banco
+  const buscarPedidoAtualizado = async (pedidoId) => {
+    try {
+      const response = await axiosInstance.get(`/api/pedidos/${pedidoId}`);
+      return response.data;
+    } catch (error) {
+      console.error("Erro ao buscar pedido:", error);
+      showNotification("error", "Erro", "Erro ao carregar dados atualizados do pedido");
+      return null;
+    }
+  };
+
   // Função para abrir modal de visualização
-  const handleOpenVisualizarModal = (pedido) => {
-    setPedidoSelecionado(pedido);
-    setVisualizarModalOpen(true);
+  const handleOpenVisualizarModal = async (pedido) => {
+    // Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
+    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
+    if (pedidoAtualizado) {
+      setPedidoSelecionado(pedidoAtualizado);
+      setVisualizarModalOpen(true);
+    }
   };
 
   // Função para abrir modal de confirmação de exclusão
