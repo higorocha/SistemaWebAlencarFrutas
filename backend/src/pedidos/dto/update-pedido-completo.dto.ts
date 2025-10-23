@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsNumber, IsString, IsDateString, IsEnum, IsArray, ValidateNested, IsPositive, IsNotEmpty } from 'class-validator';
+import { IsOptional, IsNumber, IsString, IsDateString, IsEnum, IsArray, ValidateNested, IsPositive, IsNotEmpty, Min } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 // Definindo os tipos dos enums
@@ -48,22 +48,22 @@ export class UpdateCompletoAreaDto {
 
   @ApiPropertyOptional({
     description: 'Quantidade colhida nesta área (unidade 1)',
-    example: 500.25,
+    example: 500,
   })
   @Type(() => Number)
   @IsOptional()
   @IsNumber()
-  @IsPositive()
+  @Min(0)
   quantidadeColhidaUnidade1?: number;
 
   @ApiPropertyOptional({
     description: 'Quantidade colhida nesta área (unidade 2)',
-    example: 25.5,
+    example: 25,
   })
   @Type(() => Number)
   @IsOptional()
   @IsNumber()
-  @IsPositive()
+  @Min(0)
   quantidadeColhidaUnidade2?: number;
 }
 

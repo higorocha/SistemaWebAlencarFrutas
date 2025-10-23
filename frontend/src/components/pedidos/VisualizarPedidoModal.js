@@ -548,7 +548,7 @@ const VisualizarPedidoModal = ({
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                           {frutaPedido.areas.map((area, areaIndex) => (
                             <div key={areaIndex} style={{ marginBottom: "4px" }}>
-                              <Tag 
+                              <Tag
                                 color={area.areaPropria ? "green" : area.areaFornecedor ? "blue" : "orange"}
                                 style={{ marginBottom: "2px" }}
                               >
@@ -556,11 +556,21 @@ const VisualizarPedidoModal = ({
                                   <span>
                                     <EnvironmentOutlined style={{ marginRight: 4 }} />
                                     {area.areaPropria.nome}
+                                    {area.quantidadeColhidaUnidade1 > 0 && (
+                                      <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
+                                        ({area.quantidadeColhidaUnidade1.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
+                                      </span>
+                                    )}
                                   </span>
                                 ) : area.areaFornecedor ? (
                                   <span>
                                     <UserOutlined style={{ marginRight: 4 }} />
                                     {area.areaFornecedor.fornecedor?.nome} • {area.areaFornecedor.nome}
+                                    {area.quantidadeColhidaUnidade1 > 0 && (
+                                      <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
+                                        ({area.quantidadeColhidaUnidade1.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
+                                      </span>
+                                    )}
                                   </span>
                                 ) : (
                                   <span style={{ color: "#f59e0b" }}>

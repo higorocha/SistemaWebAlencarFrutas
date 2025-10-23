@@ -78,7 +78,13 @@ export class PedidosService {
               }
             },
             areas: {
-              include: {
+              select: {
+                id: true,
+                areaPropriaId: true,
+                areaFornecedorId: true,
+                observacoes: true,
+                quantidadeColhidaUnidade1: true,
+                quantidadeColhidaUnidade2: true,
                 areaPropria: {
                   select: {
                     id: true,
@@ -387,6 +393,8 @@ export class PedidosService {
               areaPropriaId: area.areaPropriaId || null,
               areaFornecedorId: area.areaFornecedorId || null,
               observacoes: area.observacoes,
+              quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+              quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
             },
           });
         }
@@ -673,6 +681,8 @@ export class PedidosService {
               areaPropriaId: area.areaPropriaId || null,
               areaFornecedorId: area.areaFornecedorId || null,
               observacoes: area.observacoes,
+              quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+              quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
             },
           });
         }
@@ -1022,7 +1032,13 @@ export class PedidosService {
                 }
               },
               areas: {
-                include: {
+                select: {
+                  id: true,
+                  areaPropriaId: true,
+                  areaFornecedorId: true,
+                  observacoes: true,
+                  quantidadeColhidaUnidade1: true,
+                  quantidadeColhidaUnidade2: true,
                   areaPropria: {
                     select: { id: true, nome: true }
                   },
@@ -1162,7 +1178,13 @@ export class PedidosService {
                 }
               },
               areas: {
-                include: {
+                select: {
+                  id: true,
+                  areaPropriaId: true,
+                  areaFornecedorId: true,
+                  observacoes: true,
+                  quantidadeColhidaUnidade1: true,
+                  quantidadeColhidaUnidade2: true,
                   areaPropria: {
                     select: { id: true, nome: true }
                   },
@@ -1230,7 +1252,13 @@ export class PedidosService {
               }
             },
             areas: {
-              include: {
+              select: {
+                id: true,
+                areaPropriaId: true,
+                areaFornecedorId: true,
+                observacoes: true,
+                quantidadeColhidaUnidade1: true,
+                quantidadeColhidaUnidade2: true,
                 areaPropria: {
                   select: { id: true, nome: true }
                 },
@@ -1342,7 +1370,13 @@ export class PedidosService {
               }
             },
             areas: {
-              include: {
+              select: {
+                id: true,
+                areaPropriaId: true,
+                areaFornecedorId: true,
+                observacoes: true,
+                quantidadeColhidaUnidade1: true,
+                quantidadeColhidaUnidade2: true,
                 areaPropria: {
                   select: { id: true, nome: true }
                 },
@@ -1486,6 +1520,8 @@ export class PedidosService {
               areaPropriaId: area.areaPropriaId || null,
               areaFornecedorId: area.areaFornecedorId || null,
               observacoes: area.observacoes,
+              quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+              quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
             },
           });
         }
@@ -2303,7 +2339,9 @@ export class PedidosService {
                         frutaPedidoId: fruta.frutaPedidoId,
                         areaPropriaId: area.areaPropriaId || undefined,
                         areaFornecedorId: area.areaFornecedorId || undefined,
-                        observacoes: area.observacoes || ''
+                        observacoes: area.observacoes || '',
+                        quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+                        quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
                       }
                     });
                   }
@@ -2490,7 +2528,9 @@ export class PedidosService {
                       frutaPedidoId: novaFrutaPedido.id,
                       areaPropriaId: area.areaPropriaId || null,
                       areaFornecedorId: area.areaFornecedorId || null,
-                      observacoes: area.observacoes || ''
+                      observacoes: area.observacoes || '',
+                      quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+                      quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
                     }
                   });
                 }

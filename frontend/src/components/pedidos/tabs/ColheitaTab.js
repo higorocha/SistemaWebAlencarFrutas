@@ -18,7 +18,8 @@ import {
   TeamOutlined,
   PlusOutlined,
   DeleteOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  ExclamationCircleOutlined
 } from "@ant-design/icons";
 import { MonetaryInput, MaskedDatePicker } from "../../../components/common/inputs";
 import { FormButton } from "../../common/buttons";
@@ -28,6 +29,7 @@ import { capitalizeName } from "../../../utils/formatters";
 import moment from "moment";
 import VincularAreasModal from "../VincularAreasModal";
 import VincularFitasModal from "../VincularFitasModal";
+import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
 import { validarFitasCompleto } from "../../../utils/fitasValidation";
 
 const { Option } = Select;
@@ -58,6 +60,10 @@ const ColheitaTab = ({
 
   // Estados para mão de obra
   const [turmasColheita, setTurmasColheita] = useState([]);
+
+  // ✅ NOVOS ESTADOS: Para validação de inconsistências de quantidades
+  const [confirmInconsistenciaOpen, setConfirmInconsistenciaOpen] = useState(false);
+  const [inconsistenciasData, setInconsistenciasData] = useState(null);
 
   // ✅ NOVOS ESTADOS: Para validação global de fitas
   const [fitasComAreasDisponiveis, setFitasComAreasDisponiveis] = useState([]);
@@ -364,7 +370,7 @@ const ColheitaTab = ({
   // Obter nomes das fitas vinculadas
   const getLinkedFitasNames = (fruta) => {
     if (!fruta?.fitas) return [];
-    
+
     return fruta.fitas.map(fita => {
       const fitaBanana = fitasBanana.find(f => f.id === fita.fitaBananaId);
       return {
@@ -375,11 +381,238 @@ const ColheitaTab = ({
     });
   };
 
+  // ✅ NOVA FUNÇÃO: Validar inconsistências entre quantidades informadas e áreas
+  const validarInconsistenciasQuantidades = (frutas) => {
+    const inconsistencias = [];
+
+    // ✅ HELPER: Converter Decimal do Prisma para número
+    const converterDecimalParaNumero = (valor) => {
+      if (!valor) return 0;
+
+      // Se for número, retornar direto
+      if (typeof valor === 'number') {
+        return valor;
+      }
+
+      // Se for string, converter
+      if (typeof valor === 'string') {
+        return parseFloat(valor) || 0;
+      }
+
+      // Se for objeto Decimal do Prisma (tem propriedades s, e, d)
+      if (typeof valor === 'object' && 'd' in valor) {
+        try {
+          // Tentar usar toNumber() se existir
+          if (typeof valor.toNumber === 'function') {
+            return valor.toNumber();
+          }
+
+          // Construir o número manualmente a partir de s, e, d
+          // s = sinal (1 = positivo, -1 = negativo)
+          // e = expoente
+          // d = array de dígitos
+          const digitos = valor.d.join('');
+          const numero = parseFloat(digitos) * Math.pow(10, valor.e - digitos.length + 1) * valor.s;
+
+          console.log('✅ Decimal convertido:', {
+            original: valor,
+            digitos,
+            expoente: valor.e,
+            sinal: valor.s,
+            resultado: numero
+          });
+
+          return numero;
+        } catch (error) {
+          console.error('❌ Erro ao converter Decimal:', error, valor);
+          return 0;
+        }
+      }
+
+      // Fallback
+      return 0;
+    };
+
+    frutas.forEach((fruta, index) => {
+      const nomeFruta = fruta.frutaNome || frutas.find(f => f.id === fruta.frutaId)?.nome || `Fruta ${index + 1}`;
+
+      // Obter quantidades informadas no pedido
+      const quantidadeReal = converterDecimalParaNumero(fruta.quantidadeReal);
+      const quantidadeReal2 = converterDecimalParaNumero(fruta.quantidadeReal2);
+
+      // Calcular soma das quantidades das áreas
+      const areasReais = fruta.areas?.filter(area =>
+        area.areaPropriaId || area.areaFornecedorId
+      ) || [];
+
+      const somaUnidade1 = areasReais.reduce((sum, area) =>
+        sum + converterDecimalParaNumero(area.quantidadeColhidaUnidade1), 0);
+
+      const somaUnidade2 = areasReais.reduce((sum, area) =>
+        sum + converterDecimalParaNumero(area.quantidadeColhidaUnidade2), 0);
+
+      // Verificar inconsistências
+      const temInconsistenciaUnd1 = Math.abs(quantidadeReal - somaUnidade1) > 0.01;
+      const temInconsistenciaUnd2 = fruta.unidadeMedida2 && Math.abs(quantidadeReal2 - somaUnidade2) > 0.01;
+
+      if (temInconsistenciaUnd1 || temInconsistenciaUnd2) {
+        inconsistencias.push({
+          nomeFruta,
+          unidadeMedida1: fruta.unidadeMedida1,
+          unidadeMedida2: fruta.unidadeMedida2,
+          quantidadeReal,
+          quantidadeReal2,
+          somaUnidade1,
+          somaUnidade2,
+          temInconsistenciaUnd1,
+          temInconsistenciaUnd2
+        });
+      }
+    });
+
+    return inconsistencias;
+  };
+
+  // ✅ HELPER: Normalizar dados antes de enviar ao backend (converter Decimals em números INTEIROS)
+  const normalizarDadosParaBackend = (pedido) => {
+    // Helper interno para converter valores para inteiro
+    const converterValor = (valor) => {
+      if (!valor) return valor;
+
+      // Se já for número, arredondar para inteiro
+      if (typeof valor === 'number') {
+        const resultado = Math.round(valor);
+        console.log('🔢 Convertendo número para inteiro:', { original: valor, resultado });
+        return resultado;
+      }
+
+      // Se for string, converter para inteiro
+      if (typeof valor === 'string') {
+        const resultado = Math.round(parseFloat(valor) || 0);
+        console.log('🔢 Convertendo string para inteiro:', { original: valor, resultado });
+        return resultado;
+      }
+
+      // Se for objeto Decimal do Prisma
+      if (typeof valor === 'object' && 'd' in valor) {
+        try {
+          let numero;
+          if (typeof valor.toNumber === 'function') {
+            numero = valor.toNumber();
+          } else {
+            const digitos = valor.d.join('');
+            numero = parseFloat(digitos) * Math.pow(10, valor.e - digitos.length + 1) * valor.s;
+          }
+          const resultado = Math.round(numero);
+          console.log('🔢 Convertendo Decimal para inteiro:', { original: valor, numero, resultado });
+          return resultado;
+        } catch (error) {
+          console.error('❌ Erro ao converter Decimal:', error);
+          return valor;
+        }
+      }
+
+      return valor;
+    };
+
+    // Criar cópia do pedido para não modificar o original
+    const pedidoNormalizado = { ...pedido };
+
+    // Normalizar frutas
+    if (pedidoNormalizado.frutas) {
+      pedidoNormalizado.frutas = pedidoNormalizado.frutas.map(fruta => {
+        const frutaNormalizada = {
+          ...fruta,
+          quantidadeReal: converterValor(fruta.quantidadeReal),
+          quantidadeReal2: converterValor(fruta.quantidadeReal2)
+        };
+
+        // Normalizar áreas
+        if (fruta.areas) {
+          frutaNormalizada.areas = fruta.areas.map(area => ({
+            ...area,
+            quantidadeColhidaUnidade1: converterValor(area.quantidadeColhidaUnidade1),
+            quantidadeColhidaUnidade2: converterValor(area.quantidadeColhidaUnidade2)
+          }));
+        }
+
+        return frutaNormalizada;
+      });
+    }
+
+    console.log('📤 PEDIDO NORMALIZADO FINAL:', JSON.stringify(pedidoNormalizado, null, 2));
+
+    return pedidoNormalizado;
+  };
+
+  // ✅ FUNÇÃO: Continuar salvamento após confirmação de inconsistências
+  const handleConfirmarInconsistencias = async () => {
+    try {
+      // Fechar modal de confirmação
+      setConfirmInconsistenciaOpen(false);
+
+      // ✅ NORMALIZAR dados antes de validar e salvar
+      const pedidoNormalizado = normalizarDadosParaBackend(pedidoAtual);
+
+      // ✅ VALIDAÇÃO GLOBAL de fitas antes de salvar
+      try {
+        const resultadoValidacao = validarFitasCompleto(
+          pedidoNormalizado.frutas || [],
+          fitasComAreasDisponiveis,
+          dadosOriginaisBanco?.frutas || [], // Dados originais do banco para modo edição
+          true // ColheitaTab sempre é modo edição
+        );
+
+        if (!resultadoValidacao.valido) {
+          // Mostrar primeira mensagem de erro
+          const primeiroErro = resultadoValidacao.mensagensErro?.[0] || "Conflito de estoque detectado";
+          showNotification("error", "Conflito de Estoque de Fitas", primeiroErro);
+
+          // Limpar estados
+          setInconsistenciasData(null);
+          return;
+        }
+
+        // ✅ Atualizar pedidoAtual com dados normalizados antes de salvar
+        setPedidoAtual(pedidoNormalizado);
+
+        // Aguardar um tick para garantir que o estado foi atualizado
+        setTimeout(() => {
+          // Se passou na validação, chamar o onSave original
+          onSave();
+        }, 0);
+
+        // Limpar estados após salvamento bem-sucedido
+        setInconsistenciasData(null);
+      } catch (error) {
+        console.error('Erro na validação global de fitas:', error);
+        showNotification("error", "Erro", "Erro interno na validação de estoque. Tente novamente.");
+
+        // Limpar estados
+        setInconsistenciasData(null);
+      }
+    } catch (error) {
+      console.error('Erro ao confirmar inconsistências:', error);
+      showNotification("error", "Erro", "Erro ao processar confirmação. Tente novamente.");
+
+      // Limpar estados
+      setConfirmInconsistenciaOpen(false);
+      setInconsistenciasData(null);
+    }
+  };
+
   // Função para salvar áreas vinculadas
   const handleSalvarAreas = (areas) => {
     if (!frutaSelecionada) return;
     
-    // Atualizar formulário com novas áreas
+    // ✅ SINCRONIZAÇÃO: Calcular somas das quantidades das áreas
+    const somaUnidade1 = areas?.reduce((sum, area) => 
+      sum + (area.quantidadeColhidaUnidade1 || 0), 0) || 0;
+    const somaUnidade2 = areas?.reduce((sum, area) => 
+      sum + (area.quantidadeColhidaUnidade2 || 0), 0) || 0;
+    
+    
+    // Atualizar formulário com novas áreas e quantidades sincronizadas
     const frutasAtuais = pedidoAtual.frutas;
     const frutasAtualizadas = frutasAtuais.map((fruta, index) => {
       if (index === frutaSelecionada.index) {
@@ -395,7 +628,7 @@ const ColheitaTab = ({
           };
         }
         
-        // Se há áreas selecionadas, usar apenas elas
+        // Se há áreas selecionadas, usar apenas elas e sincronizar quantidades
         return {
           ...fruta,
           areas: areas.map(area => ({
@@ -403,14 +636,18 @@ const ColheitaTab = ({
             areaPropriaId: area.areaPropriaId || undefined,
             areaFornecedorId: area.areaFornecedorId || undefined,
             observacoes: area.observacoes || ''
-          }))
+          })),
+          // ✅ SINCRONIZAR quantidades com as somas das áreas
+          // Se somaUnidade2 for 0, enviar null para evitar erro de validação @IsPositive no backend
+          quantidadeReal: somaUnidade1,
+          quantidadeReal2: somaUnidade2 > 0 ? somaUnidade2 : null
         };
       }
       return fruta;
     });
 
     setPedidoAtual(prev => ({ ...prev, frutas: frutasAtualizadas }));
-    showNotification("success", "Sucesso", "Áreas vinculadas com sucesso!");
+    showNotification("success", "Sucesso", "Áreas vinculadas e quantidades sincronizadas com sucesso!");
   };
 
   // Função para salvar fitas vinculadas
@@ -1312,10 +1549,23 @@ const ColheitaTab = ({
                 }
               }
 
+              // ✅ VALIDAÇÃO DE INCONSISTÊNCIAS: Comparar quantidades informadas com soma das áreas
+              const inconsistencias = validarInconsistenciasQuantidades(pedidoAtual.frutas || []);
+
+              if (inconsistencias.length > 0) {
+                // Armazenar dados para confirmação
+                setInconsistenciasData(inconsistencias);
+                setConfirmInconsistenciaOpen(true);
+                return; // Parar execução e aguardar confirmação do usuário
+              }
+
+              // ✅ NORMALIZAR dados antes de validar e salvar
+              const pedidoNormalizado = normalizarDadosParaBackend(pedidoAtual);
+
               // ✅ VALIDAÇÃO GLOBAL de fitas antes de salvar
               try {
                 const resultadoValidacao = validarFitasCompleto(
-                  pedidoAtual.frutas || [],
+                  pedidoNormalizado.frutas || [],
                   fitasComAreasDisponiveis,
                   dadosOriginaisBanco?.frutas || [], // Dados originais do banco para modo edição
                   true // ColheitaTab sempre é modo edição
@@ -1327,9 +1577,15 @@ const ColheitaTab = ({
                   showNotification("error", "Conflito de Estoque de Fitas", primeiroErro);
                   return;
                 }
-                
-                // Se passou na validação, chamar o onSave original
-                onSave();
+
+                // ✅ Atualizar pedidoAtual com dados normalizados antes de salvar
+                setPedidoAtual(pedidoNormalizado);
+
+                // Aguardar um tick para garantir que o estado foi atualizado
+                setTimeout(() => {
+                  // Se passou na validação, chamar o onSave original
+                  onSave();
+                }, 0);
               } catch (error) {
                 console.error('Erro na validação global de fitas:', error);
                 showNotification("error", "Erro", "Erro interno na validação de estoque. Tente novamente.");
@@ -1369,6 +1625,83 @@ const ColheitaTab = ({
         loading={false}
         todasFrutasPedido={pedidoAtual.frutas || []}
         fitasOriginaisTodasFrutas={dadosOriginaisBanco?.frutas || []}
+      />
+
+      {/* ✅ MODAL DE CONFIRMAÇÃO: Inconsistências de quantidades */}
+      <ConfirmActionModal
+        open={confirmInconsistenciaOpen}
+        onConfirm={handleConfirmarInconsistencias}
+        onCancel={() => {
+          setConfirmInconsistenciaOpen(false);
+          setInconsistenciasData(null);
+        }}
+        title="Inconsistências Detectadas"
+        confirmText="Sim, Salvar Mesmo Assim"
+        cancelText="Cancelar"
+        confirmButtonDanger={false}
+        icon={<ExclamationCircleOutlined />}
+        iconColor="#fa8c16"
+        customContent={
+          inconsistenciasData && (
+            <div style={{ padding: "12px" }}>
+              <Text strong style={{ fontSize: "16px", color: "#fa8c16", display: "block", marginBottom: "16px" }}>
+                As quantidades informadas não coincidem com as quantidades das áreas vinculadas:
+              </Text>
+
+              {inconsistenciasData.map((inconsistencia, index) => (
+                <Card
+                  key={index}
+                  size="small"
+                  style={{
+                    marginBottom: "12px",
+                    backgroundColor: "#fff7e6",
+                    borderColor: "#ffa940"
+                  }}
+                >
+                  <Text strong style={{ fontSize: "14px", color: "#333", display: "block", marginBottom: "8px" }}>
+                    {inconsistencia.nomeFruta}
+                  </Text>
+
+                  {inconsistencia.temInconsistenciaUnd1 && (
+                    <div style={{ marginBottom: "6px" }}>
+                      <Text style={{ fontSize: "13px" }}>
+                        <span style={{ color: "#666" }}>• {inconsistencia.unidadeMedida1}:</span>{" "}
+                        <span style={{ color: "#1890ff", fontWeight: "600" }}>
+                          {Math.round(inconsistencia.quantidadeReal).toLocaleString('pt-BR')}
+                        </span>
+                        {" → "}
+                        <span style={{ color: "#52c41a", fontWeight: "600" }}>
+                          {Math.round(inconsistencia.somaUnidade1).toLocaleString('pt-BR')}
+                        </span>
+                        {" (soma das áreas)"}
+                      </Text>
+                    </div>
+                  )}
+
+                  {inconsistencia.temInconsistenciaUnd2 && inconsistencia.unidadeMedida2 && (
+                    <div>
+                      <Text style={{ fontSize: "13px" }}>
+                        <span style={{ color: "#666" }}>• {inconsistencia.unidadeMedida2}:</span>{" "}
+                        <span style={{ color: "#1890ff", fontWeight: "600" }}>
+                          {Math.round(inconsistencia.quantidadeReal2).toLocaleString('pt-BR')}
+                        </span>
+                        {" → "}
+                        <span style={{ color: "#52c41a", fontWeight: "600" }}>
+                          {Math.round(inconsistencia.somaUnidade2).toLocaleString('pt-BR')}
+                        </span>
+                        {" (soma das áreas)"}
+                      </Text>
+                    </div>
+                  )}
+                </Card>
+              ))}
+
+              <Text style={{ fontSize: "13px", color: "#666", display: "block", marginTop: "16px", fontStyle: "italic" }}>
+                Deseja continuar e salvar mesmo com essas diferenças?
+              </Text>
+            </div>
+          )
+        }
       />
 
     </div>

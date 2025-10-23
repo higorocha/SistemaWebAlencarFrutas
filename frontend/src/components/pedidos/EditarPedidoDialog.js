@@ -172,7 +172,9 @@ const EditarPedidoDialog = ({
             id: area.id,
             areaPropriaId: area.areaPropriaId || undefined,
             areaFornecedorId: area.areaFornecedorId || undefined,
-            observacoes: area.observacoes || ''
+            observacoes: area.observacoes || '',
+            quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+            quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
           })) : [], // Array vazio se não há áreas reais
         
         fitas: fruta.fitas?.length > 0 ? fruta.fitas.map(fita => ({
@@ -328,7 +330,6 @@ const EditarPedidoDialog = ({
           // Atualizar apenas o maoObra sem afetar outros campos
           setPedidoAtual(prev => ({ ...prev, maoObra: maoObraFinal }));
 
-          console.log('📋 Dados de mão de obra carregados:', maoObraFinal);
         } catch (error) {
           console.error("Erro ao carregar mão de obra:", error);
           // Em caso de erro, inicializar com item vazio
@@ -890,7 +891,9 @@ const EditarPedidoDialog = ({
                 id: area.id,
                 areaPropriaId: area.areaPropriaId || undefined,
                 areaFornecedorId: area.areaFornecedorId || undefined,
-                observacoes: area.observacoes || ''
+                observacoes: area.observacoes || '',
+                quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+                quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
               })) || [],
               fitas: fruta.fitas?.filter(fita => 
                 fita.fitaBananaId

@@ -41,6 +41,26 @@ export class UpdateColheitaAreaDto {
   @IsOptional()
   @IsString()
   observacoes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade colhida nesta área (unidade 1)',
+    example: 500,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantidadeColhidaUnidade1?: number;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade colhida nesta área (unidade 2)',
+    example: 25,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantidadeColhidaUnidade2?: number;
 }
 
 // DTO para fita da fruta na colheita

@@ -25,6 +25,7 @@ const ConfirmActionModal = ({
   confirmButtonDanger = false,
   icon = <ExclamationCircleOutlined />,
   iconColor = "#fa8c16",
+  customContent = null,
 }) => {
   const { isMobile } = useResponsive();
   return (
@@ -78,26 +79,30 @@ const ConfirmActionModal = ({
           borderColor: iconColor
         }}
       >
-        <div style={{ textAlign: "center", padding: isMobile ? "12px" : "16px" }}>
-          <div 
-            style={{ 
-              fontSize: isMobile ? "36px" : "48px", 
-              color: iconColor, 
-              marginBottom: isMobile ? "12px" : "16px",
-              display: "block"
-            }} 
-          >
-            {icon}
+        {customContent ? (
+          customContent
+        ) : (
+          <div style={{ textAlign: "center", padding: isMobile ? "12px" : "16px" }}>
+            <div 
+              style={{ 
+                fontSize: isMobile ? "36px" : "48px", 
+                color: iconColor, 
+                marginBottom: isMobile ? "12px" : "16px",
+                display: "block"
+              }} 
+            >
+              {icon}
+            </div>
+            <Text style={{ 
+              fontSize: isMobile ? "14px" : "16px", 
+              fontWeight: "500", 
+              color: "#333",
+              lineHeight: isMobile ? "1.4" : "1.5"
+            }}>
+              {message}
+            </Text>
           </div>
-          <Text style={{ 
-            fontSize: isMobile ? "14px" : "16px", 
-            fontWeight: "500", 
-            color: "#333",
-            lineHeight: isMobile ? "1.4" : "1.5"
-          }}>
-            {message}
-          </Text>
-        </div>
+        )}
       </Card>
 
       {/* Footer Padrão do Sistema */}
@@ -151,6 +156,7 @@ ConfirmActionModal.propTypes = {
   confirmButtonDanger: PropTypes.bool,
   icon: PropTypes.node,
   iconColor: PropTypes.string,
+  customContent: PropTypes.node,
 };
 
 export default ConfirmActionModal;

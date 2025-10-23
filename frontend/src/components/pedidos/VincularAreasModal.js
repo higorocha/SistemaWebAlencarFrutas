@@ -21,11 +21,17 @@ import {
   UserOutlined,
   SaveOutlined,
   CloseOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
 import useResponsive from "../../hooks/useResponsive";
+import MiniInputSearchPersonalizavel from "../common/MiniComponents/MiniInputSearchPersonalizavel";
+import { MonetaryInput } from "../common/inputs";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
+import { Table } from "antd";
+import { intFormatter } from "../../utils/formatters";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -43,19 +49,26 @@ const VincularAreasModal = ({
   const [selectedAreas, setSelectedAreas] = useState([]);
   const [observacoes, setObservacoes] = useState("");
   const [culturaIdFruta, setCulturaIdFruta] = useState(null);
+  const [searchTermAreasProprias, setSearchTermAreasProprias] = useState("");
+  const [searchTermAreasFornecedores, setSearchTermAreasFornecedores] = useState("");
+  const [quantidadesPorArea, setQuantidadesPorArea] = useState({});
+
+  // Estados para modal de confirmação
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [confirmData, setConfirmData] = useState(null);
 
   // Hook para notificações com z-index correto
   const { error, warning, contextHolder } = useNotificationWithContext();
-  
+
   // Hook para responsividade
   const { isMobile } = useResponsive();
 
-  // Buscar dados quando modal abrir
+  // ✅ Buscar dados quando modal abrir (sempre buscar via API)
   useEffect(() => {
-    if (open) {
+    if (open && fruta) {
       fetchDados();
     }
-  }, [open]);
+  }, [open, fruta?.frutaId]);
 
   // Inicializar áreas selecionadas quando fruta mudar
   useEffect(() => {
@@ -63,6 +76,14 @@ const VincularAreasModal = ({
       initializeSelectedAreas();
     }
   }, [open, fruta]);
+
+  // Limpar busca quando modal fechar
+  useEffect(() => {
+    if (!open) {
+      setSearchTermAreasProprias("");
+      setSearchTermAreasFornecedores("");
+    }
+  }, [open]);
 
   const fetchDados = async () => {
     try {
@@ -114,22 +135,54 @@ const VincularAreasModal = ({
   };
 
   const initializeSelectedAreas = () => {
+    
     if (fruta?.areas && Array.isArray(fruta.areas)) {
       // Filtrar áreas que não são placeholders (que têm areaPropriaId ou areaFornecedorId)
       const realAreas = fruta.areas.filter(area => 
         area.areaPropriaId || area.areaFornecedorId
       );
       
-      setSelectedAreas(realAreas.map(area => ({
+      
+      const areasInicializadas = realAreas.map(area => ({
         id: area.id,
         type: area.areaPropriaId ? 'propria' : 'fornecedor',
         areaId: area.areaPropriaId || area.areaFornecedorId,
         observacoes: area.observacoes || ''
-      })));
+      }));
+      
+      setSelectedAreas(areasInicializadas);
       setObservacoes(realAreas[0]?.observacoes || '');
+      
+      // Inicializar quantidades por área
+      const quantidadesIniciais = {};
+      realAreas.forEach(area => {
+        const key = `${area.areaPropriaId || area.areaFornecedorId}_${area.areaPropriaId ? 'propria' : 'fornecedor'}`;
+        
+        // ✅ CORREÇÃO: Extrair valor do objeto Decimal do Prisma
+        const getDecimalValue = (decimalObj) => {
+          if (!decimalObj) return '';
+          if (typeof decimalObj === 'number') return String(decimalObj);
+          if (typeof decimalObj === 'string') return decimalObj;
+          if (decimalObj.d && Array.isArray(decimalObj.d)) {
+            // Formato Prisma Decimal: { s: 1, e: 4, d: [22000] }
+            const value = decimalObj.d.join('');
+            return decimalObj.s === -1 ? `-${value}` : value;
+          }
+          return '';
+        };
+        
+        quantidadesIniciais[key] = {
+          quantidade1: getDecimalValue(area.quantidadeColhidaUnidade1),
+          quantidade2: getDecimalValue(area.quantidadeColhidaUnidade2)
+        };
+        
+      });
+      
+      setQuantidadesPorArea(quantidadesIniciais);
     } else {
       setSelectedAreas([]);
       setObservacoes('');
+      setQuantidadesPorArea({});
     }
   };
 
@@ -141,16 +194,418 @@ const VincularAreasModal = ({
         areaId,
         observacoes: ''
       }]);
+      
+      // Inicializar quantidades para a nova área
+      const key = `${areaId}_${type}`;
+      setQuantidadesPorArea(prev => ({
+        ...prev,
+        [key]: {
+          quantidade1: '',
+          quantidade2: ''
+        }
+      }));
     } else {
       // Remover área
       setSelectedAreas(prev => prev.filter(
         area => !(area.areaId === areaId && area.type === type)
       ));
+      
+      // Remover quantidades da área removida
+      const key = `${areaId}_${type}`;
+      setQuantidadesPorArea(prev => {
+        const novasQuantidades = { ...prev };
+        delete novasQuantidades[key];
+        return novasQuantidades;
+      });
     }
   };
 
   const isAreaSelected = (areaId, type) => {
     return selectedAreas.some(area => area.areaId === areaId && area.type === type);
+  };
+
+  const handleQuantidadeChange = (areaId, type, campo, value) => {
+    const key = `${areaId}_${type}`;
+    setQuantidadesPorArea(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [campo]: value
+      }
+    }));
+  };
+
+  // Função para validar e sincronizar quantidades
+  const validarESincronizarQuantidades = (areasFormatted) => {
+    // Calcular somas
+    const somaUnidade1 = areasFormatted.reduce((sum, area) => 
+      sum + (area.quantidadeColhidaUnidade1 || 0), 0);
+    const somaUnidade2 = areasFormatted.reduce((sum, area) => 
+      sum + (area.quantidadeColhidaUnidade2 || 0), 0);
+    
+    
+    // Cenário 1: Ambas quantidades informadas no pai (valores > 0)
+    if (fruta.quantidadeReal > 0 && fruta.quantidadeReal2 > 0) {
+      // ✅ CORREÇÃO: Só considerar diferenças REAIS (diferentes de 0) para unidades que têm valor > 0 no modal pai
+      const temDiferencaUnidade1 = fruta.quantidadeReal > 0 && somaUnidade1 !== fruta.quantidadeReal && (somaUnidade1 - fruta.quantidadeReal) !== 0;
+      const temDiferencaUnidade2 = fruta.quantidadeReal2 > 0 && somaUnidade2 !== fruta.quantidadeReal2 && (somaUnidade2 - fruta.quantidadeReal2) !== 0;
+      
+      if (temDiferencaUnidade1 || temDiferencaUnidade2) {
+        // Criar dados para a tabela
+        const dadosTabela = [];
+        
+        if (temDiferencaUnidade1) {
+          dadosTabela.push({
+            key: 'unidade1',
+            unidade: fruta.unidadeMedida1,
+            areasSelecionadas: somaUnidade1,
+            totalColheita: fruta.quantidadeReal,
+            diferenca: somaUnidade1 - fruta.quantidadeReal // ✅ Mostrar diferença real (pode ser positiva ou negativa)
+          });
+        }
+        
+        if (temDiferencaUnidade2) {
+          dadosTabela.push({
+            key: 'unidade2',
+            unidade: fruta.unidadeMedida2,
+            areasSelecionadas: somaUnidade2,
+            totalColheita: fruta.quantidadeReal2,
+            diferenca: somaUnidade2 - fruta.quantidadeReal2 // ✅ Mostrar diferença real (pode ser positiva ou negativa)
+          });
+        }
+
+        // Colunas da tabela
+        const colunasTabela = [
+          {
+            title: 'Unidade',
+            dataIndex: 'unidade',
+            key: 'unidade',
+            width: 80,
+            render: (text) => <Text strong style={{ color: "#059669" }}>{text}</Text>
+          },
+          {
+            title: 'Áreas Selecionadas',
+            dataIndex: 'areasSelecionadas',
+            key: 'areasSelecionadas',
+            width: 120,
+            align: 'center'
+          },
+          {
+            title: 'Total da Colheita',
+            dataIndex: 'totalColheita',
+            key: 'totalColheita',
+            width: 120,
+            align: 'center'
+          },
+          {
+            title: 'Diferença',
+            dataIndex: 'diferenca',
+            key: 'diferenca',
+            width: 120,
+            align: 'center',
+            render: (value) => (
+              <Text style={{ 
+                color: value > 0 ? "#52c41a" : value < 0 ? "#ff4d4f" : "#333", 
+                fontWeight: "bold" 
+              }}>
+                {value > 0 ? '+' : ''}{value}
+              </Text>
+            )
+          }
+        ];
+
+        const customContent = (
+          <div style={{ padding: isMobile ? "12px" : "16px" }}>
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <div style={{ fontSize: isMobile ? "36px" : "48px", color: "#fa8c16", marginBottom: "12px" }}>
+                ⚠️
+              </div>
+              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500", color: "#333" }}>
+                As quantidades das áreas selecionadas diferem do total da colheita
+              </Text>
+            </div>
+            
+            <Table
+              dataSource={dadosTabela}
+              columns={colunasTabela}
+              pagination={false}
+              size="small"
+              style={{ marginBottom: "16px" }}
+              bordered
+            />
+            
+            <div style={{ 
+              backgroundColor: "#f6ffed", 
+              border: "1px solid #b7eb8f", 
+              borderRadius: "6px", 
+              padding: "12px",
+              marginTop: "12px"
+            }}>
+              <Text style={{ color: "#389e0d", fontSize: isMobile ? "12px" : "14px" }}>
+                💡 As quantidades serão atualizadas automaticamente com a soma das áreas selecionadas.
+              </Text>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "16px" }}>
+              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500" }}>
+                Deseja continuar mesmo assim?
+              </Text>
+            </div>
+          </div>
+        );
+        
+        setConfirmData({
+          mensagem: "", // Não usado quando customContent é fornecido
+          customContent,
+          onConfirm: () => {
+            setConfirmModalOpen(false);
+            // Continuar com salvamento
+            return true;
+          }
+        });
+        setConfirmModalOpen(true);
+        return 'pending'; // Indica que está aguardando confirmação
+      }
+    }
+    
+    // Cenário 2: Apenas unidade 1 informada no pai (valor > 0)
+    else if (fruta.quantidadeReal > 0 && (fruta.quantidadeReal2 === 0 || !fruta.quantidadeReal2)) {
+      // ✅ CORREÇÃO: Só considerar diferenças REAIS (diferentes de 0) para unidades que têm valor > 0 no modal pai
+      if (fruta.quantidadeReal > 0 && somaUnidade1 !== fruta.quantidadeReal && (somaUnidade1 - fruta.quantidadeReal) !== 0) {
+        const dadosTabela = [{
+          key: 'unidade1',
+          unidade: fruta.unidadeMedida1,
+          areasSelecionadas: somaUnidade1,
+          totalColheita: fruta.quantidadeReal,
+          diferenca: somaUnidade1 - fruta.quantidadeReal // ✅ Mostrar diferença real (pode ser positiva ou negativa)
+        }];
+
+        const colunasTabela = [
+          {
+            title: 'Unidade',
+            dataIndex: 'unidade',
+            key: 'unidade',
+            width: 80,
+            render: (text) => <Text strong style={{ color: "#059669" }}>{text}</Text>
+          },
+          {
+            title: 'Áreas Selecionadas',
+            dataIndex: 'areasSelecionadas',
+            key: 'areasSelecionadas',
+            width: 120,
+            align: 'center'
+          },
+          {
+            title: 'Total da Colheita',
+            dataIndex: 'totalColheita',
+            key: 'totalColheita',
+            width: 120,
+            align: 'center'
+          },
+          {
+            title: 'Diferença',
+            dataIndex: 'diferenca',
+            key: 'diferenca',
+            width: 120,
+            align: 'center',
+            render: (value) => (
+              <Text style={{ 
+                color: value > 0 ? "#52c41a" : value < 0 ? "#ff4d4f" : "#333", 
+                fontWeight: "bold" 
+              }}>
+                {value > 0 ? '+' : ''}{value}
+              </Text>
+            )
+          }
+        ];
+
+        const customContent = (
+          <div style={{ padding: isMobile ? "12px" : "16px" }}>
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <div style={{ fontSize: isMobile ? "36px" : "48px", color: "#fa8c16", marginBottom: "12px" }}>
+                ⚠️
+              </div>
+              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500", color: "#333" }}>
+                As quantidades das áreas selecionadas diferem do total da colheita
+              </Text>
+            </div>
+            
+            <Table
+              dataSource={dadosTabela}
+              columns={colunasTabela}
+              pagination={false}
+              size="small"
+              style={{ marginBottom: "16px" }}
+              bordered
+            />
+            
+            <div style={{ 
+              backgroundColor: "#f6ffed", 
+              border: "1px solid #b7eb8f", 
+              borderRadius: "6px", 
+              padding: "12px",
+              marginTop: "12px"
+            }}>
+              <Text style={{ color: "#389e0d", fontSize: isMobile ? "12px" : "14px" }}>
+                💡 As quantidades serão atualizadas automaticamente com a soma das áreas selecionadas.
+              </Text>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "16px" }}>
+              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500" }}>
+                Deseja continuar mesmo assim?
+              </Text>
+            </div>
+          </div>
+        );
+        
+        setConfirmData({
+          mensagem: "",
+          customContent,
+          onConfirm: () => {
+            setConfirmModalOpen(false);
+            // Sincronizar unidade 2 e continuar
+            if (somaUnidade2 > 0) {
+              fruta.quantidadeReal2 = somaUnidade2;
+            }
+            return true;
+          }
+        });
+        setConfirmModalOpen(true);
+        return 'pending';
+      }
+      
+      // Sincronizar unidade 2
+      if (somaUnidade2 > 0) {
+        fruta.quantidadeReal2 = somaUnidade2;
+      }
+    }
+    
+    // Cenário 3: Apenas unidade 2 informada no pai (valor > 0)
+    else if ((fruta.quantidadeReal === 0 || !fruta.quantidadeReal) && fruta.quantidadeReal2 > 0) {
+      // ✅ CORREÇÃO: Só considerar diferenças REAIS (diferentes de 0) para unidades que têm valor > 0 no modal pai
+      if (fruta.quantidadeReal2 > 0 && somaUnidade2 !== fruta.quantidadeReal2 && (somaUnidade2 - fruta.quantidadeReal2) !== 0) {
+        const dadosTabela = [{
+          key: 'unidade2',
+          unidade: fruta.unidadeMedida2,
+          areasSelecionadas: somaUnidade2,
+          totalColheita: fruta.quantidadeReal2,
+          diferenca: somaUnidade2 - fruta.quantidadeReal2 // ✅ Mostrar diferença real (pode ser positiva ou negativa)
+        }];
+
+        const colunasTabela = [
+          {
+            title: 'Unidade',
+            dataIndex: 'unidade',
+            key: 'unidade',
+            width: 80,
+            render: (text) => <Text strong style={{ color: "#059669" }}>{text}</Text>
+          },
+          {
+            title: 'Áreas Selecionadas',
+            dataIndex: 'areasSelecionadas',
+            key: 'areasSelecionadas',
+            width: 120,
+            align: 'center'
+          },
+          {
+            title: 'Total da Colheita',
+            dataIndex: 'totalColheita',
+            key: 'totalColheita',
+            width: 120,
+            align: 'center'
+          },
+          {
+            title: 'Diferença',
+            dataIndex: 'diferenca',
+            key: 'diferenca',
+            width: 120,
+            align: 'center',
+            render: (value) => (
+              <Text style={{ 
+                color: value > 0 ? "#52c41a" : value < 0 ? "#ff4d4f" : "#333", 
+                fontWeight: "bold" 
+              }}>
+                {value > 0 ? '+' : ''}{value}
+              </Text>
+            )
+          }
+        ];
+
+        const customContent = (
+          <div style={{ padding: isMobile ? "12px" : "16px" }}>
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <div style={{ fontSize: isMobile ? "36px" : "48px", color: "#fa8c16", marginBottom: "12px" }}>
+                ⚠️
+              </div>
+              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500", color: "#333" }}>
+                As quantidades das áreas selecionadas diferem do total da colheita
+              </Text>
+            </div>
+            
+            <Table
+              dataSource={dadosTabela}
+              columns={colunasTabela}
+              pagination={false}
+              size="small"
+              style={{ marginBottom: "16px" }}
+              bordered
+            />
+            
+            <div style={{ 
+              backgroundColor: "#f6ffed", 
+              border: "1px solid #b7eb8f", 
+              borderRadius: "6px", 
+              padding: "12px",
+              marginTop: "12px"
+            }}>
+              <Text style={{ color: "#389e0d", fontSize: isMobile ? "12px" : "14px" }}>
+                💡 As quantidades serão atualizadas automaticamente com a soma das áreas selecionadas.
+              </Text>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "16px" }}>
+              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500" }}>
+                Deseja continuar mesmo assim?
+              </Text>
+            </div>
+          </div>
+        );
+        
+        setConfirmData({
+          mensagem: "",
+          customContent,
+          onConfirm: () => {
+            setConfirmModalOpen(false);
+            // Sincronizar unidade 1 e continuar
+            if (somaUnidade1 > 0) {
+              fruta.quantidadeReal = somaUnidade1;
+            }
+            return true;
+          }
+        });
+        setConfirmModalOpen(true);
+        return 'pending';
+      }
+      
+      // Sincronizar unidade 1
+      if (somaUnidade1 > 0) {
+        fruta.quantidadeReal = somaUnidade1;
+      }
+    }
+    
+    // Cenário 4: Nenhuma quantidade informada no pai
+    else if (!fruta.quantidadeReal && !fruta.quantidadeReal2) {
+      // Sincronizar ambas unidades
+      if (somaUnidade1 > 0) {
+        fruta.quantidadeReal = somaUnidade1;
+      }
+      if (somaUnidade2 > 0) {
+        fruta.quantidadeReal2 = somaUnidade2;
+      }
+    }
+    
+    return true;
   };
 
   const handleSave = () => {
@@ -159,24 +614,112 @@ const VincularAreasModal = ({
       return;
     }
 
-    // Converter para formato esperado pelo backend
-    const areasFormatted = selectedAreas.map(area => ({
-      areaPropriaId: area.type === 'propria' ? area.areaId : undefined,
-      areaFornecedorId: area.type === 'fornecedor' ? area.areaId : undefined,
-      observacoes: observacoes || ''
-    }));
+    // Validar quantidades
+    let temErro = false;
+    let mensagemErro = "";
 
+    for (const area of selectedAreas) {
+      const key = `${area.areaId}_${area.type}`;
+      const quantidades = quantidadesPorArea[key];
+      
+      // Validar quantidade 1 (obrigatória)
+      if (!quantidades?.quantidade1 || quantidades.quantidade1 <= 0) {
+        const nomeArea = getAreaName(
+          area.type === 'propria' 
+            ? areasProprias.find(a => a.id === area.areaId)
+            : areasFornecedores.find(a => a.id === area.areaId),
+          area.type
+        );
+        mensagemErro = `Informe a quantidade colhida para "${nomeArea}"`;
+        temErro = true;
+        break;
+      }
+
+      // Quantidade 2 é opcional - não validar obrigatoriedade
+    }
+
+    if (temErro) {
+      error("Erro", mensagemErro);
+      return;
+    }
+
+    // Converter para formato esperado pelo backend
+    const areasFormatted = selectedAreas.map(area => {
+      const key = `${area.areaId}_${area.type}`;
+      const quantidades = quantidadesPorArea[key];
+      
+      return {
+        areaPropriaId: area.type === 'propria' ? area.areaId : undefined,
+        areaFornecedorId: area.type === 'fornecedor' ? area.areaId : undefined,
+        observacoes: observacoes || '',
+        quantidadeColhidaUnidade1: quantidades?.quantidade1 ? Number(quantidades.quantidade1) : null,
+        quantidadeColhidaUnidade2: quantidades?.quantidade2 ? Number(quantidades.quantidade2) : null
+      };
+    });
+
+    // NOVA VALIDAÇÃO: Sincronizar quantidades
+    const validacaoResult = validarESincronizarQuantidades(areasFormatted);
+    
+    if (validacaoResult === false) {
+      return; // Parar se houver erro
+    }
+    
+    if (validacaoResult === 'pending') {
+      return; // Aguardando confirmação do usuário
+    }
+
+    // Continuar com salvamento
     onSave(areasFormatted);
     onClose();
   };
 
+  // Função para confirmar ação do modal
+  const handleConfirmAction = () => {
+    if (confirmData?.onConfirm) {
+      const result = confirmData.onConfirm();
+      if (result === true) {
+        // Continuar com salvamento
+        const areasFormatted = selectedAreas.map(area => {
+          const key = `${area.areaId}_${area.type}`;
+          const quantidades = quantidadesPorArea[key];
+          
+          return {
+            areaPropriaId: area.type === 'propria' ? area.areaId : undefined,
+            areaFornecedorId: area.type === 'fornecedor' ? area.areaId : undefined,
+            observacoes: observacoes || '',
+            quantidadeColhidaUnidade1: quantidades?.quantidade1 ? Number(quantidades.quantidade1) : null,
+            quantidadeColhidaUnidade2: quantidades?.quantidade2 ? Number(quantidades.quantidade2) : null
+          };
+        });
+
+        onSave(areasFormatted);
+        onClose();
+      }
+    }
+  };
+
   const getAreaName = (area, type) => {
+    if (!area) {
+      return 'Área não encontrada';
+    }
+    
     if (type === 'propria') {
       return area.nome;
     } else {
       return `${area.nome} - ${area.fornecedor?.nome || 'Fornecedor'}`;
     }
   };
+
+  // Função para filtrar áreas próprias
+  const filteredAreasProprias = areasProprias.filter((area) =>
+    area.nome.toLowerCase().includes(searchTermAreasProprias.toLowerCase())
+  );
+
+  // Função para filtrar áreas de fornecedores
+  const filteredAreasFornecedores = areasFornecedores.filter((area) =>
+    area.nome.toLowerCase().includes(searchTermAreasFornecedores.toLowerCase()) ||
+    (area.fornecedor?.nome && area.fornecedor.nome.toLowerCase().includes(searchTermAreasFornecedores.toLowerCase()))
+  );
 
   return (
     <>
@@ -254,7 +797,7 @@ const VincularAreasModal = ({
           <Col span={8}>
             <Text strong>Quantidade Prevista:</Text>
             <br />
-            <Text>{fruta?.quantidadePrevista} {fruta?.unidadeMedida1}</Text>
+            <Text>{intFormatter(fruta?.quantidadePrevista)} {fruta?.unidadeMedida1}</Text>
           </Col>
           <Col span={8}>
             <Text strong>Áreas Selecionadas:</Text>
@@ -290,10 +833,34 @@ const VincularAreasModal = ({
       {/* Áreas Próprias */}
       <Card
         title={
-          <Space>
-            <EnvironmentOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Áreas Próprias</span>
-          </Space>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? "8px" : "12px",
+            width: "100%",
+            padding: "0 4px",
+            flexDirection: isMobile ? "column" : "row",
+          }}>
+            <Space>
+              <EnvironmentOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Áreas Próprias</span>
+            </Space>
+            <MiniInputSearchPersonalizavel
+              placeholder="Buscar áreas próprias..."
+              value={searchTermAreasProprias}
+              onChange={setSearchTermAreasProprias}
+              height={isMobile ? "28px" : "32px"}
+              fontSize={isMobile ? "12px" : "13px"}
+              iconColor="#10b981"
+              iconSize={isMobile ? "12px" : "14px"}
+              textColor="#10b981"
+              style={{
+                marginBottom: 0,
+                flex: "1",
+                width: isMobile ? "100%" : "auto",
+              }}
+            />
+          </div>
         }
         style={{ 
           marginBottom: isMobile ? 12 : 16, 
@@ -315,9 +882,15 @@ const VincularAreasModal = ({
         }}
         loading={loadingDados}
       >
-        {areasProprias.length > 0 ? (
-          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
-            {areasProprias.map((area) => (
+        <div style={{
+          height: isMobile ? "250px" : "300px",
+          overflowY: "auto",
+          overflowX: "hidden",
+          padding: "0 4px"
+        }}>
+          {filteredAreasProprias.length > 0 ? (
+            <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+              {filteredAreasProprias.map((area) => (
               <Col xs={24} sm={12} md={8} key={`propria-${area.id}`}>
                 <Card 
                   size="small"
@@ -366,20 +939,63 @@ const VincularAreasModal = ({
                   </Space>
                 </Card>
               </Col>
-            ))}
-          </Row>
-        ) : (
-          <Empty description="Nenhuma área própria cadastrada" />
-        )}
+              ))}
+            </Row>
+          ) : searchTermAreasProprias ? (
+          <div style={{ 
+            textAlign: "center", 
+            padding: "40px 0",
+            backgroundColor: "#f7fafc",
+            borderRadius: "6px",
+            border: "1px solid #d1fae5",
+          }}>
+            <EnvironmentOutlined style={{ fontSize: 48, color: "#9ca3af" }} />
+            <br />
+            <Text style={{ color: "#059669", display: "block", marginTop: "8px" }}>
+              Nenhuma área própria encontrada para "{searchTermAreasProprias}"
+            </Text>
+            <br />
+            <Text style={{ color: "#059669" }}>
+              Tente ajustar os termos de busca
+            </Text>
+          </div>
+          ) : (
+            <Empty description="Nenhuma área própria cadastrada" />
+          )}
+        </div>
       </Card>
 
       {/* Áreas de Fornecedores */}
       <Card
         title={
-          <Space>
-            <UserOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Áreas de Fornecedores</span>
-          </Space>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? "8px" : "12px",
+            width: "100%",
+            padding: "0 4px",
+            flexDirection: isMobile ? "column" : "row",
+          }}>
+            <Space>
+              <UserOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Áreas de Fornecedores</span>
+            </Space>
+            <MiniInputSearchPersonalizavel
+              placeholder="Buscar áreas de fornecedores..."
+              value={searchTermAreasFornecedores}
+              onChange={setSearchTermAreasFornecedores}
+              height={isMobile ? "28px" : "32px"}
+              fontSize={isMobile ? "12px" : "13px"}
+              iconColor="#10b981"
+              iconSize={isMobile ? "12px" : "14px"}
+              textColor="#10b981"
+              style={{
+                marginBottom: 0,
+                flex: "1",
+                width: isMobile ? "100%" : "auto",
+              }}
+            />
+          </div>
         }
         style={{ 
           marginBottom: isMobile ? 12 : 16, 
@@ -401,9 +1017,15 @@ const VincularAreasModal = ({
         }}
         loading={loadingDados}
       >
-        {areasFornecedores.length > 0 ? (
-          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
-            {areasFornecedores.map((area) => (
+        <div style={{
+          height: isMobile ? "250px" : "300px",
+          overflowY: "auto",
+          overflowX: "hidden",
+          padding: "0 4px"
+        }}>
+          {filteredAreasFornecedores.length > 0 ? (
+            <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+              {filteredAreasFornecedores.map((area) => (
               <Col xs={24} sm={12} md={8} key={`fornecedor-${area.id}`}>
                 <Card 
                   size="small"
@@ -441,12 +1063,131 @@ const VincularAreasModal = ({
                   </Space>
                 </Card>
               </Col>
-            ))}
-          </Row>
-        ) : (
-          <Empty description="Nenhuma área de fornecedor cadastrada" />
-        )}
+              ))}
+            </Row>
+          ) : searchTermAreasFornecedores ? (
+          <div style={{ 
+            textAlign: "center", 
+            padding: "40px 0",
+            backgroundColor: "#f7fafc",
+            borderRadius: "6px",
+            border: "1px solid #d1fae5",
+          }}>
+            <UserOutlined style={{ fontSize: 48, color: "#9ca3af" }} />
+            <br />
+            <Text style={{ color: "#059669", display: "block", marginTop: "8px" }}>
+              Nenhuma área de fornecedor encontrada para "{searchTermAreasFornecedores}"
+            </Text>
+            <br />
+            <Text style={{ color: "#059669" }}>
+              Tente ajustar os termos de busca
+            </Text>
+          </div>
+          ) : (
+            <Empty description="Nenhuma área de fornecedor cadastrada" />
+          )}
+        </div>
       </Card>
+
+      {/* Quantidades Colhidas por Área */}
+      {selectedAreas.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <EnvironmentOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>Quantidades Colhidas por Área</span>
+            </Space>
+          }
+          style={{ 
+            marginBottom: isMobile ? 12 : 16, 
+            border: "0.0625rem solid #e8e8e8", 
+            borderRadius: "0.5rem", 
+            backgroundColor: "#f9f9f9" 
+          }}
+          styles={{ 
+            header: { 
+              backgroundColor: "#059669", 
+              borderBottom: "0.125rem solid #047857", 
+              color: "#ffffff", 
+              borderRadius: "0.5rem 0.5rem 0 0",
+              padding: isMobile ? "6px 12px" : "8px 16px"
+            },
+            body: {
+              padding: isMobile ? "12px" : "16px"
+            }
+          }}
+        >
+          {selectedAreas.map((area, index) => {
+            // ✅ CORREÇÃO: Buscar área nos dados carregados via API
+            const areaData = area.type === 'propria'
+              ? areasProprias.find(a => a.id === area.areaId)
+              : areasFornecedores.find(a => a.id === area.areaId);
+
+            // Se não encontrar nos dados da API, tentar em fruta.areas (modo edição)
+            const areaOriginal = !areaData && fruta?.areas?.find(frutaArea =>
+              (frutaArea.areaPropriaId === area.areaId && area.type === 'propria') ||
+              (frutaArea.areaFornecedorId === area.areaId && area.type === 'fornecedor')
+            );
+
+            // Determinar nome da área
+            const nomeArea = areaData
+              ? getAreaName(areaData, area.type)
+              : areaOriginal?.areaPropria?.nome || areaOriginal?.areaFornecedor?.nome ||
+                (area.type === 'propria' ? `Área Própria ${area.areaId}` : `Área Fornecedor ${area.areaId}`);
+
+            const key = `${area.areaId}_${area.type}`;
+            const quantidades = quantidadesPorArea[key] || { quantidade1: '', quantidade2: '' };
+
+            return (
+              <div key={`${area.areaId}_${area.type}`} style={{ 
+                marginBottom: index < selectedAreas.length - 1 ? "16px" : "0",
+                padding: "12px",
+                backgroundColor: "#ffffff",
+                borderRadius: "6px",
+                border: "1px solid #e8e8e8"
+              }}>
+                <Text strong style={{ color: "#059669", fontSize: isMobile ? "0.875rem" : "1rem", display: "block", marginBottom: "8px" }}>
+                  {nomeArea}
+                </Text>
+                
+                <Row gutter={[8, 8]}>
+                  <Col xs={24} sm={12}>
+                    <MonetaryInput
+                      placeholder="Ex: 500"
+                      addonAfter={fruta?.unidadeMedida1 || ''}
+                      size={isMobile ? "small" : "default"}
+                      value={quantidades.quantidade1}
+                      onChange={(value) => handleQuantidadeChange(area.areaId, area.type, 'quantidade1', value)}
+                      style={{
+                        borderRadius: "0.375rem",
+                        borderColor: "#d9d9d9",
+                        fontSize: isMobile ? "0.875rem" : "1rem"
+                      }}
+                    />
+                  </Col>
+                  
+                  {fruta?.unidadeMedida2 && (
+                    <Col xs={24} sm={12}>
+                      <MonetaryInput
+                        placeholder="Ex: 25"
+                        addonAfter={fruta.unidadeMedida2}
+                        size={isMobile ? "small" : "default"}
+                        value={quantidades.quantidade2}
+                        onChange={(value) => handleQuantidadeChange(area.areaId, area.type, 'quantidade2', value)}
+                        style={{
+                          borderRadius: "0.375rem",
+                          borderColor: "#d9d9d9",
+                          fontSize: isMobile ? "0.875rem" : "1rem"
+                        }}
+                      />
+                    </Col>
+                  )}
+                </Row>
+              </div>
+            );
+          })}
+        </Card>
+      )}
 
       {/* Observações */}
       <Card
@@ -477,7 +1218,7 @@ const VincularAreasModal = ({
       >
         <TextArea
           rows={isMobile ? 2 : 3}
-          size={isMobile ? "small" : "middle"}
+          size={isMobile ? "small" : "default"}
           placeholder="Observações sobre as áreas selecionadas (opcional)"
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
@@ -502,7 +1243,7 @@ const VincularAreasModal = ({
           icon={<CloseOutlined />}
           onClick={onClose} 
           disabled={loading}
-          size={isMobile ? "small" : "middle"}
+          size={isMobile ? "small" : "default"}
           style={{
             height: isMobile ? "32px" : "40px",
             padding: isMobile ? "0 12px" : "0 16px",
@@ -515,7 +1256,7 @@ const VincularAreasModal = ({
           icon={<SaveOutlined />}
           onClick={handleSave}
           loading={loading}
-          size={isMobile ? "small" : "middle"}
+          size={isMobile ? "small" : "default"}
           style={{
             backgroundColor: "#059669",
             borderColor: "#059669",
@@ -527,6 +1268,21 @@ const VincularAreasModal = ({
         </Button>
       </div>
       </Modal>
+
+        {/* Modal de Confirmação */}
+        <ConfirmActionModal
+          open={confirmModalOpen}
+          onConfirm={handleConfirmAction}
+          onCancel={() => setConfirmModalOpen(false)}
+          title="Atenção - Quantidade Menor"
+          message={confirmData?.mensagem || ""}
+          confirmText="Sim, Continuar"
+          cancelText="Cancelar"
+          confirmButtonDanger={false}
+          icon={<ExclamationCircleOutlined />}
+          iconColor="#fa8c16"
+          customContent={confirmData?.customContent || null}
+        />
     </>
   );
 };

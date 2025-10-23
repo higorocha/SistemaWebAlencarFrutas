@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsNumber, IsDateString, IsPositive, IsArray, ValidateNested, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsNumber, IsDateString, IsPositive, IsArray, ValidateNested, IsNotEmpty, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -35,20 +35,20 @@ export class FrutaAreaDto {
 
   @ApiPropertyOptional({
     description: 'Quantidade colhida nesta área (unidade 1)',
-    example: 500.25,
+    example: 500,
   })
   @IsOptional()
   @IsNumber()
-  @IsPositive()
+  @Min(0)
   quantidadeColhidaUnidade1?: number;
 
   @ApiPropertyOptional({
     description: 'Quantidade colhida nesta área (unidade 2)',
-    example: 25.5,
+    example: 25,
   })
   @IsOptional()
   @IsNumber()
-  @IsPositive()
+  @Min(0)
   quantidadeColhidaUnidade2?: number;
 }
 

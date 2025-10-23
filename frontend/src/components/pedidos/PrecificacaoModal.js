@@ -624,7 +624,6 @@ const PrecificacaoModal = ({
                                     fontWeight: 600,
                                     color: fruta?.unidadeMedida2 ? '#1890ff' : '#666'
                                   }}
-                                  title={fruta?.unidadeMedida2 ? 'Clique para alternar unidade' : undefined}
                                 >
                                   {fruta?.unidadePrecificada || fruta?.unidadeMedida1 || 'UND'}
                                 </span>

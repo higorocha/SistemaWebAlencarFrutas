@@ -389,22 +389,23 @@ const PrecificacaoTab = ({
                   <MonetaryInput
                     placeholder="Ex: 12,50"
                     addonAfter={
-                      <span
-                        onClick={() => toggleUnidadeFruta(index)}
-                        style={{
-                          cursor: fruta.unidadeMedida2 ? 'pointer' : 'default',
-                          userSelect: 'none',
-                          fontWeight: 600,
-                          color: fruta.unidadeMedida2 ? '#1890ff' : '#666',
-                          fontSize: '12px',
-                          minWidth: '35px',
-                          display: 'block',
-                          textAlign: 'center'
-                        }}
-                        title={fruta.unidadeMedida2 ? 'Clique para alternar unidade' : undefined}
-                      >
-                        {fruta.unidadePrecificada || fruta.unidadeMedida1 || 'UND'}
-                      </span>
+                      <Tooltip title={fruta.unidadeMedida2 ? 'Clique para alternar unidade' : undefined}>
+                        <span
+                          onClick={() => toggleUnidadeFruta(index)}
+                          style={{
+                            cursor: fruta.unidadeMedida2 ? 'pointer' : 'default',
+                            userSelect: 'none',
+                            fontWeight: 600,
+                            color: fruta.unidadeMedida2 ? '#1890ff' : '#666',
+                            fontSize: '12px',
+                            minWidth: '35px',
+                            display: 'block',
+                            textAlign: 'center'
+                          }}
+                        >
+                          {fruta.unidadePrecificada || fruta.unidadeMedida1 || 'UND'}
+                        </span>
+                      </Tooltip>
                     }
                     size="large"
                     value={fruta.valorUnitario}

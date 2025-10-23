@@ -4,9 +4,9 @@ import React, { useState, useEffect } from "react";
 import { Modal, Button, Space, message, Form, Input, Select, DatePicker, InputNumber, Row, Col, Typography, Card, Divider, Tag, Tooltip } from "antd";
 import PropTypes from "prop-types";
 import useResponsive from "../../hooks/useResponsive";
-import { 
-  SaveOutlined, 
-  CloseOutlined, 
+import {
+  SaveOutlined,
+  CloseOutlined,
   ShoppingOutlined,
   AppleOutlined,
   CalendarOutlined,
@@ -19,7 +19,8 @@ import {
   TagOutlined,
   TeamOutlined,
   PlusOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
@@ -30,6 +31,7 @@ import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs"
 import { FormButton } from "../common/buttons";
 import VincularAreasModal from "./VincularAreasModal";
 import VincularFitasModal from "./VincularFitasModal";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import { validarFitasCompleto } from "../../utils/fitasValidation";
 
 const { Option } = Select;
@@ -63,6 +65,11 @@ const ColheitaModal = ({
   const [vincularAreasModalOpen, setVincularAreasModalOpen] = useState(false);
   const [vincularFitasModalOpen, setVincularFitasModalOpen] = useState(false);
   const [frutaSelecionada, setFrutaSelecionada] = useState(null);
+
+  // ✅ NOVOS ESTADOS: Para validação de inconsistências de quantidades
+  const [confirmInconsistenciaOpen, setConfirmInconsistenciaOpen] = useState(false);
+  const [inconsistenciasData, setInconsistenciasData] = useState(null);
+  const [valoresPendentes, setValoresPendentes] = useState(null);
 
   // ✅ NOVOS ESTADOS: Para validação global de fitas
   const [fitasComAreasDisponiveis, setFitasComAreasDisponiveis] = useState([]);
@@ -187,7 +194,22 @@ const ColheitaModal = ({
 
   // Funções para abrir modais de vinculação
   const handleVincularAreas = (fruta, frutaIndex) => {
-    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+    // ✅ CORREÇÃO: Pegar valores atuais do formulário para passar para o modal
+    const valoresAtuais = form.getFieldsValue();
+    const frutaAtual = valoresAtuais.frutas?.[frutaIndex];
+    
+    const frutaCompleta = {
+      ...fruta,
+      index: frutaIndex,
+      // ✅ Incluir valores atuais do formulário
+      quantidadeReal: frutaAtual?.quantidadeReal,
+      quantidadeReal2: frutaAtual?.quantidadeReal2,
+      unidadeMedida1: fruta.unidadeMedida1,
+      unidadeMedida2: fruta.unidadeMedida2
+    };
+    
+    
+    setFrutaSelecionada(frutaCompleta);
     setVincularAreasModalOpen(true);
   };
 
@@ -245,10 +267,59 @@ const ColheitaModal = ({
     });
   };
 
+  // ✅ NOVA FUNÇÃO: Validar inconsistências entre quantidades informadas e áreas
+  const validarInconsistenciasQuantidades = (frutas) => {
+    const inconsistencias = [];
+
+    frutas.forEach((fruta, index) => {
+      const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${index + 1}`;
+
+      // Obter quantidades informadas no formulário
+      const quantidadeReal = typeof fruta.quantidadeReal === 'string'
+        ? parseFloat(fruta.quantidadeReal) || 0
+        : (fruta.quantidadeReal || 0);
+
+      const quantidadeReal2 = typeof fruta.quantidadeReal2 === 'string'
+        ? parseFloat(fruta.quantidadeReal2) || 0
+        : (fruta.quantidadeReal2 || 0);
+
+      // Calcular soma das quantidades das áreas
+      const areasReais = fruta.areas?.filter(area =>
+        area.areaPropriaId || area.areaFornecedorId
+      ) || [];
+
+      const somaUnidade1 = areasReais.reduce((sum, area) =>
+        sum + (Number(area.quantidadeColhidaUnidade1) || 0), 0);
+
+      const somaUnidade2 = areasReais.reduce((sum, area) =>
+        sum + (Number(area.quantidadeColhidaUnidade2) || 0), 0);
+
+      // Verificar inconsistências
+      const temInconsistenciaUnd1 = Math.abs(quantidadeReal - somaUnidade1) > 0.01;
+      const temInconsistenciaUnd2 = fruta.unidadeMedida2 && Math.abs(quantidadeReal2 - somaUnidade2) > 0.01;
+
+      if (temInconsistenciaUnd1 || temInconsistenciaUnd2) {
+        inconsistencias.push({
+          nomeFruta,
+          unidadeMedida1: fruta.unidadeMedida1,
+          unidadeMedida2: fruta.unidadeMedida2,
+          quantidadeReal,
+          quantidadeReal2,
+          somaUnidade1,
+          somaUnidade2,
+          temInconsistenciaUnd1,
+          temInconsistenciaUnd2
+        });
+      }
+    });
+
+    return inconsistencias;
+  };
+
   // Obter nomes das fitas vinculadas
   const getLinkedFitasNames = (fruta) => {
     if (!fruta?.fitas) return [];
-    
+
     return fruta.fitas.map(fita => {
       const fitaBanana = fitasBanana.find(f => f.id === fita.fitaBananaId);
       return {
@@ -263,10 +334,31 @@ const ColheitaModal = ({
   const handleSalvarAreas = (areas) => {
     if (!frutaSelecionada) return;
     
+    // ✅ NOVA FUNCIONALIDADE: Calcular soma das quantidades por área
+    const somaUnidade1 = areas?.reduce((sum, area) => 
+      sum + (area.quantidadeColhidaUnidade1 || 0), 0) || 0;
+    const somaUnidade2 = areas?.reduce((sum, area) => 
+      sum + (area.quantidadeColhidaUnidade2 || 0), 0) || 0;
+    
+    // ✅ REMOVIDA VALIDAÇÃO DUPLICADA: VincularAreasModal já faz a validação
+    // Aplicar sincronização diretamente
+    aplicarSincronizacao(areas, somaUnidade1, somaUnidade2);
+  };
+
+  // ✅ FUNÇÃO PARA APLICAR SINCRONIZAÇÃO
+  const aplicarSincronizacao = (areas, somaUnidade1, somaUnidade2, frutaIndex = null) => {
+    // Usar o índice fornecido ou o índice da fruta selecionada
+    const indexToUpdate = frutaIndex !== null ? frutaIndex : frutaSelecionada?.index;
+    
+    if (indexToUpdate === null || indexToUpdate === undefined) {
+      console.error('Erro: Índice da fruta não encontrado');
+      return;
+    }
+    
     // Atualizar formulário com novas áreas
     const frutasAtuais = form.getFieldValue('frutas') || [];
     const frutasAtualizadas = frutasAtuais.map((fruta, index) => {
-      if (index === frutaSelecionada.index) {
+      if (index === indexToUpdate) {
         // Se não há áreas selecionadas, criar área placeholder
         if (!areas || areas.length === 0) {
           return {
@@ -280,22 +372,37 @@ const ColheitaModal = ({
         }
         
         // Se há áreas selecionadas, usar apenas elas
-        return {
+        const frutaAtualizada = {
           ...fruta,
           areas: areas.map(area => ({
             ...area,
             areaPropriaId: area.areaPropriaId || undefined,
             areaFornecedorId: area.areaFornecedorId || undefined,
             observacoes: area.observacoes || ''
-          }))
+          })),
+          // ✅ SEMPRE SETAR A SOMA
+          // Se somaUnidade2 for 0, enviar null para evitar erro de validação @IsPositive no backend
+          quantidadeReal: somaUnidade1,
+          quantidadeReal2: somaUnidade2 > 0 ? somaUnidade2 : null
         };
+
+        return frutaAtualizada;
       }
       return fruta;
     });
 
     form.setFieldsValue({ frutas: frutasAtualizadas });
-    success("Sucesso", "Áreas vinculadas com sucesso!");
+
+    // ✅ APLICAR SINCRONIZAÇÃO nos campos do formulário
+    // Se somaUnidade2 for 0, enviar null para evitar erro de validação @IsPositive no backend
+    const updates = {};
+    updates[['frutas', indexToUpdate, 'quantidadeReal']] = somaUnidade1;
+    updates[['frutas', indexToUpdate, 'quantidadeReal2']] = somaUnidade2 > 0 ? somaUnidade2 : null;
+    form.setFieldsValue(updates);
+    
+    success("Sucesso", "Áreas vinculadas e quantidades sincronizadas com sucesso!");
   };
+
 
   // Função para salvar fitas vinculadas
   const handleSalvarFitas = (fitas) => {
@@ -317,6 +424,137 @@ const ColheitaModal = ({
     success("Sucesso", "Fitas vinculadas com sucesso!");
   };
 
+  // ✅ FUNÇÃO para processar salvamento após confirmação de inconsistências
+  const handleConfirmarInconsistencias = async () => {
+    setConfirmInconsistenciaOpen(false);
+
+    if (!valoresPendentes) return;
+
+    // Continuar o fluxo de salvamento a partir do ponto onde parou
+    try {
+      setIsSaving(true);
+
+      const values = valoresPendentes;
+
+      // ✅ CONTINUAR com validação de fitas (pulando a validação de inconsistências)
+      try {
+        const resultadoValidacao = validarFitasCompleto(
+          values.frutas,
+          fitasComAreasDisponiveis,
+          [], // ColheitaModal não tem dados originais do banco
+          false // ColheitaModal sempre é modo criação
+        );
+
+        if (!resultadoValidacao.valido) {
+          // Mostrar primeira mensagem de erro
+          const primeiroErro = resultadoValidacao.mensagensErro?.[0] || "Conflito de estoque detectado";
+          error("Conflito de Estoque de Fitas", primeiroErro);
+          setIsSaving(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Erro ao validar fitas:', err);
+        error("Erro", "Erro ao validar estoque de fitas. Tente novamente.");
+        setIsSaving(false);
+        return;
+      }
+
+      // Processar mão de obra
+      const maoObraValida = [];
+      if (values.maoObra && Array.isArray(values.maoObra)) {
+        for (let i = 0; i < values.maoObra.length; i++) {
+          const item = values.maoObra[i];
+          if (item.turmaColheitaId && item.quantidadeColhida && item.valorColheita) {
+            maoObraValida.push({
+              turmaColheitaId: item.turmaColheitaId,
+              quantidadeColhida: Number(item.quantidadeColhida),
+              valorColheita: Number(item.valorColheita),
+              observacoes: item.observacoes || ''
+            });
+          }
+        }
+      }
+
+      // Preparar dados para envio
+      const formData = {
+        dataColheita: values.dataColheita ? values.dataColheita.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null,
+        frutas: values.frutas.map(fruta => ({
+          frutaPedidoId: fruta.frutaPedidoId,
+          frutaId: fruta.frutaId,
+          quantidadeReal: fruta.quantidadeReal ? Number(fruta.quantidadeReal) : null,
+          quantidadeReal2: fruta.quantidadeReal2 && Number(fruta.quantidadeReal2) > 0 ? Number(fruta.quantidadeReal2) : null,
+          unidadeMedida1: fruta.unidadeMedida1,
+          unidadeMedida2: fruta.unidadeMedida2 || null,
+          areas: fruta.areas?.filter(area => area.areaPropriaId || area.areaFornecedorId).map(area => ({
+            areaPropriaId: area.areaPropriaId || undefined,
+            areaFornecedorId: area.areaFornecedorId || undefined,
+            quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 ? Number(area.quantidadeColhidaUnidade1) : null,
+            quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 ? Number(area.quantidadeColhidaUnidade2) : null,
+            observacoes: area.observacoes || ''
+          })) || [],
+          fitas: fruta.fitas?.map(fita => ({
+            fitaBananaId: fita.fitaBananaId,
+            quantidadeFita: fita.quantidadeFita || undefined,
+            observacoes: fita.observacoes || '',
+            detalhesAreas: fita.detalhesAreas || []
+          })) || []
+        })),
+        pesagem: values.pesagem ? String(values.pesagem) : values.pesagem,
+        placaPrimaria: values.placaPrimaria,
+        placaSecundaria: values.placaSecundaria,
+        nomeMotorista: values.nomeMotorista
+      };
+
+      // Fechar modal e iniciar loading
+      form.resetFields();
+      onClose();
+
+      if (onLoadingChange) {
+        onLoadingChange(true, "Registrando colheita...");
+      }
+
+      // Salvar colheita
+      await onSave(formData);
+
+      // Salvar mão de obra se existir
+      if (maoObraValida.length > 0 && pedido?.id) {
+        try {
+          if (onLoadingChange) {
+            onLoadingChange(true, "Salvando dados de mão de obra...");
+          }
+
+          const promises = maoObraValida.map(custoColheita =>
+            axiosInstance.post('/api/turma-colheita/custo-colheita', {
+              pedidoId: pedido.id,
+              turmaColheitaId: custoColheita.turmaColheitaId,
+              quantidadeColhida: custoColheita.quantidadeColhida,
+              valorColheita: custoColheita.valorColheita,
+              observacoes: custoColheita.observacoes
+            })
+          );
+
+          await Promise.all(promises);
+        } catch (maoObraError) {
+          console.error('Erro ao salvar mão de obra:', maoObraError);
+        }
+      }
+
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
+
+      // Limpar estados
+      setValoresPendentes(null);
+      setInconsistenciasData(null);
+
+    } catch (err) {
+      console.error('Erro ao salvar colheita:', err);
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
+      setIsSaving(false);
+    }
+  };
 
   const handleSalvarColheita = async (values) => {
     try {
@@ -451,6 +689,17 @@ const ColheitaModal = ({
              }
           }
 
+      // ✅ VALIDAÇÃO DE INCONSISTÊNCIAS: Comparar quantidades informadas com soma das áreas
+      const inconsistencias = validarInconsistenciasQuantidades(values.frutas);
+
+      if (inconsistencias.length > 0) {
+        // Armazenar dados para confirmação
+        setInconsistenciasData(inconsistencias);
+        setValoresPendentes(values);
+        setConfirmInconsistenciaOpen(true);
+        return; // Parar execução e aguardar confirmação do usuário
+      }
+
       // ✅ NOVA VALIDAÇÃO GLOBAL: Validar fitas considerando todas as frutas do pedido
       try {
         const resultadoValidacao = validarFitasCompleto(
@@ -488,7 +737,9 @@ const ColheitaModal = ({
             id: area.id,
             areaPropriaId: area.areaPropriaId || undefined,
             areaFornecedorId: area.areaFornecedorId || undefined,
-            observacoes: area.observacoes || ''
+            observacoes: area.observacoes || '',
+            quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+            quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
           })) || [],
           fitas: fruta.fitas?.filter(fita => 
             fita.fitaBananaId
@@ -1795,6 +2046,86 @@ const ColheitaModal = ({
          todasFrutasPedido={open ? (form.getFieldValue('frutas') || []) : []}
          fitasOriginaisTodasFrutas={[]} // ColheitaModal não tem dados originais
        />
+
+       {/* Modal de Confirmação de Inconsistências */}
+       <ConfirmActionModal
+         open={confirmInconsistenciaOpen}
+         onConfirm={handleConfirmarInconsistencias}
+         onCancel={() => {
+           setConfirmInconsistenciaOpen(false);
+           setValoresPendentes(null);
+           setInconsistenciasData(null);
+           setIsSaving(false);
+         }}
+         title="Inconsistências Detectadas"
+         confirmText="Sim, Salvar Mesmo Assim"
+         cancelText="Cancelar"
+         confirmButtonDanger={false}
+         icon={<ExclamationCircleOutlined />}
+         iconColor="#fa8c16"
+         customContent={
+           inconsistenciasData && (
+             <div style={{ padding: "12px" }}>
+               <Text strong style={{ fontSize: "16px", color: "#fa8c16", display: "block", marginBottom: "16px" }}>
+                 As quantidades informadas não coincidem com as quantidades das áreas vinculadas:
+               </Text>
+
+               {inconsistenciasData.map((inconsistencia, index) => (
+                 <Card
+                   key={index}
+                   size="small"
+                   style={{
+                     marginBottom: "12px",
+                     backgroundColor: "#fff7e6",
+                     borderColor: "#ffa940"
+                   }}
+                 >
+                   <Text strong style={{ fontSize: "14px", color: "#333", display: "block", marginBottom: "8px" }}>
+                     {inconsistencia.nomeFruta}
+                   </Text>
+
+                   {inconsistencia.temInconsistenciaUnd1 && (
+                     <div style={{ marginBottom: "6px" }}>
+                       <Text style={{ fontSize: "13px" }}>
+                         <span style={{ color: "#666" }}>• {inconsistencia.unidadeMedida1}:</span>{" "}
+                         <span style={{ color: "#1890ff", fontWeight: "600" }}>
+                           {Math.round(inconsistencia.quantidadeReal).toLocaleString('pt-BR')}
+                         </span>
+                         {" → "}
+                         <span style={{ color: "#52c41a", fontWeight: "600" }}>
+                           {Math.round(inconsistencia.somaUnidade1).toLocaleString('pt-BR')}
+                         </span>
+                         {" (soma das áreas)"}
+                       </Text>
+                     </div>
+                   )}
+
+                   {inconsistencia.temInconsistenciaUnd2 && inconsistencia.unidadeMedida2 && (
+                     <div>
+                       <Text style={{ fontSize: "13px" }}>
+                         <span style={{ color: "#666" }}>• {inconsistencia.unidadeMedida2}:</span>{" "}
+                         <span style={{ color: "#1890ff", fontWeight: "600" }}>
+                           {Math.round(inconsistencia.quantidadeReal2).toLocaleString('pt-BR')}
+                         </span>
+                         {" → "}
+                         <span style={{ color: "#52c41a", fontWeight: "600" }}>
+                           {Math.round(inconsistencia.somaUnidade2).toLocaleString('pt-BR')}
+                         </span>
+                         {" (soma das áreas)"}
+                       </Text>
+                     </div>
+                   )}
+                 </Card>
+               ))}
+
+               <Text style={{ fontSize: "13px", color: "#666", display: "block", marginTop: "16px", fontStyle: "italic" }}>
+                 Deseja continuar e salvar mesmo com essas diferenças?
+               </Text>
+             </div>
+           )
+         }
+       />
+
 
      </Modal>
     </>
