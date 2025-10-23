@@ -1841,6 +1841,7 @@ const Dashboard = () => {
         onClose={fecharModalPagamentos}
         turmaId={modalPagamentos.turmaId}
         turmaNome={modalPagamentos.turmaNome}
+        onPagamentosProcessados={() => fecharModalPagamentos(true)}
       />
 
       {/* Modal de Pagamentos Efetuados */}

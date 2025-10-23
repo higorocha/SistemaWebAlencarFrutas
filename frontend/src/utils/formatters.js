@@ -266,3 +266,33 @@ export const formatarChavePix = (chavePix) => {
   // Se não conseguir identificar, retorna a chave original
   return chavePix;
 };
+
+/**
+ * Converte valores Decimal do Prisma para número JavaScript
+ * @param {any} valor - Valor que pode ser um objeto Decimal do Prisma ou número
+ * @returns {number} - Número convertido
+ */
+export const converterDecimalPrisma = (valor) => {
+  if (typeof valor === 'object' && valor?.d && Array.isArray(valor.d)) {
+    // É um objeto Decimal do Prisma
+    // A estrutura é: { s: 1, e: 4, d: [13333] }
+    // Onde 's' é o sinal, 'e' é o expoente, 'd' são os dígitos
+    const numero = parseFloat(valor.d.join(''));
+    const expoente = valor.e || 0;
+    
+    // Se o expoente for menor que o número de dígitos, é um número inteiro
+    const numeroDigitos = valor.d.join('').length;
+    
+    if (expoente < numeroDigitos) {
+      // É um número inteiro, retorna sem divisão
+      return numero;
+    } else if (expoente >= 0) {
+      // Aplica a divisão para decimais
+      return numero / Math.pow(10, expoente);
+    } else {
+      // Multiplica para valores muito pequenos
+      return numero * Math.pow(10, Math.abs(expoente));
+    }
+  }
+  return valor;
+};

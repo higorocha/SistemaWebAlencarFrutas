@@ -39,6 +39,7 @@ import { showNotification } from "../../config/notificationConfig";
 import { formatCurrency } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -123,6 +124,7 @@ const PagamentosPendentesModal = ({
   const [itensSendoPagos, setItensSendoPagos] = useState([]);
   const [itensComCheckmark, setItensComCheckmark] = useState([]);
   const [pagamentosProcessados, setPagamentosProcessados] = useState(false);
+  const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState(false);
 
   useEffect(() => {
     if (open && turmaId) {
@@ -139,6 +141,7 @@ const PagamentosPendentesModal = ({
       setItensSendoPagos([]);
       setItensComCheckmark([]);
       setPagamentosProcessados(false);
+      setModalConfirmacaoAberto(false);
     }
   }, [open]);
 
@@ -217,8 +220,17 @@ const PagamentosPendentesModal = ({
     return <AppleOutlined style={{ color: '#fa8c16' }} />;
   };
 
+  // Função para abrir modal de confirmação
+  const abrirModalConfirmacao = () => {
+    setModalConfirmacaoAberto(true);
+  };
+
+  // Função para processar pagamentos (após confirmação)
   const processarPagamentos = async () => {
     try {
+      // Fechar modal de confirmação
+      setModalConfirmacaoAberto(false);
+
       setLoadingPagamento(true);
 
       // Se nenhuma seleção, pagar todas as colheitas PENDENTES
@@ -287,6 +299,11 @@ const PagamentosPendentesModal = ({
       setColheitasSelecionadas([]);
       setObservacoesPagamento('');
       setItensComCheckmark([]);
+
+      // Chamar callback para atualizar dados no componente pai
+      if (onPagamentosProcessados) {
+        onPagamentosProcessados();
+      }
 
       // Verificar se ainda há pendências após atualização local
       const aindaTemPendencias = colheitasPendentes.length > 0;
@@ -743,7 +760,7 @@ const PagamentosPendentesModal = ({
                         type="primary"
                         size={isMobile ? "middle" : "large"}
                         icon={<DollarOutlined />}
-                        onClick={processarPagamentos}
+                        onClick={abrirModalConfirmacao}
                         loading={loadingPagamento}
                         style={{
                           backgroundColor: '#059669',
@@ -821,6 +838,68 @@ const PagamentosPendentesModal = ({
           </div>
         ) : null}
       </div>
+
+      {/* Modal de Confirmação */}
+      <ConfirmActionModal
+        open={modalConfirmacaoAberto}
+        onCancel={() => setModalConfirmacaoAberto(false)}
+        onConfirm={processarPagamentos}
+        title="Confirmar Pagamento"
+        confirmText="Confirmar Pagamento"
+        cancelText="Cancelar"
+        icon={<DollarOutlined />}
+        iconColor="#059669"
+        customContent={
+          <div style={{ textAlign: "center", padding: "16px" }}>
+            <div style={{ 
+              fontSize: "48px", 
+              color: "#059669", 
+              marginBottom: "16px",
+              display: "block"
+            }}>
+              <DollarOutlined />
+            </div>
+            <Text style={{ 
+              fontSize: "16px", 
+              fontWeight: "500", 
+              color: "#333",
+              lineHeight: "1.5",
+              marginBottom: "20px",
+              display: "block"
+            }}>
+              Você está prestes a processar os pagamentos das colheitas selecionadas.
+            </Text>
+            
+            {/* Detalhes da operação */}
+            <div style={{
+              backgroundColor: "#f6ffed",
+              border: "1px solid #b7eb8f",
+              borderRadius: "8px",
+              padding: "16px",
+              marginTop: "16px",
+              textAlign: "left"
+            }}>
+              <Text style={{ fontSize: "14px", fontWeight: "600", color: "#059669", display: "block", marginBottom: "8px" }}>
+                📋 Detalhes da Operação:
+              </Text>
+              <div style={{ fontSize: "13px", color: "#333", lineHeight: "1.6" }}>
+                <div style={{ marginBottom: "4px" }}>
+                  <strong>👤 Colhedor:</strong> {turmaNome}
+                </div>
+                <div style={{ marginBottom: "4px" }}>
+                  <strong>📦 Total de itens:</strong> {itensComCheckmark.length > 0 ? itensComCheckmark.length : dados?.colheitas?.length || 0}
+                </div>
+                <div style={{ marginBottom: "4px" }}>
+                  <strong>💰 Valor total:</strong> R$ {(itensComCheckmark.length > 0 ? calcularTotalSelecionado() : dados?.resumo?.totalPendente || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ marginBottom: "0" }}>
+                  <strong>ℹ️ Observação:</strong> {itensComCheckmark.length > 0 ? "Apenas itens selecionados serão pagos" : "Todos os itens pendentes serão pagos"}
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+      />
     </Modal>
   );
 };

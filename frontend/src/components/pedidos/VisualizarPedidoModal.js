@@ -32,7 +32,7 @@ import {
   TagOutlined,
   BuildOutlined
 } from "@ant-design/icons";
-import { formatarValorMonetario, numberFormatter, capitalizeName } from "../../utils/formatters";
+import { formatarValorMonetario, numberFormatter, capitalizeName, converterDecimalPrisma } from "../../utils/formatters";
 import { PDFButton } from "../common/buttons";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
@@ -305,6 +305,17 @@ const VisualizarPedidoModal = ({
 
   if (!pedido) return null;
 
+  // DEBUG: Log dos dados do pedido para verificar estrutura
+  console.log('=== DEBUG VISUALIZAR PEDIDO ===');
+  console.log('Pedido completo:', JSON.stringify(pedido, null, 2));
+  console.log('Frutas do pedido:', JSON.stringify(pedido.frutasPedidos, null, 2));
+  if (pedido.frutasPedidos && pedido.frutasPedidos.length > 0) {
+    pedido.frutasPedidos.forEach((frutaPedido, index) => {
+      console.log(`Fruta ${index + 1} - Áreas:`, JSON.stringify(frutaPedido.areas, null, 2));
+      console.log(`Fruta ${index + 1} - Fitas:`, JSON.stringify(frutaPedido.fitas, null, 2));
+    });
+  }
+  console.log('=== FIM DEBUG ===');
 
   const statusConfig = getStatusConfig(pedido.status);
 
@@ -546,7 +557,18 @@ const VisualizarPedidoModal = ({
                       </Text>
                       {frutaPedido.areas && frutaPedido.areas.length > 0 ? (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                          {frutaPedido.areas.map((area, areaIndex) => (
+                          {frutaPedido.areas.map((area, areaIndex) => {
+                            // DEBUG: Log específico para quantidades colhidas
+                            console.log(`=== ÁREA ${areaIndex + 1} ===`);
+                            console.log('Área completa:', JSON.stringify(area, null, 2));
+                            console.log('quantidadeColhidaUnidade1 (original):', area.quantidadeColhidaUnidade1);
+                            console.log('quantidadeColhidaUnidade1 (convertido):', converterDecimalPrisma(area.quantidadeColhidaUnidade1));
+                            console.log('quantidadeColhidaUnidade2 (convertido):', converterDecimalPrisma(area.quantidadeColhidaUnidade2));
+                            console.log('Tipo de quantidadeColhidaUnidade1:', typeof area.quantidadeColhidaUnidade1);
+                            console.log('Valor convertido > 0?', converterDecimalPrisma(area.quantidadeColhidaUnidade1) > 0);
+                            console.log('========================');
+                            
+                            return (
                             <div key={areaIndex} style={{ marginBottom: "4px" }}>
                               <Tag
                                 color={area.areaPropria ? "green" : area.areaFornecedor ? "blue" : "orange"}
@@ -556,21 +578,29 @@ const VisualizarPedidoModal = ({
                                   <span>
                                     <EnvironmentOutlined style={{ marginRight: 4 }} />
                                     {area.areaPropria.nome}
-                                    {area.quantidadeColhidaUnidade1 > 0 && (
-                                      <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
-                                        ({area.quantidadeColhidaUnidade1.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const qtd = converterDecimalPrisma(area.quantidadeColhidaUnidade1);
+                                      const qtdInteira = Math.round(qtd);
+                                      return qtdInteira > 0 && (
+                                        <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
+                                          ({qtdInteira.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
+                                        </span>
+                                      );
+                                    })()}
                                   </span>
                                 ) : area.areaFornecedor ? (
                                   <span>
                                     <UserOutlined style={{ marginRight: 4 }} />
                                     {area.areaFornecedor.fornecedor?.nome} • {area.areaFornecedor.nome}
-                                    {area.quantidadeColhidaUnidade1 > 0 && (
-                                      <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
-                                        ({area.quantidadeColhidaUnidade1.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const qtd = converterDecimalPrisma(area.quantidadeColhidaUnidade1);
+                                      const qtdInteira = Math.round(qtd);
+                                      return qtdInteira > 0 && (
+                                        <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
+                                          ({qtdInteira.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
+                                        </span>
+                                      );
+                                    })()}
                                   </span>
                                 ) : (
                                   <span style={{ color: "#f59e0b" }}>
@@ -592,7 +622,8 @@ const VisualizarPedidoModal = ({
                                 </div>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <Text type="secondary" style={{ fontStyle: "italic" }}>

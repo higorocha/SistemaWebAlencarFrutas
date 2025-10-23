@@ -8,28 +8,22 @@ datasource db {
 }
 
 model Usuario {
-  id           Int          @id @default(autoincrement())
-  nome         String
-  cpf          String       @unique
-  email        String       @unique
-  nivel        NivelUsuario @default(ESCRITORIO)
-  senha        String
-  dataCadastro DateTime     @default(now())
-  ultimoAcesso DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  // NOVO: Vinculação com cultura (para GERENTE_CULTURA)
-  culturaId    Int?         @map("cultura_id")
-  cultura      Cultura?     @relation(fields: [culturaId], references: [id], onDelete: SetNull)
-
-  // Relação com Notificacao
-  notificacoes Notificacao[]
-
-  // Relações com Sistema de Controle de Banana
-  fitasBanana      FitaBanana[]      // Fitas criadas pelo usuário
-  controlesBanana  ControleBanana[]  // Controles registrados pelo usuário
-  historicosFitas  HistoricoFitas[]  // Histórico de ações do usuário
+  id              Int              @id @default(autoincrement())
+  nome            String
+  cpf             String           @unique
+  email           String           @unique
+  nivel           NivelUsuario     @default(ESCRITORIO)
+  senha           String
+  dataCadastro    DateTime         @default(now())
+  ultimoAcesso    DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  culturaId       Int?             @map("cultura_id")
+  controlesBanana ControleBanana[]
+  fitasBanana     FitaBanana[]
+  historicosFitas HistoricoFitas[]
+  notificacoes    Notificacao[]
+  cultura         Cultura?         @relation(fields: [culturaId], references: [id])
 
   @@map("usuarios")
 }
@@ -52,111 +46,437 @@ model ConfigDadosEmpresa {
   @@map("config_dados_empresa")
 }
 
-// Conta corrente da empresa
 model ContaCorrente {
-  id                    Int      @id @default(autoincrement())
-  bancoCodigo           String   // Código do banco (ex: 001)
-  agencia               String   // Número da agência
-  agenciaDigito         String   // Dígito da agência
-  contaCorrente         String   // Número da conta corrente
-  contaCorrenteDigito   String   // Dígito da conta corrente
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  // Relações
-  credenciaisAPI        CredenciaisAPI[]
-  conveniosCobranca     ConvenioCobranca[]
+  id                  Int                @id @default(autoincrement())
+  bancoCodigo         String
+  agencia             String
+  agenciaDigito       String
+  contaCorrente       String
+  contaCorrenteDigito String
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  conveniosCobranca   ConvenioCobranca[]
+  credenciaisAPI      CredenciaisAPI[]
 
   @@unique([bancoCodigo, agencia, contaCorrente])
   @@map("conta_corrente")
 }
 
-// Credenciais para APIs bancárias
 model CredenciaisAPI {
-  id                Int      @id @default(autoincrement())
-  banco             String   // Código do banco
-  contaCorrenteId   Int      // Relação com conta corrente
-  modalidadeApi     String   // Modalidade da API
-  developerAppKey   String   // Developer Application Key
-  clienteId         String   // Cliente ID
-  clienteSecret     String   // Cliente Secret
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // Relação com ContaCorrente
-  contaCorrente ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  id              Int           @id @default(autoincrement())
+  banco           String
+  contaCorrenteId Int
+  modalidadeApi   String
+  developerAppKey String
+  clienteId       String
+  clienteSecret   String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  contaCorrente   ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
 
   @@unique([banco, contaCorrenteId, modalidadeApi])
   @@map("credenciais_api")
 }
 
-// Convênio de cobrança - registro único no sistema
 model ConvenioCobranca {
-  id                        Int      @id @default(autoincrement())
-  contaCorrenteId          Int      // Relação com conta corrente
-  juros                    Float    // Percentual de juros ao mês
-  diasAberto               Int      // Quantidade de dias em aberto
-  multaAtiva               Boolean  // Se a multa está ativa
-  layoutBoletoFundoBranco  Boolean  // Se o layout do boleto tem fundo branco
-  valorMulta               Float?   // Valor da multa em percentual (opcional)
-  carenciaMulta            Int?     // Carência da multa em dias (opcional)
-  convenio                 String   // Número do convênio bancário
-  carteira                 String   // Carteira bancária
-  variacao                 String   // Variação da carteira
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-
-  // Relação com ContaCorrente
-  contaCorrente ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  id                      Int           @id @default(autoincrement())
+  contaCorrenteId         Int
+  juros                   Float
+  diasAberto              Int
+  multaAtiva              Boolean
+  layoutBoletoFundoBranco Boolean
+  valorMulta              Float?
+  carenciaMulta           Int?
+  convenio                String
+  carteira                String
+  variacao                String
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  contaCorrente           ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
 
   @@map("convenio_cobranca")
 }
 
-// Configurações de Email
 model ConfigEmail {
-  id                    Int      @id @default(autoincrement())
-  servidorSMTP          String   // Servidor SMTP (ex: smtp.gmail.com)
-  porta                 Int      // Porta do servidor (ex: 587, 465)
-  emailEnvio            String   // Email que irá enviar as mensagens
-  nomeExibicao          String   // Nome que aparece no remetente
-  usuario               String   // Usuário para autenticação
-  senha                 String   // Senha para autenticação
-  metodoAutenticacao    String   // LOGIN, PLAIN, CRAM-MD5
-  timeoutConexao        Int      // Timeout da conexão em segundos
-  usarSSL               Boolean  // Se deve usar SSL/TLS
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                 Int      @id @default(autoincrement())
+  servidorSMTP       String
+  porta              Int
+  emailEnvio         String
+  nomeExibicao       String
+  usuario            String
+  senha              String
+  metodoAutenticacao String
+  timeoutConexao     Int
+  usarSSL            Boolean
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  @@unique([servidorSMTP, porta, emailEnvio]) // Garante unicidade da configuração
+  @@unique([servidorSMTP, porta, emailEnvio])
   @@map("config_emails")
 }
 
-// Configurações de WhatsApp
 model ConfigWhatsApp {
   id                      Int      @id @default(autoincrement())
-  phoneNumberId           String   @map("phone_number_id") // ID do número de telefone no Facebook
-  accessToken             String   @map("access_token")    // Token de acesso da API
-  businessAccountId       String?  @map("business_account_id") // ID da conta comercial (opcional)
-  verifyToken             String?  @map("verify_token")    // Token de verificação do webhook (opcional)
-  numeroTelefone          String   @map("numero_telefone") // Número de telefone formatado
-  nomeExibicao            String   @map("nome_exibicao")   // Nome que aparece no WhatsApp
-  ativo                   Boolean  @default(true)          // Se a configuração está ativa
-  webhookUrl              String?  @map("webhook_url")     // URL do webhook (opcional)
-  configuracoesAdicionais Json?    @map("configuracoes_adicionais") // JSON com configurações extras
+  phoneNumberId           String   @map("phone_number_id")
+  accessToken             String   @map("access_token")
+  businessAccountId       String?  @map("business_account_id")
+  verifyToken             String?  @map("verify_token")
+  numeroTelefone          String   @map("numero_telefone")
+  nomeExibicao            String   @map("nome_exibicao")
+  ativo                   Boolean  @default(true)
+  webhookUrl              String?  @map("webhook_url")
+  configuracoesAdicionais Json?    @map("configuracoes_adicionais")
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
-  @@unique([phoneNumberId, numeroTelefone]) // Garante unicidade da configuração
+  @@unique([phoneNumberId, numeroTelefone])
   @@map("config_whatsapp")
+}
+
+model Notificacao {
+  id              Int                   @id @default(autoincrement())
+  titulo          String                @db.VarChar(100)
+  conteudo        String
+  tipo            TipoNotificacao       @default(SISTEMA)
+  status          StatusNotificacao     @default(NAO_LIDA)
+  prioridade      PrioridadeNotificacao @default(MEDIA)
+  usuarioId       Int?                  @map("usuario_id")
+  dadosAdicionais Json?                 @map("dados_adicionais")
+  link            String?               @db.VarChar(255)
+  expirarEm       DateTime?             @map("expirar_em")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  usuario         Usuario?              @relation(fields: [usuarioId], references: [id])
+
+  @@map("notificacoes")
+}
+
+model Cultura {
+  id                Int                  @id @default(autoincrement())
+  descricao         String               @unique
+  periodicidade     PeriodicidadeCultura
+  permitirConsorcio Boolean              @default(false)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  areasFornecedores AreaFornecedor[]
+  frutas            Fruta[]
+  lotesCulturas     LotesCulturas[]
+  usuarios          Usuario[]
+
+  @@map("culturas")
+}
+
+model AreaAgricola {
+  id                 Int                  @id @default(autoincrement())
+  nome               String               @db.VarChar(100)
+  categoria          CategoriaArea        @default(COLONO)
+  areaTotal          Float                @map("area_total")
+  coordenadas        Json?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  desativar          Boolean              @default(false)
+  controlesBanana    ControleBanana[]
+  frutasPedidosAreas FrutasPedidosAreas[]
+  lotes              LotesCulturas[]
+
+  @@map("areas_agricolas")
+}
+
+model LotesCulturas {
+  id             Int          @id @default(autoincrement())
+  areaAgricolaId Int          @map("area_agricola_id")
+  culturaId      Int          @map("cultura_id")
+  areaPlantada   Float        @map("area_plantada")
+  areaProduzindo Float        @default(0) @map("area_produzindo")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  areaAgricola   AreaAgricola @relation(fields: [areaAgricolaId], references: [id], onDelete: Cascade)
+  cultura        Cultura      @relation(fields: [culturaId], references: [id], onDelete: Cascade)
+
+  @@unique([areaAgricolaId, culturaId])
+  @@map("lotes_culturas")
+}
+
+model Fruta {
+  id              Int                        @id @default(autoincrement())
+  nome            String                     @db.VarChar(100)
+  codigo          String?                    @unique
+  descricao       String?
+  status          StatusFruta?               @default(ATIVA)
+  nomeCientifico  String?                    @map("nome_cientifico")
+  corPredominante String?                    @map("cor_predominante")
+  epocaColheita   String?                    @map("epoca_colheita")
+  observacoes     String?
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  culturaId       Int                        @map("cultura_id")
+  cultura         Cultura                    @relation(fields: [culturaId], references: [id])
+  frutasPedidos   FrutasPedidos[]
+  custosColheita  TurmaColheitaPedidoCusto[]
+
+  @@map("frutas")
+}
+
+model Cliente {
+  id                 Int           @id @default(autoincrement())
+  nome               String        @db.VarChar(100)
+  razaoSocial        String?       @db.VarChar(100)
+  cnpj               String?       @db.VarChar(18)
+  cpf                String?       @db.VarChar(14)
+  inscricaoEstadual  String?       @db.VarChar(20)
+  inscricaoMunicipal String?       @db.VarChar(20)
+  cep                String?       @db.VarChar(9)
+  logradouro         String?       @db.VarChar(100)
+  numero             String?       @db.VarChar(10)
+  complemento        String?       @db.VarChar(50)
+  bairro             String?       @db.VarChar(50)
+  cidade             String?       @db.VarChar(50)
+  estado             String?       @db.VarChar(2)
+  telefone1          String?       @db.VarChar(15)
+  telefone2          String?       @db.VarChar(15)
+  email1             String?       @db.VarChar(100)
+  email2             String?       @db.VarChar(100)
+  observacoes        String?
+  status             StatusCliente @default(ATIVO)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  industria          Boolean?      @default(false)
+  pedidos            Pedido[]
+
+  @@map("clientes")
+}
+
+model Fornecedor {
+  id          Int              @id @default(autoincrement())
+  nome        String           @db.VarChar(100)
+  cnpj        String?          @unique
+  cpf         String?          @unique
+  telefone    String?
+  email       String?
+  endereco    String?
+  observacoes String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  areas       AreaFornecedor[]
+
+  @@map("fornecedores")
+}
+
+model AreaFornecedor {
+  id                 Int                  @id @default(autoincrement())
+  fornecedorId       Int
+  nome               String               @db.VarChar(100)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  culturaId          Int?                 @map("cultura_id")
+  cultura            Cultura?             @relation(fields: [culturaId], references: [id])
+  fornecedor         Fornecedor           @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  frutasPedidosAreas FrutasPedidosAreas[]
+
+  @@map("areas_fornecedores")
+}
+
+model Pedido {
+  id                   Int                        @id @default(autoincrement())
+  numeroPedido         String                     @unique
+  clienteId            Int
+  dataPedido           DateTime                   @default(now())
+  dataPrevistaColheita DateTime
+  dataColheita         DateTime?
+  frete                Float?
+  icms                 Float?
+  desconto             Float?
+  valorFinal           Float?
+  status               StatusPedido               @default(PEDIDO_CRIADO)
+  observacoes          String?
+  observacoesColheita  String?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  valorRecebido        Float?
+  avaria               Float?
+  nomeMotorista        String?
+  pesagem              String?
+  placaPrimaria        String?
+  placaSecundaria      String?
+  indDataDescarga      DateTime?                  @map("ind_data_descarga")
+  indDataEntrada       DateTime?                  @map("ind_data_entrada")
+  indMediaMililitro    Float?                     @map("ind_media_mililitro")
+  indNumeroNf          Int?                       @map("ind_numero_nf")
+  indPesoMedio         Float?                     @map("ind_peso_medio")
+  frutasPedidos        FrutasPedidos[]
+  pagamentosPedidos    PagamentosPedidos[]
+  cliente              Cliente                    @relation(fields: [clienteId], references: [id])
+  custosColheita       TurmaColheitaPedidoCusto[]
+
+  @@map("pedidos")
+}
+
+model FrutasPedidos {
+  id                    Int                  @id @default(autoincrement())
+  pedidoId              Int
+  frutaId               Int
+  quantidadePrevista    Float
+  quantidadeReal        Float?
+  quantidadeReal2       Float?
+  unidadeMedida1        UnidadeMedida
+  unidadeMedida2        UnidadeMedida?
+  valorUnitario         Float?
+  valorTotal            Float?
+  unidadePrecificada    UnidadeMedida?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  quantidadePrecificada Float?
+  fruta                 Fruta                @relation(fields: [frutaId], references: [id])
+  pedido                Pedido               @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  areas                 FrutasPedidosAreas[]
+  fitas                 FrutasPedidosFitas[]
+
+  @@unique([pedidoId, frutaId])
+  @@map("frutas_pedidos")
+}
+
+model PagamentosPedidos {
+  id                   Int             @id @default(autoincrement())
+  pedidoId             Int
+  dataPagamento        DateTime
+  valorRecebido        Float
+  metodoPagamento      MetodoPagamento
+  observacoesPagamento String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  contaDestino         ContaDestino
+  chequeCompensado     Boolean?        @default(false)
+  referenciaExterna    String?         @db.VarChar(100)
+  pedido               Pedido          @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@map("pagamentos_pedidos")
+}
+
+model FrutasPedidosAreas {
+  id                        Int             @id @default(autoincrement())
+  frutaPedidoId             Int
+  areaPropriaId             Int?
+  areaFornecedorId          Int?
+  observacoes               String?
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+  quantidadeColhidaUnidade1 Decimal?        @db.Decimal(10, 2)
+  quantidadeColhidaUnidade2 Decimal?        @db.Decimal(10, 2)
+  areaFornecedor            AreaFornecedor? @relation(fields: [areaFornecedorId], references: [id])
+  areaPropria               AreaAgricola?   @relation(fields: [areaPropriaId], references: [id])
+  frutaPedido               FrutasPedidos   @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
+
+  @@map("frutas_pedidos_areas")
+}
+
+model FrutasPedidosFitas {
+  id               Int            @id @default(autoincrement())
+  frutaPedidoId    Int
+  fitaBananaId     Int
+  quantidadeFita   Float?
+  observacoes      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  controleBananaId Int
+  controleBanana   ControleBanana @relation(fields: [controleBananaId], references: [id])
+  fitaBanana       FitaBanana     @relation(fields: [fitaBananaId], references: [id])
+  frutaPedido      FrutasPedidos  @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
+
+  @@unique([frutaPedidoId, controleBananaId])
+  @@map("frutas_pedidos_fitas")
+}
+
+model FitaBanana {
+  id            Int                  @id @default(autoincrement())
+  nome          String               @unique @db.VarChar(100)
+  corHex        String               @db.VarChar(7)
+  dataCriacao   DateTime             @default(now())
+  usuarioId     Int
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  controles     ControleBanana[]
+  usuario       Usuario              @relation(fields: [usuarioId], references: [id])
+  frutasPedidos FrutasPedidosFitas[]
+
+  @@map("fitas_banana")
+}
+
+model ControleBanana {
+  id                     Int                  @id @default(autoincrement())
+  fitaBananaId           Int
+  areaAgricolaId         Int
+  quantidadeFitas        Int
+  dataRegistro           DateTime             @default(now())
+  usuarioId              Int
+  observacoes            String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  quantidadeInicialFitas Int
+  areaAgricola           AreaAgricola         @relation(fields: [areaAgricolaId], references: [id])
+  fitaBanana             FitaBanana           @relation(fields: [fitaBananaId], references: [id])
+  usuario                Usuario              @relation(fields: [usuarioId], references: [id])
+  frutasPedidosFitas     FrutasPedidosFitas[]
+  historicos             HistoricoFitas[]
+
+  @@map("controle_banana")
+}
+
+model HistoricoFitas {
+  id               Int            @id @default(autoincrement())
+  controleBananaId Int
+  usuarioId        Int
+  acao             String         @db.VarChar(50)
+  dadosAnteriores  Json?
+  dadosNovos       Json?
+  createdAt        DateTime       @default(now())
+  controleBanana   ControleBanana @relation(fields: [controleBananaId], references: [id], onDelete: Cascade)
+  usuario          Usuario        @relation(fields: [usuarioId], references: [id])
+
+  @@map("historico_fitas")
+}
+
+model TurmaColheita {
+  id             Int                        @id @default(autoincrement())
+  nomeColhedor   String                     @db.VarChar(100)
+  chavePix       String?                    @db.VarChar(100)
+  observacoes    String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  dataCadastro   DateTime                   @default(now())
+  custosColheita TurmaColheitaPedidoCusto[]
+
+  @@map("turma_colheita")
+}
+
+model TurmaColheitaPedidoCusto {
+  id                Int           @id @default(autoincrement())
+  turmaColheitaId   Int
+  pedidoId          Int
+  frutaId           Int
+  quantidadeColhida Float
+  unidadeMedida     UnidadeMedida
+  valorColheita     Float?
+  dataColheita      DateTime?
+  pagamentoEfetuado Boolean       @default(false)
+  observacoes       String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  dataPagamento     DateTime?
+  fruta             Fruta         @relation(fields: [frutaId], references: [id])
+  pedido            Pedido        @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  turmaColheita     TurmaColheita @relation(fields: [turmaColheitaId], references: [id], onDelete: Cascade)
+
+  @@unique([turmaColheitaId, pedidoId, frutaId])
+  @@map("turma_colheita_pedido_custo")
 }
 
 enum NivelUsuario {
   ADMINISTRADOR
+  USUARIO
+  CONVIDADO
   GERENTE_GERAL
   ESCRITORIO
   GERENTE_CULTURA
-  USUARIO        // Mantido para compatibilidade (não usar em novos cadastros)
-  CONVIDADO      // Mantido para compatibilidade (não usar em novos cadastros)
 }
 
 enum TipoNotificacao {
@@ -180,27 +500,6 @@ enum PrioridadeNotificacao {
   ALTA
 }
 
-model Notificacao {
-  id              Int                    @id @default(autoincrement())
-  titulo          String                 @db.VarChar(100)
-  conteudo        String                 @db.Text
-  tipo            TipoNotificacao        @default(SISTEMA)
-  status          StatusNotificacao      @default(NAO_LIDA)
-  prioridade      PrioridadeNotificacao  @default(MEDIA)
-  usuarioId       Int?                   @map("usuario_id")
-  dadosAdicionais Json?                  @map("dados_adicionais")
-  link            String?                @db.VarChar(255)
-  expirarEm       DateTime?              @map("expirar_em")
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @updatedAt @map("updated_at")
-
-  // Relação com Usuario
-  usuario         Usuario?               @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
-
-  @@map("notificacoes")
-}
-
-// Enums para Lotes Agrícolas
 enum CategoriaArea {
   COLONO
   TECNICO
@@ -213,92 +512,9 @@ enum PeriodicidadeCultura {
   TEMPORARIA
 }
 
-// Modelo de Culturas
-model Cultura {
-  id                Int                  @id @default(autoincrement())
-  descricao         String               @unique
-  periodicidade     PeriodicidadeCultura
-  permitirConsorcio Boolean              @default(false)
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-
-  // Relações
-  lotesCulturas     LotesCulturas[]
-  areasFornecedores AreaFornecedor[]     // Relação com áreas de fornecedores
-  frutas            Fruta[]              // Relação 1:N com Frutas
-  usuarios          Usuario[]            // NOVO: Gerentes de cultura
-
-  @@map("culturas")
-}
-
-// Modelo de Áreas Agrícolas
-model AreaAgricola {
-  id              Int              @id @default(autoincrement())
-  nome            String           @db.VarChar(100)
-  categoria       CategoriaArea    @default(COLONO)
-  areaTotal       Float            @map("area_total")
-  coordenadas     Json?            // Coordenadas geográficas no formato GeoJSON
-  desativar       Boolean          @default(false) // Flag para desativar área
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  // Relações
-  lotes           LotesCulturas[]
-  controlesBanana ControleBanana[] // Relação com controle de banana
-  frutasPedidosAreas FrutasPedidosAreas[] // NOVA: Relação com múltiplas áreas de pedidos
-
-  @@map("areas_agricolas")
-}
-
-// Tabela de relacionamento entre Áreas e Culturas
-model LotesCulturas {
-  id              Int           @id @default(autoincrement())
-  areaAgricolaId  Int           @map("area_agricola_id")
-  culturaId       Int           @map("cultura_id")
-  areaPlantada    Float         @map("area_plantada")
-  areaProduzindo  Float         @default(0) @map("area_produzindo")
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  // Relações
-  areaAgricola    AreaAgricola  @relation(fields: [areaAgricolaId], references: [id], onDelete: Cascade)
-  cultura         Cultura       @relation(fields: [culturaId], references: [id], onDelete: Cascade)
-
-  @@unique([areaAgricolaId, culturaId])
-  @@map("lotes_culturas")
-}
-
-// Enums para o módulo de frutas
 enum StatusFruta {
   ATIVA
   INATIVA
-}
-
-// Modelo ultra simplificado de Frutas
-model Fruta {
-  id                    Int              @id @default(autoincrement())
-  nome                  String           @db.VarChar(100)
-  
-  // Campos opcionais (nullable)
-  codigo                String?          @unique
-  culturaId             Int              @map("cultura_id") // FK para Cultura (OBRIGATÓRIO)
-  descricao             String?          @db.Text
-  status                StatusFruta?     @default(ATIVA)
-  nomeCientifico        String?          @map("nome_cientifico")
-  corPredominante       String?          @map("cor_predominante")
-  epocaColheita         String?          @map("epoca_colheita")
-  observacoes           String?          @db.Text
-  
-  // Metadados
-  createdAt             DateTime         @default(now()) @map("created_at")
-  updatedAt             DateTime         @updatedAt @map("updated_at")
-  
-  // Relações
-  cultura               Cultura          @relation(fields: [culturaId], references: [id]) // Relação com Cultura
-  frutasPedidos         FrutasPedidos[]  // Nova relação 1:N
-  custosColheita        TurmaColheitaPedidoCusto[] // Custos de colheita por fruta
-
-  @@map("frutas")
 }
 
 enum StatusCliente {
@@ -319,16 +535,16 @@ enum StatusPedido {
   AGUARDANDO_PRECIFICACAO
   PRECIFICACAO_REALIZADA
   AGUARDANDO_PAGAMENTO
-  PAGAMENTO_PARCIAL
   PAGAMENTO_REALIZADO
   PEDIDO_FINALIZADO
   CANCELADO
+  PAGAMENTO_PARCIAL
 }
 
 enum UnidadeMedida {
   KG
-  TON
   CX
+  TON
   UND
   ML
   LT
@@ -340,372 +556,4 @@ enum MetodoPagamento {
   TRANSFERENCIA
   DINHEIRO
   CHEQUE
-}
-
-model Cliente {
-  id                Int      @id @default(autoincrement())
-  nome              String   @db.VarChar(100)
-  razaoSocial       String?  @db.VarChar(100)
-  cnpj              String?  @db.VarChar(18)
-  cpf               String?  @db.VarChar(14)
-  inscricaoEstadual String?  @db.VarChar(20)
-  inscricaoMunicipal String? @db.VarChar(20)
-
-  // Endereço
-  cep               String?  @db.VarChar(9)
-  logradouro        String?  @db.VarChar(100)
-  numero            String?  @db.VarChar(10)
-  complemento       String?  @db.VarChar(50)
-  bairro            String?  @db.VarChar(50)
-  cidade            String?  @db.VarChar(50)
-  estado            String?  @db.VarChar(2)
-
-  // Comunicação
-  telefone1         String?  @db.VarChar(15)
-  telefone2         String?  @db.VarChar(15)
-  email1            String?  @db.VarChar(100)
-  email2            String?  @db.VarChar(100)
-
-  // Informações adicionais
-  observacoes       String?  @db.Text
-  status            StatusCliente @default(ATIVO)
-  industria         Boolean?  @default(false) // Se é indústria
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // Relações
-  pedidos           Pedido[]
-
-  @@map("clientes")
-}
-
-// NOVA: Modelo de Fornecedores
-model Fornecedor {
-  id              Int              @id @default(autoincrement())
-  nome            String           @db.VarChar(100)
-  cnpj            String?          @unique
-  cpf             String?          @unique
-  telefone        String?
-  email           String?
-  endereco        String?
-  observacoes     String?          @db.Text
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  // Relações
-  areas           AreaFornecedor[]
-  
-  @@map("fornecedores")
-}
-
-// NOVA: Modelo de Áreas dos Fornecedores
-model AreaFornecedor {
-  id              Int              @id @default(autoincrement())
-  fornecedorId    Int
-  nome            String           @db.VarChar(100)
-  culturaId       Int?             @map("cultura_id") // NOVA: FK para Cultura (opcional)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  // Relações
-  fornecedor      Fornecedor       @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
-  cultura         Cultura?         @relation(fields: [culturaId], references: [id], onDelete: SetNull) // NOVA: Relação com Cultura
-  frutasPedidosAreas FrutasPedidosAreas[] // NOVA: Relação com múltiplas áreas de pedidos
-  
-  @@map("areas_fornecedores")
-}
-
-// Modelo de Pedidos
-model Pedido {
-  id                    Int              @id @default(autoincrement())
-  numeroPedido          String           @unique // Geração automática: PED-2024-0001
-  
-  // Relacionamentos
-  clienteId             Int
-  
-  // Dados do Pedido
-  dataPedido            DateTime         @default(now())
-  dataPrevistaColheita  DateTime
-  dataColheita          DateTime?
-  
-  // Colheita - REMOVIDO: fitaColheita movido para frutasPedidos
-  
-  // Financeiro (valores consolidados)
-  frete                 Float?           // Opcional
-  icms                  Float?           // Opcional
-  desconto              Float?           // Opcional
-  avaria                Float?           // Opcional (renomeado de abatimento)
-  valorFinal            Float?           // Calculado automaticamente
-  valorRecebido         Float?           // Valor recebido consolidado (soma dos pagamentos)
-  
-  // Frete (informações adicionais)
-  pesagem               String?          // Peso para controle (string para flexibilidade)
-  placaPrimaria         String?          // Placa do carro principal
-  placaSecundaria       String?          // Placa do carro secundário (reboque)
-  nomeMotorista         String?          // Nome do motorista
-  
-  // Status e Observações
-  status                StatusPedido     @default(PEDIDO_CRIADO)
-  observacoes           String?          @db.Text
-  observacoesColheita   String?          @db.Text
-  
-  // Campos específicos para clientes indústria
-  indDataEntrada        DateTime?        @map("ind_data_entrada")        // Data de entrada (sem horário)
-  indDataDescarga       DateTime?        @map("ind_data_descarga")       // Data de descarga (sem horário)
-  indPesoMedio          Float?           @map("ind_peso_medio")          // Peso médio (decimal)
-  indMediaMililitro     Float?           @map("ind_media_mililitro")     // Média em mililitros (decimal)
-  indNumeroNf           Int?             @map("ind_numero_nf")           // Número da nota fiscal (inteiro)
-  
-  // Metadados
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
-  
-  // Relações
-  cliente               Cliente          @relation(fields: [clienteId], references: [id])
-  frutasPedidos         FrutasPedidos[]  // Relação 1:N com frutas
-  pagamentosPedidos     PagamentosPedidos[] // NOVA: Relação 1:N com pagamentos
-  custosColheita        TurmaColheitaPedidoCusto[] // Custos de colheita por turma
-
-  @@map("pedidos")
-}
-
-// Nova tabela para múltiplas frutas por pedido
-model FrutasPedidos {
-  id                    Int              @id @default(autoincrement())
-  pedidoId              Int              // Relação com o pedido
-  frutaId               Int              // Relação com a fruta
-  
-  // Quantidades
-  quantidadePrevista    Float
-  quantidadeReal        Float?
-  quantidadeReal2       Float?           // Segunda unidade
-  
-  // Unidades de medida
-  unidadeMedida1        UnidadeMedida    // Obrigatória
-  unidadeMedida2        UnidadeMedida?   // Opcional
-  
-  // Precificação
-  valorUnitario         Float?
-  valorTotal            Float?
-  unidadePrecificada    UnidadeMedida?
-  quantidadePrecificada Float?           // Quantidade real para relatórios
-  
-  // Metadados
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
-  
-  // Relações
-  pedido                Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  fruta                 Fruta            @relation(fields: [frutaId], references: [id])
-  
-  // NOVAS: Relações com múltiplas áreas e fitas
-  areas                 FrutasPedidosAreas[]
-  fitas                 FrutasPedidosFitas[]
-  
-  @@unique([pedidoId, frutaId]) // Evita duplicatas
-  @@map("frutas_pedidos")
-}
-
-// NOVA: Tabela para múltiplos pagamentos por pedido
-model PagamentosPedidos {
-  id                    Int              @id @default(autoincrement())
-  pedidoId              Int              // Relação com o pedido
-  
-  // Dados do Pagamento
-  dataPagamento         DateTime         // Data do pagamento
-  valorRecebido         Float            // Valor recebido neste pagamento
-  metodoPagamento       MetodoPagamento  // Método de pagamento
-  contaDestino          ContaDestino
-  observacoesPagamento  String?          @db.Text // Observações opcionais
-  
-  // Novos campos para cheques e referências
-  chequeCompensado      Boolean?         @default(false) // Se o cheque foi compensado
-  referenciaExterna     String?          @db.VarChar(100) // Referência externa (número do cheque, PIX, etc.)
-  
-  // Metadados
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
-  
-  // Relações
-  pedido                Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  
-  @@map("pagamentos_pedidos")
-}
-
-// ========================================
-// NOVAS TABELAS PARA MÚLTIPLAS ÁREAS E FITAS POR FRUTA
-// ========================================
-
-// Tabela para múltiplas áreas por fruta em pedidos
-model FrutasPedidosAreas {
-  id                Int              @id @default(autoincrement())
-  frutaPedidoId     Int              // FK para frutas_pedidos
-  
-  // Área (exclusiva - ou própria OU fornecedor)
-  areaPropriaId     Int?             // FK para areas_agricolas
-  areaFornecedorId  Int?             // FK para areas_fornecedores
-  
-  // Observações opcionais
-  observacoes       String?          @db.Text
-
-  // NOVOS CAMPOS: Quantidade colhida por área
-  quantidadeColhidaUnidade1  Int?  // Quantidade colhida na área (unidade 1)
-  quantidadeColhidaUnidade2  Int?  // Quantidade colhida na área (unidade 2)
-  
-  // Metadados
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  
-  // Relações
-  frutaPedido       FrutasPedidos    @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
-  areaPropria       AreaAgricola?    @relation(fields: [areaPropriaId], references: [id])
-  areaFornecedor    AreaFornecedor?  @relation(fields: [areaFornecedorId], references: [id])
-  
-  @@map("frutas_pedidos_areas")
-}
-
-// Tabela para múltiplas fitas por fruta em pedidos
-model FrutasPedidosFitas {
-  id                Int              @id @default(autoincrement())
-  frutaPedidoId     Int              // FK para frutas_pedidos
-  fitaBananaId      Int              // FK para fitas_banana (mantido para referência)
-  controleBananaId  Int              // FK para controle_banana (LOTE ESPECÍFICO)
-  
-  // Quantidade específica desta fita (opcional para flexibilidade)
-  quantidadeFita    Float?           // Quantidade desta fita (pode ser omitida)
-  
-  // Observações opcionais
-  observacoes       String?          @db.Text
-  
-  // Metadados
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  
-  // Relações
-  frutaPedido       FrutasPedidos    @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
-  fitaBanana        FitaBanana       @relation(fields: [fitaBananaId], references: [id])
-  controleBanana    ControleBanana   @relation(fields: [controleBananaId], references: [id])
-  
-  @@unique([frutaPedidoId, controleBananaId]) // Evita lote duplicado na mesma fruta
-  @@map("frutas_pedidos_fitas")
-}
-
-// ========================================
-// SISTEMA DE CONTROLE DE BANANA
-// ========================================
-
-// Tabela de Fitas para identificação das bananas
-model FitaBanana {
-  id           Int      @id @default(autoincrement())
-  nome         String   @db.VarChar(100)  // Nome da fita (ex: "Fita Vermelha", "Fita Azul")
-  corHex       String   @db.VarChar(7)    // Cor em hexadecimal (#FF0000)
-  dataCriacao  DateTime @default(now())
-  usuarioId    Int      // Usuário que criou a fita
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relações
-  usuario      Usuario         @relation(fields: [usuarioId], references: [id])
-  controles    ControleBanana[] // Uma fita pode ter múltiplos registros de controle
-  frutasPedidos FrutasPedidosFitas[] // NOVA: Relação com pedidos
-
-  @@unique([nome]) // Nome único para fitas
-  @@map("fitas_banana")
-}
-
-// Tabela de Controle de Banana por Área
-model ControleBanana {
-  id                     Int           @id @default(autoincrement())
-  fitaBananaId           Int           // FK para fita utilizada
-  areaAgricolaId         Int           // FK para área agrícola
-  quantidadeFitas        Int           // Quantidade atual de fitas (estoque)
-  quantidadeInicialFitas Int           // Quantidade inicialmente cadastrada (histórico)
-  dataRegistro           DateTime      @default(now()) // Data do registro
-  usuarioId              Int           // Usuário que registrou
-  observacoes            String?       @db.Text // Observações opcionais
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
-
-  // Relações
-  fitaBanana       FitaBanana    @relation(fields: [fitaBananaId], references: [id])
-  areaAgricola     AreaAgricola  @relation(fields: [areaAgricolaId], references: [id])
-  usuario          Usuario       @relation(fields: [usuarioId], references: [id])
-  historicos       HistoricoFitas[] // Histórico de mudanças
-  frutasPedidosFitas FrutasPedidosFitas[] // Fitas usadas em pedidos
-
-  @@map("controle_banana")
-}
-
-// Tabela de Histórico para Auditoria
-model HistoricoFitas {
-  id                Int            @id @default(autoincrement())
-  controleBananaId  Int            // FK para controle de banana
-  usuarioId         Int            // Usuário que fez a ação
-  acao              String         @db.VarChar(50) // CRIADO, EDITADO, REMOVIDO
-  dadosAnteriores   Json?          // Dados antes da mudança (para edições)
-  dadosNovos        Json?          // Dados após a mudança
-  createdAt         DateTime       @default(now())
-
-  // Relações
-  controleBanana    ControleBanana @relation(fields: [controleBananaId], references: [id], onDelete: Cascade)
-  usuario           Usuario        @relation(fields: [usuarioId], references: [id])
-
-  @@map("historico_fitas")
-}
-
-// ========================================
-// TURMA DE COLHEITA
-// ========================================
-
-model TurmaColheita {
-  id                Int              @id @default(autoincrement())
-  nomeColhedor      String           @db.VarChar(100) // Nome da pessoa que colhe
-  chavePix          String?          @db.VarChar(100) // Chave PIX do colhedor
-  dataCadastro      DateTime         @default(now()) // Data de cadastro da turma
-
-  // Observações opcionais
-  observacoes       String?          @db.Text
-
-  // Metadados
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  // Relações
-  custosColheita    TurmaColheitaPedidoCusto[] // Custos de colheita por pedido
-
-  @@map("turma_colheita")
-}
-
-// ========================================
-// COLHEITA POR PEDIDO
-// ========================================
-
-model TurmaColheitaPedidoCusto {
-  id                Int              @id @default(autoincrement())
-  turmaColheitaId   Int              // FK para turma de colheita
-  pedidoId          Int              // FK para pedidos
-  frutaId           Int              // FK para frutas
-  quantidadeColhida Float            // Quantidade colhida
-  unidadeMedida     UnidadeMedida    // Unidade de medida da quantidade
-  valorColheita     Float?           // Valor pago pela colheita
-  dataColheita      DateTime?        // Data da colheita específica
-  pagamentoEfetuado Boolean          @default(false) // Se o pagamento foi efetuado
-  dataPagamento     DateTime?        // Data quando o pagamento foi efetuado
-
-  // Observações específicas da colheita
-  observacoes       String?          @db.Text
-
-  // Metadados
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  // Relações
-  turmaColheita     TurmaColheita    @relation(fields: [turmaColheitaId], references: [id], onDelete: Cascade)
-  pedido            Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  fruta             Fruta            @relation(fields: [frutaId], references: [id])
-
-  // Índices únicos para evitar duplicação
-  @@unique([turmaColheitaId, pedidoId, frutaId])
-  @@map("turma_colheita_pedido_custo")
 }

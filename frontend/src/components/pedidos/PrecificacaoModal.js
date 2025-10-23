@@ -616,17 +616,19 @@ const PrecificacaoModal = ({
                             <MonetaryInput
                               placeholder="Ex: 2,50"
                               addonAfter={
-                                <span
-                                  onClick={() => toggleUnidadeFruta(index)}
-                                  style={{
-                                    cursor: fruta?.unidadeMedida2 ? 'pointer' : 'default',
-                                    userSelect: 'none',
-                                    fontWeight: 600,
-                                    color: fruta?.unidadeMedida2 ? '#1890ff' : '#666'
-                                  }}
-                                >
-                                  {fruta?.unidadePrecificada || fruta?.unidadeMedida1 || 'UND'}
-                                </span>
+                                <Tooltip title={fruta?.unidadeMedida2 ? 'Clique para alternar unidade' : undefined}>
+                                  <span
+                                    onClick={() => toggleUnidadeFruta(index)}
+                                    style={{
+                                      cursor: fruta?.unidadeMedida2 ? 'pointer' : 'default',
+                                      userSelect: 'none',
+                                      fontWeight: 600,
+                                      color: fruta?.unidadeMedida2 ? '#1890ff' : '#666'
+                                    }}
+                                  >
+                                    {fruta?.unidadePrecificada || fruta?.unidadeMedida1 || 'UND'}
+                                  </span>
+                                </Tooltip>
                               }
                               size={isMobile ? "small" : "large"}
                             />
