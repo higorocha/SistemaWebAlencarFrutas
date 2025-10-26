@@ -63,7 +63,9 @@ export class DashboardService {
         valorFinal: true,
       },
       where: {
-        status: 'PEDIDO_FINALIZADO',
+        status: {
+          in: ['PEDIDO_FINALIZADO', 'PAGAMENTO_PARCIAL'],
+        },
         valorFinal: {
           not: null,
         },
@@ -125,7 +127,7 @@ export class DashboardService {
     return this.prisma.pedido.count({
       where: {
         status: {
-          notIn: ['PEDIDO_FINALIZADO', 'CANCELADO'],
+          notIn: ['CANCELADO'],
         },
       },
     });
@@ -138,7 +140,9 @@ export class DashboardService {
 
     const pedidosFinalizados = await this.prisma.pedido.findMany({
       where: {
-        status: 'PEDIDO_FINALIZADO',
+        status: {
+          in: ['PEDIDO_FINALIZADO', 'PAGAMENTO_PARCIAL'],
+        },
         createdAt: {
           gte: sixMonthsAgo,
         },
@@ -180,17 +184,12 @@ export class DashboardService {
   }
 
   private async getProgramacaoColheita(): Promise<ProgramacaoColheitaDto[]> {
-    // ✅ CORREÇÃO: Normalizar data atual para início do dia (00:00:00)
+    // ✅ Normalizar data atual para início do dia (00:00:00)
     const hoje = new Date();
     const dataAtual = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
 
-    // ✅ CORREÇÃO: Buscar TODOS os pedidos pendentes (remover limite artificial)
+    // ✅ Buscar TODOS os pedidos (incluindo finalizados) para estatísticas completas
     const pedidos = await this.prisma.pedido.findMany({
-      where: {
-        status: {
-          in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA'],
-        },
-      },
       include: {
         cliente: {
           select: {
@@ -209,24 +208,23 @@ export class DashboardService {
         },
       },
       orderBy: {
-        dataPrevistaColheita: 'asc', // Mais antigos primeiro (atrasados têm prioridade)
+        dataPrevistaColheita: 'asc',
       },
-      // ✅ CORREÇÃO: Remover limite para mostrar TODOS os pedidos pendentes
     });
 
     const programacao: ProgramacaoColheitaDto[] = [];
 
     pedidos.forEach(pedido => {
       const clienteNome = pedido.cliente.nome || pedido.cliente.razaoSocial || 'Cliente sem nome';
-      
-      // ✅ CORREÇÃO: Normalizar data prevista para início do dia (ignorar horário)
+
+      // ✅ Normalizar data prevista para início do dia (ignorar horário)
       const dataPrevistaNormalizada = new Date(
         pedido.dataPrevistaColheita.getFullYear(),
         pedido.dataPrevistaColheita.getMonth(),
         pedido.dataPrevistaColheita.getDate()
       );
-      
-      // ✅ CORREÇÃO: Calcular diferença em dias (sem considerar horário)
+
+      // ✅ Calcular diferença em dias (sem considerar horário)
       const diferencaMs = dataPrevistaNormalizada.getTime() - dataAtual.getTime();
       const diasRestantes = Math.round(diferencaMs / (1000 * 60 * 60 * 24));
 
@@ -235,13 +233,16 @@ export class DashboardService {
       pedido.frutasPedidos.forEach(frutaPedido => {
         programacao.push({
           pedidoId: pedido.id,
+          numeroPedido: pedido.numeroPedido, // Adicionado para exibição no frontend
           cliente: clienteNome,
           fruta: frutaPedido.fruta.nome,
           quantidadePrevista: frutaPedido.quantidadePrevista,
+          quantidadeReal: frutaPedido.quantidadeReal ?? undefined, // ✅ Converter null para undefined
           unidade: frutaPedido.unidadeMedida1,
           dataPrevistaColheita: pedido.dataPrevistaColheita.toISOString(),
-          status: statusVisualizacao, // Usar status com indicação de atraso
-          diasRestantes: diasRestantes, // Permitir valores negativos para indicar atraso
+          status: statusVisualizacao,
+          statusPedido: pedido.status, // ✅ Status real do pedido
+          diasRestantes: diasRestantes,
         });
       });
     });

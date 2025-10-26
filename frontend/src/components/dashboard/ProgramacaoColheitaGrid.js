@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
-import { Card, Typography, Row, Col, Space, Tag, Tooltip } from 'antd';
-import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined } from '@ant-design/icons';
+import React, { useMemo, useState } from 'react';
+import { Card, Typography, Row, Col, Space, Tag, Tooltip, Tabs } from 'antd';
+import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import styled from 'styled-components';
 import useResponsive from '../../hooks/useResponsive';
 import { formatarData } from '../../utils/dateUtils';
 import { intFormatter, capitalizeName, capitalizeNameShort } from '../../utils/formatters';
@@ -9,8 +10,116 @@ import './ProgramacaoColheitaGrid.css';
 
 const { Text, Title } = Typography;
 
-const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) => {
+// Styled components para as abas
+const StyledTabs = styled(Tabs)`
+  .ant-tabs-nav {
+    margin-bottom: 0 !important;
+  }
+
+  .ant-tabs-tab {
+    padding: 10px 20px !important;
+    font-size: 14px !important;
+    transition: all 0.2s ease !important;
+    border-radius: 8px 8px 0 0 !important;
+    border-bottom: 2px solid transparent !important; // Reserva espaço para a borda no hover
+  }
+
+  /* Aba Semana Atual (primeira aba) */
+  .ant-tabs-tab:first-child {
+    .ant-tabs-tab-btn {
+      color: #059669 !important; // Cor padrão verde
+    }
+
+    &:hover {
+      border-bottom-color: #059669 !important; // Borda verde no hover
+    }
+
+    &.ant-tabs-tab-active {
+      border-color: #e8e8e8 !important;
+      border-bottom-color: #fff !important;
+
+      .ant-tabs-tab-btn {
+        font-weight: 600 !important;
+      }
+    }
+  }
+
+  /* Aba Colheitas Atrasadas (segunda aba) */
+  .ant-tabs-tab:nth-child(2) {
+    .ant-tabs-tab-btn {
+      color: #dc2626 !important; // Cor padrão vermelha
+    }
+
+    &:hover {
+      border-bottom-color: #dc2626 !important; // Borda vermelha no hover
+    }
+
+    &.ant-tabs-tab-active {
+      border-color: #e8e8e8 !important;
+      border-bottom-color: #fff !important;
+
+      .ant-tabs-tab-btn {
+        font-weight: 600 !important;
+      }
+    }
+  }
+
+  .ant-tabs-content-holder {
+    padding: 16px 0 0 0 !important;
+    border-top: 1px solid #e8e8e8;
+  }
+
+  .ant-tabs-content {
+    padding: 0 !important;
+  }
+`;
+
+// Bolinha pulsante vermelha - MAIOR
+const PulsingBadge = styled.div`
+  width: 12px;
+  height: 12px;
+  background-color: #dc2626;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  animation: pulse 2s infinite;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.6);
+  margin-left: 8px;
+  display: inline-block;
+
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.8);
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+      transform: scale(1.1);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+      transform: scale(1);
+    }
+  }
+`;
+
+const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, activeTab, onTabChange }) => {
   const { isMobile, isTablet } = useResponsive();
+
+  // Função para calcular a semana atual (segunda anterior ao dia atual até domingo próximo)
+  const calcularSemanaAtual = useMemo(() => {
+    const hoje = new Date();
+    const diaSemana = hoje.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
+
+    // Calcular a segunda-feira anterior (ou o próprio dia se for segunda)
+    const diasParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+    const segundaFeira = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasParaSegunda, 0, 0, 0, 0);
+
+    // Calcular o domingo próximo
+    const diasParaDomingo = diaSemana === 0 ? 0 : 7 - diaSemana;
+    const domingo = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasParaDomingo, 23, 59, 59, 999);
+
+    return { inicio: segundaFeira, fim: domingo };
+  }, []);
 
   // Função para obter ícone da fruta (agora usando SVG)
   const getFruitIconComponent = (frutaNome) => {
@@ -64,65 +173,137 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
     }
   };
 
-  // Agrupar colheitas por dia
-  const colunasPorDia = useMemo(() => {
-    const hoje = new Date();
-    const colunas = {};
-    
-    // ✅ CORREÇÃO: Incluir dias passados (atrasados) + próximos 5 dias
+  // Agrupar colheitas por categoria (semana atual e atrasadas)
+  const { colheitasSemanaAtual, colheitasAtrasadas } = useMemo(() => {
+    const semanaAtual = {};
+    const atrasadas = {};
+
     // Buscar todas as datas únicas das colheitas
-    const datasUnicas = new Set();
+    const datasUnicasSemana = new Set();
+    const datasUnicasAtrasadas = new Set();
+
+    const statusVisiveisNaGrade = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL'];
+
+    // Filtrar colheitas por categoria
     programacaoColheita.forEach(item => {
+      // 1. Ocultar itens de pedidos que não devem aparecer na grade (ex: já precificados)
+      if (!statusVisiveisNaGrade.includes(item.statusPedido)) {
+        return;
+      }
+
+      // 2. Se o pedido é de colheita parcial, ocultar apenas a fruta que já foi colhida
+      if (item.statusPedido === 'COLHEITA_PARCIAL' && item.quantidadeReal && item.quantidadeReal > 0) {
+        return;
+      }
+
+      // 3. Ocultar colheitas com quantidade exatamente igual a 1 (regra de negócio existente)
+      if (item.quantidadePrevista === 1) {
+        return;
+      }
+
       const dataColheita = new Date(item.dataPrevistaColheita);
-      const dataStr = dataColheita.toISOString().split('T')[0];
-      datasUnicas.add(dataStr);
+      const dataColheitaNormalizada = new Date(dataColheita.getFullYear(), dataColheita.getMonth(), dataColheita.getDate(), 0, 0, 0, 0);
+      const dataStr = dataColheitaNormalizada.toISOString().split('T')[0];
+
+      // Verificar se está dentro da semana atual
+      if (dataColheitaNormalizada >= calcularSemanaAtual.inicio && dataColheitaNormalizada <= calcularSemanaAtual.fim) {
+        datasUnicasSemana.add(dataStr);
+      } else if (dataColheitaNormalizada < calcularSemanaAtual.inicio) {
+        // Colheitas atrasadas (antes da semana atual)
+        datasUnicasAtrasadas.add(dataStr);
+      }
     });
-    
-    // Adicionar próximos 5 dias (hoje + 4)
-    for (let i = 0; i < 5; i++) {
-      // ✅ CORREÇÃO: Normalizar data para início do dia
-      const data = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + i, 0, 0, 0, 0);
+
+    // Adicionar todos os dias da semana atual (segunda a domingo)
+    for (let i = 0; i < 7; i++) {
+      const data = new Date(calcularSemanaAtual.inicio);
+      data.setDate(data.getDate() + i);
       const dataStr = data.toISOString().split('T')[0];
-      datasUnicas.add(dataStr);
+      datasUnicasSemana.add(dataStr);
     }
-    
-    // Criar colunas para todas as datas (passadas + futuras)
-    datasUnicas.forEach(dataStr => {
-      // ✅ CORREÇÃO: Criar data normalizada para início do dia
+
+    // Criar colunas para semana atual
+    datasUnicasSemana.forEach(dataStr => {
       const [ano, mes, dia] = dataStr.split('-');
       const data = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia), 0, 0, 0, 0);
-      colunas[dataStr] = {
+      semanaAtual[dataStr] = {
         data: data,
         colheitas: [],
         totalColheitas: 0
       };
     });
 
-    // Agrupar colheitas por data (filtrando quantidades = 1)
+    // Criar colunas para colheitas atrasadas
+    datasUnicasAtrasadas.forEach(dataStr => {
+      const [ano, mes, dia] = dataStr.split('-');
+      const data = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia), 0, 0, 0, 0);
+      atrasadas[dataStr] = {
+        data: data,
+        colheitas: [],
+        totalColheitas: 0
+      };
+    });
+
+    // Distribuir colheitas nas colunas
     programacaoColheita.forEach(item => {
-      // Ocultar colheitas com quantidade exatamente igual a 1
+      // 1. Ocultar itens de pedidos que não devem aparecer na grade (ex: já precificados)
+      if (!statusVisiveisNaGrade.includes(item.statusPedido)) {
+        return;
+      }
+
+      // 2. Se o pedido é de colheita parcial, ocultar apenas a fruta que já foi colhida
+      if (item.statusPedido === 'COLHEITA_PARCIAL' && item.quantidadeReal && item.quantidadeReal > 0) {
+        return;
+      }
+
+      // 3. Ocultar colheitas com quantidade exatamente igual a 1 (regra de negócio existente)
       if (item.quantidadePrevista === 1) {
-        return; // Pula esta colheita
+        return;
       }
 
       const dataColheita = new Date(item.dataPrevistaColheita);
       const dataStr = dataColheita.toISOString().split('T')[0];
 
-      if (colunas[dataStr]) {
-        colunas[dataStr].colheitas.push(item);
-        colunas[dataStr].totalColheitas++;
+      if (semanaAtual[dataStr]) {
+        semanaAtual[dataStr].colheitas.push(item);
+        semanaAtual[dataStr].totalColheitas++;
+      } else if (atrasadas[dataStr]) {
+        atrasadas[dataStr].colheitas.push(item);
+        atrasadas[dataStr].totalColheitas++;
       }
     });
 
-    return colunas;
-  }, [programacaoColheita]);
+    return {
+      colheitasSemanaAtual: semanaAtual,
+      colheitasAtrasadas: atrasadas
+    };
+  }, [programacaoColheita, calcularSemanaAtual]);
 
-  // Obter colunas ordenadas
-  const colunasOrdenadas = useMemo(() => {
-    return Object.entries(colunasPorDia).sort(([dataA], [dataB]) => {
+  // Obter colunas ordenadas para semana atual
+  const colunasSemanaOrdenadas = useMemo(() => {
+    return Object.entries(colheitasSemanaAtual).sort(([dataA], [dataB]) => {
       return new Date(dataA) - new Date(dataB);
     });
-  }, [colunasPorDia]);
+  }, [colheitasSemanaAtual]);
+
+  // Obter colunas ordenadas para atrasadas
+  const colunasAtrasadasOrdenadas = useMemo(() => {
+    return Object.entries(colheitasAtrasadas).sort(([dataA], [dataB]) => {
+      return new Date(dataA) - new Date(dataB);
+    });
+  }, [colheitasAtrasadas]);
+
+  // Verificar se há colheitas atrasadas
+  const temColheitasAtrasadas = useMemo(() => {
+    return Object.values(colheitasAtrasadas).some(coluna => coluna.totalColheitas > 0);
+  }, [colheitasAtrasadas]);
+
+  // Calcular o total de colheitas pendentes (que serão exibidas na grade)
+  const totalColheitasPendentes = useMemo(() => {
+    const totalSemana = Object.values(colheitasSemanaAtual).reduce((acc, col) => acc + col.totalColheitas, 0);
+    const totalAtrasadas = Object.values(colheitasAtrasadas).reduce((acc, col) => acc + col.totalColheitas, 0);
+    return totalSemana + totalAtrasadas;
+  }, [colheitasSemanaAtual, colheitasAtrasadas]);
 
   // Renderizar item de colheita
   const renderItemColheita = (item, index) => {
@@ -146,18 +327,27 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
           e.currentTarget.style.boxShadow = 'none';
         }}
       >
-        <div className="cliente-info">
-          <UserOutlined className="cliente-icon" />
-          <Text 
-            className="cliente-nome"
-            style={{ 
-              fontSize: isMobile ? '0.75rem' : '0.8125rem',
-              fontWeight: '600',
-              color: '#333'
-            }}
-          >
-            {capitalizeNameShort(item.cliente)}
-          </Text>
+        <div className="cliente-info" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <UserOutlined className="cliente-icon" />
+            <Text 
+              className="cliente-nome"
+              style={{ 
+                fontSize: isMobile ? '0.75rem' : '0.8125rem',
+                fontWeight: '600',
+                color: '#333'
+              }}
+            >
+              {capitalizeNameShort(item.cliente)}
+            </Text>
+          </div>
+          {item.numeroPedido && (
+            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '2px' }}>
+              <Text style={{ fontSize: '11px', color: '#8c8c8c', fontWeight: 500 }}>
+                #{item.numeroPedido}
+              </Text>
+            </div>
+          )}
         </div>
         
         <div className="fruta-quantidade">
@@ -307,9 +497,76 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
     );
   };
 
+  // Renderizar conteúdo de uma aba
+  const renderConteudoAba = (colunas) => {
+    if (colunas.length === 0) {
+      return (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: isMobile ? '40px 20px' : '60px 20px',
+            color: '#8c8c8c'
+          }}
+        >
+          <CalendarOutlined style={{ fontSize: isMobile ? '2rem' : '3rem', marginBottom: '16px' }} />
+          <div style={{ fontSize: isMobile ? '0.875rem' : '1rem', marginBottom: '8px' }}>
+            Nenhuma colheita nesta categoria
+          </div>
+          <Text type="secondary" style={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}>
+            {activeTab === '1' ? 'Nenhuma colheita programada para esta semana' : 'Nenhuma colheita atrasada'}
+          </Text>
+        </div>
+      );
+    }
+
+    return (
+      <Row
+        gutter={isMobile ? [8, 8] : [12, 12]}
+        style={{
+          margin: 0,
+          overflowX: 'auto',
+          flexWrap: 'nowrap',
+          display: 'flex'
+        }}
+        className="programacao-colheita-grid"
+      >
+        {colunas.map(renderColunaDia)}
+      </Row>
+    );
+  };
+
+  // Configurar itens das abas
+  const tabItems = [
+    {
+      key: '1',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <CalendarOutlined style={{ fontSize: isMobile ? '14px' : '15px' }} />
+          <span style={{ fontSize: isMobile ? '13px' : '14px' }}>Semana Atual</span>
+        </span>
+      ),
+      children: renderConteudoAba(colunasSemanaOrdenadas)
+    }
+  ];
+
+  // Adicionar aba de colheitas atrasadas apenas se houver dados
+  if (temColheitasAtrasadas) {
+    tabItems.push({
+      key: '2',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <ClockCircleOutlined style={{ fontSize: isMobile ? '14px' : '15px' }} />
+          <span style={{ fontSize: isMobile ? '13px' : '14px' }}>Colheitas Atrasadas</span>
+          <PulsingBadge />
+        </span>
+      ),
+      children: renderConteudoAba(colunasAtrasadasOrdenadas)
+    });
+  }
+
   return (
     <div className="programacao-colheita-grid">
-      <div className="grid-header" style={{ marginBottom: isMobile ? '8px' : '10px' }}>
+      <div className="grid-header" style={{ marginBottom: isMobile ? '8px' : '12px' }}>
         <Title
           level={4}
           style={{
@@ -321,7 +578,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
         >
           📅 Programação de Colheita
         </Title>
-        {programacaoColheita.length > 0 && (
+        {totalColheitasPendentes > 0 && (
           <Text
             style={{
               fontSize: isMobile ? '0.6875rem' : '0.75rem',
@@ -331,10 +588,10 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
               marginTop: '2px'
             }}
           >
-            {programacaoColheita.length} colheita{programacaoColheita.length > 1 ? 's' : ''} programada{programacaoColheita.length > 1 ? 's' : ''}
-            {colunasOrdenadas.length > 5 && (
-              <span style={{ color: '#f5222d', fontWeight: '600' }}>
-                {' • '}{colunasOrdenadas.length} dias
+            {totalColheitasPendentes} colheita{totalColheitasPendentes > 1 ? 's' : ''} programada{totalColheitasPendentes > 1 ? 's' : ''}
+            {temColheitasAtrasadas && (
+              <span style={{ color: '#dc2626', fontWeight: '600' }}>
+                {' • '}{Object.values(colheitasAtrasadas).reduce((acc, col) => acc + col.totalColheitas, 0)} atrasada{Object.values(colheitasAtrasadas).reduce((acc, col) => acc + col.totalColheitas, 0) > 1 ? 's' : ''}
               </span>
             )}
           </Text>
@@ -342,7 +599,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
       </div>
 
       {programacaoColheita.length === 0 ? (
-        <div 
+        <div
           style={{
             textAlign: 'center',
             padding: isMobile ? '40px 20px' : '60px 20px',
@@ -358,18 +615,12 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick }) 
           </Text>
         </div>
       ) : (
-        <Row
-          gutter={isMobile ? [8, 8] : [12, 12]}
-          style={{
-            margin: 0,
-            overflowX: 'auto',
-            flexWrap: 'nowrap',
-            display: 'flex'
-          }}
-          className="programacao-colheita-grid"
-        >
-          {colunasOrdenadas.map(renderColunaDia)}
-        </Row>
+        <StyledTabs
+          type="card"
+          activeKey={activeTab}
+          onChange={onTabChange}
+          items={tabItems}
+        />
       )}
     </div>
   );

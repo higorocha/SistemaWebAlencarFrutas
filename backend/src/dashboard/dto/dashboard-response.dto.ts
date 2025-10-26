@@ -14,6 +14,9 @@ export class ProgramacaoColheitaDto {
   @ApiProperty({ example: 123 })
   pedidoId: number;
 
+  @ApiProperty({ example: 'PED-2024-0001', description: 'Número do pedido' })
+  numeroPedido: string;
+
   @ApiProperty({ example: 'João Silva Ltda' })
   cliente: string;
 
@@ -23,6 +26,9 @@ export class ProgramacaoColheitaDto {
   @ApiProperty({ example: 2500 })
   quantidadePrevista: number;
 
+  @ApiProperty({ example: 2400, required: false })
+  quantidadeReal?: number;
+
   @ApiProperty({ example: 'KG' })
   unidade: string;
 
@@ -31,6 +37,9 @@ export class ProgramacaoColheitaDto {
 
   @ApiProperty({ example: 'AGUARDANDO_COLHEITA' })
   status: string;
+
+  @ApiProperty({ example: 'COLHEITA_REALIZADA', description: 'Status real do pedido' })
+  statusPedido: string;
 
   @ApiProperty({ example: 3 })
   diasRestantes: number;
