@@ -74,7 +74,7 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab }) => 
       if (statusPendentes.includes(item.statusPedido)) {
         const isItemColhido = item.statusPedido === 'COLHEITA_PARCIAL' && item.quantidadeReal && item.quantidadeReal > 0;
         
-        if (!isItemColhido) {
+        if (!isItemColhido && item.quantidadePrevista !== 1) {
           if (!pendentes[frutaNome]) {
             pendentes[frutaNome] = { nome: frutaNome, quantidade: 0, unidade: unidade };
           }
