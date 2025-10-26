@@ -70,6 +70,26 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 // { color: "#1890ff", text: "Aguardando Colheita" }
 ```
 
+**🎨 Sistema de Cores por Tempo de Espera:**
+- **Regra**: Define cores (verde, amarelo, laranja, vermelho) baseadas no número de dias passados desde uma data.
+- **Uso Principal**: Indicar visualmente há quantos dias um pedido aguarda pagamento.
+- **Lógica**:
+  - **Até 7 dias**: Verde (`#52c41a`)
+  - **8 a 15 dias**: Amarelo (`#faad14`)
+  - **16 a 30 dias**: Laranja (`#fa8c16`)
+  - **Acima de 30 dias**: Vermelho (`#ff4d4f`)
+
+**📚 Como Usar:**
+```javascript
+import useCoresPorTempo from '../../hooks/useCoresPorTempo';
+
+const { getCorPorData } = useCoresPorTempo();
+
+// Obter configuração baseada na data
+const config = getCorPorData(pedido.dataPrecificacaoRealizada); 
+// { cor: "#52c41a", texto: "5 dias", dias: 5 }
+```
+
 **💰 Regra de Pedidos Vencidos (Lógica Unificada):**
 
 **🔴 Pedidos Vencidos - Critérios (30 dias):**
@@ -453,6 +473,7 @@ SistemaWebAlencarFrutas/
 │   │   │   ├── useFormValidation.js    # Validação de formulários memoizada
 │   │   │   ├── useDebounce.js          # Hook genérico de debounce
 │   │   │   ├── useNotificationWithContext.js # Notificações com z-index correto
+│   │   ├── useCoresPorTempo.js     # Hook para obter cores baseadas na idade de uma data
 │   │   │   └── useConfirmClose.js      # Hook para validação de fechamento de modais
 │   │   ├── utils/                      # Utilitários (OTIMIZADOS)
 │   │   │   ├── validation.js           # Sistema de validação robusto

@@ -126,6 +126,9 @@ export class PedidoResponseDto {
   @ApiProperty({ description: 'Data da colheita', required: false })
   dataColheita?: Date;
 
+  @ApiProperty({ description: 'Data em que a precificação foi realizada', required: false })
+  dataPrecificacaoRealizada?: Date;
+
   // REMOVIDO: fitaColheita movido para frutasPedidos
 
   @ApiProperty({ description: 'Observações', required: false })

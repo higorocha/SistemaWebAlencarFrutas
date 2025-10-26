@@ -283,6 +283,7 @@ model Pedido {
   dataPedido           DateTime                   @default(now())
   dataPrevistaColheita DateTime
   dataColheita         DateTime?
+  dataPrecificacaoRealizada DateTime?
   frete                Float?
   icms                 Float?
   desconto             Float?

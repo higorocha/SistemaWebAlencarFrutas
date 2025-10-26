@@ -116,6 +116,17 @@ export class PedidosService {
                     nome: true,
                     corHex: true
                   }
+                },
+                controleBanana: {
+                  select: {
+                    id: true,
+                    areaAgricola: {
+                      select: {
+                        id: true,
+                        nome: true
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -300,15 +311,8 @@ export class PedidosService {
       })
     ]);
 
-    // Processar e retornar dados formatados dos pedidos ativos
-    const pedidosAtivosFomatados = pedidosAtivos.map(pedido => this.convertNullToUndefined({
-      ...pedido,
-      numeroPedido: pedido.numeroPedido,
-      dataPrevistaColheita: pedido.dataPrevistaColheita?.toISOString().split('T')[0],
-      dataColheita: pedido.dataColheita?.toISOString().split('T')[0],
-      createdAt: pedido.createdAt?.toISOString(),
-      updatedAt: pedido.updatedAt?.toISOString(),
-    }));
+    // ✅ CORREÇÃO: Processar pedidos ativos usando adaptPedidoResponse para garantir mapeamento correto de maoObra
+    const pedidosAtivosFomatados = pedidosAtivos.map(pedido => this.adaptPedidoResponse(pedido));
 
     // Processar e retornar dados formatados dos pedidos finalizados
     const pedidosFinalizadosFormatados = pedidosFinalizados.map(pedido => this.convertNullToUndefined({
@@ -1838,6 +1842,7 @@ export class PedidosService {
           desconto: updatePrecificacaoDto.desconto,
           avaria: updatePrecificacaoDto.avaria,
           status: 'PRECIFICACAO_REALIZADA',
+          dataPrecificacaoRealizada: new Date(),
           // Campos específicos para clientes indústria
           indDataEntrada: updatePrecificacaoDto.indDataEntrada ? new Date(updatePrecificacaoDto.indDataEntrada) : null,
           indDataDescarga: updatePrecificacaoDto.indDataDescarga ? new Date(updatePrecificacaoDto.indDataDescarga) : null,
@@ -2335,6 +2340,7 @@ export class PedidosService {
           dataPrevistaColheita: updatePedidoCompletoDto.dataPrevistaColheita,
 
           dataColheita: updatePedidoCompletoDto.dataColheita,
+          dataPrecificacaoRealizada: updatePedidoCompletoDto.dataPrecificacaoRealizada ? new Date(updatePedidoCompletoDto.dataPrecificacaoRealizada) : undefined,
           observacoes: updatePedidoCompletoDto.observacoes,
           observacoesColheita: updatePedidoCompletoDto.observacoesColheita,
           frete: updatePedidoCompletoDto.frete,

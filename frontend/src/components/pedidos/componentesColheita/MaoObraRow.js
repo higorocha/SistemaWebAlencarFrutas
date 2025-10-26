@@ -139,15 +139,20 @@ const MaoObraRow = ({
                     return Promise.reject(new Error("Turma é obrigatória quando outros campos são preenchidos"));
                   }
 
-                  if (value) {
-                    const todasTurmas = formValues.maoObra || [];
-                    const turmasComValor = todasTurmas
-                      .map((item, idx) => ({ turmaId: item?.turmaColheitaId, index: idx }))
-                      .filter(item => item.turmaId && item.turmaId === value);
+                  // Validação de duplicidade (turma + fruta)
+                  if (value && maoObraItem.frutaId) {
+                    const todasCombinacoes = formValues.maoObra || [];
+                    const combinacoesIguais = todasCombinacoes.filter(item => 
+                      item && 
+                      item.turmaColheitaId === value && 
+                      item.frutaId === maoObraItem.frutaId
+                    );
 
-                    if (turmasComValor.length > 1) {
+                    if (combinacoesIguais.length > 1) {
                       const turmaNome = turmasColheita.find(t => t.id === value)?.nomeColhedor || `Turma ${value}`;
-                      return Promise.reject(new Error(`${turmaNome} já foi selecionado(a) em outro registro`));
+                      const frutaInfo = pedido?.frutasPedidos?.find(fp => fp.frutaId === maoObraItem.frutaId);
+                      const frutaNome = frutaInfo?.fruta?.nome ? capitalizeName(frutaInfo.fruta.nome) : `Fruta ID ${maoObraItem.frutaId}`;
+                      return Promise.reject(new Error(`"${turmaNome}" já foi selecionado(a) para a fruta "${frutaNome}"`));
                     }
                   }
 

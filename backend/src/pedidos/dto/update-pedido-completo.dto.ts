@@ -257,6 +257,11 @@ export class UpdatePedidoCompletoDto {
   @IsDateString({}, { message: 'Data da colheita deve ser uma data válida' })
   dataColheita?: string;
 
+  @ApiPropertyOptional({ description: 'Data em que a precificação foi realizada' })
+  @IsOptional()
+  @IsDateString({}, { message: 'Data da precificação deve ser uma data válida' })
+  dataPrecificacaoRealizada?: string;
+
   // REMOVIDO: fitaColheita movido para frutasPedidos
 
   @ApiPropertyOptional({ description: 'Observações' })

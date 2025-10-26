@@ -12,12 +12,14 @@ import {
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario, capitalizeName, capitalizeNameShort } from "../../../utils/formatters";
+import useCoresPorTempo from "../../../hooks/useCoresPorTempo";
 import useResponsive from "../../../hooks/useResponsive";
 
 const { Text } = Typography;
 
 const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
   const { isMobile } = useResponsive();
+  const { getCorPorData } = useCoresPorTempo();
   
   // Configurações de ação baseadas no tipo
   const getActionConfig = (type, status) => {
@@ -134,22 +136,50 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
                   </Tag>
                 )}
               </div>
-              <Text style={{ 
-                color: pedido.valorFinal ? "#059669" : "#999", 
-                fontSize: "12px", 
-                whiteSpace: "normal",
-                wordWrap: "break-word",
-                overflowWrap: "break-word",
-                fontWeight: "600",
-                backgroundColor: pedido.valorFinal ? "#f0fdf4" : "#f9f9f9",
-                padding: "2px 6px",
-                borderRadius: "4px",
-                border: pedido.valorFinal ? "1px solid #bbf7d0" : "1px solid #e5e5e5",
-                width: "100%",
-                textAlign: "left"
-              }}>
-                {pedido.valorFinal ? formatarValorMonetario(pedido.valorFinal) : "A definir"}
-              </Text>
+              {(() => {
+                let diasInfo = null;
+                if (['AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL'].includes(pedido.status)) {
+                    let dataReferencia = pedido.dataPrecificacaoRealizada;
+                    if (pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0) {
+                        const ultimoPagamento = [...pedido.pagamentosPedidos].sort((a, b) => new Date(b.dataPagamento) - new Date(a.dataPagamento))[0];
+                        dataReferencia = ultimoPagamento.dataPagamento;
+                    }
+                    if (dataReferencia) {
+                        diasInfo = getCorPorData(dataReferencia);
+                    }
+                }
+
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                    <Text style={{ 
+                      color: pedido.valorFinal ? "#059669" : "#999", 
+                      fontSize: "12px", 
+                      fontWeight: "600",
+                      backgroundColor: pedido.valorFinal ? "#f0fdf4" : "#f9f9f9",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      border: pedido.valorFinal ? "1px solid #bbf7d0" : "1px solid #e5e5e5",
+                    }}>
+                      {pedido.valorFinal ? formatarValorMonetario(pedido.valorFinal) : "A definir"}
+                    </Text>
+
+                    {diasInfo && diasInfo.dias !== null && (
+                      <Tooltip title={`${diasInfo.texto} desde a última movimentação`}>
+                        <div style={{
+                          width: '22px', height: '22px', borderRadius: '50%',
+                          backgroundColor: diasInfo.cor, color: 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 'bold', fontSize: '11px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                          flexShrink: 0
+                        }}>
+                          {diasInfo.dias}
+                        </div>
+                      </Tooltip>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             
             {/* Coluna 2: Cliente */}

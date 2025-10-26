@@ -861,6 +861,30 @@ const EditarPedidoDialog = ({
         onLoadingChange(true, "Salvando pedido...");
       }
 
+      // Lógica para detectar se a precificação foi alterada
+      let precificacaoAlterada = false;
+      const frutasOriginais = pedido.frutasPedidos || [];
+      const frutasAtuais = pedidoAtual.frutas || [];
+
+      if (frutasOriginais.length !== frutasAtuais.length) {
+        precificacaoAlterada = true;
+      } else {
+        for (const frutaAtual of frutasAtuais) {
+          const frutaOriginal = frutasOriginais.find(f => f.id === frutaAtual.frutaPedidoId);
+          if (!frutaOriginal) {
+            precificacaoAlterada = true;
+            break;
+          }
+          if (
+            toNumber(frutaOriginal.quantidadePrecificada) !== toNumber(frutaAtual.quantidadePrecificada) ||
+            toNumber(frutaOriginal.valorUnitario) !== toNumber(frutaAtual.valorUnitario)
+          ) {
+            precificacaoAlterada = true;
+            break;
+          }
+        }
+      }
+
       // Construir formData apenas com campos apropriados para a fase atual
       const formData = {
         // Dados básicos sempre enviados
@@ -896,7 +920,7 @@ const EditarPedidoDialog = ({
         pedido.status === 'PAGAMENTO_PARCIAL' ||
         pedido.status === 'PEDIDO_FINALIZADO'
       ) {
-        Object.assign(formData, {
+        const dadosPrecificacao = {
           frete: valoresCalculados.frete,
           icms: valoresCalculados.icms,
           desconto: valoresCalculados.desconto,
@@ -907,7 +931,13 @@ const EditarPedidoDialog = ({
           indPesoMedio: pedidoAtual.indPesoMedio || undefined,
           indMediaMililitro: pedidoAtual.indMediaMililitro || undefined,
           indNumeroNf: pedidoAtual.indNumeroNf || undefined,
-        });
+        };
+
+        if (precificacaoAlterada) {
+          dadosPrecificacao.dataPrecificacaoRealizada = new Date().toISOString();
+        }
+
+        Object.assign(formData, dadosPrecificacao);
       }
 
       // Processar frutas conforme a fase do pedido

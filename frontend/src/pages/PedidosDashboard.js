@@ -175,31 +175,19 @@ const PedidosDashboard = () => {
   }, [setOperacaoLoading, reloadAfterNovoPedido]);
 
   // Handlers para ações dos cards
-  const handleColheita = async (pedido) => {
-    // ✅ CORREÇÃO: Buscar pedido atualizado do banco para garantir que mão de obra e fitas estejam presentes
-    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
-    if (pedidoAtualizado) {
-      setPedidoSelecionado(pedidoAtualizado);
-      setColheitaModalOpen(true);
-    }
+  const handleColheita = (pedido) => {
+    setPedidoSelecionado(pedido);
+    setColheitaModalOpen(true);
   };
 
-  const handlePrecificacao = async (pedido) => {
-    // ✅ Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
-    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
-    if (pedidoAtualizado) {
-      setPedidoSelecionado(pedidoAtualizado);
-      setPrecificacaoModalOpen(true);
-    }
+  const handlePrecificacao = (pedido) => {
+    setPedidoSelecionado(pedido);
+    setPrecificacaoModalOpen(true);
   };
 
-  const handlePagamento = async (pedido) => {
-    // ✅ Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
-    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
-    if (pedidoAtualizado) {
-      setPedidoSelecionado(pedidoAtualizado);
-      setPagamentoModalOpen(true);
-    }
+  const handlePagamento = (pedido) => {
+    setPedidoSelecionado(pedido);
+    setPagamentoModalOpen(true);
   };
 
   const handleVisualizar = async (pedido) => {
@@ -219,34 +207,41 @@ const PedidosDashboard = () => {
   const handleSaveColheita = useCallback(async (colheitaData) => {
     try {
       setOperacaoLoading(true);
-      setLoadingType('colheita'); // ✅ Tipo específico para colheita
+      setLoadingType('colheita');
       
       const pedidoId = pedidoSelecionado.id;
-      await axiosInstance.patch(`/api/pedidos/${pedidoId}/colheita`, colheitaData);
-      showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
-
-      setColheitaModalOpen(false);
-
-      await reloadAfterColheita();
-
-      // ✅ CORREÇÃO: Buscar pedido atualizado e manter selecionado para próxima colheita parcial
-      const pedidoAtualizado = await buscarPedidoAtualizado(pedidoId);
-      if (pedidoAtualizado) {
-        setPedidoSelecionado(pedidoAtualizado);
-      } else {
-        setPedidoSelecionado(null);
-      }
+      const response = await axiosInstance.patch(`/api/pedidos/${pedidoId}/colheita`, colheitaData);
+      // Apenas retorna os dados para o modal continuar o fluxo
+      return response.data;
 
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
       const message = error.response?.data?.message || "Erro ao registrar colheita";
       showNotification("error", "Erro", message);
+      // Garante que o loading pare em caso de erro
+      setOperacaoLoading(false);
+      setLoadingType(null);
       throw error; // Re-throw para o modal tratar
+    }
+  }, [pedidoSelecionado, setOperacaoLoading, setLoadingType]);
+
+  // ✅ NOVO: Callback para finalizar salvamento (chamado APÓS salvar mão de obra)
+  const handleColheitaCompleta = useCallback(async () => {
+    try {
+      setLoadingType('colheita'); // Manter o tipo de loading para feedback visual
+      
+      await reloadAfterColheita();
+
+      showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
+      setColheitaModalOpen(false);
+      setPedidoSelecionado(null);
+    } catch (error) {
+      console.error("Erro ao atualizar lista de pedidos pós-colheita:", error);
     } finally {
       setOperacaoLoading(false);
-      setLoadingType(null); // ✅ Limpar tipo
+      setLoadingType(null);
     }
-  }, [pedidoSelecionado, setOperacaoLoading, reloadAfterColheita, buscarPedidoAtualizado]);
+  }, [reloadAfterColheita, setOperacaoLoading, setLoadingType]);
 
   // Função para salvar precificação
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {
@@ -600,8 +595,10 @@ const PedidosDashboard = () => {
           open={colheitaModalOpen}
           onClose={handleModalClose}
           onSave={handleSaveColheita}
+          onSaveComplete={handleColheitaCompleta}
           pedido={pedidoSelecionado}
           loading={operacaoLoading}
+          onLoadingChange={setOperacaoLoading}
         />
       )}
 

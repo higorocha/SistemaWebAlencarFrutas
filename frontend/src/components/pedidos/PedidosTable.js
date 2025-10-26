@@ -19,6 +19,7 @@ import ResponsiveTable from "../common/ResponsiveTable";
 import FrutasPedidoModal from "./FrutasPedidoModal";
 import VisualizarPedidoModal from "./VisualizarPedidoModal";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
+import useCoresPorTempo from "../../hooks/useCoresPorTempo";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -207,6 +208,7 @@ const PedidosTable = ({
   // Função para obter configuração de status
   // Hook para cores de status centralizadas
   const { getStatusConfig } = usePedidoStatusColors();
+  const { getCorPorData } = useCoresPorTempo();
 
   // Função para formatar valor monetário
   const formatCurrency = (value) => {
@@ -494,6 +496,44 @@ const PedidosTable = ({
           {formatCurrency(valor)}
         </Text>
       ),
+    },
+    {
+      title: 'Dias',
+      key: 'tempoPagamento',
+      width: 110,
+      align: 'center',
+      sorter: (a, b) => {
+        const diasA = a.dataPrecificacaoRealizada ? moment().diff(moment(a.dataPrecificacaoRealizada), 'days') : -1;
+        const diasB = b.dataPrecificacaoRealizada ? moment().diff(moment(b.dataPrecificacaoRealizada), 'days') : -1;
+        return diasA - diasB;
+      },
+      render: (_, record) => {
+        if (!['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL'].includes(record.status)) {
+          return <Text type="secondary">-</Text>;
+        }
+
+        let dataReferencia = record.dataPrecificacaoRealizada;
+
+        // Se houver pagamentos, usar a data do último pagamento
+        if (record.pagamentosPedidos && record.pagamentosPedidos.length > 0) {
+          const ultimoPagamento = [...record.pagamentosPedidos].sort((a, b) => 
+            new Date(b.dataPagamento) - new Date(a.dataPagamento)
+          )[0];
+          dataReferencia = ultimoPagamento.dataPagamento;
+        }
+
+        if (!dataReferencia) {
+            return <Text type="secondary">-</Text>;
+        }
+
+        const { cor, texto } = getCorPorData(dataReferencia);
+        
+        return (
+          <Tag color={cor} style={{ fontWeight: 'bold', margin: 'auto' }}>
+            {texto}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Status',

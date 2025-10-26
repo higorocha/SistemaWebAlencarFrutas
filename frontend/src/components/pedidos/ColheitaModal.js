@@ -828,6 +828,7 @@ const ColheitaModal = ({
   };
 
   const handleSalvarColheita = async (values) => {
+    console.log('DEBUG: Dados da mão de obra recebidos para validação:', JSON.stringify(values.maoObra, null, 2));
     try {
       setIsSaving(true);
 

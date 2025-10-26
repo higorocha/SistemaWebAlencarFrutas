@@ -40,6 +40,7 @@ import { formatCurrency, capitalizeNameShort, capitalizeName } from "../../utils
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
+import { getFruitIcon } from "../../utils/fruitIcons";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -205,40 +206,7 @@ const PagamentosPendentesModal = ({
     }));
   };
 
-  // Função para mapear nomes de frutas aos ícones disponíveis
-  const getFrutaIcon = (nomeFruta) => {
-    if (!nomeFruta) return <AppleOutlined style={{ color: '#fa8c16' }} />;
-    
-    const nome = nomeFruta.toLowerCase();
-    
-    // Mapeamento de frutas para ícones
-    const iconMap = {
-      'banana': '/icons/banana.svg',
-      'maçã': '/icons/apple.svg',
-      'maca': '/icons/apple.svg',
-      'melancia': '/icons/melancia.svg',
-      'tomate': '/icons/tomate.svg',
-      'coco': '/icons/coconut1.svg',
-      'coco1': '/icons/coconut1.svg',
-      'coco2': '/icons/coconut2.svg',
-      'uva': '/icons/uvas.svg',
-      'uvas': '/icons/uvas.svg',
-      'cacau': '/icons/cacao.svg',
-      'cacau': '/icons/cacao.svg',
-      'cenoura': '/icons/cenoura.svg',
-      'milho': '/icons/milho.svg'
-    };
 
-    // Busca por correspondência exata ou parcial
-    for (const [fruta, iconPath] of Object.entries(iconMap)) {
-      if (nome.includes(fruta) || fruta.includes(nome)) {
-        return <img src={iconPath} alt={nomeFruta} style={{ width: '20px', height: '20px' }} />;
-      }
-    }
-
-    // Ícone padrão se não encontrar correspondência
-    return <AppleOutlined style={{ color: '#fa8c16' }} />;
-  };
 
   // Função para abrir modal de confirmação
   const abrirModalConfirmacao = () => {
@@ -434,7 +402,7 @@ const PagamentosPendentesModal = ({
       width: 180,
       render: (nome) => (
         <Space>
-          {getFrutaIcon(nome)}
+                    {getFruitIcon(nome, { width: 20, height: 20 })}
           <span style={{ fontWeight: '500' }}>{capitalizeName(nome || '')}</span>
         </Space>
       ),

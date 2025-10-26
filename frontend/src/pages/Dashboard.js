@@ -1457,7 +1457,7 @@ const Dashboard = () => {
               ) : dadosPagamentosAtuais && dadosPagamentosAtuais.length > 0 ? (
                 <List
                   itemLayout="horizontal"
-                  dataSource={dadosPagamentosAtuais.slice(0, 5)} // Mostrar apenas os 5 primeiros
+                  dataSource={dadosPagamentosAtuais}
                     renderItem={(item, index) => (
                       <List.Item
                         style={{
