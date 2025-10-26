@@ -288,7 +288,7 @@ const EditarPedidoDialog = ({
   // Carregar dados de mão de obra separadamente para pedidos em edição
   useEffect(() => {
     const carregarMaoObra = async () => {
-      // Verificar se pode editar colheita inline (sem usar canEditTab antes da definição)
+      // Verificar se pode editar colheita inline (apenas COLHEITA_REALIZADA em diante)
       const podeEditarColheita = pedido && (
         pedido.status === 'COLHEITA_REALIZADA' ||
         pedido.status === 'AGUARDANDO_PRECIFICACAO' ||
@@ -311,6 +311,8 @@ const EditarPedidoDialog = ({
             quantidadeColhida: item.quantidadeColhida,
             unidadeMedida: item.unidadeMedida,
             valorColheita: item.valorColheita,
+            // ✅ Calcular valorUnitario
+            valorUnitario: item.quantidadeColhida > 0 ? (item.valorColheita / item.quantidadeColhida) : undefined,
             observacoes: item.observacoes || '',
             pagamentoEfetuado: item.pagamentoEfetuado || false
           }));
@@ -322,6 +324,7 @@ const EditarPedidoDialog = ({
                 turmaColheitaId: undefined,
                 frutaId: pedidoAtual.frutas && pedidoAtual.frutas[0]?.frutaId, // ✅ Inicializar com primeira fruta
                 quantidadeColhida: undefined,
+                valorUnitario: undefined,
                 unidadeMedida: undefined,
                 valorColheita: undefined,
                 observacoes: ''
@@ -372,11 +375,11 @@ const EditarPedidoDialog = ({
       case "1": // Dados Básicos - sempre editável para pedidos ativos
         return true;
       
-      case "2": // Colheita - editável APENAS se colheita foi finalizada
-        return pedido.status === 'COLHEITA_REALIZADA' || 
-               pedido.status === 'AGUARDANDO_PRECIFICACAO' || 
-               pedido.status === 'PRECIFICACAO_REALIZADA' || 
-               pedido.status === 'AGUARDANDO_PAGAMENTO' || 
+      case "2": // Colheita - editável apenas se colheita foi realizada
+        return pedido.status === 'COLHEITA_REALIZADA' ||
+               pedido.status === 'AGUARDANDO_PRECIFICACAO' ||
+               pedido.status === 'PRECIFICACAO_REALIZADA' ||
+               pedido.status === 'AGUARDANDO_PAGAMENTO' ||
                pedido.status === 'PAGAMENTO_REALIZADO' ||
                pedido.status === 'PAGAMENTO_PARCIAL';
       
@@ -409,11 +412,11 @@ const EditarPedidoDialog = ({
       case "1": // Dados Básicos - sempre disponível
         return true;
       
-      case "2": // Colheita - disponível APENAS se colheita foi realizada
-        return pedido.status === 'COLHEITA_REALIZADA' || 
-               pedido.status === 'AGUARDANDO_PRECIFICACAO' || 
-               pedido.status === 'PRECIFICACAO_REALIZADA' || 
-               pedido.status === 'AGUARDANDO_PAGAMENTO' || 
+      case "2": // Colheita - disponível apenas se colheita foi realizada
+        return pedido.status === 'COLHEITA_REALIZADA' ||
+               pedido.status === 'AGUARDANDO_PRECIFICACAO' ||
+               pedido.status === 'PRECIFICACAO_REALIZADA' ||
+               pedido.status === 'AGUARDANDO_PAGAMENTO' ||
                pedido.status === 'PAGAMENTO_REALIZADO' ||
                pedido.status === 'PAGAMENTO_PARCIAL';
       
@@ -659,27 +662,46 @@ const EditarPedidoDialog = ({
       if (!pedidoAtual.dataColheita) {
         novosErros.dataColheita = "Data da colheita é obrigatória";
       }
-      
-      // Validar se todas as frutas têm dados de colheita
+
+      // ✅ NOVA LÓGICA: Validar apenas frutas que estão sendo colhidas (colheita parcial)
       if (pedidoAtual.frutas) {
+        // Identificar frutas que estão sendo colhidas
+        const frutasSendoColhidas = pedidoAtual.frutas.filter(fruta =>
+          fruta.quantidadeReal && fruta.quantidadeReal > 0
+        );
+
+        // Validar que pelo menos UMA fruta está sendo colhida
+        if (frutasSendoColhidas.length === 0) {
+          novosErros.colheita_geral = "Informe a quantidade colhida de pelo menos uma fruta";
+        }
+
+        // Validar apenas as frutas que estão sendo colhidas
         for (let i = 0; i < pedidoAtual.frutas.length; i++) {
           const fruta = pedidoAtual.frutas[i];
-          if (!fruta.quantidadeReal || fruta.quantidadeReal <= 0) {
-            const nomeFruta = frutas.find(f => f.id === fruta.frutaId)?.nome || `Fruta ${i + 1}`;
-            novosErros[`colheita_fruta_${i}`] = `Informe a quantidade real colhida de "${nomeFruta}"`;
-          }
+          const nomeFruta = frutas.find(f => f.id === fruta.frutaId)?.nome || `Fruta ${i + 1}`;
 
-          // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
-          const nomeFruta = frutas.find(f => f.id === fruta.frutaId)?.nome || '';
-          const isFrutaBanana = nomeFruta.toLowerCase().includes('banana');
-          
-          if (isFrutaBanana) {
-            const fitasVinculadas = fruta.fitas?.filter(fita => 
-              fita.fitaBananaId && fita.quantidadeFita && fita.quantidadeFita > 0
+          // Se a fruta está sendo colhida (tem quantidade real)
+          if (fruta.quantidadeReal && fruta.quantidadeReal > 0) {
+            // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
+            const isFrutaBanana = nomeFruta.toLowerCase().includes('banana');
+
+            if (isFrutaBanana) {
+              const fitasVinculadas = fruta.fitas?.filter(fita =>
+                fita.fitaBananaId && fita.quantidadeFita && fita.quantidadeFita > 0
+              ) || [];
+
+              if (fitasVinculadas.length === 0) {
+                novosErros[`colheita_fruta_${i}_fitas`] = `"${nomeFruta}" é uma banana e deve ter pelo menos uma fita vinculada`;
+              }
+            }
+
+            // Validar se tem áreas vinculadas
+            const areasReais = fruta.areas?.filter(area =>
+              area.areaPropriaId || area.areaFornecedorId
             ) || [];
-            
-            if (fitasVinculadas.length === 0) {
-              novosErros[`colheita_fruta_${i}_fitas`] = `"${nomeFruta}" é uma banana e deve ter pelo menos uma fita vinculada`;
+
+            if (areasReais.length === 0) {
+              novosErros[`colheita_fruta_${i}_areas`] = `Adicione pelo menos uma área de origem para "${nomeFruta}"`;
             }
           }
         }
@@ -782,7 +804,28 @@ const EditarPedidoDialog = ({
         }
       }
 
-      console.log('✅ Mão de obra salva via API com sucesso!');
+      // ✅ CORREÇÃO: Buscar dados atualizados da mão de obra após salvar
+      const responseAtualizado = await axiosInstance.get(`/api/turma-colheita/colheita-pedido/pedido/${pedido.id}`);
+      const maoObraAtualizada = responseAtualizado.data || [];
+
+      // Transformar dados da API para o formato do frontend
+      const maoObraFormatada = maoObraAtualizada.map(item => ({
+        id: item.id,
+        turmaColheitaId: item.turmaColheitaId,
+        frutaId: item.frutaId,
+        quantidadeColhida: item.quantidadeColhida,
+        unidadeMedida: item.unidadeMedida,
+        valorColheita: item.valorColheita,
+        // ✅ Calcular valorUnitario
+        valorUnitario: item.quantidadeColhida > 0 ? (item.valorColheita / item.quantidadeColhida) : undefined,
+        observacoes: item.observacoes || '',
+        pagamentoEfetuado: item.pagamentoEfetuado || false
+      }));
+
+      // Atualizar estado local com dados frescos do backend
+      setPedidoAtual(prev => ({ ...prev, maoObra: maoObraFormatada }));
+
+      console.log('✅ Mão de obra salva via API com sucesso e dados atualizados!');
       return true;
     } catch (error) {
       console.error('❌ Erro ao salvar mão de obra via API:', error);

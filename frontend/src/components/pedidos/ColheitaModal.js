@@ -34,13 +34,14 @@ import VincularAreasModal from "./VincularAreasModal";
 import VincularFitasModal from "./VincularFitasModal";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import { validarFitasCompleto } from "../../utils/fitasValidation";
+import { MaoObraRow } from './componentesColheita';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 // Componente de Resumo com atualização em tempo real
-const ResumoMaoObra = ({ form, isMobile }) => {
+const ResumoMaoObra = ({ form, isMobile, pedido }) => {
   // ✅ Monitorar mudanças em tempo real
   const maoObraAtual = Form.useWatch('maoObra', form) || [];
 
@@ -57,14 +58,24 @@ const ResumoMaoObra = ({ form, isMobile }) => {
   };
 
   maoObraValida.forEach(item => {
-    const unidade = item.unidadeMedida || 'N/A';
-    const quantidade = parseInt(item.quantidadeColhida) || 0; // ✅ Inteiro, não decimal
-    const valor = parseFloat(item.valorColheita) || 0;
+    // ✅ Buscar a unidade da fruta selecionada
+    const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
+    let unidade = frutaSelecionada?.unidadeMedida1 || 'N/A';
+    
+    // ✅ Extrair apenas a sigla
+    const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+    const unidadeEncontrada = unidadesValidas.find(u => unidade.includes(u));
+    unidade = unidadeEncontrada || unidade;
+    
+    // ✅ Converter valores (tratando vírgula)
+    const qtdStr = String(item.quantidadeColhida || '0').replace(',', '.');
+    const valorStr = String(item.valorColheita || '0').replace(',', '.');
+    const quantidade = parseFloat(qtdStr) || 0;
+    const valor = parseFloat(valorStr) || 0;
 
     if (!resumo.quantidadePorUnidade[unidade]) {
       resumo.quantidadePorUnidade[unidade] = 0;
     }
-
     resumo.quantidadePorUnidade[unidade] += quantidade;
     resumo.valorTotal += valor;
   });
@@ -180,7 +191,7 @@ const ResumoMaoObra = ({ form, isMobile }) => {
               VALOR TOTAL
             </Text>
             <Text style={{ fontSize: "20px", fontWeight: "700", color: "#d97706", display: "block" }}>
-              {resumo.valorTotal > 0 ? (
+              {isFinite(resumo.valorTotal) && resumo.valorTotal > 0 ? (
                 `R$ ${resumo.valorTotal.toLocaleString('pt-BR', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2
@@ -200,6 +211,7 @@ const ColheitaModal = ({
   open,
   onClose,
   onSave,
+  onSaveComplete, // ✅ Callback chamado APÓS salvar colheita + mão de obra
   pedido,
   loading,
   onLoadingChange, // Callback para controlar CentralizedLoader
@@ -231,6 +243,31 @@ const ColheitaModal = ({
 
   // Estados para mão de obra
   const [turmasColheita, setTurmasColheita] = useState([]);
+
+  // ✅ Preparar estrutura de áreas disponíveis para os modais
+  const areasDisponiveis = React.useMemo(() => {
+    return {
+      areasProprias: areasProprias || [],
+      areasFornecedores: areasFornecedores || []
+    };
+  }, [areasProprias, areasFornecedores]);
+
+  // ✅ Preparar mapa de fornecedores com suas áreas para os modais
+  const fornecedoresAreasMap = React.useMemo(() => {
+    const map = {};
+    (areasFornecedores || []).forEach(area => {
+      if (area.fornecedorId) {
+        if (!map[area.fornecedorId]) {
+          map[area.fornecedorId] = {
+            fornecedor: area.fornecedor,
+            areas: []
+          };
+        }
+        map[area.fornecedorId].areas.push(area);
+      }
+    });
+    return map;
+  }, [areasFornecedores]);
 
   // Carregar áreas próprias, de fornecedores e fitas de banana
   useEffect(() => {
@@ -289,7 +326,10 @@ const ColheitaModal = ({
             id: area.id,
             areaPropriaId: area.areaPropriaId || undefined,
             areaFornecedorId: area.areaFornecedorId || undefined,
-            observacoes: area.observacoes || ''
+            observacoes: area.observacoes || '',
+            // ✅ CORREÇÃO: Incluir quantidades colhidas das áreas
+            quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || undefined,
+            quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || undefined
           })) : [], // Array vazio se não há áreas reais
         fitas: fruta.fitas?.length > 0 ? fruta.fitas.map(fita => ({
           id: fita.id,
@@ -313,26 +353,37 @@ const ColheitaModal = ({
          placaPrimaria: pedido.placaPrimaria || '',
          placaSecundaria: pedido.placaSecundaria || '',
          nomeMotorista: pedido.nomeMotorista || '',
-         // Inicializar mão de obra com um item vazio
-         maoObra: pedido.maoObra || [{
-           turmaColheitaId: undefined,
-           quantidadeColhida: undefined,
-           unidadeMedida: undefined,
-           valorColheita: undefined,
-           observacoes: ''
-         }]
+        // ✅ Mão de obra: carregar dados existentes ou inicializar vazio
+        maoObra: pedido.maoObra && pedido.maoObra.length > 0
+          ? pedido.maoObra.map(item => {
+              // ✅ CORREÇÃO: Calcular valorUnitario a partir de valorColheita / quantidadeColhida
+              const quantidadeColhida = parseFloat(item.quantidadeColhida) || 0;
+              const valorColheita = parseFloat(item.valorColheita) || 0;
+              const valorUnitario = quantidadeColhida > 0 ? (valorColheita / quantidadeColhida) : undefined;
+              
+              return {
+                id: item.id,
+                turmaColheitaId: item.turmaColheitaId,
+                frutaId: item.frutaPedidoId || item.frutaId,
+                quantidadeColhida: item.quantidadeColhida,
+                valorUnitario: valorUnitario, // ✅ Valor calculado
+                valorColheita: item.valorColheita,
+                observacoes: item.observacoes || ''
+              };
+            })
+          : [{
+              turmaColheitaId: undefined,
+              frutaId: undefined,
+              quantidadeColhida: undefined,
+              valorUnitario: undefined,
+              valorColheita: undefined,
+              observacoes: ''
+            }]
        });
     } else if (open) {
       form.resetFields();
     }
   }, [open, pedido, form]);
-
-  const unidadesMedida = [
-    { value: 'KG', label: 'Quilogramas (KG)' },
-    { value: 'TON', label: 'Toneladas (TON)' },
-    { value: 'CX', label: 'Caixas (CX)' },
-    { value: 'UND', label: 'Unidades (UND)' },
-  ];
 
   const coresFita = [
     { value: 'Verde', label: 'Verde', color: '#52c41a' },
@@ -485,6 +536,18 @@ const ColheitaModal = ({
     });
   };
 
+  // Função para fechar modal de áreas
+  const handleFecharVincularAreas = () => {
+    setVincularAreasModalOpen(false);
+    setFrutaSelecionada(null);
+  };
+
+  // Função para fechar modal de fitas
+  const handleFecharVincularFitas = () => {
+    setVincularFitasModalOpen(false);
+    setFrutaSelecionada(null);
+  };
+
   // Função para salvar áreas vinculadas
   const handleSalvarAreas = (areas) => {
     if (!frutaSelecionada) return;
@@ -579,6 +642,55 @@ const ColheitaModal = ({
     success("Sucesso", "Fitas vinculadas com sucesso!");
   };
 
+  // ✅ FUNÇÃO AUXILIAR para salvar mão de obra (reutilizável)
+  const salvarMaoDeObra = async (maoObraItems, values) => {
+    if (!maoObraItems || maoObraItems.length === 0 || !pedido?.id) return;
+    
+    try {
+      if (onLoadingChange) {
+        onLoadingChange(true, "Registrando mão de obra...");
+      }
+
+      const pedidoId = pedido.id;
+
+      // Salvar cada item de mão de obra individualmente
+      for (const item of maoObraItems) {
+        // ✅ Buscar a unidade da fruta selecionada por ESTE item específico
+        const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
+        let unidadeFinal = frutaSelecionada?.unidadeMedida1 || 'KG';
+        
+        // ✅ GARANTIR que a unidade é válida para o enum do backend (extrair sigla)
+        const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+        const unidadeEncontrada = unidadesValidas.find(u => unidadeFinal.includes(u));
+        unidadeFinal = unidadeEncontrada || 'KG';
+        
+        const custoData = {
+          turmaColheitaId: item.turmaColheitaId,
+          pedidoId: pedidoId,
+          frutaId: item.frutaId,
+          quantidadeColhida: parseFloat(item.quantidadeColhida),
+          unidadeMedida: unidadeFinal,
+          valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
+          dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
+          pagamentoEfetuado: false,
+          observacoes: item.observacoes || ''
+        };
+
+        console.log(`📊 Mão de obra - Turma: ${item.turmaColheitaId}, Fruta: ${item.frutaId}, Unidade: ${unidadeFinal}`);
+        console.log('📊 Dados completos enviados:', custoData);
+        await axiosInstance.post('/api/turma-colheita/custo-colheita', custoData);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao salvar mão de obra:', error);
+      console.error('❌ Detalhes completos do erro:', JSON.stringify(error.response?.data, null, 2));
+      console.error('❌ Status do erro:', error.response?.status);
+      console.error('❌ Mensagem do backend:', error.response?.data?.message);
+      console.error('❌ Erros de validação:', error.response?.data?.errors);
+      const mensagemErro = error.response?.data?.message || error.message || "Erro desconhecido";
+      warning("Aviso", `Colheita salva, mas houve erro ao registrar mão de obra: ${mensagemErro}. Verifique na seção de Turmas de Colheita.`);
+    }
+  };
+
   // ✅ FUNÇÃO para processar salvamento após confirmação de inconsistências
   const handleConfirmarInconsistencias = async () => {
     setConfirmInconsistenciaOpen(false);
@@ -619,10 +731,22 @@ const ColheitaModal = ({
       if (values.maoObra && Array.isArray(values.maoObra)) {
         for (let i = 0; i < values.maoObra.length; i++) {
           const item = values.maoObra[i];
-          if (item.turmaColheitaId && item.quantidadeColhida && item.valorColheita) {
+          if (item.turmaColheitaId && item.frutaId && item.quantidadeColhida && item.valorColheita) {
+            // Obter a unidade da fruta selecionada
+            const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
+            let unidadeMedida = frutaSelecionada?.unidadeMedida1 || 'KG';
+            
+            // ✅ GARANTIR que a unidade é um valor válido do enum (KG, CX, TON, UND, ML, LT)
+            // Se vier com texto adicional, extrair apenas a sigla
+            const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+            const unidadeEncontrada = unidadesValidas.find(u => unidadeMedida.includes(u));
+            unidadeMedida = unidadeEncontrada || 'KG'; // Default para KG se não encontrar
+            
             maoObraValida.push({
               turmaColheitaId: item.turmaColheitaId,
+              frutaId: item.frutaId,
               quantidadeColhida: Number(item.quantidadeColhida),
+              unidadeMedida: unidadeMedida,
               valorColheita: Number(item.valorColheita),
               observacoes: item.observacoes || ''
             });
@@ -630,24 +754,31 @@ const ColheitaModal = ({
         }
       }
 
-      // Preparar dados para envio
+      // ✅ FILTRAR: Enviar apenas frutas que estão sendo colhidas (com quantidadeReal > 0)
+      const frutasSendoColhidas = values.frutas.filter(fruta => {
+        const quantidadeReal = typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal;
+        return quantidadeReal && quantidadeReal > 0;
+      });
+
+      // Preparar dados para envio (MESMO FORMATO do handleSalvarColheita)
       const formData = {
-        dataColheita: values.dataColheita ? values.dataColheita.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null,
-        frutas: values.frutas.map(fruta => ({
+        dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
+        observacoesColheita: values.observacoesColheita,
+        frutas: frutasSendoColhidas.map(fruta => ({
           frutaPedidoId: fruta.frutaPedidoId,
-          frutaId: fruta.frutaId,
-          quantidadeReal: fruta.quantidadeReal ? Number(fruta.quantidadeReal) : null,
-          quantidadeReal2: fruta.quantidadeReal2 && Number(fruta.quantidadeReal2) > 0 ? Number(fruta.quantidadeReal2) : null,
-          unidadeMedida1: fruta.unidadeMedida1,
-          unidadeMedida2: fruta.unidadeMedida2 || null,
+          // ✅ CORREÇÃO: Remover frutaId, unidadeMedida1, unidadeMedida2 (não aceitos pelo DTO)
+          quantidadeReal: typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal,
+          quantidadeReal2: typeof fruta.quantidadeReal2 === 'string' ? parseFloat(fruta.quantidadeReal2) : fruta.quantidadeReal2,
           areas: fruta.areas?.filter(area => area.areaPropriaId || area.areaFornecedorId).map(area => ({
+            id: area.id,
             areaPropriaId: area.areaPropriaId || undefined,
             areaFornecedorId: area.areaFornecedorId || undefined,
-            quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 ? Number(area.quantidadeColhidaUnidade1) : null,
-            quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 ? Number(area.quantidadeColhidaUnidade2) : null,
-            observacoes: area.observacoes || ''
+            observacoes: area.observacoes || '',
+            quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+            quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
           })) || [],
-          fitas: fruta.fitas?.map(fita => ({
+          fitas: fruta.fitas?.filter(fita => fita.fitaBananaId).map(fita => ({
+            id: fita.id,
             fitaBananaId: fita.fitaBananaId,
             quantidadeFita: fita.quantidadeFita || undefined,
             observacoes: fita.observacoes || '',
@@ -668,34 +799,15 @@ const ColheitaModal = ({
         onLoadingChange(true, "Registrando colheita...");
       }
 
-      // Salvar colheita
+      // 1️⃣ Salvar colheita
       await onSave(formData);
 
-      // Salvar mão de obra se existir
-      if (maoObraValida.length > 0 && pedido?.id) {
-        try {
-          if (onLoadingChange) {
-            onLoadingChange(true, "Salvando dados de mão de obra...");
-          }
+      // 2️⃣ Salvar mão de obra usando função auxiliar
+      await salvarMaoDeObra(maoObraValida, values);
 
-          const promises = maoObraValida.map(custoColheita =>
-            axiosInstance.post('/api/turma-colheita/custo-colheita', {
-              pedidoId: pedido.id,
-              turmaColheitaId: custoColheita.turmaColheitaId,
-              quantidadeColhida: custoColheita.quantidadeColhida,
-              valorColheita: custoColheita.valorColheita,
-              observacoes: custoColheita.observacoes
-            })
-          );
-
-          await Promise.all(promises);
-        } catch (maoObraError) {
-          console.error('Erro ao salvar mão de obra:', maoObraError);
-        }
-      }
-
-      if (onLoadingChange) {
-        onLoadingChange(false);
+      // 3️⃣ Chamar callback para finalizar (recarregar lista, etc)
+      if (onSaveComplete) {
+        await onSaveComplete();
       }
 
       // Limpar estados
@@ -704,10 +816,14 @@ const ColheitaModal = ({
 
     } catch (err) {
       console.error('Erro ao salvar colheita:', err);
+      // Em caso de erro, reabrir o modal
+      onClose(false);
+    } finally {
+      setIsSaving(false);
+      // ✅ CORREÇÃO: Garantir que loading sempre seja desligado
       if (onLoadingChange) {
         onLoadingChange(false);
       }
-      setIsSaving(false);
     }
   };
 
@@ -721,35 +837,52 @@ const ColheitaModal = ({
         return;
       }
 
+      // ✅ NOVA LÓGICA: Identificar frutas que estão sendo colhidas (têm quantidadeReal preenchida)
+      const frutasSendoColhidas = values.frutas.filter(fruta => {
+        const quantidadeReal = typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal;
+        return quantidadeReal && quantidadeReal > 0;
+      });
+
+      // ✅ VALIDAÇÃO: Pelo menos UMA fruta deve ter quantidade colhida
+      if (frutasSendoColhidas.length === 0) {
+        error("Erro", "Informe a quantidade colhida de pelo menos uma fruta");
+        return;
+      }
+
       // ✅ NOVA VALIDAÇÃO: Validar dados de mão de obra com lógica mais rigorosa
       const maoObraValida = values.maoObra?.filter(item => {
         // Verificar se pelo menos um campo não-obrigatório foi preenchido (exceto observações)
         const temAlgumCampo = item.turmaColheitaId ||
+                              item.frutaId ||
                               item.quantidadeColhida ||
-                              item.unidadeMedida ||
                               item.valorColheita;
         return temAlgumCampo;
       }) || [];
 
-      // ✅ NOVA VALIDAÇÃO: Verificar duplicação de colheitadores
-      const turmasUtilizadas = new Set();
-      const turmasDuplicadas = [];
+      // ✅ VALIDAÇÃO CORRIGIDA: Verificar duplicação de colheitadores por turma+fruta
+      // Uma mesma turma pode colher diferentes frutas no mesmo pedido
+      const combinacoesUtilizadas = new Set();
+      const combinacoesDuplicadas = [];
 
       for (let i = 0; i < maoObraValida.length; i++) {
         const item = maoObraValida[i];
 
-        if (item.turmaColheitaId) {
-          if (turmasUtilizadas.has(item.turmaColheitaId)) {
+        if (item.turmaColheitaId && item.frutaId) {
+          // Criar chave única: turmaId + frutaId
+          const chave = `${item.turmaColheitaId}-${item.frutaId}`;
+          
+          if (combinacoesUtilizadas.has(chave)) {
             const turmaNome = turmasColheita.find(t => t.id === item.turmaColheitaId)?.nomeColhedor || `Turma ${item.turmaColheitaId}`;
-            turmasDuplicadas.push(turmaNome);
+            const frutaNome = values.frutas.find(f => f.frutaId === item.frutaId)?.frutaNome || `Fruta ${item.frutaId}`;
+            combinacoesDuplicadas.push(`${turmaNome} colhendo ${frutaNome}`);
           } else {
-            turmasUtilizadas.add(item.turmaColheitaId);
+            combinacoesUtilizadas.add(chave);
           }
         }
       }
 
-      if (turmasDuplicadas.length > 0) {
-        error("Erro", `Colheitador(es) duplicado(s) detectado(s): ${turmasDuplicadas.join(', ')}. Cada colheitador pode aparecer apenas uma vez por pedido.`);
+      if (combinacoesDuplicadas.length > 0) {
+        error("Erro", `Combinação duplicada detectada: ${combinacoesDuplicadas.join(', ')}. Cada colheitador pode colher a mesma fruta apenas uma vez por pedido.`);
         return;
       }
 
@@ -757,14 +890,14 @@ const ColheitaModal = ({
         const item = maoObraValida[i];
 
         // ✅ NOVA VALIDAÇÃO: Se qualquer campo foi preenchido, todos os obrigatórios devem estar preenchidos
-        const camposObrigatorios = ['turmaColheitaId', 'quantidadeColhida', 'unidadeMedida', 'valorColheita'];
+        const camposObrigatorios = ['turmaColheitaId', 'frutaId', 'quantidadeColhida', 'valorColheita'];
         const camposFaltando = camposObrigatorios.filter(campo => !item[campo]);
 
         if (camposFaltando.length > 0) {
           const nomesCampos = {
             'turmaColheitaId': 'Turma de Colheita',
+            'frutaId': 'Fruta Colhida',
             'quantidadeColhida': 'Quantidade Colhida',
-            'unidadeMedida': 'Unidade de Medida',
             'valorColheita': 'Valor da Colheita'
           };
           const camposFaltandoNomes = camposFaltando.map(campo => nomesCampos[campo]).join(', ');
@@ -783,66 +916,65 @@ const ColheitaModal = ({
           error("Erro", `Mão de obra ${i + 1}: Valor deve ser maior que zero`);
           return;
         }
+
+        // ✅ NOVA VALIDAÇÃO: Verificar se a fruta selecionada na mão de obra está sendo colhida
+        const frutaDaMaoObra = frutasSendoColhidas.find(f => f.frutaId === item.frutaId);
+        if (!frutaDaMaoObra) {
+          const nomeFruta = values.frutas.find(f => f.frutaId === item.frutaId)?.frutaNome || 'Desconhecida';
+          error("Erro", `Mão de obra ${i + 1}: A fruta "${nomeFruta}" não está sendo colhida neste momento. Só é possível registrar mão de obra para frutas que estão sendo colhidas.`);
+          return;
+        }
       }
 
-                               // Validar se todas as frutas têm dados obrigatórios
-          for (let i = 0; i < values.frutas.length; i++) {
-            const fruta = values.frutas[i];
-            
-            // Converter quantidade real para número se necessário
-            const quantidadeReal = typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal;
-            
-            if (!quantidadeReal || quantidadeReal <= 0) {
-               const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
-               error("Erro", `Informe a quantidade real colhida de "${nomeFruta}"`);
-               return;
-             }
-           
-                        // NOVA VALIDAÇÃO: Verificar se pelo menos uma área REAL foi selecionada (não placeholder)
-             const areasReais = fruta.areas?.filter(area => 
-               area.areaPropriaId || area.areaFornecedorId
-             ) || [];
-             
-             if (areasReais.length === 0) {
-               const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
-               error("Erro", `Adicione pelo menos uma área de origem para "${nomeFruta}"`);
-               return;
-             }
+      // ✅ NOVA VALIDAÇÃO: Validar apenas as frutas que estão sendo colhidas
+      for (let i = 0; i < frutasSendoColhidas.length; i++) {
+        const fruta = frutasSendoColhidas[i];
 
-             // Validar cada área real individualmente
-             for (let j = 0; j < areasReais.length; j++) {
-               const area = areasReais[j];
-               const hasAreaPropria = area.areaPropriaId !== undefined && area.areaPropriaId !== null;
-               const hasAreaFornecedor = area.areaFornecedorId !== undefined && area.areaFornecedorId !== null;
-               
-               if (!hasAreaPropria && !hasAreaFornecedor) {
-                 const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
-                 error("Erro", `Fruta "${nomeFruta}", área ${j + 1}: Selecione uma área válida`);
-                 return;
-               }
-               
-               if (hasAreaPropria && hasAreaFornecedor) {
-                 const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
-                 error("Erro", `Fruta "${nomeFruta}", área ${j + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
-                 return;
-               }
-             }
+        // NOVA VALIDAÇÃO: Verificar se pelo menos uma área REAL foi selecionada (não placeholder)
+        const areasReais = fruta.areas?.filter(area =>
+          area.areaPropriaId || area.areaFornecedorId
+        ) || [];
 
-             // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
-             const frutaNome = fruta.frutaNome || fruta.fruta?.nome || '';
-             const isFrutaBanana = frutaNome.toLowerCase().includes('banana');
-             
-             if (isFrutaBanana) {
-               const fitasVinculadas = fruta.fitas?.filter(fita => 
-                 fita.fitaBananaId && fita.quantidadeFita && fita.quantidadeFita > 0
-               ) || [];
-               
-               if (fitasVinculadas.length === 0) {
-                 error("Erro", `A fruta "${frutaNome}" é uma banana e deve ter pelo menos uma fita vinculada`);
-                 return;
-               }
-             }
+        if (areasReais.length === 0) {
+          const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
+          error("Erro", `Adicione pelo menos uma área de origem para "${nomeFruta}"`);
+          return;
+        }
+
+        // Validar cada área real individualmente
+        for (let j = 0; j < areasReais.length; j++) {
+          const area = areasReais[j];
+          const hasAreaPropria = area.areaPropriaId !== undefined && area.areaPropriaId !== null;
+          const hasAreaFornecedor = area.areaFornecedorId !== undefined && area.areaFornecedorId !== null;
+
+          if (!hasAreaPropria && !hasAreaFornecedor) {
+            const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
+            error("Erro", `Fruta "${nomeFruta}", área ${j + 1}: Selecione uma área válida`);
+            return;
           }
+
+          if (hasAreaPropria && hasAreaFornecedor) {
+            const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
+            error("Erro", `Fruta "${nomeFruta}", área ${j + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
+            return;
+          }
+        }
+
+        // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
+        const frutaNome = fruta.frutaNome || fruta.fruta?.nome || '';
+        const isFrutaBanana = frutaNome.toLowerCase().includes('banana');
+
+        if (isFrutaBanana) {
+          const fitasVinculadas = fruta.fitas?.filter(fita =>
+            fita.fitaBananaId && fita.quantidadeFita && fita.quantidadeFita > 0
+          ) || [];
+
+          if (fitasVinculadas.length === 0) {
+            error("Erro", `A fruta "${frutaNome}" é uma banana e deve ter pelo menos uma fita vinculada`);
+            return;
+          }
+        }
+      }
 
       // ✅ VALIDAÇÃO DE INCONSISTÊNCIAS: Comparar quantidades informadas com soma das áreas
       const inconsistencias = validarInconsistenciasQuantidades(values.frutas);
@@ -876,17 +1008,23 @@ const ColheitaModal = ({
         return;
       }
 
+      // ✅ FILTRAR: Enviar apenas frutas que estão sendo colhidas (com quantidadeReal > 0)
+      const frutasParaEnviar = frutasSendoColhidas.filter(fruta => {
+        const quantidadeReal = typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal;
+        return quantidadeReal && quantidadeReal > 0;
+      });
+
       const formData = {
         dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
         observacoesColheita: values.observacoesColheita,
-        frutas: values.frutas.map(fruta => ({
+        frutas: frutasParaEnviar.map(fruta => ({
           frutaPedidoId: fruta.frutaPedidoId,
           // Garantir que quantidades sejam números
           quantidadeReal: typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal,
           quantidadeReal2: typeof fruta.quantidadeReal2 === 'string' ? parseFloat(fruta.quantidadeReal2) : fruta.quantidadeReal2,
           // NOVA ESTRUTURA: Arrays de áreas e fitas
           // IMPORTANTE: Filtrar apenas áreas reais (com IDs), removendo placeholders
-          areas: fruta.areas?.filter(area => 
+          areas: fruta.areas?.filter(area =>
             area.areaPropriaId || area.areaFornecedorId
           ).map(area => ({
             id: area.id,
@@ -896,7 +1034,7 @@ const ColheitaModal = ({
             quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
             quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
           })) || [],
-          fitas: fruta.fitas?.filter(fita => 
+          fitas: fruta.fitas?.filter(fita =>
             fita.fitaBananaId
           ).map(fita => ({
             id: fita.id,
@@ -926,43 +1064,12 @@ const ColheitaModal = ({
       // 1️⃣ Primeiro: Salvar a colheita
       await onSave(formData);
 
-      // 2️⃣ Segundo: Salvar mão de obra se existir (não depende do retorno de onSave)
-      if (maoObraValida.length > 0 && pedido?.id) {
-        try {
-          // Atualizar mensagem do loading para mão de obra
-          if (onLoadingChange) {
-            onLoadingChange(true, "Registrando mão de obra...");
-          }
+      // 2️⃣ Segundo: Salvar mão de obra usando função auxiliar
+      await salvarMaoDeObra(maoObraValida, values);
 
-          // Usar o ID do pedido original (já existe)
-          const pedidoId = pedido.id;
-
-          // Salvar cada item de mão de obra individualmente
-          for (const item of maoObraValida) {
-            // ✅ CORREÇÃO: Usar apenas a PRIMEIRA fruta do pedido para criar UM registro por turma
-            const primeiraFruta = values.frutas[0]; // Pegar primeira fruta
-
-            if (primeiraFruta) {
-              const custoData = {
-                turmaColheitaId: item.turmaColheitaId,
-                pedidoId: pedidoId,
-                frutaId: primeiraFruta.frutaId, // ✅ Sempre usar primeira fruta
-                quantidadeColhida: parseFloat(item.quantidadeColhida),
-                unidadeMedida: item.unidadeMedida,
-                valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
-                dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
-                pagamentoEfetuado: false,
-                observacoes: item.observacoes || ''
-              };
-
-              await axiosInstance.post('/api/turma-colheita/custo-colheita', custoData);
-            }
-          }
-
-        } catch (error) {
-          console.error('Erro ao salvar mão de obra:', error);
-          warning("Aviso", "Colheita salva, mas houve erro ao registrar mão de obra. Verifique na seção de Turmas de Colheita.");
-        }
+      // 3️⃣ Terceiro: Chamar callback para finalizar (recarregar lista, etc)
+      if (onSaveComplete) {
+        await onSaveComplete();
       }
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
@@ -1355,17 +1462,20 @@ const ColheitaModal = ({
                               label={isMobile ? (
                                 <Space size="small">
                                   <CalculatorOutlined style={{ color: "#059669" }} />
-                                  <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Colhida *</span>
+                                  <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Colhida</span>
                                 </Space>
                               ) : undefined}
                               rules={[
-                                { required: true, message: "Quantidade real é obrigatória" },
+                                
                                 {
                                   validator: (_, value) => {
-                                    // Converter string para número se necessário
-                                    const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                                    
-                                    if (!numValue || numValue <= 0) {
+                                   // Se não tem valor, é válido (campo opcional para colheita parcial)
+                                   if (!value) return Promise.resolve();
+
+
+                                   const numValue = typeof value === 'string' ? parseFloat(value) : value;
+
+                                   if (numValue && numValue <= 0) {
                                       return Promise.reject(new Error("Quantidade deve ser maior que zero"));
                                     }
                                     
@@ -1748,7 +1858,7 @@ const ColheitaModal = ({
                     {/* Cabeçalho das colunas */}
                     {!isMobile && (
                       <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
-                        <Col xs={24} md={6}>
+                        <Col xs={24} md={4}>
                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                             <TeamOutlined style={{ marginRight: "0.5rem" }} />
                             Turma de Colheita
@@ -1756,29 +1866,35 @@ const ColheitaModal = ({
                         </Col>
                         <Col xs={24} md={4}>
                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                            <AppleOutlined style={{ marginRight: "0.5rem" }} />
+                            Fruta Colhida
+                          </span>
+                        </Col>
+                        <Col xs={24} md={3}>
+                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                             <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
                             Quantidade
                           </span>
                         </Col>
                         <Col xs={24} md={3}>
                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                            <DollarOutlined style={{ marginRight: "0.25rem" }} />
+                            Valor Unit.
+                          </span>
+                        </Col>
+                        <Col xs={24} md={3}>
+                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                             <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
-                            Unidade
+                            Valor Total
                           </span>
                         </Col>
                         <Col xs={24} md={4}>
-                          <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                            <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
-                            Valor (R$)
-                          </span>
-                        </Col>
-                        <Col xs={24} md={5}>
                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                             <FileTextOutlined style={{ marginRight: "0.5rem" }} />
                             Observações
                           </span>
                         </Col>
-                        <Col xs={24} md={2}>
+                        <Col xs={24} md={3}>
                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                             Ações
                           </span>
@@ -1786,366 +1902,25 @@ const ColheitaModal = ({
                       </Row>
                     )}
 
-                    {fields.map(({ key, name, ...restField }, index) => {
-                  // Obter dados da turma selecionada para exibir no identificador
-                  const maoObraItem = form.getFieldValue('maoObra')?.[index];
-                  const turmaSelecionada = turmasColheita.find(t => t.id === maoObraItem?.turmaColheitaId);
-                  const identificador = turmaSelecionada ? turmaSelecionada.nomeColhedor : `Colheitador ${index + 1}`;
-                  
-                  return (
-                    <div key={key}>
-                      {isMobile && index > 0 && (
-                        <div style={{ 
-                          display: "flex", 
-                          alignItems: "center", 
-                          marginBottom: isMobile ? "12px" : "16px",
-                          padding: "8px 0"
-                        }}>
-                          <div style={{
-                            flex: 1,
-                            height: "1px",
-                            backgroundColor: "#e8e8e8"
-                          }} />
-                          <div style={{
-                            margin: "0 12px",
-                            padding: "4px 12px",
-                            backgroundColor: "#f0f9ff",
-                            borderRadius: "12px",
-                            border: "1px solid #bae6fd"
-                          }}>
-                            <Text style={{ 
-                              color: "#059669", 
-                              fontSize: "12px", 
-                              fontWeight: "600" 
-                            }}>
-                              {identificador}
-                            </Text>
-                          </div>
-                          <div style={{
-                            flex: 1,
-                            height: "1px",
-                            backgroundColor: "#e8e8e8"
-                          }} />
-                        </div>
-                      )}
-                      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="baseline">
-                      <Col xs={24} md={6}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'turmaColheitaId']}
-                          label={isMobile ? (
-                            <Space size="small">
-                              <TeamOutlined style={{ color: "#059669" }} />
-                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Turma de Colheita</span>
-                            </Space>
-                          ) : undefined}
-                          rules={[
-                            {
-                              validator: (_, value) => {
-                                // Verificar se outros campos foram preenchidos
-                                const formValues = form.getFieldsValue();
-                                const maoObraItem = formValues.maoObra?.[name] || {};
-                                const temOutrosCampos = maoObraItem.quantidadeColhida ||
-                                                        maoObraItem.unidadeMedida ||
-                                                        maoObraItem.valorColheita;
-
-                                // Se outros campos foram preenchidos, turma é obrigatória
-                                if (temOutrosCampos && !value) {
-                                  return Promise.reject(new Error("Turma é obrigatória quando outros campos são preenchidos"));
-                                }
-
-                                // ✅ NOVA VALIDAÇÃO: Verificar duplicação de turma
-                                if (value) {
-                                  const todasTurmas = formValues.maoObra || [];
-                                  const turmasComValor = todasTurmas
-                                    .map((item, idx) => ({ turmaId: item?.turmaColheitaId, index: idx }))
-                                    .filter(item => item.turmaId && item.turmaId === value);
-
-                                  if (turmasComValor.length > 1) {
-                                    const turmaNome = turmasColheita.find(t => t.id === value)?.nomeColhedor || `Turma ${value}`;
-                                    return Promise.reject(new Error(`${turmaNome} já foi selecionado(a) em outro registro`));
-                                  }
-                                }
-
-                                return Promise.resolve();
-                              }
-                            }
-                          ]}
-                        >
-                          <Select
-                            placeholder="Selecione uma turma"
-                            size={isMobile ? "small" : "middle"}
-                            showSearch
-                            optionFilterProp="children"
-                            filterOption={(input, option) =>
-                              option.children.toLowerCase().includes(input.toLowerCase())
-                            }
-                            style={{
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "0.875rem" : "1rem"
-                            }}
-                          >
-                            {turmasColheita.map((turma) => (
-                              <Option 
-                                key={turma.id} 
-                                value={turma.id}
-                              >
-                                <Tooltip title={capitalizeName(turma.nomeColhedor)} placement="top">
-                                  <span>{capitalizeName(turma.nomeColhedor)}</span>
-                                </Tooltip>
-                              </Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-
-                      <Col xs={24} md={4}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'quantidadeColhida']}
-                          label={isMobile ? (
-                            <Space size="small">
-                              <CalculatorOutlined style={{ color: "#059669" }} />
-                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Quantidade</span>
-                            </Space>
-                          ) : undefined}
-                          rules={[
-                            {
-                              validator: (_, value) => {
-                                // Verificar se outros campos foram preenchidos
-                                const formValues = form.getFieldsValue();
-                                const maoObraItem = formValues.maoObra?.[name] || {};
-                                const temOutrosCampos = maoObraItem.turmaColheitaId || 
-                                                        maoObraItem.unidadeMedida || 
-                                                        maoObraItem.valorColheita;
-                                
-                                // Se outros campos foram preenchidos, quantidade é obrigatória
-                                if (temOutrosCampos && !value) {
-                                  return Promise.reject(new Error("Quantidade é obrigatória quando outros campos são preenchidos"));
-                                }
-                                
-                                // Se tem valor, deve ser maior que zero
-                                if (value) {
-                                  const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                                  if (numValue && numValue <= 0) {
-                                    return Promise.reject(new Error("Quantidade deve ser maior que zero"));
-                                  }
-                                }
-                                
-                                return Promise.resolve();
-                              }
-                            }
-                          ]}
-                        >
-                          <MonetaryInput
-                            placeholder="Ex: 1.234,56"
-                            size={isMobile ? "small" : "large"}
-                            style={{
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "0.875rem" : "1rem"
-                            }}
-                          />
-                        </Form.Item>
-                      </Col>
-
-                      <Col xs={24} md={3}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'unidadeMedida']}
-                          label={isMobile ? (
-                            <Space size="small">
-                              <CalculatorOutlined style={{ color: "#059669" }} />
-                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Unidade</span>
-                            </Space>
-                          ) : undefined}
-                          rules={[
-                            {
-                              validator: (_, value) => {
-                                // Verificar se outros campos foram preenchidos
-                                const formValues = form.getFieldsValue();
-                                const maoObraItem = formValues.maoObra?.[name] || {};
-                                const temOutrosCampos = maoObraItem.turmaColheitaId || 
-                                                        maoObraItem.quantidadeColhida || 
-                                                        maoObraItem.valorColheita;
-                                
-                                // Se outros campos foram preenchidos, unidade é obrigatória
-                                if (temOutrosCampos && !value) {
-                                  return Promise.reject(new Error("Unidade de medida é obrigatória quando outros campos são preenchidos"));
-                                }
-                                
-                                return Promise.resolve();
-                              }
-                            }
-                          ]}
-                        >
-                          <Select
-                            placeholder="Unidade"
-                            size={isMobile ? "small" : "middle"}
-                            style={{
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "0.875rem" : "1rem"
-                            }}
-                          >
-                            {unidadesMedida.map((unidade) => (
-                              <Option key={unidade.value} value={unidade.value}>
-                                {unidade.value}
-                              </Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-
-                      <Col xs={24} md={4}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'valorColheita']}
-                          label={isMobile ? (
-                            <Space size="small">
-                              <CalculatorOutlined style={{ color: "#059669" }} />
-                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Valor (R$)</span>
-                            </Space>
-                          ) : undefined}
-                          rules={[
-                            {
-                              validator: (_, value) => {
-                                // Verificar se outros campos foram preenchidos
-                                const formValues = form.getFieldsValue();
-                                const maoObraItem = formValues.maoObra?.[name] || {};
-                                const temOutrosCampos = maoObraItem.turmaColheitaId || 
-                                                        maoObraItem.quantidadeColhida || 
-                                                        maoObraItem.unidadeMedida;
-                                
-                                // Se outros campos foram preenchidos, valor é obrigatório
-                                if (temOutrosCampos && !value) {
-                                  return Promise.reject(new Error("Valor é obrigatório quando outros campos são preenchidos"));
-                                }
-                                
-                                // Se tem valor, deve ser maior que zero
-                                if (value && value <= 0) {
-                                  return Promise.reject(new Error("Valor deve ser maior que zero"));
-                                }
-                                
-                                return Promise.resolve();
-                              }
-                            }
-                          ]}
-                        >
-                          <MonetaryInput
-                            placeholder="Ex: 150,00"
-                            addonBefore="R$"
-                            size={isMobile ? "small" : "large"}
-                            style={{
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "0.875rem" : "1rem"
-                            }}
-                          />
-                        </Form.Item>
-                      </Col>
-
-                      <Col xs={24} md={5}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'observacoes']}
-                          label={isMobile ? (
-                            <Space size="small">
-                              <FileTextOutlined style={{ color: "#059669" }} />
-                              <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Observações</span>
-                            </Space>
-                          ) : undefined}
-                        >
-                          <Input
-                            placeholder="Observações (opcional)"
-                            size={isMobile ? "small" : "middle"}
-                            style={{
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "0.875rem" : "1rem"
-                            }}
-                          />
-                        </Form.Item>
-                      </Col>
-
-                      <Col xs={24} md={2}>
-                        <div style={{ 
-                          display: "flex", 
-                          gap: isMobile ? "8px" : "8px", 
-                          justifyContent: isMobile ? "center" : "center",
-                          flexDirection: isMobile ? "row" : "row",
-                          marginTop: isMobile ? "8px" : "0",
-                          paddingTop: isMobile ? "8px" : "0",
-                          borderTop: isMobile ? "1px solid #f0f0f0" : "none"
-                        }}>
-                          {/* Botão de remover */}
-                          <Button
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => {
-                              if (fields.length > 1) {
-                                remove(name);
-                              }
-                            }}
-                            disabled={fields.length <= 1}
-                            size={isMobile ? "small" : "large"}
-                            style={{
-                              borderRadius: "3.125rem",
-                              height: isMobile ? "32px" : "40px",
-                              width: isMobile ? "32px" : "40px",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 0,
-                              border: "0.125rem solid #ff4d4f",
-                              color: "#ff4d4f",
-                              backgroundColor: "#ffffff",
-                            }}
-                          />
-
-                          {/* Botão de adicionar apenas no último item */}
-                          {index === fields.length - 1 && (
-                            <Button
-                              type="dashed"
-                              icon={<PlusOutlined />}
-                              onClick={() => {
-                                add({
-                                  turmaColheitaId: undefined,
-                                  quantidadeColhida: undefined,
-                                  unidadeMedida: undefined,
-                                  valorColheita: undefined,
-                                  observacoes: ''
-                                });
-                              }}
-                              size={isMobile ? "small" : "large"}
-                              style={{
-                                borderRadius: "3.125rem",
-                                borderColor: "#10b981",
-                                color: "#10b981",
-                                borderWidth: "0.125rem",
-                                height: isMobile ? "32px" : "40px",
-                                width: isMobile ? "32px" : "40px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                padding: 0,
-                                backgroundColor: "#ffffff",
-                              }}
-                            />
-                          )}
-                        </div>
-                      </Col>
-                    </Row>
-                    {index < fields.length - 1 && <Divider style={{ margin: isMobile ? "12px 0" : "16px 0" }} />}
-                  </div>
-                  );
-                })}
+                    {fields.map((field, index) => (
+                      <MaoObraRow
+                        key={field.key}
+                        field={field}
+                        index={index}
+                        form={form}
+                        isMobile={isMobile}
+                        turmasColheita={turmasColheita}
+                        pedido={pedido}
+                        fieldsLength={fields.length}
+                        onRemove={remove}
+                        onAdd={add}
+                        capitalizeName={capitalizeName}
+                      />
+                    ))}
                   </div>
 
                   {/* 📊 RESUMO FIXO DA MÃO DE OBRA */}
-                  <ResumoMaoObra form={form} isMobile={isMobile} />
+                  <ResumoMaoObra form={form} isMobile={isMobile} pedido={pedido} />
                 </>
               )}
           </Form.List>
@@ -2178,16 +1953,15 @@ const ColheitaModal = ({
             type="primary"
             icon={<SaveOutlined />}
             htmlType="submit"
-            loading={loading || isSaving}
+            loading={isSaving}
+            disabled={loading}
             size={isMobile ? "small" : "middle"}
             style={{
-              backgroundColor: "#059669",
-              borderColor: "#059669",
               height: isMobile ? "32px" : "40px",
               padding: isMobile ? "0 12px" : "0 16px",
             }}
           >
-            {isSaving ? "Registrando..." : "Registrar Colheita"}
+            Salvar Colheita
           </Button>
                  </div>
        </Form>
@@ -2195,27 +1969,21 @@ const ColheitaModal = ({
        {/* Modal de Vincular Áreas */}
        <VincularAreasModal
          open={vincularAreasModalOpen}
-         onClose={() => {
-           setVincularAreasModalOpen(false);
-           setFrutaSelecionada(null);
-         }}
          fruta={frutaSelecionada}
+        onClose={handleFecharVincularAreas}
          onSave={handleSalvarAreas}
-         loading={false}
+        areasDisponiveis={areasDisponiveis}
+        fornecedoresAreasMap={fornecedoresAreasMap}
        />
 
        {/* Modal de Vincular Fitas */}
        <VincularFitasModal
          open={vincularFitasModalOpen}
-         onClose={() => {
-           setVincularFitasModalOpen(false);
-           setFrutaSelecionada(null);
-         }}
          fruta={frutaSelecionada}
+        onClose={handleFecharVincularFitas}
          onSave={handleSalvarFitas}
-         loading={false}
-         todasFrutasPedido={open ? (form.getFieldValue('frutas') || []) : []}
-         fitasOriginaisTodasFrutas={[]} // ColheitaModal não tem dados originais
+        fitasDisponiveis={fitasComAreasDisponiveis}
+        coresFita={coresFita}
        />
 
        {/* Modal de Confirmação de Inconsistências */}
@@ -2231,73 +1999,26 @@ const ColheitaModal = ({
          title="Inconsistências Detectadas"
          confirmText="Sim, Salvar Mesmo Assim"
          cancelText="Cancelar"
-         confirmButtonDanger={false}
-         icon={<ExclamationCircleOutlined />}
-         iconColor="#fa8c16"
-         customContent={
-           inconsistenciasData && (
-             <div style={{ padding: "12px" }}>
-               <Text strong style={{ fontSize: "16px", color: "#fa8c16", display: "block", marginBottom: "16px" }}>
-                 As quantidades informadas não coincidem com as quantidades das áreas vinculadas:
-               </Text>
-
-               {inconsistenciasData.map((inconsistencia, index) => (
-                 <Card
-                   key={index}
-                   size="small"
-                   style={{
-                     marginBottom: "12px",
-                     backgroundColor: "#fff7e6",
-                     borderColor: "#ffa940"
-                   }}
-                 >
-                   <Text strong style={{ fontSize: "14px", color: "#333", display: "block", marginBottom: "8px" }}>
-                     {inconsistencia.nomeFruta}
-                   </Text>
-
-                   {inconsistencia.temInconsistenciaUnd1 && (
-                     <div style={{ marginBottom: "6px" }}>
-                       <Text style={{ fontSize: "13px" }}>
-                         <span style={{ color: "#666" }}>• {inconsistencia.unidadeMedida1}:</span>{" "}
-                         <span style={{ color: "#1890ff", fontWeight: "600" }}>
-                           {Math.round(inconsistencia.quantidadeReal).toLocaleString('pt-BR')}
-                         </span>
-                         {" → "}
-                         <span style={{ color: "#52c41a", fontWeight: "600" }}>
-                           {Math.round(inconsistencia.somaUnidade1).toLocaleString('pt-BR')}
-                         </span>
-                         {" (soma das áreas)"}
-                       </Text>
-                     </div>
-                   )}
-
-                   {inconsistencia.temInconsistenciaUnd2 && inconsistencia.unidadeMedida2 && (
+         message={
                      <div>
-                       <Text style={{ fontSize: "13px" }}>
-                         <span style={{ color: "#666" }}>• {inconsistencia.unidadeMedida2}:</span>{" "}
-                         <span style={{ color: "#1890ff", fontWeight: "600" }}>
-                           {Math.round(inconsistencia.quantidadeReal2).toLocaleString('pt-BR')}
-                         </span>
-                         {" → "}
-                         <span style={{ color: "#52c41a", fontWeight: "600" }}>
-                           {Math.round(inconsistencia.somaUnidade2).toLocaleString('pt-BR')}
-                         </span>
-                         {" (soma das áreas)"}
-                       </Text>
-                     </div>
-                   )}
-                 </Card>
+             <Text strong>As seguintes inconsistências foram detectadas:</Text>
+             <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
+               {inconsistenciasData?.map((item, index) => (
+                 <li key={index}>
+                   <Text>
+                     <strong>{item.nomeFruta}</strong>:
+                     {item.temInconsistenciaUnd1 && ` ${item.unidadeMedida1} informado: ${item.quantidadeReal}, soma das áreas: ${item.somaUnidade1}`}
+                     {item.temInconsistenciaUnd2 && ` | ${item.unidadeMedida2} informado: ${item.quantidadeReal2}, soma das áreas: ${item.somaUnidade2}`}
+                   </Text>
+                 </li>
                ))}
-
-               <Text style={{ fontSize: "13px", color: "#666", display: "block", marginTop: "16px", fontStyle: "italic" }}>
-                 Deseja continuar e salvar mesmo com essas diferenças?
+             </ul>
+             <Text type="warning" style={{ display: 'block', marginTop: '12px' }}>
+               Deseja continuar mesmo assim?
                </Text>
              </div>
-           )
          }
        />
-
-
      </Modal>
     </>
    );
@@ -2306,10 +2027,10 @@ const ColheitaModal = ({
 ColheitaModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  onSave: PropTypes.func.isRequired,
+  onSave: PropTypes.func,
   pedido: PropTypes.object,
   loading: PropTypes.bool,
-  onLoadingChange: PropTypes.func, // Callback para controlar CentralizedLoader
+  onLoadingChange: PropTypes.func
 };
 
 export default ColheitaModal;

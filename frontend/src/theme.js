@@ -140,7 +140,10 @@ const getTheme = (mode) =>
               // Status iniciais (azul)
               PEDIDO_CRIADO: "#1890ff", // Azul - Pedidos recém-criados
               AGUARDANDO_COLHEITA: "#1890ff", // Azul - Aguardando colheita
-              
+
+              // Status de colheita parcial (laranja)
+              COLHEITA_PARCIAL: "#faad14", // Laranja - Colheita parcial (algumas frutas colhidas)
+
               // Status de colheita e precificação (roxo)
               COLHEITA_REALIZADA: "#722ed1", // Roxo - Colheita concluída
               AGUARDANDO_PRECIFICACAO: "#722ed1", // Roxo - Aguardando precificação
@@ -398,7 +401,10 @@ const getTheme = (mode) =>
               // Status iniciais (azul)
               PEDIDO_CRIADO: "#1890ff", // Azul - Pedidos recém-criados
               AGUARDANDO_COLHEITA: "#1890ff", // Azul - Aguardando colheita
-              
+
+              // Status de colheita parcial (laranja)
+              COLHEITA_PARCIAL: "#ffc53d", // Laranja claro - Colheita parcial (algumas frutas colhidas)
+
               // Status de colheita e precificação (roxo)
               COLHEITA_REALIZADA: "#722ed1", // Roxo - Colheita concluída
               AGUARDANDO_PRECIFICACAO: "#722ed1", // Roxo - Aguardando precificação

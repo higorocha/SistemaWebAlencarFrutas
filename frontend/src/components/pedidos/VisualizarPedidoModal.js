@@ -70,6 +70,7 @@ const VisualizarPedidoModal = ({
     const configs = {
       PEDIDO_CRIADO: { color: 'blue', text: 'Pedido Criado' },
       AGUARDANDO_COLHEITA: { color: 'orange', text: 'Aguardando Colheita' },
+      COLHEITA_PARCIAL: { color: 'orange', text: 'Colheita Parcial' },
       COLHEITA_REALIZADA: { color: 'green', text: 'Colheita Realizada' },
       AGUARDANDO_PRECIFICACAO: { color: 'purple', text: 'Aguardando Precificação' },
       PRECIFICACAO_REALIZADA: { color: 'cyan', text: 'Precificação Realizada' },
@@ -110,7 +111,7 @@ const VisualizarPedidoModal = ({
         const unidade = record.unidadeMedida1 || '';
         return (
           <Text type="secondary">
-            {numberFormatter(qtd)} {unidade}
+            {intFormatter(qtd)} {unidade}
           </Text>
         );
       },
@@ -121,25 +122,16 @@ const VisualizarPedidoModal = ({
       width: 120,
       align: 'center',
       render: (_, record) => {
-        // Só exibir se houver unidade de precificação
-        if (!record.unidadePrecificada) return <Text>-</Text>;
+        const qtdColhida = record.quantidadeReal || 0;
+        const unidadeColhida = record.unidadeMedida1 || '';
 
-        // Usar a unidade precificada
-        const unidadePrecificada = record.unidadePrecificada;
-
-        // Se tem unidade precificada diferente, mostrar a quantidade correspondente
-        let qtd = record.quantidadeReal || 0;
-        let unidade = unidadePrecificada;
-
-        // Se existe quantidadeReal2 e unidadeMedida2, pode ser que seja a quantidade precificada
-        if (record.quantidadeReal2 && record.unidadeMedida2 &&
-            record.unidadePrecificada === record.unidadeMedida2) {
-          qtd = record.quantidadeReal2;
+        if (qtdColhida <= 0) {
+          return <Text>-</Text>;
         }
 
         return (
           <Text strong style={{ color: "#10b981" }}>
-            {numberFormatter(qtd)} {unidade}
+            {intFormatter(qtdColhida)} {unidadeColhida}
           </Text>
         );
       },
@@ -157,7 +149,7 @@ const VisualizarPedidoModal = ({
 
         return (
           <Text strong style={{ color: "#059669" }}>
-            {numberFormatter(quantidade)} {unidade}
+            {intFormatter(quantidade)} {unidade}
           </Text>
         );
       },
@@ -946,7 +938,7 @@ const VisualizarPedidoModal = ({
                         QUANTIDADE
                       </Text>
                       <Text strong style={{ fontSize: "14px", color: "#1e293b", display: "block", marginTop: "2px" }}>
-                        {numberFormatter(custo.quantidadeColhida || 0)} {custo.unidadeMedida || ''}
+                        {intFormatter(custo.quantidadeColhida || 0)} {custo.unidadeMedida || ''}
                       </Text>
                     </div>
                   </Col>

@@ -45,7 +45,7 @@ const ResumoMaoObraTab = ({ pedidoAtual, isMobile }) => {
 
   // Filtrar apenas itens válidos (com todos os campos preenchidos)
   const maoObraValida = maoObraAtual.filter(item =>
-    item && item.turmaColheitaId && item.quantidadeColhida && item.valorColheita
+    item && item.turmaColheitaId && item.frutaId && item.quantidadeColhida && item.valorColheita
   );
 
   // Calcular resumo
@@ -56,7 +56,15 @@ const ResumoMaoObraTab = ({ pedidoAtual, isMobile }) => {
   };
 
   maoObraValida.forEach(item => {
-    const unidade = item.unidadeMedida || 'N/A';
+    // ✅ Buscar a unidade da fruta selecionada
+    const frutaSelecionada = pedidoAtual?.frutas?.find(fp => fp.frutaId === item.frutaId);
+    let unidade = frutaSelecionada?.unidadeMedida1 || 'N/A';
+    
+    // ✅ Extrair apenas a sigla
+    const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+    const unidadeEncontrada = unidadesValidas.find(u => unidade.includes(u));
+    unidade = unidadeEncontrada || unidade;
+    
     const quantidade = parseInt(item.quantidadeColhida) || 0; // ✅ Inteiro, não decimal
     const valor = parseFloat(item.valorColheita) || 0;
 
@@ -257,7 +265,9 @@ const ColheitaTab = ({
     if (!pedidoAtual?.maoObra || pedidoAtual.maoObra.length === 0) {
       updatedPedido.maoObra = [{
         turmaColheitaId: undefined,
+        frutaId: undefined,
         quantidadeColhida: undefined,
+        valorUnitario: undefined,
         unidadeMedida: undefined,
         valorColheita: undefined,
         observacoes: '',
@@ -270,6 +280,42 @@ const ColheitaTab = ({
       setPedidoAtual(updatedPedido);
     }
   }, [pedidoAtual?.frutas, pedidoAtual?.maoObra, setPedidoAtual]);
+
+  // ✅ CALCULAR valorUnitario para dados carregados do backend
+  useEffect(() => {
+    if (!pedidoAtual?.maoObra || pedidoAtual.maoObra.length === 0) return;
+    
+    let needsUpdate = false;
+    const maoObraAtualizada = pedidoAtual.maoObra.map(item => {
+      // Se já tem valorUnitario, não recalcular
+      if (item.valorUnitario !== undefined && item.valorUnitario !== null) {
+        return item;
+      }
+      
+      // Se tem valorColheita e quantidadeColhida, calcular valorUnitario
+      if (item.valorColheita && item.quantidadeColhida) {
+        const qtdStr = String(item.quantidadeColhida).replace(',', '.');
+        const valTotalStr = String(item.valorColheita).replace(',', '.');
+        const quantidade = parseFloat(qtdStr) || 0;
+        const valTotal = parseFloat(valTotalStr) || 0;
+        
+        if (quantidade > 0 && valTotal > 0) {
+          needsUpdate = true;
+          return {
+            ...item,
+            valorUnitario: valTotal / quantidade
+          };
+        }
+      }
+      
+      return item;
+    });
+    
+    if (needsUpdate) {
+      console.log('✅ Calculando valorUnitario inicial para mão de obra carregada do backend');
+      setPedidoAtual(prev => ({ ...prev, maoObra: maoObraAtualizada }));
+    }
+  }, [pedidoAtual?.maoObra?.length]); // Executar apenas quando o comprimento mudar (dados carregados)
 
   // Carregar fitas de banana, turmas de colheita e dados para validação global
   useEffect(() => {
@@ -385,7 +431,9 @@ const ColheitaTab = ({
       ...prev,
       maoObra: [...maoObraAtual, {
         turmaColheitaId: undefined,
+        frutaId: undefined,
         quantidadeColhida: undefined,
+        valorUnitario: undefined,
         unidadeMedida: undefined,
         valorColheita: undefined,
         observacoes: '',
@@ -407,7 +455,7 @@ const ColheitaTab = ({
     const novaMaoObra = maoObraAtual.map((item, i) => {
       if (i === index) {
         let processedValue = value;
-        if (['quantidadeColhida', 'valorColheita'].includes(field)) {
+        if (['quantidadeColhida', 'valorColheita', 'valorUnitario'].includes(field)) {
           if (value === null || value === '' || value === undefined) {
             processedValue = undefined;
           } else {
@@ -425,6 +473,7 @@ const ColheitaTab = ({
   const validarMaoObraItem = (item, index) => {
     // Verificar se pelo menos um campo foi preenchido (exceto observações)
     const temAlgumCampo = item.turmaColheitaId ||
+                          item.frutaId ||
                           item.quantidadeColhida ||
                           item.unidadeMedida ||
                           item.valorColheita;
@@ -434,14 +483,15 @@ const ColheitaTab = ({
     }
 
     // Se qualquer campo foi preenchido, verificar campos obrigatórios
-    const camposObrigatorios = ['turmaColheitaId', 'quantidadeColhida', 'unidadeMedida', 'valorColheita'];
+    // Nota: unidadeMedida será derivada da fruta, então não é mais obrigatória
+    const camposObrigatorios = ['turmaColheitaId', 'frutaId', 'quantidadeColhida', 'valorColheita'];
     const camposFaltando = camposObrigatorios.filter(campo => !item[campo]);
 
     if (camposFaltando.length > 0) {
       const nomesCampos = {
         'turmaColheitaId': 'Turma de Colheita',
+        'frutaId': 'Fruta',
         'quantidadeColhida': 'Quantidade Colhida',
-        'unidadeMedida': 'Unidade de Medida',
         'valorColheita': 'Valor da Colheita'
       };
       return `Mão de obra ${index + 1}: Campos obrigatórios não preenchidos: ${camposFaltando.map(campo => nomesCampos[campo]).join(', ')}`;
@@ -478,14 +528,6 @@ const ColheitaTab = ({
 
     return { valido: true };
   };
-
-  const unidadesMedida = [
-    { value: 'KG', label: 'Quilogramas (KG)' },
-    { value: 'TON', label: 'Toneladas (TON)' },
-    { value: 'CX', label: 'Caixas (CX)' },
-    { value: 'UND', label: 'Unidades (UND)' },
-  ];
-
 
   // Verificar se fruta é banana para mostrar botão de fitas
   const isBanana = (frutaNome) => {
@@ -1372,7 +1414,7 @@ const ColheitaTab = ({
         }}>
           {/* Cabeçalho das colunas */}
           <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-            <Col xs={24} md={6}>
+            <Col xs={24} md={4}>
               <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                 <TeamOutlined style={{ marginRight: 8 }} />
                 Turma de Colheita
@@ -1380,29 +1422,35 @@ const ColheitaTab = ({
             </Col>
             <Col xs={24} md={4}>
               <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                <AppleOutlined style={{ marginRight: 8 }} />
+                Fruta Colhida
+              </span>
+            </Col>
+            <Col xs={24} md={3}>
+              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                 <CalculatorOutlined style={{ marginRight: 8 }} />
                 Quantidade
               </span>
             </Col>
             <Col xs={24} md={3}>
               <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                <DollarOutlined style={{ marginRight: 8 }} />
+                Valor Unit.
+              </span>
+            </Col>
+            <Col xs={24} md={3}>
+              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                 <CalculatorOutlined style={{ marginRight: 8 }} />
-                Unidade
+                Valor Total
               </span>
             </Col>
             <Col xs={24} md={4}>
-              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                <CalculatorOutlined style={{ marginRight: 8 }} />
-                Valor (R$)
-              </span>
-            </Col>
-            <Col xs={24} md={5}>
               <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                 <FileTextOutlined style={{ marginRight: 8 }} />
                 Observações
               </span>
             </Col>
-            <Col xs={24} md={2}>
+            <Col xs={24} md={3}>
               <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                 Ações
               </span>
@@ -1437,7 +1485,7 @@ const ColheitaTab = ({
             )}
             
             <Row gutter={[16, 16]} align="baseline">
-              <Col xs={24} md={6}>
+              <Col xs={24} md={4}>
                 <Form.Item
                   validateStatus={(() => {
                     const erro = validarMaoObraItem(item, index);
@@ -1502,48 +1550,95 @@ const ColheitaTab = ({
 
               <Col xs={24} md={4}>
                 <Form.Item
-                  validateStatus={validarMaoObraItem(item, index) && !item.quantidadeColhida ? "error" : ""}
-                  help={validarMaoObraItem(item, index) && !item.quantidadeColhida ? "Campo obrigatório" : ""}
-                >
-                  <MonetaryInput
-                    placeholder="Ex: 1.234,56"
-                    size="large"
-                    style={{
-                      borderRadius: "6px",
-                      borderColor: validarMaoObraItem(item, index) && !item.quantidadeColhida ? "#ff4d4f" : "#d9d9d9",
-                    }}
-                    value={item.quantidadeColhida}
-                    onChange={(value) => handleMaoObraChange(index, 'quantidadeColhida', value)}
-                    disabled={!canEditTab("2") || pagamentoEfetuado}
-                  />
-                </Form.Item>
-              </Col>
-
-              <Col xs={24} md={3}>
-                <Form.Item
-                  validateStatus={validarMaoObraItem(item, index) && !item.unidadeMedida ? "error" : ""}
-                  help={validarMaoObraItem(item, index) && !item.unidadeMedida ? "Campo obrigatório" : ""}
+                  validateStatus={validarMaoObraItem(item, index) && !item.frutaId ? "error" : ""}
+                  help={validarMaoObraItem(item, index) && !item.frutaId ? "Campo obrigatório" : ""}
                 >
                   <Select
-                    placeholder="Unidade"
+                    placeholder="Selecione a fruta"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      option.children.toLowerCase().includes(input.toLowerCase())
+                    }
                     style={{
                       borderRadius: "6px",
-                      borderColor: validarMaoObraItem(item, index) && !item.unidadeMedida ? "#ff4d4f" : "#d9d9d9",
+                      borderColor: validarMaoObraItem(item, index) && !item.frutaId ? "#ff4d4f" : "#d9d9d9",
                     }}
-                    value={item.unidadeMedida}
-                    onChange={(value) => handleMaoObraChange(index, 'unidadeMedida', value)}
+                    value={item.frutaId}
+                    onChange={(value) => handleMaoObraChange(index, 'frutaId', value)}
                     disabled={!canEditTab("2") || pagamentoEfetuado}
                   >
-                    {unidadesMedida.map((unidade) => (
-                      <Option key={unidade.value} value={unidade.value}>
-                        {unidade.value}
+                    {pedidoAtual.frutas?.map((frutaPedido) => (
+                      <Option key={frutaPedido.frutaId} value={frutaPedido.frutaId}>
+                        {capitalizeName(frutas.find(f => f.id === frutaPedido.frutaId)?.nome || '')}
                       </Option>
                     ))}
                   </Select>
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={4}>
+              <Col xs={24} md={3}>
+                <Form.Item
+                  validateStatus={validarMaoObraItem(item, index) && !item.quantidadeColhida ? "error" : ""}
+                  help={validarMaoObraItem(item, index) && !item.quantidadeColhida ? "Campo obrigatório" : ""}
+                >
+                  <MonetaryInput
+                    placeholder="Ex: 1.234,56"
+                    addonAfter={(() => {
+                      const frutaSelecionada = pedidoAtual?.frutas?.find(fp => fp.frutaId === item.frutaId);
+                      return frutaSelecionada?.unidadeMedida1 || '';
+                    })()}
+                    size="large"
+                    style={{
+                      borderRadius: "6px",
+                      borderColor: validarMaoObraItem(item, index) && !item.quantidadeColhida ? "#ff4d4f" : "#d9d9d9",
+                    }}
+                    value={item.quantidadeColhida}
+                    onChange={(value) => {
+                      handleMaoObraChange(index, 'quantidadeColhida', value);
+                      // Recalcular valor total se valor unitário está preenchido
+                      if (item.valorUnitario && value) {
+                        const qtd = parseFloat(String(value).replace(',', '.')) || 0;
+                        const valUnit = parseFloat(String(item.valorUnitario).replace(',', '.')) || 0;
+                        if (qtd > 0 && valUnit > 0) {
+                          handleMaoObraChange(index, 'valorColheita', qtd * valUnit);
+                        }
+                      }
+                    }}
+                    disabled={!canEditTab("2") || pagamentoEfetuado}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={3}>
+                <Form.Item>
+                  <MonetaryInput
+                    placeholder="Ex: 5,00"
+                    addonBefore="R$"
+                    decimalScale={4}
+                    size="large"
+                    style={{
+                      borderRadius: "6px",
+                      borderColor: "#d9d9d9",
+                    }}
+                    value={item.valorUnitario}
+                    onChange={(value) => {
+                      handleMaoObraChange(index, 'valorUnitario', value);
+                      // Recalcular valor total
+                      if (item.quantidadeColhida && value) {
+                        const qtd = parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0;
+                        const valUnit = parseFloat(String(value).replace(',', '.')) || 0;
+                        if (qtd > 0 && valUnit > 0) {
+                          handleMaoObraChange(index, 'valorColheita', qtd * valUnit);
+                        }
+                      }
+                    }}
+                    disabled={!canEditTab("2") || pagamentoEfetuado || !item.quantidadeColhida || (parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0) <= 0}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={3}>
                 <Form.Item
                   validateStatus={validarMaoObraItem(item, index) && !item.valorColheita ? "error" : ""}
                   help={validarMaoObraItem(item, index) && !item.valorColheita ? "Campo obrigatório" : ""}
@@ -1557,13 +1652,23 @@ const ColheitaTab = ({
                       borderColor: validarMaoObraItem(item, index) && !item.valorColheita ? "#ff4d4f" : "#d9d9d9",
                     }}
                     value={item.valorColheita}
-                    onChange={(value) => handleMaoObraChange(index, 'valorColheita', value)}
-                    disabled={!canEditTab("2") || pagamentoEfetuado}
+                    onChange={(value) => {
+                      handleMaoObraChange(index, 'valorColheita', value);
+                      // Recalcular valor unitário (cálculo reverso)
+                      if (item.quantidadeColhida && value) {
+                        const qtd = parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0;
+                        const valTotal = parseFloat(String(value).replace(',', '.')) || 0;
+                        if (qtd > 0 && valTotal > 0) {
+                          handleMaoObraChange(index, 'valorUnitario', valTotal / qtd);
+                        }
+                      }
+                    }}
+                    disabled={!canEditTab("2") || pagamentoEfetuado || !item.quantidadeColhida || (parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0) <= 0}
                   />
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={5}>
+              <Col xs={24} md={4}>
                 <Form.Item>
                   <Input
                     placeholder="Observações (opcional)"
@@ -1578,7 +1683,7 @@ const ColheitaTab = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={2}>
+              <Col xs={24} md={3}>
                 <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
                   {/* Botão de remover */}
                   <Button
@@ -1668,6 +1773,7 @@ const ColheitaTab = ({
               const maoObraValida = pedidoAtual.maoObra?.filter(item => {
                 // Verificar se pelo menos um campo não-obrigatório foi preenchido (exceto observações)
                 const temAlgumCampo = item.turmaColheitaId ||
+                                      item.frutaId ||
                                       item.quantidadeColhida ||
                                       item.unidadeMedida ||
                                       item.valorColheita;
@@ -1696,14 +1802,15 @@ const ColheitaTab = ({
                 const item = maoObraValida[i];
 
                 // Se qualquer campo foi preenchido, todos os obrigatórios devem estar preenchidos
-                const camposObrigatorios = ['turmaColheitaId', 'quantidadeColhida', 'unidadeMedida', 'valorColheita'];
+                // Nota: unidadeMedida será derivada da fruta, então não é mais obrigatória
+                const camposObrigatorios = ['turmaColheitaId', 'frutaId', 'quantidadeColhida', 'valorColheita'];
                 const camposFaltando = camposObrigatorios.filter(campo => !item[campo]);
 
                 if (camposFaltando.length > 0) {
                   const nomesCampos = {
                     'turmaColheitaId': 'Turma de Colheita',
+                    'frutaId': 'Fruta',
                     'quantidadeColhida': 'Quantidade Colhida',
-                    'unidadeMedida': 'Unidade de Medida',
                     'valorColheita': 'Valor da Colheita'
                   };
                   const camposFaltandoNomes = camposFaltando.map(campo => nomesCampos[campo]).join(', ');

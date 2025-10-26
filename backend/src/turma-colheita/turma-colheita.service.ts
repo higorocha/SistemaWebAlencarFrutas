@@ -255,42 +255,97 @@ export class TurmaColheitaService {
       throw new BadRequestException(`Fruta com ID ${frutaId} não encontrada no pedido ${pedidoId}`);
     }
 
-    const colheitaPedido = await this.prisma.turmaColheitaPedidoCusto.create({
-      data: {
+    // ✅ CORREÇÃO: Verificar se já existe um registro para esta turma+pedido+fruta
+    const custoExistente = await this.prisma.turmaColheitaPedidoCusto.findFirst({
+      where: {
         turmaColheitaId,
         pedidoId,
         frutaId,
-        ...colheitaData,
-        ...(dataColheita && { dataColheita: new Date(dataColheita) }),
       },
-      include: {
-        turmaColheita: {
-          select: {
-            nomeColhedor: true,
-            chavePix: true,
-            dataCadastro: true,
-          },
+    });
+
+    let colheitaPedido;
+
+    if (custoExistente) {
+      // ✅ CORREÇÃO: Se já existe, fazer UPDATE substituindo valores (não incrementar)
+      // Quando o usuário edita a colheita, deve substituir os valores antigos pelos novos
+      colheitaPedido = await this.prisma.turmaColheitaPedidoCusto.update({
+        where: { id: custoExistente.id },
+        data: {
+          quantidadeColhida: colheitaData.quantidadeColhida, // ✅ Substituir, não somar
+          valorColheita: colheitaData.valorColheita,         // ✅ Substituir, não somar
+          unidadeMedida: colheitaData.unidadeMedida,         // ✅ Atualizar unidade também
+          ...(dataColheita && { dataColheita: new Date(dataColheita) }),
+          ...(colheitaData.observacoes !== undefined && { observacoes: colheitaData.observacoes }),
+          ...(colheitaData.pagamentoEfetuado !== undefined && { pagamentoEfetuado: colheitaData.pagamentoEfetuado }),
         },
-        pedido: {
-          select: {
-            numeroPedido: true,
-            status: true,
-            dataPedido: true,
+        include: {
+          turmaColheita: {
+            select: {
+              nomeColhedor: true,
+              chavePix: true,
+              dataCadastro: true,
+            },
           },
-        },
-        fruta: {
-          select: {
-            nome: true,
-            cultura: {
-              select: {
-                id: true,
-                descricao: true
-              }
+          pedido: {
+            select: {
+              numeroPedido: true,
+              status: true,
+              dataPedido: true,
+            },
+          },
+          fruta: {
+            select: {
+              nome: true,
+              cultura: {
+                select: {
+                  id: true,
+                  descricao: true
+                }
+              },
             },
           },
         },
-      },
-    });
+      });
+    } else {
+      // ✅ Se não existe, fazer CREATE
+      colheitaPedido = await this.prisma.turmaColheitaPedidoCusto.create({
+        data: {
+          turmaColheitaId,
+          pedidoId,
+          frutaId,
+          ...colheitaData,
+          ...(dataColheita && { dataColheita: new Date(dataColheita) }),
+        },
+        include: {
+          turmaColheita: {
+            select: {
+              nomeColhedor: true,
+              chavePix: true,
+              dataCadastro: true,
+            },
+          },
+          pedido: {
+            select: {
+              numeroPedido: true,
+              status: true,
+              dataPedido: true,
+            },
+          },
+          fruta: {
+            select: {
+              nome: true,
+              cultura: {
+                select: {
+                  id: true,
+                  descricao: true
+                }
+              },
+            },
+          },
+        },
+      });
+    }
 
     return colheitaPedido;
   }

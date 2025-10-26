@@ -24,9 +24,9 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
     const configs = {
       colheita: {
         icon: <ShoppingOutlined />,
-        text: "Registrar Colheita",
+        text: status === 'COLHEITA_PARCIAL' ? "Continuar Colheita" : "Registrar Colheita",
         color: "#1890ff",
-        disabled: !["PEDIDO_CRIADO", "AGUARDANDO_COLHEITA"].includes(status),
+        disabled: !["PEDIDO_CRIADO", "AGUARDANDO_COLHEITA", "COLHEITA_PARCIAL"].includes(status),
       },
       precificacao: {
         icon: <DollarOutlined />,
@@ -229,93 +229,110 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
       ) : (
         /* Layout padrão para outras seções */
         <div className="pedido-card-content">
-          <div className="pedido-info-container">
-            {/* Coluna 1: Número do Pedido */}
-            <div className="pedido-info-item pedido-numero" style={{ flex: "0 0 auto", minWidth: "120px", textAlign: "left", justifyContent: "flex-start" }}>
-              <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {pedido.numeroPedido}
-              </Text>
-              {isVencido && (
-                <Tag color="error" style={{ fontSize: "10px", margin: 0 }}>
-                  VENCIDO
-                </Tag>
-              )}
-            </div>
-            
-            {/* Coluna 2: Cliente */}
-            <div className="pedido-info-item pedido-cliente" style={{ flex: "1 1 0", minWidth: "0", textAlign: "left", justifyContent: "flex-start" }}>
-              <UserOutlined style={{ color: "#666", fontSize: "12px" }} />
-              <Text style={{ 
-                fontSize: "13px", 
-                whiteSpace: "normal", 
-                wordWrap: "break-word",
-                lineHeight: "1.3"
-              }}>
-                {capitalizeNameShort(pedido.cliente?.nome || "N/A")}
-              </Text>
-            </div>
-            
-            {/* Coluna 3: Frutas */}
-            <div className="pedido-frutas" style={{ flex: "1 1 0", minWidth: "0", textAlign: "left", justifyContent: "flex-start" }}>
-              {renderFrutas()}
-            </div>
-            
-            {/* Coluna 4: Data */}
-            <div className="pedido-info-item pedido-data" style={{ flex: "1 1 0", minWidth: "0", textAlign: "center", justifyContent: "center" }}>
-              <CalendarOutlined style={{ color: "#666", fontSize: "12px", marginLeft: "-40px" }} />
-              <Text style={{ fontSize: "11px", color: "#666", whiteSpace: "nowrap" }}>
-                {pedido.dataPrevistaColheita
-                  ? moment(pedido.dataPrevistaColheita).format("DD/MM")
-                  : "S/data"}
-              </Text>
-            </div>
-          </div>
-          
-          {/* Coluna 5: Ação */}
-          <div className="pedido-action-button" style={{ flex: "0 0 60px", textAlign: "left", justifyContent: "flex-start" }}>
-            {!isMobile ? (
-              <Tooltip title={actionConfig.text}>
-                <Button
-                  type="primary"
-                  icon={actionConfig.icon}
-                  size="small"
-                  style={{
-                    backgroundColor: actionConfig.color,
-                    borderColor: actionConfig.color,
-                    minWidth: "36px",
-                    height: "32px"
-                  }}
-                  disabled={actionConfig.disabled}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAction(pedido);
-                  }}
-                >
-                  <span className="button-text-mobile">{actionConfig.text}</span>
-                </Button>
-              </Tooltip>
-            ) : (
-              <Button
-                type="primary"
-                icon={actionConfig.icon}
-                size="small"
-                style={{
-                  backgroundColor: actionConfig.color,
-                  borderColor: actionConfig.color,
-                  minWidth: "36px",
-                  height: "32px"
-                }}
-                disabled={actionConfig.disabled}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction(pedido);
-                }}
-              >
-                <span className="button-text-mobile">{actionConfig.text}</span>
-              </Button>
-            )}
-          </div>
-        </div>
+                    <div className="pedido-info-container">
+                      {/* Coluna 1: Número do Pedido */}
+                      <div className="pedido-info-item pedido-numero" style={{ flex: "0 0 auto", minWidth: "120px", textAlign: "left", justifyContent: "flex-start" }}>
+                        <Text strong style={{ color: "#059669", fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {pedido.numeroPedido}
+                        </Text>
+                        {isVencido && (
+                          <Tag color="error" style={{ fontSize: "10px", margin: 0 }}>
+                            VENCIDO
+                          </Tag>
+                        )}
+                      </div>
+                      
+                      {/* Coluna 2: Cliente */}
+                      <div className="pedido-info-item pedido-cliente" style={{ flex: "1 1 0", minWidth: "0", textAlign: "left", justifyContent: "flex-start" }}>
+                        <UserOutlined style={{ color: "#666", fontSize: "12px" }} />
+                        <Text style={{
+                          fontSize: "13px", 
+                          whiteSpace: "normal", 
+                          wordWrap: "break-word",
+                          lineHeight: "1.3"
+                        }}>
+                          {capitalizeNameShort(pedido.cliente?.nome || "N/A")}
+                        </Text>
+                      </div>
+                      
+                      {/* Coluna 3: Frutas */}
+                      <div className="pedido-frutas" style={{ flex: "1 1 0", minWidth: "0", textAlign: "left", justifyContent: "flex-start" }}>
+                        {renderFrutas()}
+                      </div>
+                      
+                      {/* Coluna 4: Data */}
+                      <div className="pedido-info-item pedido-data" style={{ flex: "1 1 0", minWidth: "0", textAlign: "center", justifyContent: "center" }}>
+                        <CalendarOutlined style={{ color: "#666", fontSize: "12px", marginLeft: "-40px" }} />
+                        <Text style={{ fontSize: "11px", color: "#666", whiteSpace: "nowrap" }}>
+                          {pedido.dataPrevistaColheita
+                            ? moment(pedido.dataPrevistaColheita).format("DD/MM")
+                            : "S/data"}
+                        </Text>
+                      </div>
+                    </div>
+                    
+                    {/* Coluna 5: Ação */}
+                    <div className="pedido-action-button" style={{ flex: "0 0 60px", textAlign: "left", justifyContent: "flex-start" }}>
+                      {!isMobile ? (
+                        <Tooltip title={actionConfig.text}>
+                          <Button
+                            type="primary"
+                            icon={actionConfig.icon}
+                            size="small"
+                            style={(
+                              pedido.status === 'COLHEITA_PARCIAL' && actionType === 'colheita'
+                                ? {
+                                    background: 'linear-gradient(135deg, #1890ff 49%, #faad14 51%)',
+                                    borderColor: '#1890ff',
+                                    minWidth: '36px',
+                                    height: '32px',
+                                  }
+                                : {
+                                    backgroundColor: actionConfig.color,
+                                    borderColor: actionConfig.color,
+                                    minWidth: '36px',
+                                    height: '32px',
+                                  }
+                            )}
+                            disabled={actionConfig.disabled}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAction(pedido);
+                            }}
+                          >
+                            <span className="button-text-mobile">{actionConfig.text}</span>
+                          </Button>
+                        </Tooltip>
+                      ) : (
+                        <Button
+                          type="primary"
+                          icon={actionConfig.icon}
+                          size="small"
+                          style={(
+                            pedido.status === 'COLHEITA_PARCIAL' && actionType === 'colheita'
+                              ? {
+                                  background: 'linear-gradient(135deg, #1890ff 49%, #faad14 51%)',
+                                  borderColor: '#1890ff',
+                                  minWidth: '36px',
+                                  height: '32px',
+                                }
+                              : {
+                                  backgroundColor: actionConfig.color,
+                                  borderColor: actionConfig.color,
+                                  minWidth: '36px',
+                                  height: '32px',
+                                }
+                          )}
+                          disabled={actionConfig.disabled}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAction(pedido);
+                          }}
+                        >
+                          <span className="button-text-mobile">{actionConfig.text}</span>
+                        </Button>
+                      )}
+                    </div>        </div>
       )}
     </Card>
   );

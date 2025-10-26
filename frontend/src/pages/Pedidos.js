@@ -61,7 +61,7 @@ const Pedidos = () => {
      // Estados para busca e filtros
    const [searchTerm, setSearchTerm] = useState(""); // ✅ Mantido para o input de busca
    const [appliedFilters, setAppliedFilters] = useState([]); // Filtros aplicados via sugestão
-   const [statusFilter, setStatusFilter] = useState(""); // Valor vazio = "Todos"
+   const [statusFilters, setStatusFilters] = useState([]); // ✅ Alterado para array
    const [dateFilterType, setDateFilterType] = useState("criacao"); // 'criacao' ou 'colheita'
    const [quickDateFilter, setQuickDateFilter] = useState(""); // Filtro rápido de período
    const [dateRange, setDateRange] = useState([]);
@@ -99,7 +99,7 @@ const Pedidos = () => {
   }, [appliedFilters]);
 
   // ✅ FUNÇÃO ATUALIZADA: Buscar pedidos com suporte a filtros aninhados
-  const fetchPedidos = useCallback(async (page = 1, limit = 20, filters = {}, status = "", dataInicio = null, dataFim = null, tipoData = 'criacao') => {
+  const fetchPedidos = useCallback(async (page = 1, limit = 20, filters = {}, statuses = [], dataInicio = null, dataFim = null, tipoData = 'criacao') => {
     try {
       setCentralizedLoading(true);
       setLoadingMessage("Carregando pedidos...");
@@ -108,7 +108,12 @@ const Pedidos = () => {
       
       if (page) params.append('page', page.toString());
       if (limit) params.append('limit', limit.toString());
-      if (status) params.append('status', status);
+      
+      // ✅ ENVIAR MÚLTIPLOS STATUS
+      if (statuses && statuses.length > 0) {
+        statuses.forEach(status => params.append('status', status));
+      }
+
       if (dataInicio) params.append('dataInicio', dataInicio);
       if (dataFim) params.append('dataFim', dataFim);
       if (tipoData) params.append('tipoData', tipoData); // 'criacao' ou 'colheita'
@@ -127,7 +132,6 @@ const Pedidos = () => {
       setPedidos(response.data.data || []);
       setPedidosFiltrados(response.data.data || []);
       setTotalPedidos(response.data.total || 0);
-      setCurrentPage(response.data.page || 1);
 
     } catch (error) {
       console.error("Erro ao buscar pedidos:", error);
@@ -163,7 +167,7 @@ const Pedidos = () => {
   useEffect(() => {
     fetchClientes();
     // Carregar todos os pedidos na inicialização (sem filtros)
-    fetchPedidos(1, pageSize, {}, "", null, null, 'criacao');
+    fetchPedidos(1, pageSize, {}, [], null, null, 'criacao');
   }, [fetchClientes, fetchPedidos, pageSize]);
 
   // Função para calcular datas dos períodos rápidos
@@ -224,9 +228,9 @@ const Pedidos = () => {
     // Só passa o tipoData se houver filtros de data ativos
     const tipoDataParaEnviar = (dataInicio && dataFim) ? dateFilterType : 'criacao';
     
-    fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, dataInicio, dataFim, tipoDataParaEnviar);
+    fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoDataParaEnviar);
     
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateRange, quickDateFilter, calculateQuickDateRange]);
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateRange, quickDateFilter, calculateQuickDateRange]);
 
   // ✅ Efeito separado para reaplicar filtros quando mudar o tipo de data (se houver filtros ativos)
   useEffect(() => {
@@ -251,7 +255,7 @@ const Pedidos = () => {
 
       // Reaplicar filtro com o novo tipo
       if (dataInicio && dataFim) {
-        fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, dataInicio, dataFim, dateFilterType);
+        fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, dateFilterType);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -298,6 +302,12 @@ const Pedidos = () => {
       if (suggestion.type === 'cliente') {
         processedSuggestion.value = suggestion.metadata.id.toString();
         processedSuggestion.displayValue = suggestion.value; // Manter nome para exibição
+      } else if (suggestion.type === 'fruta') {
+        processedSuggestion.value = suggestion.metadata.id.toString();
+        processedSuggestion.displayValue = suggestion.value; // Manter nome para exibição
+      } else if (suggestion.type === 'area') {
+        processedSuggestion.value = suggestion.metadata.id.toString();
+        processedSuggestion.displayValue = suggestion.value; // Manter nome para exibição
       } else if (suggestion.type === 'numero') {
         // Para número de pedido, usar o número mesmo (não o ID)
         processedSuggestion.value = suggestion.value;
@@ -309,10 +319,23 @@ const Pedidos = () => {
     setCurrentPage(1);
   }, [getFilterIcon]);
 
-  const handleStatusFilter = useCallback((status) => {
-    setStatusFilter(status);
+  const handleStatusFilter = useCallback((statuses) => {
+    // Se "TODOS" foi selecionado, limpar todos os outros
+    if (statuses.includes('TODOS')) {
+      // Se já tinha "TODOS" e selecionou outro, remover "TODOS"
+      if (statusFilters.includes('TODOS') && statuses.length > 1) {
+        const semTodos = statuses.filter(s => s !== 'TODOS');
+        setStatusFilters(semTodos);
+      } else {
+        // Se acabou de selecionar "TODOS", limpar tudo e deixar só ele
+        setStatusFilters([]);
+      }
+    } else {
+      // Se selecionou qualquer outro status, garantir que "TODOS" não está na lista
+      setStatusFilters(statuses.filter(s => s !== 'TODOS'));
+    }
     setCurrentPage(1);
-  }, []);
+  }, [statusFilters]);
 
   // Handler para filtro rápido de período
   const handleQuickDateChange = useCallback((value) => {
@@ -338,7 +361,7 @@ const Pedidos = () => {
    const handleClearFilters = useCallback(() => {
      setSearchTerm("");
      setAppliedFilters([]);
-     setStatusFilter(""); // Reset para "Todos"
+     setStatusFilters([]); // Reset para "Todos"
      setDateFilterType("criacao"); // Reset para "Criação"
      setQuickDateFilter(""); // Reset filtro rápido de período
      setDateRange([]);
@@ -394,8 +417,9 @@ const Pedidos = () => {
     }
 
     // Filtro de status
-    if (statusFilter) {
-      filtrosAtivos.push(`Status: ${statusFilter.replace(/_/g, ' ')}`);
+    if (statusFilters.length > 0) {
+      const statusNomes = statusFilters.map(s => s.replace(/_/g, ' ')).join(', ');
+      filtrosAtivos.push(`Status: ${statusNomes}`);
     }
 
     // Filtro de período rápido
@@ -472,7 +496,7 @@ const Pedidos = () => {
         // Opção 1: Enviar apenas os filtros
         filtrosQuery: {
           appliedFilters,
-          statusFilter,
+          statusFilters,
           dateRange: dateRange.length > 0 ? {
             inicio: dateRange[0].toISOString(),
             fim: dateRange[1].toISOString()
@@ -507,7 +531,7 @@ const Pedidos = () => {
       showNotification('error', 'Erro ao gerar PDF', error.message);
     }
     */
-  }, [appliedFilters, statusFilter, quickDateFilter, dateRange, dateFilterType, pedidos, totalPedidos, currentPage, pageSize]);
+  }, [appliedFilters, statusFilters, quickDateFilter, dateRange, dateFilterType, pedidos, totalPedidos, currentPage, pageSize]);
 
   // Funções de manipulação de modais
   const handleOpenCreateModal = useCallback(() => {
@@ -522,6 +546,7 @@ const Pedidos = () => {
 
   // Funções específicas para cada tipo de modal
   const handleOpenColheitaModal = useCallback((pedido) => {
+    // ✅ Pedido já vem com maoObra da listagem principal
     setPedidoSelecionado(pedido);
     setColheitaModalOpen(true);
   }, []);
@@ -554,7 +579,7 @@ const Pedidos = () => {
       
       handleCloseModal();
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, null, null, dateFilterType);
       
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);
@@ -564,7 +589,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateFilterType, handleCloseModal]);
+  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateFilterType, handleCloseModal]);
 
   // Função para atualizar colheita
   const handleSaveColheita = useCallback(async (colheitaData) => {
@@ -573,23 +598,37 @@ const Pedidos = () => {
       setLoadingMessage("Registrando colheita...");
       setLoading(true);
 
-      await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/colheita`, colheitaData);
-      showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
-      
-      setColheitaModalOpen(false);
-      setPedidoSelecionado(null);
-      // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
-      
+      // ✅ Apenas salvar colheita, SEM recarregar lista aqui
+      // A lista será recarregada DEPOIS que a mão de obra for salva
+      const response = await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/colheita`, colheitaData);
+      return response.data; // Retornar dados para o ColheitaModal usar
+
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
       const message = error.response?.data?.message || "Erro ao registrar colheita";
       showNotification("error", "Erro", message);
+      throw error;
+    }
+  }, [pedidoSelecionado]);
+
+  // ✅ NOVO: Callback para finalizar salvamento (chamado APÓS salvar mão de obra)
+  const handleColheitaCompleta = useCallback(async () => {
+    try {
+      setLoadingMessage("Atualizando lista de pedidos...");
+      
+      // Recarregar lista DEPOIS de salvar tudo (colheita + mão de obra)
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, null, null, dateFilterType);
+
+      showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
+      setColheitaModalOpen(false);
+      setPedidoSelecionado(null);
+    } catch (error) {
+      console.error("Erro ao atualizar lista:", error);
     } finally {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateFilterType]);
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateFilterType]);
 
   // Função para atualizar precificação
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {
@@ -606,7 +645,7 @@ const Pedidos = () => {
 
       setLoadingMessage("Atualizando lista de pedidos...");
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, null, null, dateFilterType);
 
     } catch (error) {
       console.error("Erro ao definir precificação:", error);
@@ -616,7 +655,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, dateFilterType]);
+  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateFilterType]);
 
   // Função para criar novo pagamento
   const handleNovoPagamento = useCallback(async (pagamentoData) => {
@@ -639,7 +678,7 @@ const Pedidos = () => {
       setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, null, null, dateFilterType);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -656,7 +695,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, pedidoSelecionado]);
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, pedidoSelecionado]);
 
   // Função para remover pagamento
   const handleRemoverPagamento = useCallback(async (pagamentoId) => {
@@ -671,7 +710,7 @@ const Pedidos = () => {
       setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos
       // ✅ Usar função auxiliar para criar filtros
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilter, null, null, dateFilterType);
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, null, null, dateFilterType);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -688,7 +727,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilter, pedidoSelecionado]);
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, pedidoSelecionado]);
 
   return (
     <Box 
@@ -799,20 +838,25 @@ const Pedidos = () => {
               Status:
             </Text>
             <Select
-              value={statusFilter}
+              mode="multiple"
+              allowClear
+              value={statusFilters}
               onChange={handleStatusFilter}
               size={isMobile ? "small" : "middle"}
+              maxTagCount={0}
+              maxTagPlaceholder={(omittedValues) => `${omittedValues.length} selecionado(s)`}
+              placeholder="Selecione o status"
               style={{
                 width: "100%",
-                height: isMobile ? "32px" : "40px",
                 marginBottom: "0",
                 fontSize: isMobile ? '0.875rem' : '1rem'
               }}
             >
-              <Option value="">
-                <EyeOutlined style={{ marginRight: 8, color: '#666' }} />
+              <Option value="TODOS">
+                <CheckCircleOutlined style={{ marginRight: 8, color: '#52c41a' }} />
                 Todos
               </Option>
+
               <Option value="PEDIDO_CRIADO">
                 <ShoppingCartOutlined style={{ marginRight: 8, color: '#1890ff' }} />
                 Pedido Criado
@@ -987,7 +1031,7 @@ const Pedidos = () => {
         </Box>
 
         {/* Resumo dos filtros ativos */}
-        {(appliedFilters.length > 0 || statusFilter || quickDateFilter || dateRange.length > 0) && (
+        {(appliedFilters.length > 0 || statusFilters.length > 0 || quickDateFilter || dateRange.length > 0) && (
           <Box
             sx={{
               mt: 2,
@@ -1038,19 +1082,20 @@ const Pedidos = () => {
                 {filter.label}: {filter.displayValue || filter.value}
               </Tag>
             ))}
-            {statusFilter && (
+            {statusFilters.map((status, index) => (
               <Tag
+                key={index}
                 color="green"
                 closable
-                onClose={() => setStatusFilter("")}
+                onClose={() => setStatusFilters(currentFilters => currentFilters.filter(s => s !== status))}
                 style={{
                   fontSize: isMobile ? "0.6875rem" : "0.75rem",
                   padding: isMobile ? "2px 6px" : "4px 8px"
                 }}
               >
-                Status: {statusFilter.replace(/_/g, ' ')}
+                Status: {status.replace(/_/g, ' ')}
               </Tag>
-            )}
+            ))}
             {quickDateFilter && (
               <Tag
                 color="purple"
@@ -1204,6 +1249,7 @@ const Pedidos = () => {
             setPedidoSelecionado(null);
           }}
           onSave={handleSaveColheita}
+          onSaveComplete={handleColheitaCompleta}
           pedido={pedidoSelecionado}
           loading={loading}
           onLoadingChange={handleModalLoading}

@@ -198,4 +198,15 @@ export class PedidoResponseDto {
 
   @ApiProperty({ description: 'Número da nota fiscal (apenas para clientes indústria)', required: false })
   indNumeroNf?: number;
+
+  // ✅ NOVO: Mão de obra vinculada ao pedido
+  @ApiProperty({ description: 'Mão de obra (turmas de colheita) vinculadas ao pedido', required: false })
+  maoObra?: Array<{
+    id: number;
+    turmaColheitaId: number;
+    frutaPedidoId: number;
+    quantidadeColhida: number;
+    valorColheita: number;
+    observacoes?: string;
+  }>;
 }

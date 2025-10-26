@@ -247,9 +247,10 @@ const PedidosTable = ({
     );
 
     // Ações específicas por status
-    if (record.status === 'PEDIDO_CRIADO' || record.status === 'AGUARDANDO_COLHEITA') {
+    // ✅ COLHEITA: Disponível para PEDIDO_CRIADO, AGUARDANDO_COLHEITA e COLHEITA_PARCIAL
+    if (record.status === 'PEDIDO_CRIADO' || record.status === 'AGUARDANDO_COLHEITA' || record.status === 'COLHEITA_PARCIAL') {
       actions.push(
-        <Tooltip key="colheita" title="Registrar colheita">
+        <Tooltip key="colheita" title={record.status === 'COLHEITA_PARCIAL' ? 'Continuar colheita' : 'Registrar colheita'}>
           <Button
             icon={<ShoppingOutlined />}
             size="small"
@@ -260,6 +261,7 @@ const PedidosTable = ({
       );
     }
 
+    // ✅ PRECIFICAÇÃO: Disponível apenas após COLHEITA_REALIZADA (não em COLHEITA_PARCIAL)
     if (record.status === 'COLHEITA_REALIZADA' || record.status === 'AGUARDANDO_PRECIFICACAO') {
       actions.push(
         <Tooltip key="precificacao" title="Definir preços">
@@ -301,8 +303,8 @@ const PedidosTable = ({
       );
     }
 
-    // Excluir disponível apenas para pedidos cancelados ou recém criados
-    if (record.status === 'CANCELADO' || record.status === 'PEDIDO_CRIADO') {
+    // ✅ EXCLUIR: Disponível para CANCELADO, PEDIDO_CRIADO, AGUARDANDO_COLHEITA e COLHEITA_PARCIAL
+    if (record.status === 'CANCELADO' || record.status === 'PEDIDO_CRIADO' || record.status === 'AGUARDANDO_COLHEITA' || record.status === 'COLHEITA_PARCIAL') {
       actions.push(
         <Tooltip key="delete" title="Excluir pedido">
           <Button

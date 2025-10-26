@@ -145,14 +145,16 @@ export class UpdateColheitaFrutaDto {
   @IsPositive()
   frutaPedidoId: number;
 
-  @ApiProperty({
-    description: 'Quantidade real colhida',
+  @ApiPropertyOptional({
+    description: 'Quantidade real colhida (opcional para colheita parcial)',
     example: 985.5,
   })
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : value))
   @Type(() => Number)
+  @IsOptional()
   @IsNumber()
   @IsPositive()
-  quantidadeReal: number;
+  quantidadeReal?: number;
 
   @ApiPropertyOptional({ 
     description: 'Quantidade real colhida na segunda unidade (quando houver)', 
@@ -165,8 +167,8 @@ export class UpdateColheitaFrutaDto {
   @Min(0)
   quantidadeReal2?: number;
 
-  @ApiProperty({
-    description: 'Array de áreas para esta fruta (mínimo 1)',
+  @ApiPropertyOptional({
+    description: 'Array de áreas para esta fruta (obrigatório apenas se fruta for colhida)',
     type: [UpdateColheitaAreaDto],
     example: [
       {
@@ -179,11 +181,11 @@ export class UpdateColheitaFrutaDto {
       }
     ],
   })
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => UpdateColheitaAreaDto)
-  @IsNotEmpty()
-  areas: UpdateColheitaAreaDto[];
+  areas?: UpdateColheitaAreaDto[];
 
   @ApiPropertyOptional({
     description: 'Array de fitas para esta fruta (apenas para bananas)',

@@ -42,7 +42,7 @@ export const useDashboardOptimized = () => {
     pedidos.forEach(pedido => {
       const { status } = pedido;
 
-      if (["PEDIDO_CRIADO", "AGUARDANDO_COLHEITA"].includes(status)) {
+      if (["PEDIDO_CRIADO", "AGUARDANDO_COLHEITA", "COLHEITA_PARCIAL"].includes(status)) {
         aguardandoColheita.push(pedido);
       } else if (["COLHEITA_REALIZADA", "AGUARDANDO_PRECIFICACAO"].includes(status)) {
         aguardandoPrecificacao.push(pedido);

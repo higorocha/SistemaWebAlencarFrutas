@@ -80,7 +80,7 @@ SistemaWebAlencarFrutas/
 **🍎 Comercialização:**
 - Frutas por categorias (CITRICOS, TROPICAIS, TEMPERADAS)
 - Clientes com dados fiscais
-- Pedidos com fluxo sequencial de 10 status
+- Pedidos com fluxo sequencial de 11 status (incluindo COLHEITA_PARCIAL)
 - Múltiplos pagamentos (PIX, BOLETO, TRANSFERÊNCIA)
 
 **⚙️ Configurações:**
@@ -88,23 +88,25 @@ SistemaWebAlencarFrutas/
 - Credenciais de APIs e comunicação (Email/WhatsApp)
 - Notificações em tempo real
 
-### 🔄 Fluxo de Pedidos (10 Status Sequenciais)
+### 🔄 Fluxo de Pedidos (11 Status Sequenciais)
 
 **Ciclo de Vida do Pedido:**
 1. **PEDIDO_CRIADO** → dados básicos (cliente, frutas, quantidades previstas)
 2. **AGUARDANDO_COLHEITA** → aguarda data de colheita
-3. **COLHEITA_REALIZADA** → quantidades reais + áreas + fitas + frete
-4. **AGUARDANDO_PRECIFICACAO** → aguarda definição de preços
-5. **PRECIFICACAO_REALIZADA** → valores + frete + ICMS - descontos
-6. **AGUARDANDO_PAGAMENTO** → aguarda pagamento do cliente
-7. **PAGAMENTO_PARCIAL** → pagamento parcial recebido
-8. **PAGAMENTO_REALIZADO** → valor total recebido
-9. **PEDIDO_FINALIZADO** → processo completo (estado final)
-10. **CANCELADO** → cancelado em qualquer fase (estado final)
+3. **COLHEITA_PARCIAL** → algumas frutas colhidas (pedidos com múltiplas frutas)
+4. **COLHEITA_REALIZADA** → todas as frutas colhidas + áreas + fitas + frete
+5. **AGUARDANDO_PRECIFICACAO** → aguarda definição de preços
+6. **PRECIFICACAO_REALIZADA** → valores + frete + ICMS - descontos
+7. **AGUARDANDO_PAGAMENTO** → aguarda pagamento do cliente
+8. **PAGAMENTO_PARCIAL** → pagamento parcial recebido
+9. **PAGAMENTO_REALIZADO** → valor total recebido
+10. **PEDIDO_FINALIZADO** → processo completo (estado final)
+11. **CANCELADO** → cancelado em qualquer fase (estado final)
 
 **Características:**
 - Transições automáticas entre status
 - Estados finais não editáveis (FINALIZADO/CANCELADO)
+- Sistema de colheita parcial para pedidos com múltiplas frutas
 - Sistema de múltiplas áreas e fitas por fruta
 - Dupla unidade de medida com precificação flexível
 - Múltiplos pagamentos por pedido
@@ -116,15 +118,49 @@ SistemaWebAlencarFrutas/
 
 **Transições Automáticas:**
 - Criação → AGUARDANDO_COLHEITA (automático)
-- Colheita → COLHEITA_REALIZADA → AGUARDANDO_PRECIFICACAO (automático)
+- Colheita → COLHEITA_PARCIAL ou COLHEITA_REALIZADA (calculado automaticamente)
+  - Se **algumas** frutas colhidas → COLHEITA_PARCIAL
+  - Se **todas** as frutas colhidas → COLHEITA_REALIZADA
+- COLHEITA_REALIZADA → AGUARDANDO_PRECIFICACAO (automático)
 - Precificação → PRECIFICACAO_REALIZADA → AGUARDANDO_PAGAMENTO (automático)
 - Pagamentos baseados em valor: PARCIAL (< total) ou REALIZADO (>= total)
 
 **Sistema de Tabs com Controle de Acesso:**
 - Aba 1 (Dados Básicos): sempre editável (exceto finalizados)
-- Aba 2 (Colheita): após colheita realizada
-- Aba 3 (Precificação): após precificação realizada
+- Aba 2 (Colheita): após colheita parcial ou realizada (editável em COLHEITA_PARCIAL)
+- Aba 3 (Precificação): apenas após COLHEITA_REALIZADA (bloqueado em COLHEITA_PARCIAL)
 - Aba 4 (Pagamentos): após pagamentos iniciados
+
+**⚠️ Sistema de Colheita Parcial (NOVO):**
+
+**Lógica de Cálculo Automático:**
+```typescript
+// Backend calcula automaticamente o status baseado nas frutas colhidas
+const todasFrutas = await buscarFrutasDoPedido(pedidoId);
+const frutasComColheita = todasFrutas.filter(f => f.quantidadeReal !== null);
+
+if (frutasComColheita.length === 0) {
+  status = 'AGUARDANDO_COLHEITA';
+} else if (frutasComColheita.length === todasFrutas.length) {
+  status = 'COLHEITA_REALIZADA';
+} else {
+  status = 'COLHEITA_PARCIAL'; // ✅ Novo status
+}
+```
+
+**Regras de Negócio:**
+- ✅ Permite colher frutas individualmente (incluindo banana com fitas)
+- ✅ Mão de obra registrada apenas para frutas colhidas no momento
+- ✅ Fitas validadas por fruta colhida
+- ✅ Status recalculado automaticamente ao adicionar/remover frutas
+- ❌ **NÃO permite precificação** em COLHEITA_PARCIAL (apenas COLHEITA_REALIZADA)
+- ✅ Permite continuar colheita via aba "Colheita" no modal de edição
+- ✅ Ao completar todas as frutas, status muda para COLHEITA_REALIZADA automaticamente
+
+**Indicação Visual:**
+- Cor: `#faad14` (laranja) no modo claro, `#ffc53d` (laranja claro) no modo escuro
+- Aparece na seção de colheita do dashboard (sem card separado)
+- Label: "Colheita Parcial" nas tags de status
 
 ### 🌐 Estrutura da API
 

@@ -48,7 +48,7 @@ export class PedidosService {
       };
       // Gerentes de cultura só veem pedidos em fases específicas
       whereAtivos.status = {
-        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA']
+        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL', 'COLHEITA_REALIZADA']
       };
     }
 
@@ -175,7 +175,7 @@ export class PedidosService {
       };
       // Gerentes de cultura só veem pedidos em fases específicas
       whereTodos.status = {
-        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA']
+        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL', 'COLHEITA_REALIZADA']
       };
     }
 
@@ -487,7 +487,16 @@ export class PedidosService {
         };
 
         return frutaAdaptada;
-      }) || []
+      }) || [],
+      // ✅ NOVO: Adaptar mão de obra (custos de colheita)
+      maoObra: pedido.custosColheita?.map(custo => ({
+        id: custo.id,
+        turmaColheitaId: custo.turmaColheitaId,
+        frutaId: custo.frutaId, // ✅ Corrigido: usar frutaId ao invés de frutaPedidoId
+        quantidadeColhida: custo.quantidadeColhida,
+        valorColheita: custo.valorColheita,
+        observacoes: custo.observacoes
+      })) || []
     };
 
     return resultado;
@@ -749,7 +758,7 @@ export class PedidosService {
     limit?: number,
     search?: string,
     searchType?: string,
-    status?: string,
+    status?: string[],
     clienteId?: number,
     dataInicio?: Date,
     dataFim?: Date,
@@ -780,7 +789,7 @@ export class PedidosService {
         },
         {
           status: {
-            in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO']
+            in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO']
           }
         }
       ];
@@ -838,9 +847,17 @@ export class PedidosService {
             };
             break;
           case 'fruta':
-            where.frutasPedidos = {
-              some: { fruta: { nome: { contains: search, mode: 'insensitive' } } }
-            };
+            if (/^\d+$/.test(search)) {
+              // Se for um ID numérico, filtrar por ID
+              where.frutasPedidos = {
+                some: { frutaId: parseInt(search) }
+              };
+            } else {
+              // Fallback: se for um nome, filtrar por nome
+              where.frutasPedidos = {
+                some: { fruta: { nome: { contains: search, mode: 'insensitive' } } }
+              };
+            }
             break;
           case 'pesagem':
             where.pesagem = { contains: search, mode: 'insensitive' };
@@ -863,39 +880,25 @@ export class PedidosService {
       }
     }
 
+    // ✅ Processar filtros de status (suporta string única ou array)
     if (status) {
-      // Unificação de status: mapear status equivalentes
+      // Se status for uma string, converter para array
       let statusArray: string[] = [];
 
-      switch (status) {
-        case 'PEDIDO_CRIADO':
-        case 'AGUARDANDO_COLHEITA':
-          statusArray = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA'];
-          break;
-        case 'COLHEITA_REALIZADA':
-        case 'AGUARDANDO_PRECIFICACAO':
-          statusArray = ['COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'];
-          break;
-        case 'PRECIFICACAO_REALIZADA':
-        case 'AGUARDANDO_PAGAMENTO':
-          statusArray = ['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO'];
-          break;
-        case 'PAGAMENTO_PARCIAL':
-          // PAGAMENTO_PARCIAL é único, mas pode ser agrupado com AGUARDANDO_PAGAMENTO
-          statusArray = ['PAGAMENTO_PARCIAL'];
-          break;
-        case 'PEDIDO_FINALIZADO':
-        case 'CANCELADO':
-          // Estes status são únicos
-          statusArray = [status];
-          break;
-        default:
-          statusArray = [status];
+      if (Array.isArray(status)) {
+        statusArray = status;
+      } else if (typeof status === 'string') {
+        // Se for string única, colocar em array
+        statusArray = [status];
       }
 
-      where.status = {
-        in: statusArray as any[]
-      };
+      const filteredStatuses = statusArray.filter(s => s && s.trim() !== '');
+
+      if (filteredStatuses.length > 0) {
+        where.status = {
+          in: filteredStatuses as any[],
+        };
+      }
     }
 
     // ✅ NOVA LÓGICA: Processar filtros aninhados
@@ -967,27 +970,56 @@ export class PedidosService {
                 });
                 break;
               case 'area':
-                filterConditions.push({
-                  frutasPedidos: {
-                    some: {
-                      areas: {
-                        some: {
-                          OR: [
-                            { areaPropria: { nome: { contains: value, mode: 'insensitive' } } },
-                            { areaFornecedor: { nome: { contains: value, mode: 'insensitive' } } }
-                          ]
+                if (/^\d+$/.test(value)) {
+                  // Se for um ID numérico, filtrar por ID da área
+                  filterConditions.push({
+                    frutasPedidos: {
+                      some: {
+                        areas: {
+                          some: {
+                            OR: [
+                              { areaPropriaId: parseInt(value) },
+                              { areaFornecedorId: parseInt(value) }
+                            ]
+                          }
                         }
                       }
                     }
-                  }
-                });
+                  });
+                } else {
+                  // Fallback: se for um nome, filtrar por nome
+                  filterConditions.push({
+                    frutasPedidos: {
+                      some: {
+                        areas: {
+                          some: {
+                            OR: [
+                              { areaPropria: { nome: { contains: value, mode: 'insensitive' } } },
+                              { areaFornecedor: { nome: { contains: value, mode: 'insensitive' } } }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  });
+                }
                 break;
               case 'fruta':
-                filterConditions.push({
-                  frutasPedidos: {
-                    some: { fruta: { nome: { contains: value, mode: 'insensitive' } } }
-                  }
-                });
+                if (/^\d+$/.test(value)) {
+                  // Se for um ID numérico, filtrar por ID
+                  filterConditions.push({
+                    frutasPedidos: {
+                      some: { frutaId: parseInt(value) }
+                    }
+                  });
+                } else {
+                  // Fallback: se for um nome, filtrar por nome
+                  filterConditions.push({
+                    frutasPedidos: {
+                      some: { fruta: { nome: { contains: value, mode: 'insensitive' } } }
+                    }
+                  });
+                }
                 break;
               case 'pesagem':
                 filterConditions.push({
@@ -1030,8 +1062,8 @@ export class PedidosService {
           lte: endOfDay,
         };
       } else {
-        // Padrão: filtrar por data de criação (dataPedido ou createdAt)
-        where.createdAt = {
+        // Padrão: filtrar por data de criação (dataPedido)
+        where.dataPedido = {
           gte: startOfDay,
           lte: endOfDay,
         };
@@ -1188,7 +1220,7 @@ export class PedidosService {
       if (statusFiltrados.length > 0) {
         // Se é GERENTE_CULTURA, garantir que os status filtrados sejam apenas os permitidos
         if (usuarioNivel === 'GERENTE_CULTURA') {
-          const statusPermitidos = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'];
+          const statusPermitidos = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'];
           statusFiltrados = statusFiltrados.filter(s => statusPermitidos.includes(s));
         }
 
@@ -1201,7 +1233,7 @@ export class PedidosService {
     } else if (usuarioNivel === 'GERENTE_CULTURA') {
       // Se não há filtro de status, aplicar filtro padrão para GERENTE_CULTURA
       where.status = {
-        in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO']
+        in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO']
       };
     }
 
@@ -1414,7 +1446,7 @@ export class PedidosService {
       }
 
       // Verificar se o pedido está em uma fase permitida
-      const statusPermitidos = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'];
+      const statusPermitidos = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'];
       if (!statusPermitidos.includes(pedido.status)) {
         throw new ForbiddenException('Você não tem permissão para acessar pedidos nesta fase');
       }
@@ -1539,12 +1571,24 @@ export class PedidosService {
     }
 
     // Verificar se o status permite atualizar colheita
-    if (existingPedido.status !== 'PEDIDO_CRIADO' && existingPedido.status !== 'AGUARDANDO_COLHEITA') {
+    if (existingPedido.status !== 'PEDIDO_CRIADO' &&
+        existingPedido.status !== 'AGUARDANDO_COLHEITA' &&
+        existingPedido.status !== 'COLHEITA_PARCIAL') {
       throw new BadRequestException('Status do pedido não permite atualizar colheita');
     }
 
-    // Validações das áreas e fitas
-    for (const fruta of updateColheitaDto.frutas) {
+    // ✅ NOVA VALIDAÇÃO: Validar apenas frutas que estão sendo colhidas (colheita parcial)
+    const frutasSendoColhidas = updateColheitaDto.frutas.filter(fruta =>
+      fruta.quantidadeReal !== undefined && fruta.quantidadeReal !== null && fruta.quantidadeReal > 0
+    );
+
+    // Validar que pelo menos UMA fruta está sendo colhida
+    if (frutasSendoColhidas.length === 0) {
+      throw new BadRequestException('Informe a quantidade colhida de pelo menos uma fruta');
+    }
+
+    // Validações das áreas e fitas APENAS para frutas sendo colhidas
+    for (const fruta of frutasSendoColhidas) {
       // Validar que cada fruta tem pelo menos uma área
       if (!fruta.areas || fruta.areas.length === 0) {
         throw new BadRequestException(`Fruta ${fruta.frutaPedidoId} deve ter pelo menos uma área associada`);
@@ -1591,13 +1635,43 @@ export class PedidosService {
 
     // Atualizar o pedido com informações da colheita em transação
     const pedidoAtualizado = await this.prisma.$transaction(async (prisma) => {
-      // Atualizar dados do pedido
+      // ✅ NOVA LÓGICA: Calcular status dinamicamente baseado nas frutas colhidas
+
+      // Buscar todas as frutas do pedido
+      const todasFrutasPedido = await prisma.frutasPedidos.findMany({
+        where: { pedidoId: id },
+        select: { id: true, quantidadeReal: true }
+      });
+
+      // ✅ CORREÇÃO: IDs apenas das frutas que ESTÃO SENDO COLHIDAS AGORA (com quantidadeReal)
+      const frutasColhidasAgoraIds = frutasSendoColhidas.map(f => f.frutaPedidoId);
+
+      // Verificar quantas frutas terão colheita após esta atualização
+      const frutasComColheita = todasFrutasPedido.filter(fp =>
+        // Fruta já tinha colheita OU está sendo colhida agora
+        fp.quantidadeReal !== null || frutasColhidasAgoraIds.includes(fp.id)
+      );
+
+      // Determinar o status adequado
+      let novoStatus: 'AGUARDANDO_COLHEITA' | 'COLHEITA_PARCIAL' | 'COLHEITA_REALIZADA';
+      if (frutasComColheita.length === 0) {
+        // Nenhuma fruta colhida (não deveria acontecer, mas por segurança)
+        novoStatus = 'AGUARDANDO_COLHEITA';
+      } else if (frutasComColheita.length === todasFrutasPedido.length) {
+        // Todas as frutas foram colhidas
+        novoStatus = 'COLHEITA_REALIZADA';
+      } else {
+        // Apenas algumas frutas foram colhidas
+        novoStatus = 'COLHEITA_PARCIAL';
+      }
+
+      // Atualizar dados do pedido com status calculado
       const pedidoUpdated = await prisma.pedido.update({
         where: { id },
         data: {
           dataColheita: updateColheitaDto.dataColheita,
           observacoesColheita: updateColheitaDto.observacoesColheita,
-          status: 'COLHEITA_REALIZADA',
+          status: novoStatus, // ← Status dinâmico
           // Campos de frete
           pesagem: updateColheitaDto.pesagem,
           placaPrimaria: updateColheitaDto.placaPrimaria,
@@ -1606,8 +1680,8 @@ export class PedidosService {
         },
       });
 
-      // Atualizar frutas e suas áreas/fitas
-      for (const fruta of updateColheitaDto.frutas) {
+      // ✅ NOVA LÓGICA: Atualizar apenas frutas que estão sendo colhidas
+      for (const fruta of frutasSendoColhidas) {
         // Atualizar FrutasPedidos
         await prisma.frutasPedidos.update({
           where: { id: fruta.frutaPedidoId },
@@ -1624,23 +1698,49 @@ export class PedidosService {
         });
 
         // Criar todas as novas áreas (substituindo completamente as antigas)
-        for (const area of fruta.areas) {
-          await prisma.frutasPedidosAreas.create({
-            data: {
-              frutaPedidoId: fruta.frutaPedidoId,
-              areaPropriaId: area.areaPropriaId || null,
-              areaFornecedorId: area.areaFornecedorId || null,
-              observacoes: area.observacoes,
-              quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
-              quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
-            },
-          });
+        if (fruta.areas && fruta.areas.length > 0) {
+          for (const area of fruta.areas) {
+            await prisma.frutasPedidosAreas.create({
+              data: {
+                frutaPedidoId: fruta.frutaPedidoId,
+                areaPropriaId: area.areaPropriaId || null,
+                areaFornecedorId: area.areaFornecedorId || null,
+                observacoes: area.observacoes,
+                quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+                quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
+              }
+            });
+          }
         }
 
         // Gerenciar fitas da fruta (se informadas)
         if (fruta.fitas && fruta.fitas.length > 0) {
           
-          // IMPORTANTE: Deletar todas as fitas antigas primeiro
+          // ✅ CORREÇÃO: Buscar fitas antigas ANTES de deletar para devolver ao estoque
+          const fitasAntigas = await prisma.frutasPedidosFitas.findMany({
+            where: { frutaPedidoId: fruta.frutaPedidoId },
+            include: {
+              controleBanana: true
+            }
+          });
+
+          // ✅ DEVOLVER fitas antigas ao estoque ANTES de deletar
+          if (fitasAntigas.length > 0) {
+            for (const fitaAntiga of fitasAntigas) {
+              if (fitaAntiga.controleBananaId) {
+                await prisma.controleBanana.update({
+                  where: { id: fitaAntiga.controleBananaId },
+                  data: {
+                    quantidadeFitas: {
+                      increment: fitaAntiga.quantidadeFita || 0
+                    }
+                  }
+                });
+              }
+            }
+          }
+
+          // Deletar todas as fitas antigas
           await prisma.frutasPedidosFitas.deleteMany({
             where: { frutaPedidoId: fruta.frutaPedidoId },
           });
@@ -1723,8 +1823,9 @@ export class PedidosService {
     }
 
     // Verificar se o status permite precificação
+    // ✅ IMPORTANTE: NÃO permitir precificação em COLHEITA_PARCIAL
     if (existingPedido.status !== 'COLHEITA_REALIZADA') {
-      throw new BadRequestException('Status do pedido não permite precificação');
+      throw new BadRequestException('Status do pedido não permite precificação. Todas as frutas devem ser colhidas antes de precificar.');
     }
 
     const pedido = await this.prisma.$transaction(async (prisma) => {
@@ -2490,6 +2591,7 @@ export class PedidosService {
             }
 
             const requereColheita = [
+              'COLHEITA_PARCIAL',
               'COLHEITA_REALIZADA',
               'AGUARDANDO_PRECIFICACAO',
               'PRECIFICACAO_REALIZADA',
@@ -2887,33 +2989,81 @@ export class PedidosService {
   }
 
   async remove(id: number): Promise<void> {
-    // Verificar se o pedido existe
+    // Verificar se o pedido existe e buscar dados completos
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
+      include: {
+        frutasPedidos: {
+          include: {
+            fitas: true, // Incluir fitas para liberar estoque
+            areas: true
+          }
+        },
+        custosColheita: true, // Incluir mão de obra
+        pagamentosPedidos: true
+      }
     });
 
     if (!existingPedido) {
       throw new NotFoundException('Pedido não encontrado');
     }
 
-    // Só permite remover pedidos cancelados ou recém criados
-    if (existingPedido.status !== 'CANCELADO' && existingPedido.status !== 'PEDIDO_CRIADO') {
-      throw new BadRequestException('Só é possível remover pedidos cancelados ou recém criados');
+    // ✅ PERMITIR EXCLUSÃO: CANCELADO, PEDIDO_CRIADO, AGUARDANDO_COLHEITA e COLHEITA_PARCIAL
+    const statusPermitidos = ['CANCELADO', 'PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL'];
+    if (!statusPermitidos.includes(existingPedido.status)) {
+      throw new BadRequestException(
+        'Só é possível remover pedidos cancelados, recém criados, aguardando colheita ou com colheita parcial'
+      );
     }
 
     // Remover em transação para garantir integridade
     await this.prisma.$transaction(async (prisma) => {
-      // Remover frutas do pedido (cascade)
+      // ✅ 1. LIBERAR ESTOQUE DE FITAS (se houver)
+      for (const frutaPedido of existingPedido.frutasPedidos) {
+        if (frutaPedido.fitas && frutaPedido.fitas.length > 0) {
+          for (const fita of frutaPedido.fitas) {
+            // Liberar estoque adicionando de volta ao controle de banana
+            await this.controleBananaService.adicionarEstoquePorControle(
+              fita.controleBananaId,
+              fita.quantidadeFita || 0,
+              1 // usuarioId padrão para operação de sistema
+            );
+          }
+        }
+      }
+
+      // ✅ 2. REMOVER MÃO DE OBRA (TurmaColheitaPedidoCusto) - Cascade automático via schema
+      // O Prisma já tem onDelete: Cascade configurado, mas deletamos explicitamente para garantir
+      await prisma.turmaColheitaPedidoCusto.deleteMany({
+        where: { pedidoId: id },
+      });
+
+      // ✅ 3. REMOVER FITAS DE PEDIDOS (FrutasPedidosFitas) - Cascade automático via schema
+      // Já será removido pelo cascade, mas podemos fazer explicitamente
+      for (const frutaPedido of existingPedido.frutasPedidos) {
+        await prisma.frutasPedidosFitas.deleteMany({
+          where: { frutaPedidoId: frutaPedido.id },
+        });
+      }
+
+      // ✅ 4. REMOVER ÁREAS DE PEDIDOS (FrutasPedidosAreas) - Cascade automático via schema
+      for (const frutaPedido of existingPedido.frutasPedidos) {
+        await prisma.frutasPedidosAreas.deleteMany({
+          where: { frutaPedidoId: frutaPedido.id },
+        });
+      }
+
+      // ✅ 5. REMOVER FRUTAS DO PEDIDO (FrutasPedidos) - Cascade automático via schema
       await prisma.frutasPedidos.deleteMany({
         where: { pedidoId: id },
       });
 
-      // Remover pagamentos do pedido (cascade)
+      // ✅ 6. REMOVER PAGAMENTOS DO PEDIDO (PagamentosPedidos) - Cascade automático via schema
       await prisma.pagamentosPedidos.deleteMany({
         where: { pedidoId: id },
       });
 
-      // Remover o pedido
+      // ✅ 7. REMOVER O PEDIDO
       await prisma.pedido.delete({
         where: { id },
       });
@@ -3371,14 +3521,20 @@ export class PedidosService {
       }
 
       // 2. Buscar por nome do cliente
+      const numericTerm = term.replace(/[^0-9]/g, '');
+      const clienteWhereConditions: any[] = [
+        { nome: { contains: term, mode: 'insensitive' } },
+        { razaoSocial: { contains: term, mode: 'insensitive' } },
+      ];
+
+      if (numericTerm) {
+        clienteWhereConditions.push({ cnpj: { contains: numericTerm } });
+        clienteWhereConditions.push({ cpf: { contains: numericTerm } });
+      }
+
       const clientes = await this.prisma.cliente.findMany({
         where: {
-          OR: [
-            { nome: { contains: term, mode: 'insensitive' } },
-            { razaoSocial: { contains: term, mode: 'insensitive' } },
-            { cnpj: { contains: term.replace(/[^0-9]/g, ''), mode: 'insensitive' } },
-            { cpf: { contains: term.replace(/[^0-9]/g, ''), mode: 'insensitive' } }
-          ]
+          OR: clienteWhereConditions
         },
         select: {
           id: true,

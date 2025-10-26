@@ -142,17 +142,41 @@ const VincularFitasModal = ({
     
     // Filtrar fitas que possuem lotes nas áreas selecionadas
     const fitasFiltradas = dadosFitas.map(fita => {
+      // ✅ CORREÇÃO: Se a fita está vinculada, incluir TAMBÉM áreas dos lotes vinculados
+      const estaVinculada = fruta?.fitas?.some(f => f.fitaBananaId === fita.fitaBananaId);
+      
       const areasFiltradas = fita.areas.filter(area => {
         const temAreaSelecionada = idsAreasSelecionadas.includes(area.areaId);
-        console.log(`  - Fita "${fita.nome}", Área "${area.nome}" (ID: ${area.areaId}): ${temAreaSelecionada ? 'INCLUÍDA' : 'EXCLUÍDA'}`);
-        return temAreaSelecionada;
+        
+        // Se a fita está vinculada, verificar se esta área tem lotes vinculados ao pedido
+        let temLotesVinculados = false;
+        if (estaVinculada) {
+          const fitaVinculada = fruta.fitas.find(f => f.fitaBananaId === fita.fitaBananaId);
+          temLotesVinculados = fitaVinculada?.detalhesAreas?.some(d => d.areaId === area.areaId) || false;
+        }
+        
+        const incluir = temAreaSelecionada || temLotesVinculados;
+        console.log(`  - Fita "${fita.nome}", Área "${area.nome}" (ID: ${area.areaId}): ${incluir ? 'INCLUÍDA' : 'EXCLUÍDA'} (selecionada: ${temAreaSelecionada}, vinculada: ${temLotesVinculados})`);
+        return incluir;
       });
       
       return {
         ...fita,
         areas: areasFiltradas
       };
-    }).filter(fita => fita.areas.length > 0); // Remover fitas sem áreas selecionadas
+    }).filter(fita => {
+      // ✅ CORREÇÃO: Manter fitas que:
+      // 1. Têm áreas selecionadas OU
+      // 2. Estão vinculadas ao pedido (mesmo sem áreas no filtro)
+      const temAreas = fita.areas.length > 0;
+      const estaVinculada = fruta?.fitas?.some(f => f.fitaBananaId === fita.fitaBananaId);
+      
+      if (estaVinculada && !temAreas) {
+        console.log(`  - Fita "${fita.nome}" mantida por estar vinculada ao pedido (mesmo sem áreas filtradas)`);
+      }
+      
+      return temAreas || estaVinculada;
+    });
     
     console.log(`  - Fitas filtradas: ${fitasFiltradas.length} de ${dadosFitas.length} fitas`);
     return fitasFiltradas;
@@ -790,18 +814,22 @@ const VincularFitasModal = ({
             {(() => {
               // ✅ Filtrar e ordenar fitas baseado no modo de operação
               let fitasFiltradas = fitasComAreas.filter(fita => {
-                const estaVinculadaAoPedido = fruta?.fitas?.some(f => f.fitaBananaId === fita.fitaBananaId);
+                // Verificar se esta fita específica está vinculada à FRUTA ATUAL (não a qualquer pedido)
+                const estaVinculadaNaFrutaAtual = fruta?.fitas?.some(f => f.fitaBananaId === fita.fitaBananaId);
+                
+                // Verificar se tem estoque disponível em alguma área
                 const temEstoqueEmAlgumaArea = fita.areas.some(area => 
                   area.controles.some(controle => controle.quantidadeFitas > 0)
                 );
                 
-                if (isModoEdicao) {
-                  // MODO EDIÇÃO: Mostrar fitas vinculadas OU com estoque
-                  return estaVinculadaAoPedido || temEstoqueEmAlgumaArea;
-                } else {
-                  // MODO CRIAÇÃO: Mostrar apenas fitas com estoque
-                  return temEstoqueEmAlgumaArea;
+                // ✅ REGRA 1: Se está vinculada à fruta ATUAL, SEMPRE mostrar (mesmo com estoque zerado)
+                // Isso permite desmarcar e devolver ao estoque, ou trocar de lote
+                if (estaVinculadaNaFrutaAtual) {
+                  return true;
                 }
+                
+                // ✅ REGRA 2: Se NÃO está vinculada, só mostrar se tem estoque disponível
+                return temEstoqueEmAlgumaArea;
               });
               
               // Ordenar fitas: primeiro as vinculadas ao pedido, depois as outras
@@ -858,18 +886,12 @@ const VincularFitasModal = ({
                     {/* ✅ NOVA LÓGICA: Mostrar lotes individuais por área */}
                     {fita.areas
                       .filter((area) => {
-                        // ✅ FILTRO APRIMORADO: Lógica diferente para edição vs criação
-                        if (isModoEdicao) {
-                          // MODO EDIÇÃO: Mostrar lotes com estoque OU já vinculados ao pedido
-                          return area.controles.some(controle => {
-                            const loteJaVinculado = isLoteVinculadoAoPedido(fita.fitaBananaId, controle.id);
-                            const temEstoque = controle.quantidadeFitas > 0;
-                            return temEstoque || loteJaVinculado;
-                          });
-                        } else {
-                          // MODO CRIAÇÃO: Mostrar apenas lotes com estoque > 0
-                          return area.controles.some(controle => controle.quantidadeFitas > 0);
-                        }
+                        // ✅ CORREÇÃO: Sempre mostrar áreas com lotes que tem estoque OU estão vinculados ao pedido atual
+                        return area.controles.some(controle => {
+                          const loteJaVinculado = isLoteVinculadoAoPedido(fita.fitaBananaId, controle.id);
+                          const temEstoque = controle.quantidadeFitas > 0;
+                          return temEstoque || loteJaVinculado;
+                        });
                       })
                       .map((area) => (
                         <Col xs={24} key={area.areaId}>
@@ -891,22 +913,19 @@ const VincularFitasModal = ({
                             <Row gutter={[8, 8]} style={{ padding: '8px' }}>
                               {area.controles
                                 .filter(controle => {
-                                  if (isModoEdicao) {
-                                    // MODO EDIÇÃO: Mostrar lotes com estoque OU já vinculados
-                                    const loteJaVinculado = isLoteVinculadoAoPedido(fita.fitaBananaId, controle.id);
-                                    const temEstoque = controle.quantidadeFitas > 0;
-                                    return temEstoque || loteJaVinculado;
-                                  } else {
-                                    // MODO CRIAÇÃO: Mostrar apenas com estoque > 0
-                                    return controle.quantidadeFitas > 0;
-                                  }
+                                  // ✅ CORREÇÃO: Sempre mostrar lotes com estoque OU vinculados ao pedido atual
+                                  // Isso permite desmarcar lotes vinculados mesmo com estoque zerado
+                                  const loteJaVinculado = isLoteVinculadoAoPedido(fita.fitaBananaId, controle.id);
+                                  const temEstoque = controle.quantidadeFitas > 0;
+                                  return temEstoque || loteJaVinculado;
                                 })
                                 .sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro)) // Mais recentes primeiro
                                 .map((controle) => {
                                   const isSelected = isLoteSelected(fita.id, controle.id);
                                   const loteJaVinculado = isLoteVinculadoAoPedido(fita.fitaBananaId, controle.id);
                                   const temEstoque = controle.quantidadeFitas > 0;
-                                  const podeSelecionar = isModoEdicao ? (temEstoque || loteJaVinculado) : temEstoque;
+                                  // ✅ CORREÇÃO: Permitir selecionar/desmarcar lotes vinculados mesmo sem estoque (para devolver ao estoque)
+                                  const podeSelecionar = temEstoque || loteJaVinculado;
                                   
                                   const diasTotais = controle.tempoDesdeData?.dias || 0;
                                   const semanasExatas = diasTotais / 7;

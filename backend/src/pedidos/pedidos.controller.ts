@@ -197,7 +197,7 @@ export class PedidosController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Itens por página' })
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Termo de busca' })
   @ApiQuery({ name: 'searchType', required: false, type: String, description: 'Tipo de busca (numero, cliente, motorista, placa, vale, etc.)' })
-  @ApiQuery({ name: 'status', required: false, type: String, description: 'Filtrar por status' })
+  @ApiQuery({ name: 'status', required: false, type: [String], description: 'Filtrar por status' })
   @ApiQuery({ name: 'clienteId', required: false, type: Number, description: 'Filtrar por cliente' })
   @ApiQuery({ name: 'dataInicio', required: false, type: String, description: 'Data início (ISO 8601)' })
   @ApiQuery({ name: 'dataFim', required: false, type: String, description: 'Data fim (ISO 8601)' })
@@ -223,7 +223,7 @@ export class PedidosController {
     @Query('limit') limit?: number,
     @Query('search') search?: string,
     @Query('searchType') searchType?: string,
-    @Query('status') status?: string,
+    @Query('status') status?: string[],
     @Query('clienteId') clienteId?: number,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,

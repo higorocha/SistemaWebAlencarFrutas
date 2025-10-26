@@ -175,19 +175,31 @@ const PedidosDashboard = () => {
   }, [setOperacaoLoading, reloadAfterNovoPedido]);
 
   // Handlers para ações dos cards
-  const handleColheita = (pedido) => {
-    setPedidoSelecionado(pedido);
-    setColheitaModalOpen(true);
+  const handleColheita = async (pedido) => {
+    // ✅ CORREÇÃO: Buscar pedido atualizado do banco para garantir que mão de obra e fitas estejam presentes
+    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
+    if (pedidoAtualizado) {
+      setPedidoSelecionado(pedidoAtualizado);
+      setColheitaModalOpen(true);
+    }
   };
 
-  const handlePrecificacao = (pedido) => {
-    setPedidoSelecionado(pedido);
-    setPrecificacaoModalOpen(true);
+  const handlePrecificacao = async (pedido) => {
+    // ✅ Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
+    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
+    if (pedidoAtualizado) {
+      setPedidoSelecionado(pedidoAtualizado);
+      setPrecificacaoModalOpen(true);
+    }
   };
 
-  const handlePagamento = (pedido) => {
-    setPedidoSelecionado(pedido);
-    setPagamentoModalOpen(true);
+  const handlePagamento = async (pedido) => {
+    // ✅ Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
+    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
+    if (pedidoAtualizado) {
+      setPedidoSelecionado(pedidoAtualizado);
+      setPagamentoModalOpen(true);
+    }
   };
 
   const handleVisualizar = async (pedido) => {
@@ -209,13 +221,21 @@ const PedidosDashboard = () => {
       setOperacaoLoading(true);
       setLoadingType('colheita'); // ✅ Tipo específico para colheita
       
-      await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/colheita`, colheitaData);
+      const pedidoId = pedidoSelecionado.id;
+      await axiosInstance.patch(`/api/pedidos/${pedidoId}/colheita`, colheitaData);
       showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
 
       setColheitaModalOpen(false);
-      setPedidoSelecionado(null);
 
       await reloadAfterColheita();
+
+      // ✅ CORREÇÃO: Buscar pedido atualizado e manter selecionado para próxima colheita parcial
+      const pedidoAtualizado = await buscarPedidoAtualizado(pedidoId);
+      if (pedidoAtualizado) {
+        setPedidoSelecionado(pedidoAtualizado);
+      } else {
+        setPedidoSelecionado(null);
+      }
 
     } catch (error) {
       console.error("Erro ao registrar colheita:", error);
@@ -226,7 +246,7 @@ const PedidosDashboard = () => {
       setOperacaoLoading(false);
       setLoadingType(null); // ✅ Limpar tipo
     }
-  }, [pedidoSelecionado, setOperacaoLoading, reloadAfterColheita]);
+  }, [pedidoSelecionado, setOperacaoLoading, reloadAfterColheita, buscarPedidoAtualizado]);
 
   // Função para salvar precificação
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {

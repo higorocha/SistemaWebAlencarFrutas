@@ -93,6 +93,7 @@ export const validatePedido = (pedido) => {
     cliente: pedido.cliente || {},
     frutasPedidos: Array.isArray(pedido.frutasPedidos) ? pedido.frutasPedidos : [],
     pagamentosPedidos: Array.isArray(pedido.pagamentosPedidos) ? pedido.pagamentosPedidos : [],
+    maoObra: Array.isArray(pedido.maoObra) ? pedido.maoObra : [], // ✅ Preservar mão de obra
     ...pedido // Manter outros campos
   };
 };

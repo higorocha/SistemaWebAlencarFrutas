@@ -23,21 +23,23 @@ Sistema de gestão agrícola completo que gerencia:
 
 ### 📋 **Sistema de Pedidos (Core do Sistema)**
 
-**🔄 Fluxo de 10 Fases Sequenciais:**
+**🔄 Fluxo de 11 Fases Sequenciais:**
 1. **🆕 PEDIDO_CRIADO** → Dados básicos (cliente, frutas, quantidades previstas)
-2. **⏳ AGUARDANDO_COLHEITA** → Aguarda data prevista de colheita  
-3. **🚜 COLHEITA_REALIZADA** → Quantidades reais + áreas + fitas + dados de frete + **mão de obra**
-4. **💰 AGUARDANDO_PRECIFICACAO** → Aguarda definição de preços
-5. **📊 PRECIFICACAO_REALIZADA** → Valores unitários + frete + ICMS - descontos
-6. **💳 AGUARDANDO_PAGAMENTO** → Aguarda pagamento do cliente
-7. **💵 PAGAMENTO_PARCIAL** → Pagamento parcial recebido
-8. **✅ PAGAMENTO_REALIZADO** → Valor total recebido
-9. **🎯 PEDIDO_FINALIZADO** → Processo completo (estado final)
-10. **❌ CANCELADO** → Cancelado em qualquer fase (estado final)
+2. **⏳ AGUARDANDO_COLHEITA** → Aguarda data prevista de colheita
+3. **⚠️ COLHEITA_PARCIAL** → Algumas frutas colhidas (pedidos com múltiplas frutas)
+4. **🚜 COLHEITA_REALIZADA** → Todas as frutas colhidas + áreas + fitas + dados de frete + **mão de obra**
+5. **💰 AGUARDANDO_PRECIFICACAO** → Aguarda definição de preços
+6. **📊 PRECIFICACAO_REALIZADA** → Valores unitários + frete + ICMS - descontos
+7. **💳 AGUARDANDO_PAGAMENTO** → Aguarda pagamento do cliente
+8. **💵 PAGAMENTO_PARCIAL** → Pagamento parcial recebido
+9. **✅ PAGAMENTO_REALIZADO** → Valor total recebido
+10. **🎯 PEDIDO_FINALIZADO** → Processo completo (estado final)
+11. **❌ CANCELADO** → Cancelado em qualquer fase (estado final)
 
 **🎨 Sistema de Cores de Status Centralizado:**
 - **PEDIDO_CRIADO** → `#1890ff` (Azul) - Pedidos recém-criados
 - **AGUARDANDO_COLHEITA** → `#1890ff` (Azul) - Aguardando colheita
+- **COLHEITA_PARCIAL** → `#faad14` (Laranja) - Colheita parcial (algumas frutas colhidas)
 - **COLHEITA_REALIZADA** → `#722ed1` (Roxo) - Colheita concluída
 - **AGUARDANDO_PRECIFICACAO** → `#722ed1` (Roxo) - Aguardando precificação
 - **PRECIFICACAO_REALIZADA** → `#722ed1` (Roxo) - Precificação concluída
@@ -90,6 +92,7 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 - **Pedido com 54 dias de colheita + pago completamente**: ❌ **NÃO vencido** (sem saldo devedor)
 
 **🎯 Características Avançadas:**
+- **Sistema de Colheita Parcial**: Permite colher frutas individualmente em pedidos com múltiplas frutas
 - **Dupla Unidade de Medida**: Por fruta (ex: 1000 KG + 50 CX)
 - **Múltiplas Áreas de Origem**: Próprias + fornecedores por fruta
 - **Múltiplas Fitas**: Sistema especial para banana com cores hexadecimais
@@ -105,6 +108,29 @@ const config = getStatusConfig('AGUARDANDO_COLHEITA');
 - **Visualização por Cliente**: Modal detalhado com estatísticas e filtros avançados
 - **Integração com Mão de Obra**: Vinculação automática de turmas de colheita aos pedidos
 - **Dados Complementares**: Campos específicos para clientes indústria (datas, peso, NF)
+
+**⚠️ Sistema de Colheita Parcial:**
+
+O sistema permite registrar a colheita de frutas de forma incremental em pedidos com múltiplas frutas:
+
+**🔄 Lógica de Transição Automática:**
+- **Nenhuma fruta colhida** → `AGUARDANDO_COLHEITA`
+- **Algumas frutas colhidas** → `COLHEITA_PARCIAL` (novo status)
+- **Todas as frutas colhidas** → `COLHEITA_REALIZADA`
+
+**📋 Regras de Negócio:**
+- ✅ Permite colher frutas individualmente (incluindo banana com fitas)
+- ✅ Mão de obra registrada apenas para frutas colhidas no momento
+- ✅ Fitas validadas individualmente por fruta colhida
+- ✅ Status calculado automaticamente com base nas frutas colhidas
+- ❌ **NÃO permite precificação em COLHEITA_PARCIAL** (apenas em COLHEITA_REALIZADA)
+- ✅ Permite continuar colheita posteriormente via aba "Colheita"
+- ✅ Ao completar todas as frutas, status muda automaticamente para COLHEITA_REALIZADA
+
+**🎨 Indicação Visual:**
+- Cor laranja (`#faad14`) diferencia pedidos com colheita parcial
+- Aparece na mesma seção de colheita no dashboard
+- Label "Colheita Parcial" nas tags de status
 
 ### 🌱 **Gestão Agrícola**
 - **Áreas Próprias**: Cadastro com localização GPS e categorização

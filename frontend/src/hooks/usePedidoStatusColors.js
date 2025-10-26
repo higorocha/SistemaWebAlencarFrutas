@@ -34,6 +34,7 @@ const usePedidoStatusColors = () => {
     const statusTexts = {
       PEDIDO_CRIADO: "Criado",
       AGUARDANDO_COLHEITA: "Aguardando Colheita",
+      COLHEITA_PARCIAL: "Colheita Parcial",
       COLHEITA_REALIZADA: "Colheita Realizada",
       AGUARDANDO_PRECIFICACAO: "Aguardando Precificação",
       PRECIFICACAO_REALIZADA: "Precificação Realizada",
@@ -61,6 +62,7 @@ const usePedidoStatusColors = () => {
     // Cores específicas para acesso direto
     PEDIDO_CRIADO: statusColors.PEDIDO_CRIADO,
     AGUARDANDO_COLHEITA: statusColors.AGUARDANDO_COLHEITA,
+    COLHEITA_PARCIAL: statusColors.COLHEITA_PARCIAL,
     COLHEITA_REALIZADA: statusColors.COLHEITA_REALIZADA,
     AGUARDANDO_PRECIFICACAO: statusColors.AGUARDANDO_PRECIFICACAO,
     PRECIFICACAO_REALIZADA: statusColors.PRECIFICACAO_REALIZADA,
