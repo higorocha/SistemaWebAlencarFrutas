@@ -36,13 +36,20 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab }) => 
     const colhidas = {};
     const atrasadas = {};
 
-    // Função para calcular a semana atual (segunda anterior ao dia atual até domingo próximo)
+    // ✅ Função para calcular a semana atual COMPLETA (segunda-feira até domingo)
     const calcularSemanaAtual = () => {
       const hoje = new Date();
       const diaSemana = hoje.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
+
+      // Calcular a segunda-feira anterior (ou o próprio dia se for segunda)
       const diasParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
       const segundaFeira = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasParaSegunda, 0, 0, 0, 0);
-      return { inicio: segundaFeira };
+
+      // ✅ Calcular o domingo próximo
+      const diasParaDomingo = diaSemana === 0 ? 0 : 7 - diaSemana;
+      const domingo = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasParaDomingo, 23, 59, 59, 999);
+
+      return { inicio: segundaFeira, fim: domingo };
     };
 
     const semana = calcularSemanaAtual();
@@ -67,20 +74,29 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab }) => 
       const unidade = item.unidade || 'UN';
       const dataColheita = new Date(item.dataPrevistaColheita);
 
-      // Verifica se a colheita está atrasada
-      const isAtrasada = dataColheita < semana.inicio;
+      // ✅ Normalizar data da colheita para início do dia para comparação precisa
+      const dataColheitaNormalizada = new Date(dataColheita.getFullYear(), dataColheita.getMonth(), dataColheita.getDate(), 0, 0, 0, 0);
 
-      // Frutas pendentes de colheita
+      // ✅ Verificar se está na semana atual (segunda até domingo)
+      const estaNaSemana = dataColheitaNormalizada >= semana.inicio && dataColheitaNormalizada <= semana.fim;
+
+      // ✅ Verificar se a colheita está atrasada (antes da semana atual)
+      const isAtrasada = dataColheitaNormalizada < semana.inicio;
+
+      // ✅ Frutas pendentes de colheita (APENAS da semana atual)
       if (statusPendentes.includes(item.statusPedido)) {
         const isItemColhido = item.statusPedido === 'COLHEITA_PARCIAL' && item.quantidadeReal && item.quantidadeReal > 0;
-        
-        if (!isItemColhido && item.quantidadePrevista !== 1) {
-          if (!pendentes[frutaNome]) {
-            pendentes[frutaNome] = { nome: frutaNome, quantidade: 0, unidade: unidade };
-          }
-          pendentes[frutaNome].quantidade += item.quantidadePrevista || 0;
 
-          // Adicionar também às estatísticas de atrasadas se for o caso
+        if (!isItemColhido && item.quantidadePrevista !== 1) {
+          // ✅ Adicionar às pendentes SOMENTE se estiver na semana atual
+          if (estaNaSemana) {
+            if (!pendentes[frutaNome]) {
+              pendentes[frutaNome] = { nome: frutaNome, quantidade: 0, unidade: unidade };
+            }
+            pendentes[frutaNome].quantidade += item.quantidadePrevista || 0;
+          }
+
+          // ✅ Adicionar às atrasadas se estiver antes da semana atual
           if (isAtrasada) {
             if (!atrasadas[frutaNome]) {
               atrasadas[frutaNome] = { nome: frutaNome, quantidade: 0, unidade: unidade };
@@ -90,11 +106,12 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab }) => 
         }
       }
 
-      // Frutas colhidas (usar quantidadeReal se disponível)
+      // ✅ Frutas colhidas (APENAS da semana atual)
       if (statusColhidos.includes(item.statusPedido)) {
         const quantidadeColhida = item.quantidadeReal || 0;
 
-        if (quantidadeColhida > 0) {
+        // ✅ Adicionar às colhidas SOMENTE se estiver na semana atual E tiver quantidade
+        if (quantidadeColhida > 0 && estaNaSemana) {
           if (!colhidas[frutaNome]) {
             colhidas[frutaNome] = { nome: frutaNome, quantidade: 0, unidade: unidade };
           }
