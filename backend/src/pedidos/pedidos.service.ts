@@ -779,24 +779,58 @@ export class PedidosService {
     // ✅ FILTRO POR CULTURA PARA GERENTE_CULTURA
 
     if (usuarioNivel === 'GERENTE_CULTURA' && usuarioCulturaId) {
-      // Gerentes de cultura só veem pedidos com frutas da sua cultura E em fases de colheita
-      // Seguindo a mesma lógica do dashboard: PEDIDO_CRIADO + AGUARDANDO_COLHEITA
-      where.AND = [
-        {
-          frutasPedidos: {
-            some: {
-              fruta: {
-                culturaId: usuarioCulturaId
-              }
-            }
+      const isPendentes = status?.includes('AGUARDANDO_COLHEITA') || status?.includes('PEDIDO_CRIADO');
+      const isRealizadas = status?.includes('COLHEITA_REALIZADA') || status?.includes('AGUARDANDO_PRECIFICACAO');
+
+      // Logic for "Pendentes" tab
+      if (isPendentes) {
+        where.AND = [
+          {
+            // Order must have at least one fruit of the manager's culture that is not yet harvested
+            frutasPedidos: {
+              some: {
+                fruta: { culturaId: usuarioCulturaId },
+                quantidadeReal: null,
+              },
+            },
+          },
+          {
+            // And the order status must be one that is still open for harvesting
+            status: { in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL'] },
+          },
+        ];
+        // We've handled the status filtering, so clear the original status parameter
+        // to prevent it from interfering later in the function.
+        status = undefined;
+      } 
+      // Logic for "Realizadas" tab
+      else if (isRealizadas) {
+        where.AND = [
+          {
+            // Order must have at least one fruit of the manager's culture that has been harvested
+            frutasPedidos: {
+              some: {
+                fruta: { culturaId: usuarioCulturaId },
+                quantidadeReal: { not: null },
+              },
+            },
+          },
+          {
+            // And the order status must be one of the "realizadas" states
+            status: { in: ['COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'COLHEITA_PARCIAL'] },
           }
-        },
-        {
-          status: {
-            in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO']
-          }
-        }
-      ];
+        ];
+        // Clear the original status parameter
+        status = undefined;
+      } 
+      // Default logic if no specific tab/status is provided
+      else {
+        where.frutasPedidos = {
+          some: {
+            fruta: { culturaId: usuarioCulturaId },
+          },
+        };
+      }
     }
 
     if (search) {
@@ -885,7 +919,7 @@ export class PedidosService {
     }
 
     // ✅ Processar filtros de status (suporta string única ou array)
-    if (status) {
+    if (status && usuarioNivel !== 'GERENTE_CULTURA') {
       // Se status for uma string, converter para array
       let statusArray: string[] = [];
 
@@ -1074,6 +1108,7 @@ export class PedidosService {
       }
     }
 
+    console.log('>>> Prisma Where Clause:', JSON.stringify(where, null, 2));
     const [pedidos, total] = await Promise.all([
       this.prisma.pedido.findMany({
         where,
@@ -1175,6 +1210,7 @@ export class PedidosService {
       }),
       this.prisma.pedido.count({ where }),
     ]);
+    console.log('>>> Prisma Raw Result Count:', pedidos.length);
 
     return {
       data: pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido))),

@@ -167,11 +167,55 @@ if (frutasComColheita.length === 0) {
 **Autenticação:** `/auth/login`, `/auth/profile`
 
 **Módulos Principais:**
-- `/api/pedidos` - Sistema completo de pedidos + dashboard
-- `/api/frutas`, `/api/clientes`, `/api/areas-agricolas`  
+- `/api/pedidos` - Sistema completo de pedidos + dashboard (WEB)
+- `/api/mobile/pedidos` - **API específica para mobile** (reutiliza lógica existente)
+- `/api/frutas`, `/api/clientes`, `/api/areas-agricolas`
 - `/api/fornecedores`, `/api/areas-fornecedores`
 - `/fitas-banana`, `/controle-banana` - Sistema de produção
 - `/config`, `/notificacoes` - Configurações e notificações
+
+### 📱 Módulo Mobile - Arquitetura Híbrida
+
+O sistema possui um **módulo específico para o aplicativo mobile** com arquitetura híbrida inteligente:
+
+**🎯 Características:**
+- **Zero Duplicação**: Reutiliza `PedidosService` existente
+- **Rotas Isoladas**: `/api/mobile/*` não afeta sistema web
+- **DTOs Otimizados**: Respostas enxutas para mobile
+- **Guards Específicos**: `CulturaGuard` para validação automática de cultura
+- **Filtros Automáticos**: GERENTE_CULTURA vê apenas pedidos da sua cultura
+
+**📁 Estrutura:**
+```
+backend/src/mobile/
+├── mobile.module.ts                    # Módulo principal
+├── controllers/
+│   └── pedidos-mobile.controller.ts    # Controller específico mobile
+├── dto/
+│   ├── mobile-pedido-filters.dto.ts    # Filtros simplificados
+│   ├── mobile-colheita.dto.ts          # DTO de colheita sem fitas (MVP)
+│   └── mobile-pedido-response.dto.ts   # Respostas otimizadas
+├── guards/
+│   └── cultura.guard.ts                # Validação de cultura
+└── README.md                           # Documentação técnica completa
+```
+
+**📡 Endpoints Mobile:**
+```
+GET    /api/mobile/pedidos/dashboard     # Dashboard simplificado
+GET    /api/mobile/pedidos               # Listar pedidos (filtrado)
+GET    /api/mobile/pedidos/:id           # Detalhes de pedido
+PATCH  /api/mobile/pedidos/:id/colheita  # Registrar colheita (MVP)
+```
+
+**🔐 Validação Automática:**
+- **GERENTE_CULTURA**: Pedidos filtrados por cultura vinculada
+- **ADMINISTRADOR/GERENTE_GERAL**: Acesso total
+- **ESCRITORIO**: Acesso total
+
+**📚 Documentação:**
+- Ver `backend/src/mobile/README.md` para detalhes técnicos completos
+- Swagger: `/api` → Seção "Mobile - Pedidos"
 
 ### 🖥️ Páginas do Frontend
 

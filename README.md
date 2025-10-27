@@ -499,6 +499,17 @@ SistemaWebAlencarFrutas/
 │   │   ├── historico-fitas/            # Auditoria de fitas
 │   │   ├── turma-colheita/             # Sistema de turmas de colheita
 │   │   ├── notificacoes/               # Sistema de notificações
+│   │   ├── mobile/                     # 📱 Módulo Mobile (API específica para app)
+│   │   │   ├── mobile.module.ts        # Módulo principal mobile
+│   │   │   ├── controllers/            # Controllers específicos mobile
+│   │   │   │   └── pedidos-mobile.controller.ts
+│   │   │   ├── dto/                    # DTOs otimizados para mobile
+│   │   │   │   ├── mobile-pedido-filters.dto.ts
+│   │   │   │   ├── mobile-colheita.dto.ts
+│   │   │   │   └── mobile-pedido-response.dto.ts
+│   │   │   ├── guards/                 # Guards customizados
+│   │   │   │   └── cultura.guard.ts
+│   │   │   └── README.md               # Documentação técnica mobile
 │   │   ├── config/                     # Configurações da empresa
 │   │   ├── config-email/               # Configurações de email
 │   │   ├── config-whatsapp/            # Configurações do WhatsApp
@@ -573,6 +584,48 @@ POST   /api/turma-colheita/custo-colheita                    # Criar custo de co
 PATCH  /api/turma-colheita/custo-colheita/:id                # Atualizar custo de colheita
 DELETE /api/turma-colheita/custo-colheita/:id                # Excluir custo de colheita
 ```
+
+### **📱 APIs Mobile (Novo Módulo)**
+
+O sistema possui um **módulo específico para o aplicativo mobile** com arquitetura híbrida que reutiliza a lógica de negócio existente.
+
+**🎯 Características:**
+- **Rotas Isoladas**: `/api/mobile/*` não afeta sistema web
+- **DTOs Otimizados**: Respostas enxutas para mobile
+- **Validação de Cultura**: Filtro automático por cultura para GERENTE_CULTURA
+- **Zero Duplicação**: Reutiliza `PedidosService` existente
+
+```
+# Dashboard Mobile
+GET    /api/mobile/pedidos/dashboard      # Dashboard simplificado (estatísticas de colheita)
+
+# Listagem de Pedidos
+GET    /api/mobile/pedidos                # Listar pedidos (filtrado por cultura)
+# Query params: ?aguardandoColheita=true, ?colheitasPendentes=true, ?status=AGUARDANDO_COLHEITA
+
+# Detalhes de Pedido
+GET    /api/mobile/pedidos/:id            # Buscar pedido específico (valida cultura)
+
+# Colheita
+PATCH  /api/mobile/pedidos/:id/colheita   # Registrar colheita (DTO simplificado, sem fitas no MVP)
+```
+
+**🔐 Autenticação Mobile:**
+```
+POST   /auth/login
+Body: { email, senha, tipoLogin: "MOBILE" }
+Response: { access_token, usuario: { id, nome, nivel, culturaId, cultura }, expiracao }
+```
+
+**📚 Documentação Completa:**
+- Veja `backend/src/mobile/README.md` para detalhes técnicos completos
+- Swagger: `http://localhost:5002/api` → Seção "Mobile - Pedidos"
+
+**✅ Níveis com Acesso:**
+- `ADMINISTRADOR` - Acesso total
+- `GERENTE_GERAL` - Acesso total
+- `ESCRITORIO` - Acesso total
+- `GERENTE_CULTURA` - Acesso filtrado por cultura vinculada
 
 ### **Gestão Agrícola**
 ```

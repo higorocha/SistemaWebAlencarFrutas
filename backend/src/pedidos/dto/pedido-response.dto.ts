@@ -45,6 +45,10 @@ export class FrutaPedidoResponseDto {
   fruta: {
     id: number;
     nome: string;
+    cultura: {
+      id: number;
+      descricao: string;
+    };
   };
 
   @ApiProperty({ description: 'ID da área própria', required: false })

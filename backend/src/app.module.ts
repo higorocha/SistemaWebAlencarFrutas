@@ -28,6 +28,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { PixModule } from './pix/pix.module';
 import { ExtratosModule } from './extratos/extratos.module';
 import { CertificateMonitorModule } from './certificate-monitor/certificate-monitor.module';
+import { MobileModule } from './mobile/mobile.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { CertificateMonitorModule } from './certificate-monitor/certificate-moni
     PixModule,
     ExtratosModule,
     CertificateMonitorModule,
+    MobileModule, // Módulo para API mobile
   ],
   controllers: [AppController],
   providers: [AppService],

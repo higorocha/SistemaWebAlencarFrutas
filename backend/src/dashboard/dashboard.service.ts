@@ -60,37 +60,51 @@ export class DashboardService {
   private async getFaturamentoTotal(): Promise<number> {
     const result = await this.prisma.pedido.aggregate({
       _sum: {
-        valorFinal: true,
+        valorRecebido: true, // ✅ CORRIGIDO: Soma valorRecebido (pagamentos efetivos)
       },
       where: {
         status: {
           in: ['PEDIDO_FINALIZADO', 'PAGAMENTO_PARCIAL'],
         },
-        valorFinal: {
+        valorRecebido: {
           not: null,
+          gt: 0, // ✅ Apenas valores maiores que zero
         },
       },
     });
 
-    return result._sum.valorFinal || 0;
+    return result._sum.valorRecebido || 0;
   }
 
   private async getFaturamentoAberto(): Promise<number> {
-    const result = await this.prisma.pedido.aggregate({
-      _sum: {
-        valorFinal: true,
-      },
+    // ✅ CORRIGIDO: Buscar pedidos com saldo devedor (valorFinal - valorRecebido)
+    const pedidosComSaldo = await this.prisma.pedido.findMany({
       where: {
         status: {
           notIn: ['PEDIDO_FINALIZADO', 'CANCELADO'],
         },
         valorFinal: {
           not: null,
+          gt: 0,
         },
+      },
+      select: {
+        valorFinal: true,
+        valorRecebido: true,
       },
     });
 
-    return result._sum.valorFinal || 0;
+    // Calcular saldo devedor total
+    const saldoDevedorTotal = pedidosComSaldo.reduce((total, pedido) => {
+      const valorFinal = pedido.valorFinal || 0;
+      const valorRecebido = pedido.valorRecebido || 0;
+      const saldoDevedor = valorFinal - valorRecebido;
+      
+      // Só incluir se houver saldo devedor
+      return total + (saldoDevedor > 0 ? saldoDevedor : 0);
+    }, 0);
+
+    return saldoDevedorTotal;
   }
 
   private async getTotalClientes(): Promise<number> {
