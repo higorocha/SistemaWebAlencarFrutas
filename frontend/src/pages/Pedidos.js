@@ -729,6 +729,28 @@ const Pedidos = () => {
     }
   }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, pedidoSelecionado]);
 
+  // Função para quando ajustes financeiros são salvos (frete, ICMS, desconto, avaria)
+  const handleAjustesSalvos = useCallback(async () => {
+    try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Atualizando dados do pedido...");
+
+      // Atualizar lista de pedidos
+      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, null, null, dateFilterType);
+
+      // Atualizar pedido selecionado com os dados mais recentes
+      if (pedidoSelecionado) {
+        const response = await axiosInstance.get(`/api/pedidos/${pedidoSelecionado.id}`);
+        setPedidoSelecionado(response.data);
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar após ajustes:", error);
+      // Não mostrar notificação aqui pois o modal já mostrou
+    } finally {
+      setCentralizedLoading(false);
+    }
+  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateFilterType, pedidoSelecionado]);
+
   return (
     <Box 
       sx={{ 
@@ -1275,6 +1297,7 @@ const Pedidos = () => {
           }}
           onNovoPagamento={handleNovoPagamento}
           onRemoverPagamento={handleRemoverPagamento}
+          onAjustesSalvos={handleAjustesSalvos}
           pedido={pedidoSelecionado}
           loading={loading}
         />

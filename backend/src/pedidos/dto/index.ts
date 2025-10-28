@@ -7,3 +7,4 @@ export * from './pedido-response.dto';
 export * from './update-pedido-completo.dto';
 export * from './create-pagamento.dto';
 export * from './pagamento-response.dto';
+export * from './update-ajustes-precificacao.dto';

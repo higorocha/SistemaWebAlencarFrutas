@@ -22,7 +22,8 @@ import {
   PedidoResponseDto, 
   UpdatePedidoCompletoDto,
   CreatePagamentoDto,
-  PagamentoPedidoResponseDto
+  PagamentoPedidoResponseDto,
+  UpdateAjustesPrecificacaoDto
 } from './dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -381,6 +382,28 @@ export class PedidosController {
     @Body() updatePrecificacaoDto: UpdatePrecificacaoDto,
   ): Promise<PedidoResponseDto> {
     return this.pedidosService.updatePrecificacao(+id, updatePrecificacaoDto);
+  }
+
+  @Patch(':id/ajustes-precificacao')
+  @ApiOperation({ summary: 'Ajustar valores de precificação de um pedido' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Valores de precificação ajustados com sucesso',
+    type: PedidoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Pedido não encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Status do pedido não permite ajustes ou dados inválidos',
+  })
+  updateAjustesPrecificacao(
+    @Param('id') id: string,
+    @Body() updateAjustesDto: UpdateAjustesPrecificacaoDto,
+  ): Promise<PedidoResponseDto> {
+    return this.pedidosService.updateAjustesPrecificacao(+id, updateAjustesDto);
   }
 
   @Patch(':id/pagamento')

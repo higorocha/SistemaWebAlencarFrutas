@@ -64,7 +64,7 @@ export class DashboardService {
       },
       where: {
         status: {
-          in: ['PEDIDO_FINALIZADO', 'PAGAMENTO_PARCIAL'],
+          in: ['PEDIDO_FINALIZADO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO'], // ✅ INCLUÍDO: PAGAMENTO_REALIZADO
         },
         valorRecebido: {
           not: null,
@@ -81,7 +81,7 @@ export class DashboardService {
     const pedidosComSaldo = await this.prisma.pedido.findMany({
       where: {
         status: {
-          notIn: ['PEDIDO_FINALIZADO', 'CANCELADO'],
+          notIn: ['PEDIDO_FINALIZADO', 'CANCELADO', 'PAGAMENTO_REALIZADO'], // ✅ INCLUÍDO: Excluir PAGAMENTO_REALIZADO
         },
         valorFinal: {
           not: null,

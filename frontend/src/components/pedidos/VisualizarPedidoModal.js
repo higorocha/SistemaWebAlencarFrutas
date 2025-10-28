@@ -1210,111 +1210,122 @@ const VisualizarPedidoModal = ({
                 Resumo Financeiro
               </Title>
               <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-              <Row gutter={[isMobile ? 8 : 20, isMobile ? 8 : 16]} align="middle" style={{ marginBottom: isMobile ? "16px" : "24px" }}>
-                <Col xs={24} sm={12} md={6}>
-                  <div style={{ 
-                    backgroundColor: "#f0f9ff", 
-                    border: "2px solid #0ea5e9", 
-                    borderRadius: "12px", 
-                    padding: "16px",
-                    textAlign: "center",
-                    boxShadow: "0 2px 8px rgba(14, 165, 233, 0.15)"
-                  }}>
-                    <div style={{ marginBottom: "8px" }}>
-                      <DollarOutlined style={{ fontSize: "24px", color: "#0ea5e9" }} />
-                    </div>
-                    <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                      VALOR TOTAL
-                    </Text>
-                    <Text style={{ fontSize: "20px", fontWeight: "700", color: "#0f172a", display: "block" }}>
-                      {formatarValorMonetario(pedido?.valorFinal || 0)}
-                    </Text>
-                  </div>
-                </Col>
+
+              {(() => {
+                // =================================================
+                // LÓGICA DE CÁLCULO CENTRALIZADA
+                // =================================================
+                const valorTotalFrutas = pedido.frutasPedidos?.reduce((acc, fruta) => acc + (parseFloat(fruta.valorTotal) || 0), 0) || 0;
+                const frete = parseFloat(pedido.frete) || 0;
+                const icms = parseFloat(pedido.icms) || 0;
+                const desconto = parseFloat(pedido.desconto) || 0;
+                const avaria = parseFloat(pedido.avaria) || 0;
+                const valorRecebido = parseFloat(pedido.valorRecebido) || 0;
+
+                // Valor bruto do pedido (sem descontos/avarias)
+                const valorBrutoPedido = valorTotalFrutas + frete + icms;
                 
-                <Col xs={24} sm={12} md={6}>
-                  <div style={{ 
-                    backgroundColor: "#f0fdf4", 
-                    border: "2px solid #22c55e", 
-                    borderRadius: "12px", 
-                    padding: "16px",
-                    textAlign: "center",
-                    boxShadow: "0 2px 8px rgba(34, 197, 94, 0.15)"
-                  }}>
-                    <div style={{ marginBottom: "8px" }}>
-                      <BankOutlined style={{ fontSize: "24px", color: "#22c55e" }} />
-                    </div>
-                    <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                      VALOR RECEBIDO
-                    </Text>
-                    <Text style={{ fontSize: "20px", fontWeight: "700", color: "#15803d", display: "block" }}>
-                      {formatarValorMonetario(pedido?.valorRecebido || 0)}
-                    </Text>
-                  </div>
-                </Col>
-                
-                <Col xs={24} sm={12} md={6}>
-                  <div style={{ 
-                    backgroundColor: ((pedido?.valorFinal || 0) - (pedido?.valorRecebido || 0)) > 0 ? "#fef2f2" : "#f0fdf4", 
-                    border: ((pedido?.valorFinal || 0) - (pedido?.valorRecebido || 0)) > 0 ? "2px solid #ef4444" : "2px solid #22c55e", 
-                    borderRadius: "12px", 
-                    padding: "16px",
-                    textAlign: "center",
-                    boxShadow: ((pedido?.valorFinal || 0) - (pedido?.valorRecebido || 0)) > 0 ? "0 2px 8px rgba(239, 68, 68, 0.15)" : "0 2px 8px rgba(34, 197, 94, 0.15)"
-                  }}>
-                    <div style={{ marginBottom: "8px" }}>
-                      <CalendarOutlined style={{ 
-                        fontSize: "24px", 
-                        color: ((pedido?.valorFinal || 0) - (pedido?.valorRecebido || 0)) > 0 ? "#ef4444" : "#22c55e" 
-                      }} />
-                    </div>
-                    <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                      VALOR RESTANTE
-                    </Text>
-                    <Text style={{ 
-                      fontSize: "20px", 
-                      fontWeight: "700", 
-                      color: ((pedido?.valorFinal || 0) - (pedido?.valorRecebido || 0)) > 0 ? "#dc2626" : "#15803d",
-                      display: "block"
-                    }}>
-                      {formatarValorMonetario((pedido?.valorFinal || 0) - (pedido?.valorRecebido || 0))}
-                    </Text>
-                  </div>
-                </Col>
-                
-                <Col xs={24} sm={12} md={6}>
-                  <div style={{ 
-                    backgroundColor: (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 1) ? "#f0fdf4" : (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 0.5) ? "#fffbeb" : "#fef2f2", 
-                    border: (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 1) ? "2px solid #22c55e" : (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 0.5) ? "2px solid #f59e0b" : "2px solid #ef4444", 
-                    borderRadius: "12px", 
-                    padding: "16px",
-                    textAlign: "center",
-                    boxShadow: (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 1)
-                      ? "0 2px 8px rgba(34, 197, 94, 0.15)" 
-                      : (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 0.5)
-                        ? "0 2px 8px rgba(245, 158, 11, 0.15)" 
-                        : "0 2px 8px rgba(239, 68, 68, 0.15)"
-                  }}>
-                    <div style={{ marginBottom: "8px" }}>
-                      <InfoCircleOutlined style={{ 
-                        fontSize: "24px", 
-                        color: (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 1) ? "#22c55e" : (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 0.5) ? "#f59e0b" : "#ef4444"
-                      }} />
-                    </div>
-                    <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                      % PAGO
-                    </Text>
-                    <Text style={{ 
-                      fontSize: "20px", 
-                      fontWeight: "700", 
-                      color: (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 1) ? "#15803d" : (pedido?.valorFinal && ((pedido?.valorRecebido || 0) / pedido.valorFinal) >= 0.5) ? "#d97706" : "#dc2626",
-                      display: "block"
-                    }}>
-                      {pedido?.valorFinal ? (((pedido?.valorRecebido || 0) / pedido.valorFinal) * 100).toFixed(1) : 0}%
-                    </Text>
-                  </div>
-                </Col>
-              </Row>
+                // Valor final líquido (considerando tudo) - deve ser igual ao pedido.valorFinal
+                const valorFinalPedido = valorBrutoPedido - desconto - avaria;
+
+                // Valor restante a ser pago
+                const valorRestante = valorFinalPedido - valorRecebido;
+
+                // Percentual pago sobre o valor líquido
+                const percentualPago = valorFinalPedido > 0 ? (valorRecebido / valorFinalPedido) * 100 : 0;
+                // =================================================
+
+                return (
+                  <>
+                    {/* LINHA DE DETALHES (FRETE, ICMS, DESCONTO, AVARIA) */}
+                    <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]} style={{ marginBottom: isMobile ? "12px" : "16px" }}>
+                      {/* Frete */}
+                      <Col xs={12} sm={12} md={6}>
+                        <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "8px", textAlign: "center" }}>
+                          <Text style={{ fontSize: "11px", color: "#166534", fontWeight: "600", display: "block" }}>FRETE</Text>
+                          <Text style={{ fontSize: "14px", fontWeight: "700", color: "#15803d" }}>
+                            {`+ ${formatarValorMonetario(frete)}`}
+                          </Text>
+                        </div>
+                      </Col>
+                      {/* ICMS */}
+                      <Col xs={12} sm={12} md={6}>
+                        <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "8px", textAlign: "center" }}>
+                          <Text style={{ fontSize: "11px", color: "#166534", fontWeight: "600", display: "block" }}>ICMS</Text>
+                          <Text style={{ fontSize: "14px", fontWeight: "700", color: "#15803d" }}>
+                            {`+ ${formatarValorMonetario(icms)}`}
+                          </Text>
+                        </div>
+                      </Col>
+                      {/* Desconto */}
+                      <Col xs={12} sm={12} md={6}>
+                        <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "8px", textAlign: "center" }}>
+                          <Text style={{ fontSize: "11px", color: "#991b1b", fontWeight: "600", display: "block" }}>DESCONTO</Text>
+                          <Text style={{ fontSize: "14px", fontWeight: "700", color: "#b91c1c" }}>
+                            {`- ${formatarValorMonetario(desconto)}`}
+                          </Text>
+                        </div>
+                      </Col>
+                      {/* Avaria */}
+                      <Col xs={12} sm={12} md={6}>
+                        <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "8px", textAlign: "center" }}>
+                          <Text style={{ fontSize: "11px", color: "#991b1b", fontWeight: "600", display: "block" }}>AVARIA</Text>
+                          <Text style={{ fontSize: "14px", fontWeight: "700", color: "#b91c1c" }}>
+                            {`- ${formatarValorMonetario(avaria)}`}
+                          </Text>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    {/* LINHA DE CARDS PRINCIPAIS */}
+                    <Row gutter={[isMobile ? 8 : 20, isMobile ? 8 : 16]} align="middle" style={{ marginBottom: isMobile ? "16px" : "24px" }}>
+                      {/* VALOR TOTAL BRUTO */}
+                      <Col xs={24} sm={12} md={6}>
+                        <div style={{ backgroundColor: "#f0f9ff", border: "2px solid #0ea5e9", borderRadius: "12px", padding: "16px", textAlign: "center", boxShadow: "0 2px 8px rgba(14, 165, 233, 0.15)" }}>
+                          <div style={{ marginBottom: "8px" }}><DollarOutlined style={{ fontSize: "24px", color: "#0ea5e9" }} /></div>
+                          <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>VALOR TOTAL</Text>
+                          <Text style={{ fontSize: "20px", fontWeight: "700", color: "#0f172a", display: "block" }}>
+                            {formatarValorMonetario(valorBrutoPedido)}
+                          </Text>
+                        </div>
+                      </Col>
+                      
+                      {/* VALOR RECEBIDO */}
+                      <Col xs={24} sm={12} md={6}>
+                        <div style={{ backgroundColor: "#f0fdf4", border: "2px solid #22c55e", borderRadius: "12px", padding: "16px", textAlign: "center", boxShadow: "0 2px 8px rgba(34, 197, 94, 0.15)" }}>
+                          <div style={{ marginBottom: "8px" }}><BankOutlined style={{ fontSize: "24px", color: "#22c55e" }} /></div>
+                          <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>VALOR RECEBIDO</Text>
+                          <Text style={{ fontSize: "20px", fontWeight: "700", color: "#15803d", display: "block" }}>
+                            {formatarValorMonetario(valorRecebido)}
+                          </Text>
+                        </div>
+                      </Col>
+                      
+                      {/* VALOR RESTANTE */}
+                      <Col xs={24} sm={12} md={6}>
+                        <div style={{ backgroundColor: valorRestante > 0 ? "#fef2f2" : "#f0fdf4", border: valorRestante > 0 ? "2px solid #ef4444" : "2px solid #22c55e", borderRadius: "12px", padding: "16px", textAlign: "center", boxShadow: valorRestante > 0 ? "0 2px 8px rgba(239, 68, 68, 0.15)" : "0 2px 8px rgba(34, 197, 94, 0.15)" }}>
+                          <div style={{ marginBottom: "8px" }}><CalendarOutlined style={{ fontSize: "24px", color: valorRestante > 0 ? "#ef4444" : "#22c55e" }} /></div>
+                          <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>VALOR RESTANTE</Text>
+                          <Text style={{ fontSize: "20px", fontWeight: "700", color: valorRestante > 0 ? "#dc2626" : "#15803d", display: "block" }}>
+                            {formatarValorMonetario(valorRestante)}
+                          </Text>
+                        </div>
+                      </Col>
+                      
+                      {/* % PAGO */}
+                      <Col xs={24} sm={12} md={6}>
+                        <div style={{ backgroundColor: percentualPago >= 100 ? "#f0fdf4" : percentualPago >= 50 ? "#fffbeb" : "#fef2f2", border: percentualPago >= 100 ? "2px solid #22c55e" : percentualPago >= 50 ? "2px solid #f59e0b" : "2px solid #ef4444", borderRadius: "12px", padding: "16px", textAlign: "center", boxShadow: percentualPago >= 100 ? "0 2px 8px rgba(34, 197, 94, 0.15)" : percentualPago >= 50 ? "0 2px 8px rgba(245, 158, 11, 0.15)" : "0 2px 8px rgba(239, 68, 68, 0.15)" }}>
+                          <div style={{ marginBottom: "8px" }}><InfoCircleOutlined style={{ fontSize: "24px", color: percentualPago >= 100 ? "#22c55e" : percentualPago >= 50 ? "#f59e0b" : "#ef4444" }} /></div>
+                          <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>% PAGO</Text>
+                          <Text style={{ fontSize: "20px", fontWeight: "700", color: percentualPago >= 100 ? "#15803d" : percentualPago >= 50 ? "#d97706" : "#dc2626", display: "block" }}>
+                            {percentualPago.toFixed(1)}%
+                          </Text>
+                        </div>
+                      </Col>
+                    </Row>
+                  </>
+                );
+              })()}
             </>
           )}
 

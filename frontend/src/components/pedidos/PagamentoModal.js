@@ -15,6 +15,8 @@ import {
   Divider,
   Empty,
   Tooltip,
+  Form,
+  Collapse,
 } from "antd";
 import {
   CreditCardOutlined,
@@ -26,9 +28,15 @@ import {
   BankOutlined,
   InfoCircleOutlined,
   EditOutlined,
+  ToolOutlined,
+  SaveOutlined,
+  CloseCircleOutlined,
+  TruckOutlined,
+  PercentageOutlined,
 } from "@ant-design/icons";
 import { formatarValorMonetario, formataLeitura } from "../../utils/formatters";
 import { PrimaryButton } from "../common/buttons";
+import { MonetaryInput } from "../common/inputs";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
@@ -39,6 +47,7 @@ import getTheme from "../../theme";
 import useResponsive from "../../hooks/useResponsive";
 
 const { Title, Text } = Typography;
+const { Panel } = Collapse;
 
 // Obter tema para cores
 const theme = getTheme('light');
@@ -187,11 +196,15 @@ const PagamentoModal = ({
   loading,
   onNovoPagamento,
   onRemoverPagamento,
+  onAjustesSalvos,
 }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
+  const [form] = Form.useForm();
 
   const [novoPagamentoModalOpen, setNovoPagamentoModalOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [internalPedido, setInternalPedido] = useState(pedido); // NOVO ESTADO
 
   // Hook para notificações com z-index correto
   const { error, contextHolder } = useNotificationWithContext();
@@ -199,8 +212,22 @@ const PagamentoModal = ({
   const [pagamentos, setPagamentos] = useState([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(false);
   const [operacaoLoading, setOperacaoLoading] = useState(false); // Loading para operações internas
+  const [ajustesLoading, setAjustesLoading] = useState(false); // Loading para salvar ajustes
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [pagamentoParaRemover, setPagamentoParaRemover] = useState(null);
+
+  // Sincronizar estado interno com props e resetar form
+  useEffect(() => {
+    setInternalPedido(pedido);
+    if (pedido) {
+      form.setFieldsValue({
+        frete: pedido.frete || 0,
+        icms: pedido.icms || 0,
+        desconto: pedido.desconto || 0,
+        avaria: pedido.avaria || 0,
+      });
+    }
+  }, [pedido, form]);
 
   // Buscar pagamentos quando modal abrir
   useEffect(() => {
@@ -267,20 +294,68 @@ const PagamentoModal = ({
       setConfirmModalOpen(false);
       setPagamentoParaRemover(null);
       // Não exibir notificação aqui pois o componente pai já exibe
-    } catch (error) {
-      console.error("Erro ao remover pagamento:", error);
+    } catch (err) {
+      console.error("Erro ao remover pagamento:", err);
       error("Erro", "Erro ao remover pagamento");
     }
   };
 
-  // Calcular valores consolidados
-  // Usar o valorRecebido consolidado do pedido (mais confiável)
-  const valorTotalRecebido = pedido?.valorRecebido || 0;
-  const valorRestante = (pedido?.valorFinal || 0) - valorTotalRecebido;
-  const percentualPago = pedido?.valorFinal ? (valorTotalRecebido / pedido.valorFinal) * 100 : 0;
+  // Função para salvar ajustes financeiros (frete, icms, etc.)
+  const handleSalvarAjustes = async (values) => {
+    try {
+      setAjustesLoading(true);
+      const payload = {
+        frete: values.frete ? parseFloat(String(values.frete).replace(/[^0-9,-]+/g, "").replace(",", ".")) : 0,
+        icms: values.icms ? parseFloat(String(values.icms).replace(/[^0-9,-]+/g, "").replace(",", ".")) : 0,
+        desconto: values.desconto ? parseFloat(String(values.desconto).replace(/[^0-9,-]+/g, "").replace(",", ".")) : 0,
+        avaria: values.avaria ? parseFloat(String(values.avaria).replace(/[^0-9,-]+/g, "").replace(",", ".")) : 0,
+      };
+      await axiosInstance.patch(`/api/pedidos/${internalPedido.id}/ajustes-precificacao`, payload);
+      showNotification("success", "Sucesso", "Ajustes financeiros salvos com sucesso!");
+
+      // Atualiza o estado interno para refletir a mudança instantaneamente
+      setInternalPedido(prevPedido => {
+        const valorTotalFrutas = prevPedido.frutasPedidos.reduce((acc, fruta) => acc + (parseFloat(fruta.valorTotal) || 0), 0) || 0;
+        const novoValorFinal = valorTotalFrutas + (payload.frete || 0) + (payload.icms || 0) - (payload.desconto || 0) - (payload.avaria || 0);
+        return {
+          ...prevPedido,
+          ...payload,
+          valorFinal: novoValorFinal,
+        };
+      });
+
+      if (onAjustesSalvos) {
+        await onAjustesSalvos();
+      }
+
+      setEditMode(false);
+    } catch (err) {
+      console.error("Erro ao salvar ajustes:", err);
+      const message = err.response?.data?.message || "Erro ao salvar ajustes financeiros";
+      showNotification("error", "Erro", message);
+    } finally {
+      setAjustesLoading(false);
+    }
+  };
+
+  // =================================================
+  // LÓGICA DE CÁLCULO CENTRALIZADA E REATIVA
+  // =================================================
+  const watchedValues = Form.useWatch([], form);
+  const freteAtual = watchedValues?.frete ? parseFloat(String(watchedValues.frete).replace(/[^0-9,-]+/g, "").replace(",", ".")) : (parseFloat(internalPedido?.frete) || 0);
+  const icmsAtual = watchedValues?.icms ? parseFloat(String(watchedValues.icms).replace(/[^0-9,-]+/g, "").replace(",", ".")) : (parseFloat(internalPedido?.icms) || 0);
+  const descontoAtual = watchedValues?.desconto ? parseFloat(String(watchedValues.desconto).replace(/[^0-9,-]+/g, "").replace(",", ".")) : (parseFloat(internalPedido?.desconto) || 0);
+  const avariaAtual = watchedValues?.avaria ? parseFloat(String(watchedValues.avaria).replace(/[^0-9,-]+/g, "").replace(",", ".")) : (parseFloat(internalPedido?.avaria) || 0);
+
+  const valorTotalFrutas = internalPedido?.frutasPedidos?.reduce((acc, fruta) => acc + (parseFloat(fruta.valorTotal) || 0), 0) || 0;
+  const valorBrutoPedido = valorTotalFrutas + freteAtual + icmsAtual;
+  const valorFinalPedido = valorBrutoPedido - descontoAtual - avariaAtual;
+  const valorTotalRecebido = internalPedido?.valorRecebido || 0;
+  const valorRestante = valorFinalPedido - valorTotalRecebido;
+  const percentualPago = valorFinalPedido > 0 ? (valorTotalRecebido / valorFinalPedido) * 100 : 0;
   
   // Calcular status local baseado no valor restante (mais preciso que o status do banco)
-  const statusLocal = pedido ? calcularStatusLocal(pedido, valorRestante) : pedido?.status;
+  const statusLocal = internalPedido ? calcularStatusLocal(internalPedido, valorRestante) : internalPedido?.status;
   
 
   // Função para formatar datas de forma segura
@@ -457,11 +532,11 @@ const PagamentoModal = ({
 
   // Função para obter informações das frutas com unidade de precificação
   const getFrutasInfo = () => {
-    if (!pedido?.frutasPedidos || pedido.frutasPedidos.length === 0) {
+    if (!internalPedido?.frutasPedidos || internalPedido.frutasPedidos.length === 0) {
       return "Nenhuma fruta";
     }
 
-    return pedido.frutasPedidos.map((fp) => {
+    return internalPedido.frutasPedidos.map((fp) => {
       const unidadePrec = fp.unidadePrecificada || fp.unidadeMedida1;
       const quantidade = unidadePrec === fp.unidadeMedida2 ? fp.quantidadeReal2 : fp.quantidadeReal;
       const quantidadeFormatada = formataLeitura(quantidade);
@@ -549,7 +624,7 @@ const PagamentoModal = ({
             </div>
           )}
 
-        {pedido && (
+        {internalPedido && (
           <>
             {/* Informações do Pedido */}
             <Card
@@ -584,12 +659,12 @@ const PagamentoModal = ({
                 <Col xs={24} sm={12} md={6}>
                   <Text strong>Pedido:</Text>
                   <br />
-                  <Text>{pedido.numeroPedido}</Text>
+                  <Text>{internalPedido.numeroPedido}</Text>
                 </Col>
                 <Col xs={24} sm={12} md={6}>
                   <Text strong>Cliente:</Text>
                   <br />
-                  <Text>{pedido.cliente?.nome}</Text>
+                  <Text>{internalPedido.cliente?.nome}</Text>
                 </Col>
                 <Col xs={24} sm={24} md={12}>
                   <Text strong>Frutas (Unidade de Precificação):</Text>
@@ -619,12 +694,12 @@ const PagamentoModal = ({
                 <Col xs={24} sm={12} md={8}>
                   <Text strong>Data do Pedido:</Text>
                   <br />
-                  <Text>{formatarData(pedido.createdAt)}</Text>
+                  <Text>{formatarData(internalPedido.createdAt)}</Text>
                 </Col>
                 <Col xs={24} sm={12} md={8}>
                   <Text strong>Última Atualização:</Text>
                   <br />
-                  <Text>{formatarData(pedido.updatedAt)}</Text>
+                  <Text>{formatarData(internalPedido.updatedAt)}</Text>
                 </Col>
               </Row>
             </Card>
@@ -639,6 +714,17 @@ const PagamentoModal = ({
                   </span>
                 </Space>
               }
+              extra={
+                !editMode && (
+                  <Tooltip title="Editar valores de frete, impostos, etc.">
+                    <Button 
+                      type="text" 
+                      icon={<EditOutlined style={{ color: '#ffffff' }} />} 
+                      onClick={() => setEditMode(true)} 
+                    />
+                  </Tooltip>
+                )
+              }
               style={{ 
                 marginBottom: isMobile ? 12 : 16, 
                 border: "0.0625rem solid #e8e8e8", 
@@ -646,7 +732,7 @@ const PagamentoModal = ({
                 backgroundColor: "#f9f9f9" 
               }}
               styles={{ 
-                header: { 
+                header: {
                   backgroundColor: "#059669", 
                   borderBottom: "0.125rem solid #047857", 
                   color: "#ffffff", 
@@ -656,6 +742,107 @@ const PagamentoModal = ({
                 body: { padding: isMobile ? "12px" : "20px" }
               }}
             >
+              <Form form={form} onFinish={handleSalvarAjustes} layout="vertical">
+                {editMode ? (
+                  // MODO DE EDIÇÃO
+                  <>
+                    <Row gutter={[isMobile ? 8 : 16, 0]}>
+                      <Col xs={24} sm={12} md={6}>
+                        <Form.Item
+                          label={<Space><TruckOutlined /><strong>Frete</strong></Space>}
+                          name="frete"
+                          style={{ marginBottom: 16 }}
+                        >
+                          <MonetaryInput addonAfter="R$" size="large" />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={12} md={6}>
+                        <Form.Item
+                          label={<Space><PercentageOutlined /><strong>ICMS</strong></Space>}
+                          name="icms"
+                          style={{ marginBottom: 16 }}
+                        >
+                          <MonetaryInput addonAfter="R$" size="large" />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={12} md={6}>
+                        <Form.Item
+                          label={<Space><PercentageOutlined /><strong>Desconto</strong></Space>}
+                          name="desconto"
+                          style={{ marginBottom: 16 }}
+                        >
+                          <MonetaryInput addonAfter="R$" size="large" />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={12} md={6}>
+                        <Form.Item
+                          label={<Space><PercentageOutlined /><strong>Avaria</strong></Space>}
+                          name="avaria"
+                          style={{ marginBottom: 16 }}
+                        >
+                          <MonetaryInput addonAfter="R$" size="large" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Row justify="end" gutter={8}>
+                      <Col>
+                        <Button 
+                          onClick={() => {
+                            setEditMode(false);
+                            form.resetFields();
+                          }}
+                          disabled={ajustesLoading}
+                        >
+                          Cancelar
+                        </Button>
+                      </Col>
+                      <Col>
+                                                <Button 
+                                                  type="primary" 
+                                                  htmlType="submit" 
+                                                  icon={<SaveOutlined />}
+                                                  loading={ajustesLoading}
+                                                  style={{ 
+                                                    backgroundColor: '#059669', 
+                                                    borderColor: '#059669',
+                                                  }}
+                                                >
+                                                  Salvar Ajustes
+                                                </Button>                      </Col>
+                    </Row>
+                    <Divider style={{ marginTop: 24, marginBottom: 0 }} />
+                  </>
+                ) : (
+                  // MODO DE VISUALIZAÇÃO
+                  <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]} style={{ marginBottom: isMobile ? "12px" : "16px" }}>
+                    <Col xs={12} sm={12} md={6}>
+                      <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "8px", textAlign: "center" }}>
+                        <Text style={{ fontSize: "11px", color: "#166534", fontWeight: "600", display: "block" }}>FRETE</Text>
+                        <Text style={{ fontSize: "14px", fontWeight: "700", color: "#15803d" }}>{`+ ${formatarValorMonetario(freteAtual)}`}</Text>
+                      </div>
+                    </Col>
+                    <Col xs={12} sm={12} md={6}>
+                      <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "8px", textAlign: "center" }}>
+                        <Text style={{ fontSize: "11px", color: "#166534", fontWeight: "600", display: "block" }}>ICMS</Text>
+                        <Text style={{ fontSize: "14px", fontWeight: "700", color: "#15803d" }}>{`+ ${formatarValorMonetario(icmsAtual)}`}</Text>
+                      </div>
+                    </Col>
+                    <Col xs={12} sm={12} md={6}>
+                      <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "8px", textAlign: "center" }}>
+                        <Text style={{ fontSize: "11px", color: "#991b1b", fontWeight: "600", display: "block" }}>DESCONTO</Text>
+                        <Text style={{ fontSize: "14px", fontWeight: "700", color: "#b91c1c" }}>{`- ${formatarValorMonetario(descontoAtual)}`}</Text>
+                      </div>
+                    </Col>
+                    <Col xs={12} sm={12} md={6}>
+                      <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "8px", textAlign: "center" }}>
+                        <Text style={{ fontSize: "11px", color: "#991b1b", fontWeight: "600", display: "block" }}>AVARIA</Text>
+                        <Text style={{ fontSize: "14px", fontWeight: "700", color: "#b91c1c" }}>{`- ${formatarValorMonetario(avariaAtual)}`}</Text>
+                      </div>
+                    </Col>
+                  </Row>
+                )}
+              </Form>
+
               <Row gutter={[isMobile ? 8 : 20, isMobile ? 8 : 16]} align="middle">
                 <Col xs={24} sm={12} md={6}>
                   <div style={{ 
@@ -673,7 +860,7 @@ const PagamentoModal = ({
                       VALOR TOTAL
                     </Text>
                     <Text style={{ fontSize: "20px", fontWeight: "700", color: "#0f172a", display: "block" }}>
-                      {formatarValorMonetario(pedido.valorFinal)}
+                      {formatarValorMonetario(valorFinalPedido)}
                     </Text>
                   </div>
                 </Col>
@@ -874,7 +1061,7 @@ const PagamentoModal = ({
           setPagamentoEditando(null);
         }}
         onSave={handleNovoPagamento}
-        pedido={pedido}
+        pedido={internalPedido}
         valorRestante={valorRestante}
         loading={loading}
         pagamentoEditando={pagamentoEditando}

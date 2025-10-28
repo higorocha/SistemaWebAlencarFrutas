@@ -335,6 +335,25 @@ const PedidosDashboard = () => {
     }
   }, [setOperacaoLoading, reloadAfterPagamento, pedidoSelecionado, buscarPedidoAtualizado]);
 
+  // Handler para quando ajustes financeiros são salvos (frete, ICMS, desconto, avaria)
+  const handleAjustesSalvos = useCallback(async () => {
+    try {
+      // Recarregar dashboard
+      await reloadAfterPagamento();
+
+      // Atualizar pedido selecionado se necessário
+      if (pedidoSelecionado) {
+        const pedidoAtualizado = await buscarPedidoAtualizado(pedidoSelecionado.id);
+        if (pedidoAtualizado) {
+          setPedidoSelecionado(pedidoAtualizado);
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar após ajustes:", error);
+      // Não mostrar notificação aqui pois o modal já mostrou
+    }
+  }, [reloadAfterPagamento, pedidoSelecionado, buscarPedidoAtualizado]);
+
   // Handler para salvar pagamentos em lote
   const handleSalvarPagamentosLote = useCallback(async (pagamentos) => {
     try {
@@ -618,6 +637,7 @@ const PedidosDashboard = () => {
           onClose={handleModalClose}
           onNovoPagamento={handleNovoPagamento}
           onRemoverPagamento={handleRemoverPagamento}
+          onAjustesSalvos={handleAjustesSalvos} // ✅ Handler que atualiza dashboard E pedido selecionado
           pedido={pedidoSelecionado}
           loading={operacaoLoading}
         />

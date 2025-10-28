@@ -10,7 +10,8 @@ import {
   UpdatePagamentoDto, 
   PedidoResponseDto, 
   UpdatePedidoCompletoDto,
-  CreatePagamentoDto
+  CreatePagamentoDto,
+  UpdateAjustesPrecificacaoDto
 } from './dto';
 
 @Injectable()
@@ -1987,6 +1988,85 @@ export class PedidosService {
     return pedidoCompleto;
   }
 
+  async updateAjustesPrecificacao(id: number, dto: UpdateAjustesPrecificacaoDto): Promise<PedidoResponseDto> {
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id },
+      include: { frutasPedidos: true },
+    });
+
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    if (['CANCELADO', 'PEDIDO_FINALIZADO'].includes(pedido.status)) {
+      throw new BadRequestException('Não é possível ajustar valores de um pedido finalizado ou cancelado.');
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      // 1. Calcula o valor total das frutas, que é a base para o cálculo.
+      const valorTotalFrutas = pedido.frutasPedidos.reduce((total, fruta) => {
+        return total + (fruta.valorTotal || 0);
+      }, 0);
+
+      // 2. Define os novos valores, usando os valores do DTO ou mantendo os existentes.
+      const novoFrete = dto.frete ?? pedido.frete;
+      const novoIcms = dto.icms ?? pedido.icms;
+      const novoDesconto = dto.desconto ?? pedido.desconto;
+      const novaAvaria = dto.avaria ?? pedido.avaria;
+
+      // 3. Recalcula o valor final do pedido.
+      const novoValorFinal = valorTotalFrutas + (novoFrete || 0) + (novoIcms || 0) - (novoDesconto || 0) - (novaAvaria || 0);
+
+      // 4. Atualiza o pedido no banco de dados com os novos valores.
+      await prisma.pedido.update({
+        where: { id },
+        data: {
+          frete: novoFrete,
+          icms: novoIcms,
+          desconto: novoDesconto,
+          avaria: novaAvaria,
+          valorFinal: Number(novoValorFinal.toFixed(2)),
+        },
+      });
+
+      // 5. Recalcular status de pagamento (se estiver nas fases de pagamento)
+      const statusPagamento = ['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO'];
+      if (statusPagamento.includes(pedido.status)) {
+        // Calcular valor total recebido
+        const valorRecebidoConsolidado = await this.calcularValorRecebidoConsolidado(id, prisma);
+
+        // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
+        const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
+        const valorFinalArredondado = Number(novoValorFinal.toFixed(2));
+
+        // Determinar novo status baseado no valor recebido vs valor final
+        let novoStatus: string | undefined;
+
+        if (valorRecebidoArredondado >= valorFinalArredondado) {
+          novoStatus = 'PEDIDO_FINALIZADO';
+        } else if (valorRecebidoArredondado > 0) {
+          novoStatus = 'PAGAMENTO_PARCIAL';
+        } else {
+          novoStatus = 'AGUARDANDO_PAGAMENTO';
+        }
+
+        // Só atualizar se o status mudou
+        if (pedido.status !== novoStatus) {
+          await prisma.pedido.update({
+            where: { id },
+            data: {
+              status: novoStatus,
+              valorRecebido: valorRecebidoArredondado
+            },
+          });
+        }
+      }
+
+      // 6. Retorna o pedido completo e atualizado.
+      return this.findOne(id);
+    });
+  }
+
   // NOVA: Buscar pagamentos de um pedido
   async findPagamentosByPedido(pedidoId: number): Promise<any[]> {
     // Verificar se o pedido existe
@@ -2060,9 +2140,13 @@ export class PedidosService {
 
       let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
 
-      if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
+      // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
+      const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
+      const valorFinalArredondado = Number((pedido?.valorFinal || 0).toFixed(2));
+
+      if (valorRecebidoArredondado >= valorFinalArredondado) {
         novoStatus = 'PEDIDO_FINALIZADO';
-      } else if (valorRecebidoConsolidado > 0) {
+      } else if (valorRecebidoArredondado > 0) {
         novoStatus = 'PAGAMENTO_PARCIAL';
       } else {
         novoStatus = 'AGUARDANDO_PAGAMENTO';
@@ -2164,9 +2248,13 @@ export class PedidosService {
 
       let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
 
-      if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
+      // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
+      const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
+      const valorFinalArredondado = Number((pedido?.valorFinal || 0).toFixed(2));
+
+      if (valorRecebidoArredondado >= valorFinalArredondado) {
         novoStatus = 'PEDIDO_FINALIZADO';
-      } else if (valorRecebidoConsolidado > 0) {
+      } else if (valorRecebidoArredondado > 0) {
         novoStatus = 'PAGAMENTO_PARCIAL';
       } else {
         novoStatus = 'AGUARDANDO_PAGAMENTO';
@@ -2220,9 +2308,13 @@ export class PedidosService {
 
       let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
 
-      if (valorRecebidoConsolidado >= (pedido?.valorFinal || 0)) {
+      // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
+      const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
+      const valorFinalArredondado = Number((pedido?.valorFinal || 0).toFixed(2));
+
+      if (valorRecebidoArredondado >= valorFinalArredondado) {
         novoStatus = 'PEDIDO_FINALIZADO';
-      } else if (valorRecebidoConsolidado > 0) {
+      } else if (valorRecebidoArredondado > 0) {
         novoStatus = 'PAGAMENTO_PARCIAL';
       } else {
         novoStatus = 'AGUARDANDO_PAGAMENTO';
@@ -2913,9 +3005,13 @@ export class PedidosService {
           // Só atualizar status se estiver em uma das fases de pagamento
           const statusPagamento = ['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO'];
           if (statusPagamento.includes(pedidoAtualizado.status)) {
-            if (valorRecebidoConsolidado >= (pedidoAtualizado.valorFinal || 0)) {
-              novoStatus = 'PAGAMENTO_REALIZADO';
-            } else if (valorRecebidoConsolidado > 0) {
+            // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
+            const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
+            const valorFinalArredondado = Number((pedidoAtualizado.valorFinal || 0).toFixed(2));
+
+            if (valorRecebidoArredondado >= valorFinalArredondado) {
+              novoStatus = 'PEDIDO_FINALIZADO';
+            } else if (valorRecebidoArredondado > 0) {
               novoStatus = 'PAGAMENTO_PARCIAL';
             } else {
               novoStatus = 'AGUARDANDO_PAGAMENTO';
@@ -2965,8 +3061,12 @@ export class PedidosService {
     }
 
     // Verificar se o status permite finalização
-    if (existingPedido.status !== 'PAGAMENTO_REALIZADO') {
-      throw new BadRequestException('Status do pedido não permite finalização');
+    // Permitir finalizar se o pedido estiver 100% pago (valorRecebido >= valorFinal)
+    const valorRecebidoArredondado = Number((existingPedido.valorRecebido || 0).toFixed(2));
+    const valorFinalArredondado = Number((existingPedido.valorFinal || 0).toFixed(2));
+
+    if (valorRecebidoArredondado < valorFinalArredondado) {
+      throw new BadRequestException('O pedido só pode ser finalizado quando o valor total for recebido');
     }
 
     const pedido = await this.prisma.pedido.update({
