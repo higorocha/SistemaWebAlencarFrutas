@@ -1956,8 +1956,10 @@ const ColheitaModal = ({
             htmlType="submit"
             loading={isSaving}
             disabled={loading}
-            size={isMobile ? "small" : "middle"}
+            size={isMobile ? "small" : "large"}
             style={{
+              backgroundColor: "#059669",
+              borderColor: "#059669",
               height: isMobile ? "32px" : "40px",
               padding: isMobile ? "0 12px" : "0 16px",
             }}

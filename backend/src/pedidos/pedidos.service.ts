@@ -1,14 +1,15 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ControleBananaService } from '../controle-banana/controle-banana.service';
+import { StatusPedido } from '@prisma/client';
 import { capitalizeName } from '../utils/formatters';
-import { 
-  CreatePedidoDto, 
-  UpdatePedidoDto, 
-  UpdateColheitaDto, 
-  UpdatePrecificacaoDto, 
-  UpdatePagamentoDto, 
-  PedidoResponseDto, 
+import {
+  CreatePedidoDto,
+  UpdatePedidoDto,
+  UpdateColheitaDto,
+  UpdatePrecificacaoDto,
+  UpdatePagamentoDto,
+  PedidoResponseDto,
   UpdatePedidoCompletoDto,
   CreatePagamentoDto,
   UpdateAjustesPrecificacaoDto
@@ -34,7 +35,7 @@ export class PedidosService {
     // ✅ FILTRO BASE PARA PEDIDOS ATIVOS
     const whereAtivos: any = {
       status: {
-        notIn: ['PEDIDO_FINALIZADO', 'CANCELADO']
+        notIn: [StatusPedido.PEDIDO_FINALIZADO, StatusPedido.CANCELADO]
       }
     };
 
@@ -49,7 +50,7 @@ export class PedidosService {
       };
       // Gerentes de cultura só veem pedidos em fases específicas
       whereAtivos.status = {
-        in: ['AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL', 'COLHEITA_REALIZADA']
+        in: [StatusPedido.AGUARDANDO_COLHEITA, StatusPedido.COLHEITA_PARCIAL, StatusPedido.COLHEITA_REALIZADA]
       };
     }
 
@@ -554,15 +555,15 @@ export class PedidosService {
     if (!pedido || !pedido.valorFinal) return;
 
     const valorRecebido = await this.calcularValorRecebidoConsolidado(pedidoId);
-    
-    let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
+
+    let novoStatus: StatusPedido;
 
     if (valorRecebido >= pedido.valorFinal) {
-      novoStatus = 'PEDIDO_FINALIZADO';
+      novoStatus = StatusPedido.PEDIDO_FINALIZADO;
     } else if (valorRecebido > 0) {
-      novoStatus = 'PAGAMENTO_PARCIAL';
+      novoStatus = StatusPedido.PAGAMENTO_PARCIAL;
     } else {
-      novoStatus = 'AGUARDANDO_PAGAMENTO';
+      novoStatus = StatusPedido.AGUARDANDO_PAGAMENTO;
     }
 
     // Só atualiza se o status mudou
@@ -1694,16 +1695,16 @@ export class PedidosService {
       );
 
       // Determinar o status adequado
-      let novoStatus: 'AGUARDANDO_COLHEITA' | 'COLHEITA_PARCIAL' | 'COLHEITA_REALIZADA';
+      let novoStatus: StatusPedido;
       if (frutasComColheita.length === 0) {
         // Nenhuma fruta colhida (não deveria acontecer, mas por segurança)
-        novoStatus = 'AGUARDANDO_COLHEITA';
+        novoStatus = StatusPedido.AGUARDANDO_COLHEITA;
       } else if (frutasComColheita.length === todasFrutasPedido.length) {
         // Todas as frutas foram colhidas
-        novoStatus = 'COLHEITA_REALIZADA';
+        novoStatus = StatusPedido.COLHEITA_REALIZADA;
       } else {
         // Apenas algumas frutas foram colhidas
-        novoStatus = 'COLHEITA_PARCIAL';
+        novoStatus = StatusPedido.COLHEITA_PARCIAL;
       }
 
       // Atualizar dados do pedido com status calculado
@@ -1878,7 +1879,7 @@ export class PedidosService {
           icms: updatePrecificacaoDto.icms,
           desconto: updatePrecificacaoDto.desconto,
           avaria: updatePrecificacaoDto.avaria,
-          status: 'PRECIFICACAO_REALIZADA',
+          status: StatusPedido.PRECIFICACAO_REALIZADA,
           dataPrecificacaoRealizada: new Date(),
           // Campos específicos para clientes indústria
           indDataEntrada: updatePrecificacaoDto.indDataEntrada ? new Date(updatePrecificacaoDto.indDataEntrada) : null,
@@ -2040,14 +2041,14 @@ export class PedidosService {
         const valorFinalArredondado = Number(novoValorFinal.toFixed(2));
 
         // Determinar novo status baseado no valor recebido vs valor final
-        let novoStatus: string | undefined;
+        let novoStatus: StatusPedido | undefined;
 
         if (valorRecebidoArredondado >= valorFinalArredondado) {
-          novoStatus = 'PEDIDO_FINALIZADO';
+          novoStatus = StatusPedido.PEDIDO_FINALIZADO;
         } else if (valorRecebidoArredondado > 0) {
-          novoStatus = 'PAGAMENTO_PARCIAL';
+          novoStatus = StatusPedido.PAGAMENTO_PARCIAL;
         } else {
-          novoStatus = 'AGUARDANDO_PAGAMENTO';
+          novoStatus = StatusPedido.AGUARDANDO_PAGAMENTO;
         }
 
         // Só atualizar se o status mudou
@@ -2138,18 +2139,18 @@ export class PedidosService {
         select: { valorFinal: true, status: true }
       });
 
-      let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
+      let novoStatus: StatusPedido;
 
       // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
       const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
       const valorFinalArredondado = Number((pedido?.valorFinal || 0).toFixed(2));
 
       if (valorRecebidoArredondado >= valorFinalArredondado) {
-        novoStatus = 'PEDIDO_FINALIZADO';
+        novoStatus = StatusPedido.PEDIDO_FINALIZADO;
       } else if (valorRecebidoArredondado > 0) {
-        novoStatus = 'PAGAMENTO_PARCIAL';
+        novoStatus = StatusPedido.PAGAMENTO_PARCIAL;
       } else {
-        novoStatus = 'AGUARDANDO_PAGAMENTO';
+        novoStatus = StatusPedido.AGUARDANDO_PAGAMENTO;
       }
 
       await prisma.pedido.update({
@@ -2246,18 +2247,18 @@ export class PedidosService {
         select: { valorFinal: true, status: true }
       });
 
-      let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
+      let novoStatus: StatusPedido;
 
       // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
       const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
       const valorFinalArredondado = Number((pedido?.valorFinal || 0).toFixed(2));
 
       if (valorRecebidoArredondado >= valorFinalArredondado) {
-        novoStatus = 'PEDIDO_FINALIZADO';
+        novoStatus = StatusPedido.PEDIDO_FINALIZADO;
       } else if (valorRecebidoArredondado > 0) {
-        novoStatus = 'PAGAMENTO_PARCIAL';
+        novoStatus = StatusPedido.PAGAMENTO_PARCIAL;
       } else {
-        novoStatus = 'AGUARDANDO_PAGAMENTO';
+        novoStatus = StatusPedido.AGUARDANDO_PAGAMENTO;
       }
 
       await prisma.pedido.update({
@@ -2306,18 +2307,18 @@ export class PedidosService {
         select: { valorFinal: true, status: true }
       });
 
-      let novoStatus: 'PEDIDO_FINALIZADO' | 'PAGAMENTO_PARCIAL' | 'AGUARDANDO_PAGAMENTO';
+      let novoStatus: StatusPedido;
 
       // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
       const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
       const valorFinalArredondado = Number((pedido?.valorFinal || 0).toFixed(2));
 
       if (valorRecebidoArredondado >= valorFinalArredondado) {
-        novoStatus = 'PEDIDO_FINALIZADO';
+        novoStatus = StatusPedido.PEDIDO_FINALIZADO;
       } else if (valorRecebidoArredondado > 0) {
-        novoStatus = 'PAGAMENTO_PARCIAL';
+        novoStatus = StatusPedido.PAGAMENTO_PARCIAL;
       } else {
-        novoStatus = 'AGUARDANDO_PAGAMENTO';
+        novoStatus = StatusPedido.AGUARDANDO_PAGAMENTO;
       }
 
       await prisma.pedido.update({
@@ -3110,7 +3111,7 @@ export class PedidosService {
     const pedido = await this.prisma.pedido.update({
       where: { id },
       data: {
-        status: 'CANCELADO',
+        status: StatusPedido.CANCELADO,
       },
       include: {
         cliente: {

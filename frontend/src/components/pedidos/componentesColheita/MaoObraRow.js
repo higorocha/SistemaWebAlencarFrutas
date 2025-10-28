@@ -15,13 +15,13 @@ import { MonetaryInput } from "../../common/inputs";
 const { Option } = Select;
 const { Text } = Typography;
 
-const MaoObraRow = ({ 
-  field, 
-  index, 
-  form, 
-  isMobile, 
-  turmasColheita, 
-  pedido, 
+const MaoObraRow = ({
+  field,
+  index,
+  form,
+  isMobile,
+  turmasColheita,
+  pedido,
   fieldsLength,
   onRemove,
   onAdd,
@@ -32,51 +32,69 @@ const MaoObraRow = ({
   const quantidadeColhida = Form.useWatch(['maoObra', index, 'quantidadeColhida'], form);
   const valorUnitario = Form.useWatch(['maoObra', index, 'valorUnitario'], form);
   const valorColheita = Form.useWatch(['maoObra', index, 'valorColheita'], form);
-  
+
   const { key, name, ...restField } = field;
-  
+
   // Obter dados da turma selecionada para exibir no identificador
   const maoObraItem = form.getFieldValue('maoObra')?.[index];
   const turmaSelecionada = turmasColheita.find(t => t.id === maoObraItem?.turmaColheitaId);
   const identificador = turmaSelecionada ? turmaSelecionada.nomeColhedor : `Colheitador ${index + 1}`;
-  
+
   // Obter a fruta selecionada e sua unidade
   const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === frutaIdSelecionado);
   const unidadeFruta = frutaSelecionada?.unidadeMedida1 || '';
-  
+
   // ✅ Verificar se quantidade está preenchida para habilitar os campos de valor
   const qtdStr = quantidadeColhida ? String(quantidadeColhida).replace(',', '.') : '0';
   const qtd = parseFloat(qtdStr) || 0;
   const quantidadePreenchida = qtd > 0;
-  
-  // ✅ Calcular valor total quando quantidade ou valor unitário mudam
-  React.useEffect(() => {
-    if (!quantidadeColhida || !valorUnitario) return;
-    
+
+  // ✅ Ref para controlar qual campo está sendo editado (evitar loop)
+  const isEditingValorUnitario = React.useRef(false);
+  const isEditingValorTotal = React.useRef(false);
+
+  // ✅ Handler para calcular valor total quando valor unitário muda
+  const handleValorUnitarioChange = (novoValorUnitario) => {
+    if (!quantidadeColhida || !novoValorUnitario) return;
+    if (isEditingValorTotal.current) return; // Evitar loop
+
+    isEditingValorUnitario.current = true;
+
     const qtdStr = String(quantidadeColhida).replace(',', '.');
-    const valUnitStr = String(valorUnitario).replace(',', '.');
+    const valUnitStr = String(novoValorUnitario).replace(',', '.');
     const quantidade = parseFloat(qtdStr) || 0;
     const valUnit = parseFloat(valUnitStr) || 0;
-    
+
     if (quantidade > 0 && valUnit > 0) {
       const total = quantidade * valUnit;
       form.setFieldValue(['maoObra', index, 'valorColheita'], total);
     }
-  }, [quantidadeColhida, valorUnitario, form, index]);
-  
-  // ✅ Calcular valor unitário quando valor total muda manualmente
+
+    setTimeout(() => {
+      isEditingValorUnitario.current = false;
+    }, 100);
+  };
+
+  // ✅ Handler para calcular valor unitário quando valor total muda
   const handleValorTotalChange = (novoValorTotal) => {
     if (!quantidadeColhida || !novoValorTotal) return;
-    
+    if (isEditingValorUnitario.current) return; // Evitar loop
+
+    isEditingValorTotal.current = true;
+
     const qtdStr = String(quantidadeColhida).replace(',', '.');
     const valTotalStr = String(novoValorTotal).replace(',', '.');
     const quantidade = parseFloat(qtdStr) || 0;
     const valTotal = parseFloat(valTotalStr) || 0;
-    
+
     if (quantidade > 0 && valTotal > 0) {
       const valUnit = valTotal / quantidade;
       form.setFieldValue(['maoObra', index, 'valorUnitario'], valUnit);
     }
+
+    setTimeout(() => {
+      isEditingValorTotal.current = false;
+    }, 100);
   };
   
   return (
@@ -315,6 +333,11 @@ const MaoObraRow = ({
               size={isMobile ? "small" : "large"}
               disabled={!quantidadePreenchida}
               decimalScale={4}
+              onChange={(value) => {
+                if (value && value !== valorUnitario) {
+                  handleValorUnitarioChange(value);
+                }
+              }}
               style={{
                 fontSize: isMobile ? "0.875rem" : "1rem"
               }}
