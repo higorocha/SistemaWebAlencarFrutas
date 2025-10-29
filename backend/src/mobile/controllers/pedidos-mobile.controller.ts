@@ -32,7 +32,7 @@ import {
   MobileDashboardDto,
   MobilePedidoSimplificadoDto,
 } from '../dto';
-import { UpdateColheitaDto } from '../../pedidos/dto';
+import { UpdateColheitaDto, CreatePedidoDto, PedidoResponseDto } from '../../pedidos/dto';
 import { StatusPedido } from '@prisma/client';
 
 /**
@@ -418,5 +418,36 @@ export class PedidosMobileController {
       const dataColheita = new Date(p.dataColheita);
       return dataColheita >= inicioSemana;
     }).length;
+  }
+
+  /**
+   * Criar novo pedido via mobile
+   * Reutiliza o service principal de criação
+   * Nota: GERENTE_CULTURA não tem acesso a esta funcionalidade
+   */
+  @Post()
+  @ApiOperation({
+    summary: 'Criar novo pedido via mobile',
+    description: 'Cria um novo pedido. Disponível para ADMINISTRADOR, GERENTE_GERAL e ESCRITORIO.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Pedido criado com sucesso',
+    type: PedidoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos',
+  })
+  @Niveis(
+    NivelUsuario.ADMINISTRADOR,
+    NivelUsuario.GERENTE_GERAL,
+    NivelUsuario.ESCRITORIO,
+  )
+  async createPedido(
+    @Body() createPedidoDto: CreatePedidoDto,
+  ): Promise<PedidoResponseDto> {
+    // Criar pedido usando o service principal
+    return this.pedidosService.create(createPedidoDto);
   }
 }

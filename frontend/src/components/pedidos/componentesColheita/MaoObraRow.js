@@ -246,10 +246,17 @@ const MaoObraRow = ({
               placeholder="Selecione a fruta"
               size={isMobile ? "small" : "middle"}
               showSearch
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                option.children.toLowerCase().includes(input.toLowerCase())
-              }
+              filterOption={(input, option) => {
+                const label = option?.label || option?.children;
+                if (typeof label === 'string') {
+                  return label.toLowerCase().includes(input.toLowerCase());
+                }
+                if (React.isValidElement(label)) {
+                  const text = label.props?.title || label.props?.children;
+                  return typeof text === 'string' ? text.toLowerCase().includes(input.toLowerCase()) : false;
+                }
+                return false;
+              }}
               style={{
                 borderRadius: "6px",
                 borderColor: "#d9d9d9",
