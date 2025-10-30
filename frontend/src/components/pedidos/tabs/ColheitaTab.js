@@ -33,15 +33,16 @@ import VincularFitasModal from "../VincularFitasModal";
 import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
 import { validarFitasCompleto } from "../../../utils/fitasValidation";
 import useResponsive from "../../../hooks/useResponsive";
+import { MaoObraRow } from '../componentesColheita';
 
 const { Option } = Select;
 const { Text } = Typography;
 const { TextArea } = Input;
 
-// Componente de Resumo com atualização em tempo real
-const ResumoMaoObraTab = ({ pedidoAtual, isMobile }) => {
-  // Obter dados de mão de obra direto do pedidoAtual (sem Form.useWatch)
-  const maoObraAtual = pedidoAtual?.maoObra || [];
+// Componente de Resumo com atualização em tempo real - Usando Form.useWatch
+const ResumoMaoObra = ({ form, isMobile, pedido }) => {
+  // ✅ Monitorar mudanças em tempo real usando Form.useWatch
+  const maoObraAtual = Form.useWatch('maoObra', form) || [];
 
   // Filtrar apenas itens válidos (com todos os campos preenchidos)
   const maoObraValida = maoObraAtual.filter(item =>
@@ -57,7 +58,7 @@ const ResumoMaoObraTab = ({ pedidoAtual, isMobile }) => {
 
   maoObraValida.forEach(item => {
     // ✅ Buscar a unidade da fruta selecionada
-    const frutaSelecionada = pedidoAtual?.frutas?.find(fp => fp.frutaId === item.frutaId);
+    const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
     let unidade = frutaSelecionada?.unidadeMedida1 || 'N/A';
     
     // ✅ Extrair apenas a sigla
@@ -65,8 +66,11 @@ const ResumoMaoObraTab = ({ pedidoAtual, isMobile }) => {
     const unidadeEncontrada = unidadesValidas.find(u => unidade.includes(u));
     unidade = unidadeEncontrada || unidade;
     
-    const quantidade = parseInt(item.quantidadeColhida) || 0; // ✅ Inteiro, não decimal
-    const valor = parseFloat(item.valorColheita) || 0;
+    // ✅ Converter valores (tratando vírgula)
+    const qtdStr = String(item.quantidadeColhida || '0').replace(',', '.');
+    const valorStr = String(item.valorColheita || '0').replace(',', '.');
+    const quantidade = parseFloat(qtdStr) || 0;
+    const valor = parseFloat(valorStr) || 0;
 
     if (!resumo.quantidadePorUnidade[unidade]) {
       resumo.quantidadePorUnidade[unidade] = 0;
@@ -187,7 +191,7 @@ const ResumoMaoObraTab = ({ pedidoAtual, isMobile }) => {
               VALOR TOTAL
             </Text>
             <Text style={{ fontSize: "20px", fontWeight: "700", color: "#d97706", display: "block" }}>
-              {resumo.valorTotal > 0 ? (
+              {isFinite(resumo.valorTotal) && resumo.valorTotal > 0 ? (
                 `R$ ${resumo.valorTotal.toLocaleString('pt-BR', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2
@@ -218,6 +222,8 @@ const ColheitaTab = ({
   isSaving,
   dadosOriginaisBanco, // ✅ NOVO: Dados originais imutáveis do banco
 }) => {
+  // ✅ ADICIONAR: Form do Ant Design
+  const [form] = Form.useForm();
 
   // Hook de responsividade
   const { isMobile } = useResponsive();
@@ -240,6 +246,22 @@ const ColheitaTab = ({
 
   // ✅ NOVOS ESTADOS: Para validação global de fitas
   const [fitasComAreasDisponiveis, setFitasComAreasDisponiveis] = useState([]);
+
+  // ✅ SINCRONIZAR form com pedidoAtual (bidirecional)
+  useEffect(() => {
+    if (pedidoAtual) {
+      form.setFieldsValue({
+        dataColheita: pedidoAtual.dataColheita ? moment(pedidoAtual.dataColheita) : null,
+        observacoesColheita: pedidoAtual.observacoesColheita || '',
+        frutas: pedidoAtual.frutas || [],
+        maoObra: pedidoAtual.maoObra || [],
+        pesagem: pedidoAtual.pesagem || '',
+        placaPrimaria: pedidoAtual.placaPrimaria || '',
+        placaSecundaria: pedidoAtual.placaSecundaria || '',
+        nomeMotorista: pedidoAtual.nomeMotorista || ''
+      });
+    }
+  }, [form, pedidoAtual]);
 
   // Garantir que todas as frutas tenham arrays de áreas e fitas inicializados, e inicializar mão de obra
   useEffect(() => {
@@ -925,8 +947,16 @@ const ColheitaTab = ({
   return (
     <div style={{ minHeight: "830px", position: "relative", paddingBottom: "80px" }}>
       <Form
+        form={form}
         layout="vertical"
         size="large"
+        onValuesChange={(changedValues, allValues) => {
+          // ✅ SINCRONIZAR mudanças do form com pedidoAtual
+          setPedidoAtual(prev => ({
+            ...prev,
+            ...allValues
+          }));
+        }}
       >
       {/* Dados da Colheita */}
       <Card
@@ -1451,341 +1481,91 @@ const ColheitaTab = ({
           }
         }}
       >
+        <Form.List name="maoObra">
+          {(fields, { add, remove }) => (
+            <>
         {/* ✅ ÁREA DE SCROLL COM ALTURA MÁXIMA PARA 5 LINHAS */}
         <div style={{
           maxHeight: isMobile ? 'auto' : '480px', // ~96px por linha × 5 linhas
-          overflowY: (pedidoAtual.maoObra?.length || 0) > 5 ? 'auto' : 'visible',
+          overflowY: fields.length > 5 ? 'auto' : 'visible',
           marginBottom: isMobile ? '12px' : '16px',
-          paddingRight: (pedidoAtual.maoObra?.length || 0) > 5 ? '8px' : '0'
+          paddingRight: fields.length > 5 ? '8px' : '0'
         }}>
-          {/* Cabeçalho das colunas */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-            <Col xs={24} md={4}>
-              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                <TeamOutlined style={{ marginRight: 8 }} />
-                Turma de Colheita
-              </span>
-            </Col>
-            <Col xs={24} md={4}>
-              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                <AppleOutlined style={{ marginRight: 8 }} />
-                Fruta Colhida
-              </span>
-            </Col>
-            <Col xs={24} md={3}>
-              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                <CalculatorOutlined style={{ marginRight: 8 }} />
-                Quantidade
-              </span>
-            </Col>
-            <Col xs={24} md={3}>
-              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                <DollarOutlined style={{ marginRight: 8 }} />
-                Valor Unit.
-              </span>
-            </Col>
-            <Col xs={24} md={3}>
-              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                <CalculatorOutlined style={{ marginRight: 8 }} />
-                Valor Total
-              </span>
-            </Col>
-            <Col xs={24} md={4}>
-              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                <FileTextOutlined style={{ marginRight: 8 }} />
-                Observações
-              </span>
-            </Col>
-            <Col xs={24} md={3}>
-              <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
-                Ações
-              </span>
-            </Col>
-          </Row>
-
-          {pedidoAtual.maoObra && pedidoAtual.maoObra.map((item, index) => {
-          const pagamentoEfetuado = item.pagamentoEfetuado === true;
-          
-          return (
-          <div key={index}>
-            {/* ✅ INDICADOR DE PAGAMENTO EFETUADO */}
-            {pagamentoEfetuado && (
-              <Row style={{ marginBottom: '8px' }}>
-                <Col span={24}>
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    padding: '8px 12px', 
-                    backgroundColor: '#f6ffed', 
-                    border: '1px solid #b7eb8f', 
-                    borderRadius: '6px',
-                    marginBottom: '8px'
-                  }}>
-                    <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px', fontSize: '16px' }} />
-                    <span style={{ color: '#52c41a', fontWeight: '600', fontSize: '14px' }}>
-                      Pagamento já efetuado - Campos bloqueados para edição
-                    </span>
-                  </div>
-                </Col>
-              </Row>
-            )}
-            
-            <Row gutter={[16, 16]} align="baseline">
+          {/* Cabeçalho das colunas - Apenas desktop */}
+          {!isMobile && (
+            <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
               <Col xs={24} md={4}>
-                <Form.Item
-                  validateStatus={(() => {
-                    const erro = validarMaoObraItem(item, index);
-                    const duplicacao = validarDuplicacao(item.turmaColheitaId, index);
-                    return (erro && !item.turmaColheitaId) || !duplicacao.valido ? "error" : "";
-                  })()}
-                  help={(() => {
-                    const erro = validarMaoObraItem(item, index);
-                    const duplicacao = validarDuplicacao(item.turmaColheitaId, index);
-                    if (!duplicacao.valido) return duplicacao.mensagem;
-                    if (erro && !item.turmaColheitaId) return "Campo obrigatório";
-                    return "";
-                  })()}
-                >
-                  <Select
-                    showSearch
-                    filterOption={(input, option) => {
-                      const label = option?.label || option?.children;
-                      if (typeof label === 'string') {
-                        return label.toLowerCase().includes(input.toLowerCase());
-                      }
-                      if (React.isValidElement(label)) {
-                        const text = label.props?.title || label.props?.children;
-                        return typeof text === 'string' ? text.toLowerCase().includes(input.toLowerCase()) : false;
-                      }
-                      return false;
-                    }}
-                    style={{
-                      borderRadius: "6px",
-                      borderColor: (() => {
-                        const erro = validarMaoObraItem(item, index);
-                        const duplicacao = validarDuplicacao(item.turmaColheitaId, index);
-                        return (erro && !item.turmaColheitaId) || !duplicacao.valido ? "#ff4d4f" : "#d9d9d9";
-                      })(),
-                    }}
-                    value={item.turmaColheitaId}
-                    onChange={(value) => {
-                      // Validar duplicação antes de permitir a mudança
-                      const validacao = validarDuplicacao(value, index);
-                      if (!validacao.valido) {
-                        showNotification("error", "Colhedor Duplicado", validacao.mensagem);
-                        return;
-                      }
-                      handleMaoObraChange(index, 'turmaColheitaId', value);
-                    }}
-                    disabled={!canEditTab("2") || pagamentoEfetuado}
-                  >
-                    {turmasColheita.map((turma) => (
-                      <Option
-                        key={turma.id}
-                        value={turma.id}
-                        disabled={(() => {
-                          // Desabilitar opção se já foi selecionada em outro item
-                          const maoObraAtual = pedidoAtual.maoObra || [];
-                          return maoObraAtual.some((maoObraItem, maoObraIndex) =>
-                            maoObraIndex !== index && maoObraItem.turmaColheitaId === turma.id
-                          );
-                        })()}
-                      >
-                        <Tooltip title={capitalizeName(turma.nomeColhedor)} placement="top">
-                          <span>{capitalizeName(turma.nomeColhedor)}</span>
-                        </Tooltip>
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <TeamOutlined style={{ marginRight: 8 }} />
+                  Turma de Colheita
+                </span>
               </Col>
-
               <Col xs={24} md={4}>
-                <Form.Item
-                  validateStatus={validarMaoObraItem(item, index) && !item.frutaId ? "error" : ""}
-                  help={validarMaoObraItem(item, index) && !item.frutaId ? "Campo obrigatório" : ""}
-                >
-                  <Select
-                    placeholder="Selecione a fruta"
-                    showSearch
-                    filterOption={(input, option) => {
-                      const label = option?.label || option?.children;
-                      if (typeof label === 'string') {
-                        return label.toLowerCase().includes(input.toLowerCase());
-                      }
-                      if (React.isValidElement(label)) {
-                        const text = label.props?.title || label.props?.children;
-                        return typeof text === 'string' ? text.toLowerCase().includes(input.toLowerCase()) : false;
-                      }
-                      return false;
-                    }}
-                    style={{
-                      borderRadius: "6px",
-                      borderColor: validarMaoObraItem(item, index) && !item.frutaId ? "#ff4d4f" : "#d9d9d9",
-                    }}
-                    value={item.frutaId}
-                    onChange={(value) => handleMaoObraChange(index, 'frutaId', value)}
-                    disabled={!canEditTab("2") || pagamentoEfetuado}
-                  >
-                    {pedidoAtual.frutas?.map((frutaPedido) => (
-                      <Option key={frutaPedido.frutaId} value={frutaPedido.frutaId}>
-                        {capitalizeName(frutas.find(f => f.id === frutaPedido.frutaId)?.nome || '')}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <AppleOutlined style={{ marginRight: 8 }} />
+                  Fruta Colhida
+                </span>
               </Col>
-
               <Col xs={24} md={3}>
-                <Form.Item
-                  validateStatus={validarMaoObraItem(item, index) && !item.quantidadeColhida ? "error" : ""}
-                  help={validarMaoObraItem(item, index) && !item.quantidadeColhida ? "Campo obrigatório" : ""}
-                >
-                  <MonetaryInput
-                    placeholder="Ex: 1.234,56"
-                    addonAfter={(() => {
-                      const frutaSelecionada = pedidoAtual?.frutas?.find(fp => fp.frutaId === item.frutaId);
-                      return frutaSelecionada?.unidadeMedida1 || '';
-                    })()}
-                    size="large"
-                    style={{
-                      borderRadius: "6px",
-                      borderColor: validarMaoObraItem(item, index) && !item.quantidadeColhida ? "#ff4d4f" : "#d9d9d9",
-                    }}
-                    value={item.quantidadeColhida}
-                    onChange={(value) => {
-                      handleMaoObraChange(index, 'quantidadeColhida', value);
-                      // ✅ Recalcular valor total se valor unitário está preenchido (usando novo handler)
-                      if (item.valorUnitario && value) {
-                        handleValorUnitarioChange(index, item.valorUnitario, value);
-                      }
-                    }}
-                    disabled={!canEditTab("2") || pagamentoEfetuado}
-                  />
-                </Form.Item>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <CalculatorOutlined style={{ marginRight: 8 }} />
+                  Quantidade
+                </span>
               </Col>
-
               <Col xs={24} md={3}>
-                <Form.Item>
-                  <MonetaryInput
-                    placeholder="Ex: 5,00"
-                    addonBefore="R$"
-                    decimalScale={4}
-                    size="large"
-                    style={{
-                      borderRadius: "6px",
-                      borderColor: "#d9d9d9",
-                    }}
-                    value={item.valorUnitario}
-                    onChange={(value) => {
-                      handleMaoObraChange(index, 'valorUnitario', value);
-                      // ✅ Usar novo handler para calcular valor total
-                      handleValorUnitarioChange(index, value, item.quantidadeColhida);
-                    }}
-                    disabled={!canEditTab("2") || pagamentoEfetuado || !item.quantidadeColhida || (parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0) <= 0}
-                  />
-                </Form.Item>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <DollarOutlined style={{ marginRight: 8 }} />
+                  Valor Unit.
+                </span>
               </Col>
-
               <Col xs={24} md={3}>
-                <Form.Item
-                  validateStatus={validarMaoObraItem(item, index) && !item.valorColheita ? "error" : ""}
-                  help={validarMaoObraItem(item, index) && !item.valorColheita ? "Campo obrigatório" : ""}
-                >
-                  <MonetaryInput
-                    placeholder="Ex: 150,00"
-                    addonBefore="R$"
-                    size="large"
-                    style={{
-                      borderRadius: "6px",
-                      borderColor: validarMaoObraItem(item, index) && !item.valorColheita ? "#ff4d4f" : "#d9d9d9",
-                    }}
-                    value={item.valorColheita}
-                    onChange={(value) => {
-                      handleMaoObraChange(index, 'valorColheita', value);
-                      // ✅ Usar novo handler para calcular valor unitário (cálculo reverso)
-                      handleValorTotalChange(index, value, item.quantidadeColhida);
-                    }}
-                    disabled={!canEditTab("2") || pagamentoEfetuado || !item.quantidadeColhida || (parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0) <= 0}
-                  />
-                </Form.Item>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <CalculatorOutlined style={{ marginRight: 8 }} />
+                  Valor Total
+                </span>
               </Col>
-
               <Col xs={24} md={4}>
-                <Form.Item>
-                  <Input
-                    placeholder="Observações (opcional)"
-                    style={{
-                      borderRadius: "6px",
-                      borderColor: "#d9d9d9",
-                    }}
-                    value={item.observacoes}
-                    onChange={(e) => handleMaoObraChange(index, 'observacoes', e.target.value)}
-                    disabled={!canEditTab("2") || pagamentoEfetuado}
-                  />
-                </Form.Item>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  <FileTextOutlined style={{ marginRight: 8 }} />
+                  Observações
+                </span>
               </Col>
-
               <Col xs={24} md={3}>
-                <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                  {/* Botão de remover */}
-                  <Button
-                    type="text"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => removerMaoObra(index)}
-                    size="large"
-                    disabled={!canEditTab("2") || (pedidoAtual.maoObra && pedidoAtual.maoObra.length <= 1) || pagamentoEfetuado}
-                    style={{
-                      borderRadius: "50px",
-                      height: "40px",
-                      width: "40px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: 0,
-                      border: "2px solid #ff4d4f",
-                      color: "#ff4d4f",
-                      backgroundColor: "#ffffff",
-                    }}
-                  />
-
-                  {/* Botão de adicionar apenas no último item */}
-                  {index === (pedidoAtual.maoObra?.length - 1) && (
-                    <Button
-                      type="dashed"
-                      icon={<PlusOutlined />}
-                      onClick={adicionarMaoObra}
-                      size="large"
-                      disabled={!canEditTab("2") || pagamentoEfetuado}
-                      style={{
-                        borderRadius: "50px",
-                        borderColor: "#10b981",
-                        color: "#10b981",
-                        borderWidth: "2px",
-                        height: "40px",
-                        width: "40px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: 0,
-                        backgroundColor: "#ffffff",
-                      }}
-                    />
-                  )}
-                </div>
+                <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
+                  Ações
+                </span>
               </Col>
             </Row>
-            {index < (pedidoAtual.maoObra?.length - 1) && <Divider style={{ margin: "16px 0" }} />}
-          </div>
-          );
-        })}
+          )}
+
+          {fields.map((field, index) => {
+            const item = form.getFieldValue('maoObra')?.[index];
+            const pagamentoEfetuado = item?.pagamentoEfetuado === true;
+            return (
+              <MaoObraRow
+                key={field.key}
+                field={field}
+                index={index}
+                form={form}
+                isMobile={isMobile}
+                turmasColheita={turmasColheita}
+                pedido={{ frutasPedidos: pedidoAtual.frutas }}
+                fieldsLength={fields.length}
+                onRemove={(name) => remove(name)}
+                onAdd={(initialValue) => add(initialValue)}
+                capitalizeName={capitalizeName}
+              />
+            );
+          })}
         </div>
 
         {/* 📊 RESUMO FIXO DA MÃO DE OBRA */}
-        <ResumoMaoObraTab pedidoAtual={pedidoAtual} isMobile={isMobile} />
+        <ResumoMaoObra form={form} isMobile={isMobile} pedido={{ frutasPedidos: pedidoAtual.frutas }} />
+        </>
+        )}
+        </Form.List>
       </Card>
-
+      
       {canEditTab("2") && (
         <div style={{ 
           position: "absolute", 

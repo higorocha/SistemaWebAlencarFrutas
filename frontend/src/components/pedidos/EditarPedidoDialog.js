@@ -157,6 +157,7 @@ const EditarPedidoDialog = ({
         frutaPedidoId: fruta.id,
         frutaId: fruta.frutaId,
         frutaNome: fruta.fruta?.nome, // ✅ ADICIONADO: Nome da fruta para VincularFitasModal
+        fruta: fruta.fruta, // ✅ ADICIONADO: Objeto fruta completo (para MaoObraRow)
         quantidadePrevista: fruta.quantidadePrevista,
         unidadeMedida1: fruta.unidadeMedida1,
         unidadeMedida2: fruta.unidadeMedida2,

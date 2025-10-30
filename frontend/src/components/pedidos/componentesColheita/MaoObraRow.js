@@ -67,7 +67,10 @@ const MaoObraRow = ({
 
     if (quantidade > 0 && valUnit > 0) {
       const total = quantidade * valUnit;
-      form.setFieldValue(['maoObra', index, 'valorColheita'], total);
+      // ✅ CORREÇÃO: Usar setFieldValue para atualizar valorColheita sem triggerar onChange
+      const maoObraAtual = form.getFieldValue('maoObra');
+      maoObraAtual[index] = { ...maoObraAtual[index], valorColheita: total };
+      form.setFieldsValue({ maoObra: maoObraAtual });
     }
 
     setTimeout(() => {
@@ -89,7 +92,10 @@ const MaoObraRow = ({
 
     if (quantidade > 0 && valTotal > 0) {
       const valUnit = valTotal / quantidade;
-      form.setFieldValue(['maoObra', index, 'valorUnitario'], valUnit);
+      // ✅ CORREÇÃO: Usar setFieldValue para atualizar valorUnitario sem triggerar onChange
+      const maoObraAtual = form.getFieldValue('maoObra');
+      maoObraAtual[index] = { ...maoObraAtual[index], valorUnitario: valUnit };
+      form.setFieldsValue({ maoObra: maoObraAtual });
     }
 
     setTimeout(() => {
@@ -169,7 +175,9 @@ const MaoObraRow = ({
                     if (combinacoesIguais.length > 1) {
                       const turmaNome = turmasColheita.find(t => t.id === value)?.nomeColhedor || `Turma ${value}`;
                       const frutaInfo = pedido?.frutasPedidos?.find(fp => fp.frutaId === maoObraItem.frutaId);
-                      const frutaNome = frutaInfo?.fruta?.nome ? capitalizeName(frutaInfo.fruta.nome) : `Fruta ID ${maoObraItem.frutaId}`;
+                      // ✅ OBTER nome da fruta (prioridade: fruta.nome > frutaNome > fallback)
+                      const nomeFruta = frutaInfo?.fruta?.nome || frutaInfo?.frutaNome || `Fruta ID ${maoObraItem.frutaId}`;
+                      const frutaNome = capitalizeName(nomeFruta);
                       return Promise.reject(new Error(`"${turmaNome}" já foi selecionado(a) para a fruta "${frutaNome}"`));
                     }
                   }
@@ -263,16 +271,20 @@ const MaoObraRow = ({
                 fontSize: isMobile ? "0.875rem" : "1rem"
               }}
             >
-              {pedido?.frutasPedidos?.map((frutaPedido) => (
-                <Option 
-                  key={frutaPedido.frutaId} 
-                  value={frutaPedido.frutaId}
-                >
-                  <Tooltip title={capitalizeName(frutaPedido.fruta?.nome)} placement="top">
-                    <span>{capitalizeName(frutaPedido.fruta?.nome)}</span>
-                  </Tooltip>
-                </Option>
-              ))}
+              {pedido?.frutasPedidos?.map((frutaPedido) => {
+                // ✅ OBTER nome da fruta (prioridade: fruta.nome > frutaNome > fallback)
+                const nomeFruta = frutaPedido.fruta?.nome || frutaPedido.frutaNome || `Fruta ID ${frutaPedido.frutaId}`;
+                return (
+                  <Option 
+                    key={frutaPedido.frutaId} 
+                    value={frutaPedido.frutaId}
+                  >
+                    <Tooltip title={capitalizeName(nomeFruta)} placement="top">
+                      <span>{capitalizeName(nomeFruta)}</span>
+                    </Tooltip>
+                  </Option>
+                );
+              })}
             </Select>
           </Form.Item>
         </Col>
@@ -333,6 +345,7 @@ const MaoObraRow = ({
                 <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Valor Unit.</span>
               </Space>
             ) : undefined}
+            trigger="onChange"
           >
             <MonetaryInput
               placeholder="Ex: 5,00"
@@ -341,7 +354,7 @@ const MaoObraRow = ({
               disabled={!quantidadePreenchida}
               decimalScale={4}
               onChange={(value) => {
-                if (value && value !== valorUnitario) {
+                if (value && quantidadeColhida) {
                   handleValorUnitarioChange(value);
                 }
               }}
@@ -383,6 +396,7 @@ const MaoObraRow = ({
                 }
               }
             ]}
+            trigger="onChange"
           >
             <MonetaryInput
               placeholder="Ex: 150,00"
@@ -390,7 +404,7 @@ const MaoObraRow = ({
               size={isMobile ? "small" : "large"}
               disabled={!quantidadePreenchida}
               onChange={(value) => {
-                if (value && value !== valorColheita) {
+                if (value && quantidadeColhida) {
                   handleValorTotalChange(value);
                 }
               }}
