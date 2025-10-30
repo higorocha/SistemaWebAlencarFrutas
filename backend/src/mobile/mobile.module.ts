@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { PedidosMobileController } from './controllers/pedidos-mobile.controller';
+import { FitasMobileController } from './controllers/fitas-mobile.controller';
 import { PedidosModule } from '../pedidos/pedidos.module';
+import { TurmaColheitaModule } from '../turma-colheita/turma-colheita.module';
+import { FitasBananaModule } from '../fitas-banana/fitas-banana.module';
+import { ControleBananaModule } from '../controle-banana/controle-banana.module';
 import { CulturaGuard } from './guards/cultura.guard';
 
 /**
@@ -21,9 +25,13 @@ import { CulturaGuard } from './guards/cultura.guard';
 @Module({
   imports: [
     PedidosModule, // Importa para reutilizar PedidosService
+    TurmaColheitaModule, // Importa para reutilizar TurmaColheitaService
+    FitasBananaModule, // Reutiliza FitasBananaService
+    ControleBananaModule, // Reutiliza ControleBananaService
   ],
   controllers: [
     PedidosMobileController,
+    FitasMobileController,
   ],
   providers: [
     CulturaGuard,

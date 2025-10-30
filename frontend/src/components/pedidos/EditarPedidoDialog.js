@@ -318,36 +318,17 @@ const EditarPedidoDialog = ({
             pagamentoEfetuado: item.pagamentoEfetuado || false
           }));
 
-          // Se não há dados, inicializar com um item vazio
-          const maoObraFinal = maoObraFormatada.length > 0
-            ? maoObraFormatada
-            : [{
-                turmaColheitaId: undefined,
-                frutaId: pedidoAtual.frutas && pedidoAtual.frutas[0]?.frutaId, // ✅ Inicializar com primeira fruta
-                quantidadeColhida: undefined,
-                valorUnitario: undefined,
-                unidadeMedida: undefined,
-                valorColheita: undefined,
-                observacoes: ''
-              }];
+          // ✅ CORREÇÃO: Se não há dados, inicializar com array vazio (não criar objeto inválido)
+          // A ColheitaTab criará o primeiro item vazio quando o usuário clicar em "Adicionar"
+          const maoObraFinal = maoObraFormatada.length > 0 ? maoObraFormatada : [];
 
           // Atualizar apenas o maoObra sem afetar outros campos
           setPedidoAtual(prev => ({ ...prev, maoObra: maoObraFinal }));
 
         } catch (error) {
           console.error("Erro ao carregar mão de obra:", error);
-          // Em caso de erro, inicializar com item vazio
-          setPedidoAtual(prev => ({
-            ...prev,
-            maoObra: [{
-              turmaColheitaId: undefined,
-              frutaId: prev.frutas && prev.frutas[0]?.frutaId, // ✅ Usar primeira fruta disponível
-              quantidadeColhida: undefined,
-              unidadeMedida: undefined,
-              valorColheita: undefined,
-              observacoes: ''
-            }]
-          }));
+          // ✅ CORREÇÃO: Em caso de erro, inicializar com array vazio
+          setPedidoAtual(prev => ({ ...prev, maoObra: [] }));
         }
       } else if (open && pedido && !podeEditarColheita) {
         // Para pedidos que não podem editar colheita, deixar vazio
@@ -748,93 +729,6 @@ const EditarPedidoDialog = ({
   };
 
   // Função auxiliar para salvar mão de obra via API
-  const salvarMaoObraViaAPI = async () => {
-    if (!pedido?.id || !pedidoAtual.maoObra || !canEditTab("2")) return true;
-
-    try {
-      const maoObraValida = pedidoAtual.maoObra.filter(item => item.turmaColheitaId);
-
-      // Se não há mão de obra válida, não fazer nada
-      if (maoObraValida.length === 0) return true;
-
-      console.log('💼 Salvando mão de obra via API...', maoObraValida);
-
-      // Primeiro: Buscar dados existentes para comparar
-      const responseExistente = await axiosInstance.get(`/api/turma-colheita/colheita-pedido/pedido/${pedido.id}`);
-      const dadosExistentes = responseExistente.data || [];
-
-      // Deletar registros que não existem mais no frontend
-      for (const existente of dadosExistentes) {
-        const aindaExiste = maoObraValida.some(item => item.id === existente.id);
-        if (!aindaExiste) {
-          await axiosInstance.delete(`/api/turma-colheita/colheita-pedido/${existente.id}`);
-          console.log(`🗑️ Removido registro ${existente.id}`);
-        }
-      }
-
-      // Criar/atualizar registros
-      for (const item of maoObraValida) {
-        // Validar dados obrigatórios
-        if (!item.quantidadeColhida || item.quantidadeColhida <= 0) continue;
-        if (!item.unidadeMedida) continue;
-
-        // ✅ CORREÇÃO: Criar UM registro por turma de colheita
-        const custoData = {
-          turmaColheitaId: item.turmaColheitaId,
-          pedidoId: pedido.id,
-          frutaId: item.frutaId || (pedidoAtual.frutas && pedidoAtual.frutas[0]?.frutaId), // ✅ Usar frutaId original ou primeira fruta
-          quantidadeColhida: parseFloat(item.quantidadeColhida),
-          unidadeMedida: item.unidadeMedida,
-          valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
-          dataColheita: pedidoAtual.dataColheita || new Date().toISOString(),
-          pagamentoEfetuado: false,
-          observacoes: item.observacoes || ''
-        };
-
-        if (item.id) {
-          // Atualizar existente
-          await axiosInstance.patch(`/api/turma-colheita/colheita-pedido/${item.id}`, custoData);
-          console.log(`✏️ Atualizado registro ${item.id}`);
-        } else {
-          // Criar novo (usar primeira fruta do pedido)
-          const response = await axiosInstance.post('/api/turma-colheita/custo-colheita', custoData);
-          console.log(`➕ Criado novo registro ${response.data.id}`);
-
-          // Atualizar o item com o ID retornado
-          item.id = response.data.id;
-        }
-      }
-
-      // ✅ CORREÇÃO: Buscar dados atualizados da mão de obra após salvar
-      const responseAtualizado = await axiosInstance.get(`/api/turma-colheita/colheita-pedido/pedido/${pedido.id}`);
-      const maoObraAtualizada = responseAtualizado.data || [];
-
-      // Transformar dados da API para o formato do frontend
-      const maoObraFormatada = maoObraAtualizada.map(item => ({
-        id: item.id,
-        turmaColheitaId: item.turmaColheitaId,
-        frutaId: item.frutaId,
-        quantidadeColhida: item.quantidadeColhida,
-        unidadeMedida: item.unidadeMedida,
-        valorColheita: item.valorColheita,
-        // ✅ Calcular valorUnitario
-        valorUnitario: item.quantidadeColhida > 0 ? (item.valorColheita / item.quantidadeColhida) : undefined,
-        observacoes: item.observacoes || '',
-        pagamentoEfetuado: item.pagamentoEfetuado || false
-      }));
-
-      // Atualizar estado local com dados frescos do backend
-      setPedidoAtual(prev => ({ ...prev, maoObra: maoObraFormatada }));
-
-      console.log('✅ Mão de obra salva via API com sucesso e dados atualizados!');
-      return true;
-    } catch (error) {
-      console.error('❌ Erro ao salvar mão de obra via API:', error);
-      showNotification("error", "Erro", "Erro ao salvar dados de mão de obra");
-      return false;
-    }
-  };
-
   const handleSalvarPedido = async () => {
     const validacao = validarFormulario();
     if (!validacao.valido) {
@@ -959,7 +853,7 @@ const EditarPedidoDialog = ({
               quantidadeReal: fruta.quantidadeReal,
               quantidadeReal2: fruta.quantidadeReal2,
               // NOVA ESTRUTURA: Arrays de áreas e fitas
-              areas: fruta.areas?.filter(area => 
+              areas: fruta.areas?.filter(area =>
                 area.areaPropriaId || area.areaFornecedorId
               ).map(area => ({
                 id: area.id,
@@ -969,7 +863,7 @@ const EditarPedidoDialog = ({
                 quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
                 quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
               })) || [],
-              fitas: fruta.fitas?.filter(fita => 
+              fitas: fruta.fitas?.filter(fita =>
                 fita.fitaBananaId
               ).map(fita => ({
                 id: fita.id,
@@ -1003,34 +897,39 @@ const EditarPedidoDialog = ({
         });
       }
 
-      // 1️⃣ Primeiro: Salvar dados principais do pedido
-      await onSave(formData);
+      // ✅ NOVO: Processar mão de obra (custos de colheita) se a aba 2 estiver disponível
+      if (canEditTab("2") && pedidoAtual.maoObra && pedidoAtual.maoObra.length > 0) {
+        // Filtrar apenas itens válidos com dados obrigatórios preenchidos
+        const maoObraValida = pedidoAtual.maoObra.filter(item =>
+          item.turmaColheitaId &&
+          item.frutaId &&
+          item.quantidadeColhida &&
+          item.quantidadeColhida > 0
+        );
 
-      // 2️⃣ Segundo: Salvar mão de obra se estivermos na aba de colheita
-      if (activeTab === "2" && canEditTab("2")) {
-        console.log('🔍 DEBUG EditarPedidoDialog - Tentando salvar mão de obra...', {
-          activeTab,
-          canEdit: canEditTab("2"),
-          maoObra: pedidoAtual.maoObra
-        });
-
-        // Atualizar mensagem do loading para mão de obra
-        if (onLoadingChange) {
-          onLoadingChange(true, "Salvando mão de obra...");
+        // Só incluir maoObra no formData se houver itens válidos
+        if (maoObraValida.length > 0) {
+          console.log('✅ Incluindo mão de obra válida no formData:', maoObraValida);
+          formData.maoObra = maoObraValida.map(item => ({
+            id: item.id || undefined, // ID do custo (para update)
+            turmaColheitaId: item.turmaColheitaId,
+            frutaId: item.frutaId,
+            quantidadeColhida: item.quantidadeColhida,
+            valorColheita: item.valorColheita || 0,
+            observacoes: item.observacoes || undefined,
+            // ✅ CORREÇÃO: Incluir dataColheita para update de registros existentes e criação de novos
+            dataColheita: pedidoAtual.dataColheita
+              ? moment(pedidoAtual.dataColheita).startOf('day').add(12, 'hours').toISOString()
+              : undefined
+            // Nota: unidadeMedida NÃO é enviada - será derivada da fruta no backend
+          }));
+        } else {
+          console.log('ℹ️ Nenhuma mão de obra válida para enviar');
         }
-
-        const maoObraSalva = await salvarMaoObraViaAPI();
-
-        if (!maoObraSalva) {
-          showNotification("warning", "Aviso", "Pedido salvo, mas houve erro ao salvar mão de obra. Verifique na seção de Turmas de Colheita.");
-        }
-      } else {
-        console.log('ℹ️ DEBUG EditarPedidoDialog - Não salvou mão de obra porque:', {
-          activeTab,
-          canEdit: canEditTab("2"),
-          condicao: activeTab === "2" && canEditTab("2")
-        });
       }
+
+      // 1️⃣ Salvar dados completos do pedido (incluindo mão de obra integrada)
+      await onSave(formData);
 
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);

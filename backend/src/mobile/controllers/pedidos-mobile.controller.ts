@@ -25,6 +25,7 @@ import { Niveis } from '../../auth/decorators/niveis.decorator';
 import { CulturaGuard } from '../guards/cultura.guard';
 import { NivelUsuario } from '../../auth/dto';
 import { PedidosService } from '../../pedidos/pedidos.service';
+import { TurmaColheitaService } from '../../turma-colheita/turma-colheita.service';
 import {
   MobilePedidoFiltersDto,
   MobileColheitaDto,
@@ -33,6 +34,8 @@ import {
   MobilePedidoSimplificadoDto,
 } from '../dto';
 import { UpdateColheitaDto, CreatePedidoDto, PedidoResponseDto } from '../../pedidos/dto';
+import { CreateTurmaColheitaPedidoCustoDto } from '../../turma-colheita/dto/create-colheita-pedido.dto';
+import { TurmaColheitaPedidoCustoResponseDto } from '../../turma-colheita/dto/colheita-pedido-response.dto';
 import { StatusPedido } from '@prisma/client';
 
 /**
@@ -50,7 +53,10 @@ import { StatusPedido } from '@prisma/client';
 )
 @Controller('api/mobile/pedidos')
 export class PedidosMobileController {
-  constructor(private readonly pedidosService: PedidosService) {}
+  constructor(
+    private readonly pedidosService: PedidosService,
+    private readonly turmaColheitaService: TurmaColheitaService,
+  ) {}
 
   /**
    * Dashboard simplificado para mobile
@@ -288,6 +294,64 @@ export class PedidosMobileController {
     return this.pedidosService.updateColheita(id, colheitaDto, usuarioId);
   }
 
+  /**
+   * Registrar mão de obra (custo de colheita)
+   * Reutiliza o TurmaColheitaService existente
+   */
+  @Post(':id/mao-obra')
+  @ApiOperation({
+    summary: 'Registrar mão de obra pelo mobile',
+    description: 'Registra o custo de mão de obra para uma colheita de um pedido',
+  })
+  @ApiParam({ name: 'id', description: 'ID do pedido', type: Number })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Mão de obra registrada com sucesso',
+    type: TurmaColheitaPedidoCustoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Sem permissão para registrar mão de obra neste pedido',
+  })
+  async registrarMaoObra(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateTurmaColheitaPedidoCustoDto,
+    @Req() request: any,
+  ) {
+    const usuarioId = request?.user?.id;
+    const usuarioNivel = request?.user?.nivel;
+    const usuarioCulturaId = request?.user?.culturaId;
+
+    // Validar acesso ao pedido
+    const pedido = await this.pedidosService.findOne(
+      id,
+      usuarioNivel,
+      usuarioCulturaId,
+    );
+
+    if (usuarioNivel === NivelUsuario.GERENTE_CULTURA) {
+      const temAcesso = this.validarAcessoPorCultura(
+        pedido,
+        usuarioCulturaId,
+      );
+      if (!temAcesso) {
+        throw new ForbiddenException(
+          'Você não tem permissão para acessar este pedido',
+        );
+      }
+    }
+
+    // Garantir que o pedidoId no DTO é o correto
+    dto.pedidoId = id;
+
+    // Chamar service existente
+    return this.turmaColheitaService.createCustoColheita(dto);
+  }
+
   // ==================== MÉTODOS AUXILIARES ====================
 
   /**
@@ -322,11 +386,17 @@ export class PedidosMobileController {
       frutas:
         pedido.frutasPedidos?.map((fp: any) => ({
           id: fp.id,
+          frutaId: fp.frutaId, // Adicionar frutaId para correspondência com mão de obra
           nome: fp.fruta?.nome || 'Fruta não informada',
           quantidadePrevista: fp.quantidadePrevista || 0,
           quantidadeReal: fp.quantidadeReal,
+          quantidadeReal2: fp.quantidadeReal2,
           unidade: fp.unidadeMedida1 || '',
+          unidade2: fp.unidadeMedida2 || undefined,
+          unidadeMedida1: fp.unidadeMedida1 || '',
+          unidadeMedida2: fp.unidadeMedida2 || undefined,
           cultura: fp.fruta?.cultura?.descricao,
+          culturaId: fp.fruta?.cultura?.id, // ID da cultura (para filtrar áreas)
         })) || [],
       vencido:
         dataPrevisao && diasDesdePrevisao
@@ -335,6 +405,15 @@ export class PedidosMobileController {
             pedido.status !== StatusPedido.PEDIDO_FINALIZADO
           : false,
       diasDesdePrevisao,
+      // Adicionar mão de obra (custos de colheita)
+      maoObra: pedido.custosColheita?.map((custo: any) => ({
+        id: custo.id,
+        turmaColheitaId: custo.turmaColheitaId,
+        frutaId: custo.frutaId,
+        quantidadeColhida: custo.quantidadeColhida,
+        valorColheita: custo.valorColheita,
+        observacoes: custo.observacoes,
+      })) || [],
     };
   }
 
@@ -347,10 +426,16 @@ export class PedidosMobileController {
       frutas: dto.frutas.map((f) => ({
         frutaPedidoId: f.frutaPedidoId,
         quantidadeReal: f.quantidadeReal,
-        // Áreas: converter formato mobile para formato do DTO
+        quantidadeReal2: (f as any).quantidadeReal2,
         areas: this.converterAreas(f),
+        fitas: this.converterFitas((f as any).fitas),
       })),
       observacoesColheita: dto.observacoesColheita,
+      // Campos de frete
+      pesagem: dto.pesagem,
+      placaPrimaria: dto.placaPrimaria,
+      placaSecundaria: dto.placaSecundaria,
+      nomeMotorista: dto.nomeMotorista,
     };
   }
 
@@ -358,23 +443,38 @@ export class PedidosMobileController {
    * Converte áreas do formato mobile para formato do DTO
    */
   private converterAreas(fruta: any): any[] | undefined {
+    // Se o formato já vier como array de áreas completo
+    if (Array.isArray(fruta.areas)) {
+      return fruta.areas.map((a: any) => ({
+        id: a.id,
+        areaPropriaId: a.areaPropriaId ?? undefined,
+        areaFornecedorId: a.areaFornecedorId ?? undefined,
+        observacoes: a.observacoes ?? undefined,
+        quantidadeColhidaUnidade1: a.quantidadeColhidaUnidade1 ?? undefined,
+        quantidadeColhidaUnidade2: a.quantidadeColhidaUnidade2 ?? undefined,
+      }));
+    }
+
+    // Compatibilidade com payload antigo (campos simples)
     const areas: any[] = [];
-
-    // Se tem área própria
     if (fruta.areaAgricolaId) {
-      areas.push({
-        areaPropriaId: fruta.areaAgricolaId,
-      });
+      areas.push({ areaPropriaId: fruta.areaAgricolaId });
     }
-
-    // Se tem área de fornecedor
     if (fruta.areaFornecedorId) {
-      areas.push({
-        areaFornecedorId: fruta.areaFornecedorId,
-      });
+      areas.push({ areaFornecedorId: fruta.areaFornecedorId });
     }
-
     return areas.length > 0 ? areas : undefined;
+  }
+
+  private converterFitas(fitas: any[] | undefined): any[] | undefined {
+    if (!Array.isArray(fitas) || fitas.length === 0) return undefined;
+    return fitas.map((f: any) => ({
+      id: f.id,
+      fitaBananaId: f.fitaBananaId,
+      quantidadeFita: f.quantidadeFita ?? undefined,
+      observacoes: f.observacoes ?? undefined,
+      detalhesAreas: f.detalhesAreas ?? [],
+    }));
   }
 
   /**

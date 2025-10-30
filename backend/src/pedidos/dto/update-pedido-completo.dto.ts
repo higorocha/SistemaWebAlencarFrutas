@@ -67,6 +67,72 @@ export class UpdateCompletoAreaDto {
   quantidadeColhidaUnidade2?: number;
 }
 
+// DTO para mão de obra no update completo
+export class UpdateCompletoMaoObraDto {
+  @ApiPropertyOptional({
+    description: 'ID do custo de colheita (para update de custo existente)',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  id?: number;
+
+  @ApiProperty({
+    description: 'ID da turma de colheita',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  turmaColheitaId: number;
+
+  @ApiProperty({
+    description: 'ID da fruta',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  frutaId: number;
+
+  @ApiProperty({
+    description: 'Quantidade colhida pela turma',
+    example: 500.5,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  quantidadeColhida: number;
+
+  @ApiPropertyOptional({
+    description: 'Valor pago pela colheita',
+    example: 2500.0,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  valorColheita?: number;
+
+  @ApiPropertyOptional({
+    description: 'Observações sobre a colheita',
+    example: 'Colheita realizada em boas condições',
+  })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Data da colheita',
+    example: '2024-01-15T12:00:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  dataColheita?: string;
+}
+
 // DTO para fita da fruta no update completo
 export class UpdateCompletoFitaDto {
   @ApiPropertyOptional({
@@ -310,6 +376,25 @@ export class UpdatePedidoCompletoDto {
   @ValidateNested({ each: true })
   @Type(() => UpdateFrutaPedidoDto)
   frutas?: UpdateFrutaPedidoDto[];
+
+  @ApiPropertyOptional({
+    description: 'Mão de obra (custos de colheita) do pedido',
+    type: [UpdateCompletoMaoObraDto],
+    example: [
+      {
+        turmaColheitaId: 1,
+        frutaId: 1,
+        quantidadeColhida: 500.5,
+        valorColheita: 2500.0,
+        observacoes: 'Colheita realizada em boas condições'
+      }
+    ]
+  })
+  @IsOptional()
+  @IsArray({ message: 'Mão de obra deve ser um array' })
+  @ValidateNested({ each: true })
+  @Type(() => UpdateCompletoMaoObraDto)
+  maoObra?: UpdateCompletoMaoObraDto[];
 
   // NOVOS: Campos de frete
   @ApiPropertyOptional({ description: 'Pesagem para controle' })

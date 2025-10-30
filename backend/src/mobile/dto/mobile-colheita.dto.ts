@@ -6,16 +6,69 @@ import {
   IsString,
   IsInt,
   IsNumber,
-  IsPositive
+  IsPositive,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
- * DTO simplificado para colheita de frutas (Mobile)
- * Versão mais enxuta sem sistema de fitas (MVP)
+ * DTO de Colheita (Mobile)
+ * Agora compatível com o fluxo completo usado no web (áreas, fitas e campos de frete)
  */
-class FrutaColheitaSimples {
+class MobileColheitaAreaDto {
+  @ApiProperty({ description: 'ID da área própria', required: false, example: 1 })
+  @IsOptional()
+  @IsInt()
+  areaPropriaId?: number;
+
+  @ApiProperty({ description: 'ID da área de fornecedor', required: false, example: 2 })
+  @IsOptional()
+  @IsInt()
+  areaFornecedorId?: number;
+
+  @ApiProperty({ description: 'Observações da área', required: false, example: 'Área principal' })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+
+  @ApiProperty({ description: 'Quantidade colhida na unidade 1', required: false, example: 500 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantidadeColhidaUnidade1?: number;
+
+  @ApiProperty({ description: 'Quantidade colhida na unidade 2', required: false, example: 20 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantidadeColhidaUnidade2?: number;
+}
+
+class MobileColheitaFitaDto {
+  @ApiProperty({ description: 'ID da fita de banana', example: 1 })
+  @IsInt()
+  @IsPositive()
+  fitaBananaId: number;
+
+  @ApiProperty({ description: 'Quantidade de fita utilizada', required: false, example: 300 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantidadeFita?: number;
+
+  @ApiProperty({ description: 'Observações da fita', required: false, example: 'Fita verde premium' })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+
+  @ApiProperty({ description: 'Detalhes das áreas relacionadas à fita', required: false, example: [] })
+  @IsOptional()
+  @IsArray()
+  detalhesAreas?: any[];
+}
+
+class FrutaColheitaDto {
   @ApiProperty({
     description: 'ID da fruta no pedido (frutaPedidoId)',
     example: 1
@@ -31,23 +84,25 @@ class FrutaColheitaSimples {
   @IsPositive()
   quantidadeReal: number;
 
-  @ApiProperty({
-    description: 'ID da área agrícola de origem (opcional)',
-    required: false,
-    example: 5
-  })
+  @ApiProperty({ description: 'Quantidade real na segunda unidade (quando houver)', required: false, example: 50.0 })
   @IsOptional()
-  @IsInt()
-  areaAgricolaId?: number;
+  @IsNumber()
+  @Min(0)
+  quantidadeReal2?: number;
 
-  @ApiProperty({
-    description: 'ID da área de fornecedor (opcional)',
-    required: false,
-    example: 3
-  })
+  @ApiProperty({ description: 'Áreas de origem desta fruta', required: false, type: [MobileColheitaAreaDto] })
   @IsOptional()
-  @IsInt()
-  areaFornecedorId?: number;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MobileColheitaAreaDto)
+  areas?: MobileColheitaAreaDto[];
+
+  @ApiProperty({ description: 'Fitas utilizadas (bananas)', required: false, type: [MobileColheitaFitaDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MobileColheitaFitaDto)
+  fitas?: MobileColheitaFitaDto[];
 }
 
 export class MobileColheitaDto {
@@ -58,14 +113,11 @@ export class MobileColheitaDto {
   @IsDateString()
   dataColheita: string;
 
-  @ApiProperty({
-    description: 'Lista de frutas colhidas com quantidades reais',
-    type: [FrutaColheitaSimples]
-  })
+  @ApiProperty({ description: 'Lista de frutas colhidas', type: [FrutaColheitaDto] })
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => FrutaColheitaSimples)
-  frutas: FrutaColheitaSimples[];
+  @Type(() => FrutaColheitaDto)
+  frutas: FrutaColheitaDto[];
 
   @ApiProperty({
     description: 'IDs das turmas de colheita (opcional)',
@@ -86,12 +138,24 @@ export class MobileColheitaDto {
   @IsString()
   observacoesColheita?: string;
 
-  @ApiProperty({
-    description: 'Custo de frete (opcional)',
-    required: false,
-    example: 150.00
-  })
+  // Campos de frete (compatíveis com DTO do service)
+  @ApiProperty({ description: 'Pesagem (string)', required: false, example: '2500' })
   @IsOptional()
-  @IsNumber()
-  custoFrete?: number;
+  @IsString()
+  pesagem?: string;
+
+  @ApiProperty({ description: 'Placa principal', required: false, example: 'ABC-1234' })
+  @IsOptional()
+  @IsString()
+  placaPrimaria?: string;
+
+  @ApiProperty({ description: 'Placa secundária', required: false, example: 'XYZ-5678' })
+  @IsOptional()
+  @IsString()
+  placaSecundaria?: string;
+
+  @ApiProperty({ description: 'Nome do motorista', required: false, example: 'João Silva' })
+  @IsOptional()
+  @IsString()
+  nomeMotorista?: string;
 }

@@ -1110,7 +1110,6 @@ export class PedidosService {
       }
     }
 
-    console.log('>>> Prisma Where Clause:', JSON.stringify(where, null, 2));
     const [pedidos, total] = await Promise.all([
       this.prisma.pedido.findMany({
         where,
@@ -1212,7 +1211,6 @@ export class PedidosService {
       }),
       this.prisma.pedido.count({ where }),
     ]);
-    console.log('>>> Prisma Raw Result Count:', pedidos.length);
 
     return {
       data: pedidos.map(pedido => this.adaptPedidoResponse(this.convertNullToUndefined(pedido))),
@@ -2921,6 +2919,105 @@ export class PedidosService {
 
         }
 
+      }
+
+      // ========================================
+      // 🆕 PROCESSAMENTO DE MÃO DE OBRA (CUSTOS DE COLHEITA)
+      // ========================================
+      if (updatePedidoCompletoDto.maoObra) {
+        console.log('🛠️ Processando mão de obra do pedido...');
+
+        // Buscar custos atuais do pedido
+        const custosAtuais = await prisma.turmaColheitaPedidoCusto.findMany({
+          where: { pedidoId: id },
+          select: {
+            id: true,
+            turmaColheitaId: true,
+            frutaId: true,
+            quantidadeColhida: true,
+            valorColheita: true,
+            observacoes: true
+          }
+        });
+
+        // Identificar custos a remover (não estão mais no array enviado)
+        const custosIdsEnviados = updatePedidoCompletoDto.maoObra
+          .filter(m => m.id)
+          .map(m => m.id);
+
+        const custosParaRemover = custosAtuais.filter(
+          custo => !custosIdsEnviados.includes(custo.id)
+        );
+
+        // Remover custos obsoletos
+        if (custosParaRemover.length > 0) {
+          console.log('🗑️ Removendo custos obsoletos:', custosParaRemover.map(c => c.id));
+          await prisma.turmaColheitaPedidoCusto.deleteMany({
+            where: { id: { in: custosParaRemover.map(c => c.id) } }
+          });
+        }
+
+        // Processar cada item de mão de obra
+        for (const maoObra of updatePedidoCompletoDto.maoObra) {
+          // Buscar dados da fruta para derivar a unidadeMedida
+          const frutaPedido = await prisma.frutasPedidos.findFirst({
+            where: {
+              pedidoId: id,
+              frutaId: maoObra.frutaId
+            },
+            select: {
+              unidadeMedida1: true,
+              unidadeMedida2: true,
+              unidadePrecificada: true
+            }
+          });
+
+          if (!frutaPedido) {
+            console.log(`⚠️ Fruta ${maoObra.frutaId} não encontrada no pedido, pulando...`);
+            continue;
+          }
+
+          // ✅ SEMPRE usar unidadeMedida1 da fruta para mão de obra
+          const unidadeMedida = frutaPedido.unidadeMedida1;
+
+          if (!unidadeMedida) {
+            console.log(`⚠️ Unidade de medida 1 não encontrada para fruta ${maoObra.frutaId}, pulando...`);
+            continue;
+          }
+
+          if (maoObra.id) {
+            // Atualizar custo existente
+            console.log(`✏️ Atualizando custo ${maoObra.id}...`);
+            await prisma.turmaColheitaPedidoCusto.update({
+              where: { id: maoObra.id },
+              data: {
+                turmaColheitaId: maoObra.turmaColheitaId,
+                quantidadeColhida: maoObra.quantidadeColhida,
+                unidadeMedida: unidadeMedida as any,
+                valorColheita: maoObra.valorColheita || 0,
+                observacoes: maoObra.observacoes || null,
+                dataColheita: maoObra.dataColheita ? new Date(maoObra.dataColheita) : undefined
+              }
+            });
+          } else {
+            // Criar novo custo
+            console.log(`🆕 Criando novo custo de colheita...`);
+            await prisma.turmaColheitaPedidoCusto.create({
+              data: {
+                turmaColheitaId: maoObra.turmaColheitaId,
+                pedidoId: id,
+                frutaId: maoObra.frutaId,
+                quantidadeColhida: maoObra.quantidadeColhida,
+                unidadeMedida: unidadeMedida as any,
+                valorColheita: maoObra.valorColheita || 0,
+                observacoes: maoObra.observacoes || null,
+                dataColheita: maoObra.dataColheita ? new Date(maoObra.dataColheita) : undefined
+              }
+            });
+          }
+        }
+
+        console.log('✅ Mão de obra processada com sucesso!');
       }
 
       // Recalcular valor final se houver alterações financeiras ou nas frutas

@@ -27,11 +27,17 @@ export class MobilePedidoSimplificadoDto {
   @ApiProperty({ description: 'Lista de frutas do pedido', type: 'array' })
   frutas: {
     id: number;
+    frutaId: number; // ID da fruta (para correspondência com mão de obra)
     nome: string;
     quantidadePrevista: number;
     quantidadeReal?: number;
+    quantidadeReal2?: number;
     unidade: string;
+    unidade2?: string;
+    unidadeMedida1: string;
+    unidadeMedida2?: string;
     cultura?: string;
+    culturaId?: number; // ID da cultura (para filtrar áreas)
   }[];
 
   @ApiProperty({ description: 'Indica se o pedido está vencido', example: false })
@@ -39,6 +45,16 @@ export class MobilePedidoSimplificadoDto {
 
   @ApiProperty({ description: 'Dias desde a previsão de colheita', example: 3, required: false })
   diasDesdePrevisao?: number;
+
+  @ApiProperty({ description: 'Mão de obra vinculada ao pedido', required: false, type: 'array' })
+  maoObra?: {
+    id: number;
+    turmaColheitaId: number;
+    frutaId: number;
+    quantidadeColhida: number;
+    valorColheita: number;
+    observacoes?: string;
+  }[];
 }
 
 export class MobilePedidosListResponseDto {
