@@ -230,6 +230,9 @@ const ColheitaTab = ({
 
   // Estados para mão de obra
   const [turmasColheita, setTurmasColheita] = useState([]);
+  
+  // ✅ ADICIONAR: Refs para controlar cálculos automáticos (usando objeto para indexar por item)
+  const editingRefs = React.useRef({});
 
   // ✅ NOVOS ESTADOS: Para validação de inconsistências de quantidades
   const [confirmInconsistenciaOpen, setConfirmInconsistenciaOpen] = useState(false);
@@ -467,6 +470,49 @@ const ColheitaTab = ({
       return item;
     });
     setPedidoAtual(prev => ({ ...prev, maoObra: novaMaoObra }));
+  };
+  
+  // ✅ ADICIONAR: Handlers para cálculos automáticos (evita loops)
+  const handleValorUnitarioChange = (index, novoValorUnitario, quantidadeColhida) => {
+    if (!quantidadeColhida || !novoValorUnitario) return;
+    if (editingRefs.current[`total_${index}`]) return; // Evitar loop
+    
+    editingRefs.current[`unit_${index}`] = true;
+    
+    const qtdStr = String(quantidadeColhida).replace(',', '.');
+    const valUnitStr = String(novoValorUnitario).replace(',', '.');
+    const quantidade = parseFloat(qtdStr) || 0;
+    const valUnit = parseFloat(valUnitStr) || 0;
+    
+    if (quantidade > 0 && valUnit > 0) {
+      const total = quantidade * valUnit;
+      handleMaoObraChange(index, 'valorColheita', total);
+    }
+    
+    setTimeout(() => {
+      editingRefs.current[`unit_${index}`] = false;
+    }, 100);
+  };
+  
+  const handleValorTotalChange = (index, novoValorTotal, quantidadeColhida) => {
+    if (!quantidadeColhida || !novoValorTotal) return;
+    if (editingRefs.current[`unit_${index}`]) return; // Evitar loop
+    
+    editingRefs.current[`total_${index}`] = true;
+    
+    const qtdStr = String(quantidadeColhida).replace(',', '.');
+    const valTotalStr = String(novoValorTotal).replace(',', '.');
+    const quantidade = parseFloat(qtdStr) || 0;
+    const valTotal = parseFloat(valTotalStr) || 0;
+    
+    if (quantidade > 0 && valTotal > 0) {
+      const valUnit = valTotal / quantidade;
+      handleMaoObraChange(index, 'valorUnitario', valUnit);
+    }
+    
+    setTimeout(() => {
+      editingRefs.current[`total_${index}`] = false;
+    }, 100);
   };
 
   // ✅ NOVA FUNÇÃO: Validar mão de obra em tempo real
@@ -1609,13 +1655,9 @@ const ColheitaTab = ({
                     value={item.quantidadeColhida}
                     onChange={(value) => {
                       handleMaoObraChange(index, 'quantidadeColhida', value);
-                      // Recalcular valor total se valor unitário está preenchido
+                      // ✅ Recalcular valor total se valor unitário está preenchido (usando novo handler)
                       if (item.valorUnitario && value) {
-                        const qtd = parseFloat(String(value).replace(',', '.')) || 0;
-                        const valUnit = parseFloat(String(item.valorUnitario).replace(',', '.')) || 0;
-                        if (qtd > 0 && valUnit > 0) {
-                          handleMaoObraChange(index, 'valorColheita', qtd * valUnit);
-                        }
+                        handleValorUnitarioChange(index, item.valorUnitario, value);
                       }
                     }}
                     disabled={!canEditTab("2") || pagamentoEfetuado}
@@ -1637,14 +1679,8 @@ const ColheitaTab = ({
                     value={item.valorUnitario}
                     onChange={(value) => {
                       handleMaoObraChange(index, 'valorUnitario', value);
-                      // Recalcular valor total
-                      if (item.quantidadeColhida && value) {
-                        const qtd = parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0;
-                        const valUnit = parseFloat(String(value).replace(',', '.')) || 0;
-                        if (qtd > 0 && valUnit > 0) {
-                          handleMaoObraChange(index, 'valorColheita', qtd * valUnit);
-                        }
-                      }
+                      // ✅ Usar novo handler para calcular valor total
+                      handleValorUnitarioChange(index, value, item.quantidadeColhida);
                     }}
                     disabled={!canEditTab("2") || pagamentoEfetuado || !item.quantidadeColhida || (parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0) <= 0}
                   />
@@ -1667,14 +1703,8 @@ const ColheitaTab = ({
                     value={item.valorColheita}
                     onChange={(value) => {
                       handleMaoObraChange(index, 'valorColheita', value);
-                      // Recalcular valor unitário (cálculo reverso)
-                      if (item.quantidadeColhida && value) {
-                        const qtd = parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0;
-                        const valTotal = parseFloat(String(value).replace(',', '.')) || 0;
-                        if (qtd > 0 && valTotal > 0) {
-                          handleMaoObraChange(index, 'valorUnitario', valTotal / qtd);
-                        }
-                      }
+                      // ✅ Usar novo handler para calcular valor unitário (cálculo reverso)
+                      handleValorTotalChange(index, value, item.quantidadeColhida);
                     }}
                     disabled={!canEditTab("2") || pagamentoEfetuado || !item.quantidadeColhida || (parseFloat(String(item.quantidadeColhida).replace(',', '.')) || 0) <= 0}
                   />
