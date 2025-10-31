@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ControleBananaService } from '../controle-banana/controle-banana.service';
+import { TurmaColheitaService } from '../turma-colheita/turma-colheita.service';
+import { CreateTurmaColheitaPedidoCustoDto } from '../turma-colheita/dto/create-colheita-pedido.dto';
 import { StatusPedido } from '@prisma/client';
 import { capitalizeName } from '../utils/formatters';
 import {
@@ -19,7 +21,8 @@ import {
 export class PedidosService {
   constructor(
     private prisma: PrismaService,
-    private controleBananaService: ControleBananaService
+    private controleBananaService: ControleBananaService,
+    private turmaColheitaService: TurmaColheitaService
   ) {}
 
   async getDashboardStats(
@@ -1061,6 +1064,23 @@ export class PedidosService {
                   });
                 }
                 break;
+              case 'cultura':
+                if (/^\d+$/.test(value)) {
+                  // Filtrar pedidos que tenham alguma fruta com a cultura especificada
+                  filterConditions.push({
+                    frutasPedidos: {
+                      some: { fruta: { culturaId: parseInt(value) } }
+                    }
+                  });
+                } else {
+                  // Filtrar por descrição da cultura
+                  filterConditions.push({
+                    frutasPedidos: {
+                      some: { fruta: { cultura: { descricao: { contains: value, mode: 'insensitive' } } } }
+                    }
+                  });
+                }
+                break;
               case 'pesagem':
                 filterConditions.push({
                   pesagem: { contains: value, mode: 'insensitive' }
@@ -1843,6 +1863,54 @@ export class PedidosService {
       if (fruta.fitas && fruta.fitas.length > 0) {
         // NOVA LÓGICA: Usar subtração por área específica
         await this.processarFitasComAreas(fruta.fitas, usuarioId);
+      }
+    }
+
+    // ✅ NOVO: Processar mão de obra (se fornecida)
+    if (updateColheitaDto.maoObra && updateColheitaDto.maoObra.length > 0) {
+      // Buscar dados das frutas do pedido para obter unidadeMedida quando não informada
+      const frutasPedido = await this.prisma.frutasPedidos.findMany({
+        where: { pedidoId: id },
+        include: { fruta: true }
+      });
+
+      for (const itemMaoObra of updateColheitaDto.maoObra) {
+        // Buscar unidadeMedida da fruta se não foi informada
+        let unidadeMedida = itemMaoObra.unidadeMedida;
+        if (!unidadeMedida) {
+          const frutaPedido = frutasPedido.find(fp => fp.frutaId === itemMaoObra.frutaId);
+          if (frutaPedido) {
+            // Extrair sigla da unidade (ex: "KG" de "KG - Quilograma")
+            const unidadeCompleta = frutaPedido.unidadeMedida1 || 'KG';
+            const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+            const unidadeEncontrada = unidadesValidas.find(u => unidadeCompleta.includes(u));
+            unidadeMedida = (unidadeEncontrada || 'KG') as 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
+          } else {
+            unidadeMedida = 'KG'; // Default
+          }
+        }
+
+        // Criar DTO para o TurmaColheitaService
+        const custoDto: CreateTurmaColheitaPedidoCustoDto = {
+          turmaColheitaId: itemMaoObra.turmaColheitaId,
+          pedidoId: id,
+          frutaId: itemMaoObra.frutaId,
+          quantidadeColhida: itemMaoObra.quantidadeColhida,
+          unidadeMedida: unidadeMedida,
+          valorColheita: itemMaoObra.valorColheita,
+          dataColheita: itemMaoObra.dataColheita || updateColheitaDto.dataColheita.toISOString(),
+          pagamentoEfetuado: itemMaoObra.pagamentoEfetuado ?? false,
+          observacoes: itemMaoObra.observacoes,
+        };
+
+        // Salvar mão de obra (o service já trata duplicatas fazendo update)
+        try {
+          await this.turmaColheitaService.createCustoColheita(custoDto);
+        } catch (error) {
+          // Log do erro mas não falha a colheita se mão de obra der erro
+          console.error(`Erro ao salvar mão de obra para turma ${itemMaoObra.turmaColheitaId}, fruta ${itemMaoObra.frutaId}:`, error);
+          // Não lançar erro para não quebrar o fluxo de colheita
+        }
       }
     }
 
@@ -4209,6 +4277,39 @@ export class PedidosService {
               codigo: fruta.codigo,
               culturaDescricao: fruta.cultura?.descricao,
               totalPedidos: fruta._count.frutasPedidos
+            }
+          });
+        });
+      }
+
+      // 8b. Buscar por cultura (descrição)
+      if (term.length >= 2) {
+        const culturas = await this.prisma.cultura.findMany({
+          where: {
+            descricao: { contains: term, mode: 'insensitive' }
+          },
+          select: {
+            id: true,
+            descricao: true,
+            _count: {
+              select: { frutas: true }
+            }
+          },
+          take: 3,
+          orderBy: { descricao: 'asc' }
+        });
+
+        culturas.forEach(cultura => {
+          suggestions.push({
+            type: 'cultura',
+            label: 'Cultura',
+            value: cultura.descricao,
+            icon: '🌱',
+            color: '#13c2c2',
+            description: `${cultura.descricao} - ${cultura._count.frutas} frutas cadastradas`,
+            metadata: {
+              id: cultura.id,
+              totalFrutas: cultura._count.frutas
             }
           });
         });

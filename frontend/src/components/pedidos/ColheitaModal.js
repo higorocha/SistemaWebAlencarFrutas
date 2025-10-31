@@ -642,55 +642,6 @@ const ColheitaModal = ({
     success("Sucesso", "Fitas vinculadas com sucesso!");
   };
 
-  // ✅ FUNÇÃO AUXILIAR para salvar mão de obra (reutilizável)
-  const salvarMaoDeObra = async (maoObraItems, values) => {
-    if (!maoObraItems || maoObraItems.length === 0 || !pedido?.id) return;
-    
-    try {
-      if (onLoadingChange) {
-        onLoadingChange(true, "Registrando mão de obra...");
-      }
-
-      const pedidoId = pedido.id;
-
-      // Salvar cada item de mão de obra individualmente
-      for (const item of maoObraItems) {
-        // ✅ Buscar a unidade da fruta selecionada por ESTE item específico
-        const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
-        let unidadeFinal = frutaSelecionada?.unidadeMedida1 || 'KG';
-        
-        // ✅ GARANTIR que a unidade é válida para o enum do backend (extrair sigla)
-        const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
-        const unidadeEncontrada = unidadesValidas.find(u => unidadeFinal.includes(u));
-        unidadeFinal = unidadeEncontrada || 'KG';
-        
-        const custoData = {
-          turmaColheitaId: item.turmaColheitaId,
-          pedidoId: pedidoId,
-          frutaId: item.frutaId,
-          quantidadeColhida: parseFloat(item.quantidadeColhida),
-          unidadeMedida: unidadeFinal,
-          valorColheita: item.valorColheita ? parseFloat(item.valorColheita) : undefined,
-          dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
-          pagamentoEfetuado: false,
-          observacoes: item.observacoes || ''
-        };
-
-        console.log(`📊 Mão de obra - Turma: ${item.turmaColheitaId}, Fruta: ${item.frutaId}, Unidade: ${unidadeFinal}`);
-        console.log('📊 Dados completos enviados:', custoData);
-        await axiosInstance.post('/api/turma-colheita/custo-colheita', custoData);
-      }
-    } catch (error) {
-      console.error('❌ Erro ao salvar mão de obra:', error);
-      console.error('❌ Detalhes completos do erro:', JSON.stringify(error.response?.data, null, 2));
-      console.error('❌ Status do erro:', error.response?.status);
-      console.error('❌ Mensagem do backend:', error.response?.data?.message);
-      console.error('❌ Erros de validação:', error.response?.data?.errors);
-      const mensagemErro = error.response?.data?.message || error.message || "Erro desconhecido";
-      warning("Aviso", `Colheita salva, mas houve erro ao registrar mão de obra: ${mensagemErro}. Verifique na seção de Turmas de Colheita.`);
-    }
-  };
-
   // ✅ FUNÇÃO para processar salvamento após confirmação de inconsistências
   const handleConfirmarInconsistencias = async () => {
     setConfirmInconsistenciaOpen(false);
@@ -788,7 +739,38 @@ const ColheitaModal = ({
         pesagem: values.pesagem ? String(values.pesagem) : values.pesagem,
         placaPrimaria: values.placaPrimaria,
         placaSecundaria: values.placaSecundaria,
-        nomeMotorista: values.nomeMotorista
+        nomeMotorista: values.nomeMotorista,
+        // ✅ NOVO: Mão de obra agora salva junto com colheita (já formatada)
+        maoObra: maoObraValida.length > 0 ? maoObraValida.map(item => {
+          // Buscar unidadeMedida da fruta se não estiver formatado
+          let unidadeMedida = item.unidadeMedida;
+          if (!unidadeMedida || !['KG', 'TON', 'CX', 'UND', 'ML', 'LT'].includes(unidadeMedida)) {
+            const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
+            let unidadeCompleta = frutaSelecionada?.unidadeMedida1 || 'KG';
+            const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+            const unidadeEncontrada = unidadesValidas.find(u => unidadeCompleta.includes(u));
+            unidadeMedida = unidadeEncontrada || 'KG';
+          }
+
+          // Garantir que valores sejam números
+          const quantidadeColhida = typeof item.quantidadeColhida === 'string' 
+            ? parseFloat(item.quantidadeColhida) 
+            : Number(item.quantidadeColhida) || 0;
+          const valorColheita = typeof item.valorColheita === 'string'
+            ? parseFloat(item.valorColheita)
+            : Number(item.valorColheita) || 0;
+
+          return {
+            turmaColheitaId: Number(item.turmaColheitaId),
+            frutaId: Number(item.frutaId),
+            quantidadeColhida: quantidadeColhida,
+            unidadeMedida: unidadeMedida,
+            valorColheita: valorColheita,
+            dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
+            pagamentoEfetuado: false,
+            observacoes: item.observacoes || undefined,
+          };
+        }) : undefined
       };
 
       // Fechar modal e iniciar loading
@@ -799,13 +781,10 @@ const ColheitaModal = ({
         onLoadingChange(true, "Registrando colheita...");
       }
 
-      // 1️⃣ Salvar colheita
+      // ✅ AGORA: Salvar colheita e mão de obra juntos em uma única chamada
       await onSave(formData);
 
-      // 2️⃣ Salvar mão de obra usando função auxiliar
-      await salvarMaoDeObra(maoObraValida, values);
-
-      // 3️⃣ Chamar callback para finalizar (recarregar lista, etc)
+      // Chamar callback para finalizar (recarregar lista, etc)
       if (onSaveComplete) {
         await onSaveComplete();
       }
@@ -1015,6 +994,38 @@ const ColheitaModal = ({
         return quantidadeReal && quantidadeReal > 0;
       });
 
+      // ✅ FORMATAR: Mão de obra com valores corretos (números e unidadeMedida válida)
+      const maoObraFormatada = maoObraValida.map(item => {
+        // Buscar unidadeMedida da fruta se não estiver formatado
+        let unidadeMedida = item.unidadeMedida;
+        if (!unidadeMedida || !['KG', 'TON', 'CX', 'UND', 'ML', 'LT'].includes(unidadeMedida)) {
+          const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
+          let unidadeCompleta = frutaSelecionada?.unidadeMedida1 || 'KG';
+          const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+          const unidadeEncontrada = unidadesValidas.find(u => unidadeCompleta.includes(u));
+          unidadeMedida = unidadeEncontrada || 'KG';
+        }
+
+        // Garantir que valores sejam números
+        const quantidadeColhida = typeof item.quantidadeColhida === 'string' 
+          ? parseFloat(item.quantidadeColhida) 
+          : Number(item.quantidadeColhida) || 0;
+        const valorColheita = typeof item.valorColheita === 'string'
+          ? parseFloat(item.valorColheita)
+          : Number(item.valorColheita) || 0;
+
+        return {
+          turmaColheitaId: Number(item.turmaColheitaId),
+          frutaId: Number(item.frutaId),
+          quantidadeColhida: quantidadeColhida,
+          unidadeMedida: unidadeMedida,
+          valorColheita: valorColheita,
+          dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
+          pagamentoEfetuado: false,
+          observacoes: item.observacoes || undefined,
+        };
+      });
+
       const formData = {
         dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
         observacoesColheita: values.observacoesColheita,
@@ -1050,7 +1061,9 @@ const ColheitaModal = ({
         pesagem: values.pesagem ? String(values.pesagem) : values.pesagem, // Converte para string conforme schema
         placaPrimaria: values.placaPrimaria,
         placaSecundaria: values.placaSecundaria,
-        nomeMotorista: values.nomeMotorista
+        nomeMotorista: values.nomeMotorista,
+        // ✅ NOVO: Mão de obra agora salva junto com colheita (já formatada)
+        maoObra: maoObraFormatada.length > 0 ? maoObraFormatada : undefined
       };
 
       // PADRÃO "FECHAR-ENTÃO-LOADING": Fechar modal ANTES de iniciar loading
@@ -1062,13 +1075,10 @@ const ColheitaModal = ({
         onLoadingChange(true, "Registrando colheita...");
       }
 
-      // 1️⃣ Primeiro: Salvar a colheita
+      // ✅ AGORA: Salvar colheita e mão de obra juntos em uma única chamada
       await onSave(formData);
 
-      // 2️⃣ Segundo: Salvar mão de obra usando função auxiliar
-      await salvarMaoDeObra(maoObraValida, values);
-
-      // 3️⃣ Terceiro: Chamar callback para finalizar (recarregar lista, etc)
+      // Chamar callback para finalizar (recarregar lista, etc)
       if (onSaveComplete) {
         await onSaveComplete();
       }

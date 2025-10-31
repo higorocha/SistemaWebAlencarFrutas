@@ -11,6 +11,8 @@ import {
   ParseIntPipe,
   HttpStatus,
   ForbiddenException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -240,11 +242,17 @@ export class PedidosMobileController {
   /**
    * Registrar colheita de um pedido
    * Converte DTO mobile para DTO do service existente
+   * Permite propriedades extras (como areaNome, maoObra) que são ignoradas na conversão
    */
   @Patch(':id/colheita')
+  @UsePipes(new ValidationPipe({ 
+    whitelist: true, 
+    forbidNonWhitelisted: false, // Permitir propriedades extras (serão ignoradas no converter)
+    transform: true 
+  }))
   @ApiOperation({
     summary: 'Registrar colheita pelo mobile',
-    description: 'Registra colheita de frutas sem sistema de fitas (MVP)',
+    description: 'Registra colheita de frutas com áreas, fitas e campos de frete',
   })
   @ApiParam({ name: 'id', description: 'ID do pedido', type: Number })
   @ApiResponse({
@@ -397,6 +405,39 @@ export class PedidosMobileController {
           unidadeMedida2: fp.unidadeMedida2 || undefined,
           cultura: fp.fruta?.cultura?.descricao,
           culturaId: fp.fruta?.cultura?.id, // ID da cultura (para filtrar áreas)
+          // Enriquecer com áreas vinculadas
+          areas: Array.isArray(fp.areas)
+            ? fp.areas
+                .map((a: any) => ({
+                  id: a.id,
+                  areaPropriaId: a.areaPropriaId ?? undefined,
+                  areaFornecedorId: a.areaFornecedorId ?? undefined,
+                  areaNome: a.areaPropria?.nome || a.areaFornecedor?.nome,
+                  observacoes: a.observacoes ?? undefined,
+                  quantidadeColhidaUnidade1: a.quantidadeColhidaUnidade1 ?? undefined,
+                  quantidadeColhidaUnidade2: a.quantidadeColhidaUnidade2 ?? undefined,
+                }))
+                .filter((a: any) => a.areaPropriaId || a.areaFornecedorId)
+            : undefined,
+          // Enriquecer com fitas vinculadas (banana)
+          fitas: Array.isArray(fp.fitas)
+            ? fp.fitas.map((f: any) => ({
+                id: f.id,
+                fitaBananaId: f.fitaBananaId,
+                fitaNome: f.fitaBanana?.nome,
+                corHex: f.fitaBanana?.corHex,
+                quantidadeFita: f.quantidadeFita ?? undefined,
+                observacoes: f.observacoes ?? undefined,
+                detalhesAreas: [
+                  {
+                    areaId: f.controleBanana?.areaAgricola?.id,
+                    areaNome: f.controleBanana?.areaAgricola?.nome,
+                    controleBananaId: f.controleBananaId,
+                    quantidade: f.quantidadeFita ?? undefined,
+                  },
+                ],
+              }))
+            : undefined,
         })) || [],
       vencido:
         dataPrevisao && diasDesdePrevisao
@@ -436,6 +477,8 @@ export class PedidosMobileController {
       placaPrimaria: dto.placaPrimaria,
       placaSecundaria: dto.placaSecundaria,
       nomeMotorista: dto.nomeMotorista,
+      // Mão de obra (agora processada junto com colheita)
+      maoObra: dto.maoObra as any, // Cast necessário pois unidadeMedida é opcional no mobile mas obrigatória no DTO (backend trata quando ausente)
     };
   }
 

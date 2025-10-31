@@ -38,6 +38,26 @@ export class MobilePedidoSimplificadoDto {
     unidadeMedida2?: string;
     cultura?: string;
     culturaId?: number; // ID da cultura (para filtrar áreas)
+    areas?: Array<{
+      id?: number;
+      areaPropriaId?: number;
+      areaFornecedorId?: number;
+      areaNome?: string;
+      observacoes?: string;
+      quantidadeColhidaUnidade1?: number;
+      quantidadeColhidaUnidade2?: number;
+    }>;
+    fitas?: Array<{
+      id?: number;
+      fitaBananaId: number;
+      quantidadeFita?: number;
+      observacoes?: string;
+      detalhesAreas?: Array<{
+        areaId?: number;
+        controleBananaId?: number;
+        quantidade?: number;
+      }>;
+    }>;
   }[];
 
   @ApiProperty({ description: 'Indica se o pedido está vencido', example: false })

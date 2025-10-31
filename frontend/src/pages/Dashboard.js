@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Card, Row, Col, Typography, Statistic, Space, Badge, Button, Progress, List, Avatar, Tag, message } from "antd";
+import { Card, Row, Col, Typography, Statistic, Space, Badge, Button, Progress, List, Avatar, Tag, message, Tooltip as AntdTooltip } from "antd";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -39,6 +39,7 @@ import {
 } from 'recharts';
 import axiosInstance from "../api/axiosConfig";
 import { useTheme } from '@mui/material/styles';
+import usePedidoStatusColors from "../hooks/usePedidoStatusColors";
 import  CentralizedLoader  from "../components/common/loaders/CentralizedLoader";
 import PagamentosPendentesModal from "../components/dashboard/PagamentosPendentesModal";
 import PagamentosEfetuadosModal from "../components/dashboard/PagamentosEfetuadosModal";
@@ -231,6 +232,12 @@ const Dashboard = () => {
     }
   });
   const theme = useTheme();
+  const { getStatusConfig } = usePedidoStatusColors();
+  const colorColheita = getStatusConfig('AGUARDANDO_COLHEITA')?.color || theme.palette.warning.main;
+  const colorPrecificacao = getStatusConfig('AGUARDANDO_PRECIFICACAO')?.color || theme.palette.secondary.main;
+  const colorPagamento = getStatusConfig('AGUARDANDO_PAGAMENTO')?.color || theme.palette.warning.dark;
+
+  // Placeholder para futuros estilos locais
 
   // Funções de navegação para os cards
   const handleNavigateToClientes = () => {
@@ -269,6 +276,11 @@ const Dashboard = () => {
         areasProdutivasHa: backendData.areasProdutivasHa || 0,
         frutasCadastradas: backendData.frutasCadastradas || 0,
         pedidosAtivos: backendData.pedidosAtivos || 0,
+        pedidosNaoFinalizadosResumo: backendData.pedidosNaoFinalizadosResumo || {
+          aguardandoColheita: 0,
+          aguardandoPrecificacao: 0,
+          aguardandoPagamento: 0
+        },
         receitaMensal: backendData.receitaMensal || [],
         programacaoColheita: backendData.programacaoColheita || [],
         pagamentosPendentes: backendData.pagamentosPendentes || [],
@@ -686,15 +698,17 @@ const Dashboard = () => {
               alignItems: 'center',
               justifyContent: 'center',
               padding: '8px',
-              minHeight: '100px'
+              minHeight: '100px',
+              width: '100%'
             }}>
               <ShoppingCartOutlined style={{ fontSize: '28px', color: '#722ed1', marginBottom: '8px' }} />
               <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#722ed1', lineHeight: 1.2, marginBottom: '6px' }}>
                 {dashboardData.pedidosAtivos}
               </div>
-              <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
+              <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400', marginBottom: '6px' }}>
                 Pedidos Ativos
               </div>
+              {/* Apenas desktop exibirá detalhamento; oculto no mobile */}
             </div>
           </CardStyled>
 
@@ -821,26 +835,96 @@ const Dashboard = () => {
               style={{ cursor: 'pointer' }}
               onClick={handleNavigateToPedidos}
             >
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Statistic
-                  title="Pedidos Ativos"
-                  value={dashboardData.pedidosAtivos}
-                  prefix={<ShoppingCartOutlined style={{ color: '#722ed1' }} />}
-                  valueStyle={{
-                    color: '#722ed1',
-                    fontSize: '1.25rem',
-                    fontWeight: 'bold'
-                  }}
-                />
-                <Badge
-                  count={`${dashboardData.totalPedidos} total`}
-                  style={{
-                    backgroundColor: '#f0f0f0',
-                    color: '#666',
-                    fontSize: '0.625rem'
-                  }}
-                />
-              </Space>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%' }}>
+                <div style={{ flex: 1, paddingRight: 8 }}>
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <Statistic
+                      title="Pedidos Ativos"
+                      value={dashboardData.pedidosAtivos}
+                      prefix={<ShoppingCartOutlined style={{ color: '#722ed1' }} />}
+                      valueStyle={{
+                        color: '#722ed1',
+                        fontSize: '1.25rem',
+                        fontWeight: 'bold'
+                      }}
+                    />
+                    <Badge
+                      count={`${dashboardData.totalPedidos} total`}
+                      style={{
+                        backgroundColor: '#f0f0f0',
+                        color: '#666',
+                        fontSize: '0.625rem'
+                      }}
+                    />
+                  </Space>
+                </div>
+                {dashboardData.pedidosNaoFinalizadosResumo && (() => {
+                  const colh = dashboardData.pedidosNaoFinalizadosResumo.aguardandoColheita || 0;
+                  const prec = dashboardData.pedidosNaoFinalizadosResumo.aguardandoPrecificacao || 0;
+                  const pag = dashboardData.pedidosNaoFinalizadosResumo.aguardandoPagamento || 0;
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                      <AntdTooltip title={`Colheita • ${colh}`}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          backgroundColor: colorColheita,
+                          color: '#fff',
+                          borderRadius: 999,
+                          padding: '2px 8px',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          boxShadow: '0 0 0 1px rgba(0,0,0,0.05)',
+                          width: 122
+                        }}>
+                          <span>Colheita:</span>
+                          <span style={{ fontWeight: 800 }}>{colh}</span>
+                        </span>
+                      </AntdTooltip>
+                      <AntdTooltip title={`Precificação • ${prec}`}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          backgroundColor: colorPrecificacao,
+                          color: '#fff',
+                          borderRadius: 999,
+                          padding: '2px 8px',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          boxShadow: '0 0 0 1px rgba(0,0,0,0.05)',
+                          width: 122
+                        }}>
+                          <span>Precificação:</span>
+                          <span style={{ fontWeight: 800 }}>{prec}</span>
+                        </span>
+                      </AntdTooltip>
+                      <AntdTooltip title={`Pagamento • ${pag}`}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          backgroundColor: colorPagamento,
+                          color: '#fff',
+                          borderRadius: 999,
+                          padding: '2px 8px',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          boxShadow: '0 0 0 1px rgba(0,0,0,0.05)',
+                          width: 122
+                        }}>
+                          <span>Pagamento:</span>
+                          <span style={{ fontWeight: 800 }}>{pag}</span>
+                        </span>
+                      </AntdTooltip>
+                    </div>
+                  );
+                })()}
+              </div>
             </CardStyled>
           </Col>
 

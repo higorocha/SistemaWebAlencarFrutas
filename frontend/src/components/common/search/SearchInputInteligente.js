@@ -7,6 +7,8 @@ import styled from 'styled-components';
 import { debounce } from 'lodash';
 import axiosInstance from '../../../api/axiosConfig';
 import { PixIcon, BoletoIcon, TransferenciaIcon } from '../../Icons/PaymentIcons';
+import { getFruitIcon } from '../../../utils/fruitIcons';
+import { capitalizeName } from '../../../utils/formatters';
 
 // Container principal
 const SearchContainer = styled.div`
@@ -183,6 +185,14 @@ const SearchInputInteligente = ({
     }
 
     // Retornar ícone original se não for vale ou não tiver método reconhecido
+    // Mapear ícones de frutas/culturas usando fruitIcons
+    if (suggestion.type === 'fruta') {
+      return getFruitIcon(suggestion.value, { width: 16, height: 16 });
+    }
+    if (suggestion.type === 'cultura') {
+      return getFruitIcon(suggestion.value, { width: 16, height: 16 });
+    }
+
     return suggestion.icon;
   };
 
@@ -528,7 +538,11 @@ const SearchInputInteligente = ({
                 </TypeIcon>
                 <TypeText>{suggestion.label}</TypeText>
               </SuggestionHeader>
-              <SuggestionText>{suggestion.value}</SuggestionText>
+            <SuggestionText>{
+              ['cliente', 'fruta', 'cultura', 'area', 'motorista', 'fornecedor'].includes(suggestion.type)
+                ? capitalizeName(suggestion.value)
+                : suggestion.value
+            }</SuggestionText>
               <SuggestionSubtext>{processDescription(suggestion)}</SuggestionSubtext>
             </SuggestionItem>
           ))

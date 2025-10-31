@@ -220,6 +220,20 @@ export class DashboardResponseDto {
   @ApiProperty({ example: 18, description: 'Pedidos ativos (não finalizados)' })
   pedidosAtivos: number;
 
+  @ApiProperty({
+    example: {
+      aguardandoColheita: 7,
+      aguardandoPrecificacao: 5,
+      aguardandoPagamento: 6
+    },
+    description: 'Resumo de pedidos não finalizados agrupados por fase operacional'
+  })
+  pedidosNaoFinalizadosResumo: {
+    aguardandoColheita: number;
+    aguardandoPrecificacao: number;
+    aguardandoPagamento: number;
+  };
+
   // Dados para gráficos
   @ApiProperty({ type: [ReceitaMensalDto], description: 'Receita mensal dos últimos 6 meses' })
   receitaMensal: ReceitaMensalDto[];

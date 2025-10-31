@@ -43,6 +43,15 @@ class MobileColheitaAreaDto {
   @IsNumber()
   @Min(0)
   quantidadeColhidaUnidade2?: number;
+
+  // Campos extras do frontend (ignorados na conversão, mas aceitos para compatibilidade)
+  @ApiProperty({ description: 'Nome da área (apenas visualização, não processado)', required: false })
+  @IsOptional()
+  @IsString()
+  areaNome?: string;
+  
+  // Permitir qualquer outro campo extra (usado pelo frontend mas não processado)
+  [key: string]: any;
 }
 
 class MobileColheitaFitaDto {
@@ -158,4 +167,23 @@ export class MobileColheitaDto {
   @IsOptional()
   @IsString()
   nomeMotorista?: string;
+
+  // Mão de obra - agora processada junto com a colheita
+  @ApiProperty({ 
+    description: 'Mão de obra (custos de colheita)',
+    type: 'array',
+    required: false 
+  })
+  @IsOptional()
+  @IsArray()
+  maoObra?: Array<{
+    turmaColheitaId: number;
+    frutaId: number;
+    quantidadeColhida: number;
+    unidadeMedida?: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
+    valorColheita?: number;
+    dataColheita?: string;
+    pagamentoEfetuado?: boolean;
+    observacoes?: string;
+  }>;
 }

@@ -236,6 +236,7 @@ const ColheitaTab = ({
 
   // Estados para mão de obra
   const [turmasColheita, setTurmasColheita] = useState([]);
+  const [loadingTurmas, setLoadingTurmas] = useState(true); // ✅ NOVO: Estado de loading para turmas
   
   // ✅ ADICIONAR: Refs para controlar cálculos automáticos (usando objeto para indexar por item)
   const editingRefs = React.useRef({});
@@ -354,12 +355,16 @@ const ColheitaTab = ({
         const responseFitasComAreas = await axiosInstance.get("/controle-banana/fitas-com-areas");
         setFitasComAreasDisponiveis(responseFitasComAreas.data || []);
 
-        // Buscar turmas de colheita
+        // ✅ Buscar turmas de colheita com loading
+        setLoadingTurmas(true);
         const responseTurmas = await axiosInstance.get("/api/turma-colheita");
         setTurmasColheita(responseTurmas.data || []);
       } catch (error) {
         console.error("Erro ao buscar dados:", error);
         showNotification("error", "Erro", "Erro ao carregar dados necessários");
+      } finally {
+        // ✅ Garantir que o loading seja desabilitado mesmo em caso de erro
+        setLoadingTurmas(false);
       }
     };
 
@@ -1549,6 +1554,7 @@ const ColheitaTab = ({
                 form={form}
                 isMobile={isMobile}
                 turmasColheita={turmasColheita}
+                loadingTurmas={loadingTurmas} // ✅ NOVO: Passar estado de loading
                 pedido={{ frutasPedidos: pedidoAtual.frutas }}
                 fieldsLength={fields.length}
                 onRemove={(name) => remove(name)}

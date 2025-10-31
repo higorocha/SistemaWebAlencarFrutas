@@ -1,6 +1,53 @@
-import { IsString, IsOptional, IsNumber, IsDateString, IsPositive, Min, IsArray, ValidateNested, IsNotEmpty, Validate } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsDateString, IsPositive, Min, IsArray, ValidateNested, IsNotEmpty, Validate, IsEnum, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+
+// DTO para mão de obra (custo de colheita)
+export class UpdateColheitaMaoObraDto {
+  @ApiProperty({ description: 'ID da turma de colheita', example: 1 })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  turmaColheitaId: number;
+
+  @ApiProperty({ description: 'ID da fruta', example: 1 })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  frutaId: number;
+
+  @ApiProperty({ description: 'Quantidade colhida', example: 500.5 })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  quantidadeColhida: number;
+
+  @ApiProperty({ description: 'Unidade de medida', enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'], example: 'KG' })
+  @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'])
+  unidadeMedida: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
+
+  @ApiPropertyOptional({ description: 'Valor pago pela colheita', example: 2500.0 })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  valorColheita?: number;
+
+  @ApiPropertyOptional({ description: 'Data da colheita específica', example: '2024-12-15T08:00:00Z' })
+  @IsOptional()
+  @IsDateString()
+  dataColheita?: string;
+
+  @ApiPropertyOptional({ description: 'Se o pagamento foi efetuado', example: false })
+  @IsOptional()
+  @IsBoolean()
+  pagamentoEfetuado?: boolean;
+
+  @ApiPropertyOptional({ description: 'Observações específicas da colheita' })
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+}
 
 // DTO para área da fruta na colheita
 export class UpdateColheitaAreaDto {
@@ -265,4 +312,16 @@ export class UpdateColheitaDto {
   @IsOptional()
   @IsString({ message: 'Nome do motorista deve ser uma string' })
   nomeMotorista?: string;
+
+  // Mão de obra - array de itens de custo de colheita
+  @ApiPropertyOptional({ 
+    description: 'Mão de obra (custos de colheita)',
+    type: [UpdateColheitaMaoObraDto],
+    required: false
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateColheitaMaoObraDto)
+  maoObra?: UpdateColheitaMaoObraDto[];
 }

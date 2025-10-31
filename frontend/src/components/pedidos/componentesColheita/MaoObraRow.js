@@ -21,6 +21,7 @@ const MaoObraRow = ({
   form,
   isMobile,
   turmasColheita,
+  loadingTurmas = false, // ✅ NOVO: Prop de loading para turmas
   pedido,
   fieldsLength,
   onRemove,
@@ -202,6 +203,8 @@ const MaoObraRow = ({
                 }
                 return false;
               }}
+              loading={loadingTurmas && turmasColheita.length === 0} // ✅ NOVO: Mostrar loading apenas se não houver dados ainda
+              notFoundContent={loadingTurmas && turmasColheita.length === 0 ? "Carregando..." : "Nenhuma turma encontrada"} // ✅ NOVO: Mensagem enquanto carrega
               style={{
                 borderRadius: "6px",
                 borderColor: "#d9d9d9",

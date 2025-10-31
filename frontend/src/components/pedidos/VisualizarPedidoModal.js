@@ -41,6 +41,7 @@ import { showNotification } from "../../config/notificationConfig";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
+import { getFruitIcon } from "../../utils/fruitIcons";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -527,7 +528,9 @@ const VisualizarPedidoModal = ({
                   marginBottom: "12px"
                 }}>
                   <Text strong style={{ color: "#059669", fontSize: "16px", display: "block", marginBottom: "12px" }}>
-                    <AppleOutlined style={{ marginRight: 8 }} />
+                    <span style={{ marginRight: 8, display: "inline-flex", alignItems: "center" }}>
+                      {getFruitIcon(frutaPedido.fruta?.nome, { width: 20, height: 20 })}
+                    </span>
                     {capitalizeName(frutaPedido.fruta?.nome)}
                   </Text>
                   
@@ -550,7 +553,7 @@ const VisualizarPedidoModal = ({
                                 {area.areaPropria ? (
                                   <span>
                                     <EnvironmentOutlined style={{ marginRight: 4 }} />
-                                    {area.areaPropria.nome}
+                                    {capitalizeName(area.areaPropria.nome)}
                                     {(() => {
                                       const qtd = area.quantidadeColhidaUnidade1 || 0;
                                       return qtd > 0 && (
@@ -563,7 +566,7 @@ const VisualizarPedidoModal = ({
                                 ) : area.areaFornecedor ? (
                                   <span>
                                     <UserOutlined style={{ marginRight: 4 }} />
-                                    {area.areaFornecedor.fornecedor?.nome} • {area.areaFornecedor.nome}
+                                    {capitalizeName(area.areaFornecedor.fornecedor?.nome)} • {capitalizeName(area.areaFornecedor.nome)}
                                     {(() => {
                                       const qtd = area.quantidadeColhidaUnidade1 || 0;
                                       return qtd > 0 && (
@@ -919,7 +922,9 @@ const VisualizarPedidoModal = ({
                   {/* Fruta */}
                   <Col xs={24} sm={12} md={5}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <AppleOutlined style={{ fontSize: "18px", color: "#10b981" }} />
+                      <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                        {getFruitIcon(custo.fruta?.nome, { width: 18, height: 18 })}
+                      </span>
                       <div>
                         <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>
                           FRUTA

@@ -18,6 +18,7 @@ export class DashboardService {
       areasProdutivasHa,
       frutasCadastradas,
       pedidosAtivos,
+      pedidosNaoFinalizadosResumo,
       receitaMensal,
       programacaoColheita,
       previsoesBanana,
@@ -31,6 +32,7 @@ export class DashboardService {
       this.getAreasProdutivasHa(),
       this.getFrutasCadastradas(),
       this.getPedidosAtivos(),
+      this.getPedidosNaoFinalizadosResumo(),
       this.getReceitaMensal(),
       this.getProgramacaoColheita(),
       this.getPrevisoesBanana(),
@@ -46,6 +48,7 @@ export class DashboardService {
       areasProdutivasHa,
       frutasCadastradas,
       pedidosAtivos,
+      pedidosNaoFinalizadosResumo,
       receitaMensal,
       programacaoColheita,
       previsoesBanana,
@@ -145,6 +148,20 @@ export class DashboardService {
         },
       },
     });
+  }
+
+  private async getPedidosNaoFinalizadosResumo(): Promise<{ aguardandoColheita: number; aguardandoPrecificacao: number; aguardandoPagamento: number; }> {
+    // Grupos operacionais solicitados
+    // aguardandoColheita: PEDIDO_CRIADO, AGUARDANDO_COLHEITA, COLHEITA_PARCIAL
+    // aguardandoPrecificacao: COLHEITA_REALIZADA, AGUARDANDO_PRECIFICACAO
+    // aguardandoPagamento: PRECIFICACAO_REALIZADA, AGUARDANDO_PAGAMENTO, PAGAMENTO_PARCIAL
+    const [aguardandoColheita, aguardandoPrecificacao, aguardandoPagamento] = await Promise.all([
+      this.prisma.pedido.count({ where: { status: { in: ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL'] } } }),
+      this.prisma.pedido.count({ where: { status: { in: ['COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO'] } } }),
+      this.prisma.pedido.count({ where: { status: { in: ['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL'] } } }),
+    ]);
+
+    return { aguardandoColheita, aguardandoPrecificacao, aguardandoPagamento };
   }
 
   private async getReceitaMensal(): Promise<ReceitaMensalDto[]> {
