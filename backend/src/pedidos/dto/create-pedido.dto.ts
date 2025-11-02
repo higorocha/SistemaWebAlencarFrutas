@@ -262,4 +262,20 @@ export class CreatePedidoDto {
   @IsNumber()
   @IsPositive()
   indNumeroNf?: number;
+
+  @ApiPropertyOptional({
+    description: 'Placa primária do veículo (opcional)',
+    example: 'ABC-1234',
+  })
+  @IsOptional()
+  @IsString()
+  placaPrimaria?: string;
+
+  @ApiPropertyOptional({
+    description: 'Placa secundária do veículo (opcional)',
+    example: 'XYZ-5678',
+  })
+  @IsOptional()
+  @IsString()
+  placaSecundaria?: string;
 }

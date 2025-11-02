@@ -936,6 +936,10 @@ const Pedidos = () => {
                 <ShoppingOutlined style={{ marginRight: 8, color: '#fa8c16' }} />
                 Aguardando Colheita
               </Option>
+              <Option value="COLHEITA_PARCIAL">
+                <CheckCircleOutlined style={{ marginRight: 8, color: '#faad14' }} />
+                Colheita Parcial
+              </Option>
               <Option value="COLHEITA_REALIZADA">
                 <CheckCircleOutlined style={{ marginRight: 8, color: '#52c41a' }} />
                 Colheita Realizada

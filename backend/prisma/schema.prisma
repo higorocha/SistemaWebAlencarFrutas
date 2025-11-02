@@ -24,6 +24,7 @@ model Usuario {
   historicosFitas HistoricoFitas[]
   notificacoes    Notificacao[]
   cultura         Cultura?         @relation(fields: [culturaId], references: [id])
+  historicoPedidos HistoricoPedido[]
 
   @@map("usuarios")
 }
@@ -242,7 +243,8 @@ model Cliente {
   updatedAt          DateTime      @updatedAt
   industria          Boolean?      @default(false)
   pedidos            Pedido[]
-
+  lancamentosExtrato LancamentoExtrato[]
+  
   @@map("clientes")
 }
 
@@ -308,6 +310,8 @@ model Pedido {
   pagamentosPedidos    PagamentosPedidos[]
   cliente              Cliente                    @relation(fields: [clienteId], references: [id])
   custosColheita       TurmaColheitaPedidoCusto[]
+  lancamentosExtrato   LancamentoExtrato[]
+  historico            HistoricoPedido[]
 
   @@map("pedidos")
 }
@@ -351,6 +355,82 @@ model PagamentosPedidos {
   pedido               Pedido          @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   @@map("pagamentos_pedidos")
+}
+
+model LancamentoExtrato {
+  id                          BigInt               @id @default(autoincrement())
+  
+  // Campos originais da API BB (mantidos para integridade e auditoria)
+  indicadorTipoLancamento    String?              @db.VarChar(10)
+  dataLancamentoRaw          BigInt?              // Data no formato original (DDMMYYYY como número, ex: 1102025)
+  dataMovimento              BigInt?              @default(0)
+  codigoAgenciaOrigem        BigInt?              @default(0)
+  numeroLote                 BigInt?
+  numeroDocumento            String?               @db.VarChar(50) // String para suportar números grandes
+  codigoHistorico            Int?
+  textoDescricaoHistorico    String?              @db.VarChar(200)
+  valorLancamentoRaw         Decimal?             @db.Decimal(15, 2) // Valor original com sinal
+  indicadorSinalLancamento   String?              @db.VarChar(1) // "C" = Crédito, "D" = Débito
+  textoInformacaoComplementar String?             @db.Text
+  numeroCpfCnpjContrapartida String?             @db.VarChar(18) // String para suportar CPF/CNPJ
+  indicadorTipoPessoaContrapartida String?        @db.VarChar(1) // "J" = Jurídica, "F" = Física, "" = vazio
+  codigoBancoContrapartida   BigInt?             @default(0)
+  codigoAgenciaContrapartida BigInt?             @default(0)
+  numeroContaContrapartida   String?              @db.VarChar(30)
+  textoDvContaContrapartida  String?             @db.VarChar(5)
+  
+  // Campos processados para facilitar consultas e filtros
+  dataLancamento             DateTime             // Data convertida do dataLancamentoRaw (DDMMYYYY → DateTime)
+  valorLancamento            Decimal              @db.Decimal(15, 2) // Valor sempre positivo (sinal separado)
+  tipoOperacao               TipoOperacaoExtrato // "CREDITO" ou "DEBITO" baseado no indicadorSinalLancamento
+  categoriaOperacao          String?              @db.VarChar(50) // "PIX_RECEBIDO", "PIX_ENVIADO", "TRANSFERENCIA", etc (extraído de textoDescricaoHistorico)
+  
+  // Campos extraídos do textoInformacaoComplementar para facilitar buscas e filtros
+  horarioLancamento          String?              @db.VarChar(10) // Extraído do textoInformacaoComplementar (ex: "11:56")
+  nomeContrapartida          String?              @db.VarChar(200) // Nome extraído do textoInformacaoComplementar (ex: "AGC NORDEST")
+  
+  // Relacionamento com Cliente (OBRIGATÓRIO - só salvamos lançamentos de clientes do sistema)
+  clienteId                  Int
+  cliente                    Cliente              @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com Pedido (opcional - quando for detectada correspondência automática ou vinculação manual)
+  pedidoId                   Int?
+  pedido                     Pedido?              @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
+  
+  // Referência à ContaCorrente (apenas para referência - qual conta foi usada na busca da API)
+  contaCorrenteId            Int?                 // ID da conta que foi usada para buscar na API
+  agenciaConta               String?              @db.VarChar(10) // Salvo para referência futura
+  numeroConta                String?              @db.VarChar(20) // Salvo para referência futura
+  
+  // Campos de controle e processamento
+  processado                 Boolean              @default(false) // Se já foi processado pelo sistema
+  vinculadoPedido            Boolean              @default(false) // Se foi vinculado a um pedido (automático ou manual)
+  vinculadoPagamento         Boolean              @default(false) // Se foi criado um registro em PagamentosPedidos
+  vinculacaoAutomatica       Boolean              @default(false) // Se a vinculação foi automática (true) ou manual (false)
+  valorComparacao            Decimal?             @db.Decimal(15, 2) // Valor usado na comparação com pedido (pode ter pequenas diferenças)
+  observacoesProcessamento   String?             @db.Text // Observações sobre o processamento/vinculação
+  
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+
+  // Índices para performance nas consultas e filtros
+  @@index([dataLancamento])
+  @@index([tipoOperacao])
+  @@index([categoriaOperacao])
+  @@index([numeroCpfCnpjContrapartida])
+  @@index([clienteId])
+  @@index([pedidoId])
+  @@index([processado])
+  @@index([vinculadoPedido])
+  @@index([dataLancamento, tipoOperacao])
+  @@index([dataLancamento, clienteId])
+  @@index([dataLancamento, categoriaOperacao])
+  @@index([clienteId, processado])
+  @@index([clienteId, vinculadoPedido])
+  
+  // Unique constraint para evitar duplicatas ao importar
+  @@unique([numeroDocumento, dataLancamentoRaw, numeroLote])
+  @@map("lancamentos_extrato")
 }
 
 model FrutasPedidosAreas {
@@ -559,4 +639,30 @@ enum MetodoPagamento {
   TRANSFERENCIA
   DINHEIRO
   CHEQUE
+}
+
+enum TipoOperacaoExtrato {
+  CREDITO  // Pagamentos recebidos
+  DEBITO   // Pagamentos enviados
+}
+
+model HistoricoPedido {
+  id             Int           @id @default(autoincrement())
+  pedidoId       Int           @map("pedido_id")
+  usuarioId      Int           @map("usuario_id")
+  acao           String        @db.VarChar(255)
+  statusAnterior StatusPedido? @map("status_anterior")
+  statusNovo     StatusPedido? @map("status_novo")
+  detalhes       Json?
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  pedido  Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  // Índices para otimização de consultas
+  @@index([pedidoId, createdAt]) // Buscar histórico por pedido ordenado por data
+  @@index([usuarioId]) // Buscar ações por usuário
+  @@index([acao]) // Filtrar por tipo de ação
+  @@index([createdAt]) // Ordenação temporal
+  @@map("historico_pedidos")
 }

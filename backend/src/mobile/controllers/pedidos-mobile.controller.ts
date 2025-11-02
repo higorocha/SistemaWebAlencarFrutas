@@ -488,14 +488,20 @@ export class PedidosMobileController {
   private converterAreas(fruta: any): any[] | undefined {
     // Se o formato já vier como array de áreas completo
     if (Array.isArray(fruta.areas)) {
-      return fruta.areas.map((a: any) => ({
-        id: a.id,
-        areaPropriaId: a.areaPropriaId ?? undefined,
-        areaFornecedorId: a.areaFornecedorId ?? undefined,
-        observacoes: a.observacoes ?? undefined,
-        quantidadeColhidaUnidade1: a.quantidadeColhidaUnidade1 ?? undefined,
-        quantidadeColhidaUnidade2: a.quantidadeColhidaUnidade2 ?? undefined,
-      }));
+      return fruta.areas.map((a: any) => {
+        const areaFormatada: any = {
+          areaPropriaId: a.areaPropriaId ?? undefined,
+          areaFornecedorId: a.areaFornecedorId ?? undefined,
+          observacoes: a.observacoes ?? undefined,
+          quantidadeColhidaUnidade1: a.quantidadeColhidaUnidade1 ?? undefined,
+          quantidadeColhidaUnidade2: a.quantidadeColhidaUnidade2 ?? undefined,
+        };
+        // Incluir id apenas se existir (para update de área existente)
+        if (a.id !== undefined && a.id !== null) {
+          areaFormatada.id = a.id;
+        }
+        return areaFormatada;
+      });
     }
 
     // Compatibilidade com payload antigo (campos simples)
@@ -511,13 +517,19 @@ export class PedidosMobileController {
 
   private converterFitas(fitas: any[] | undefined): any[] | undefined {
     if (!Array.isArray(fitas) || fitas.length === 0) return undefined;
-    return fitas.map((f: any) => ({
-      id: f.id,
-      fitaBananaId: f.fitaBananaId,
-      quantidadeFita: f.quantidadeFita ?? undefined,
-      observacoes: f.observacoes ?? undefined,
-      detalhesAreas: f.detalhesAreas ?? [],
-    }));
+    return fitas.map((f: any) => {
+      const fitaFormatada: any = {
+        fitaBananaId: f.fitaBananaId,
+        quantidadeFita: f.quantidadeFita ?? undefined,
+        observacoes: f.observacoes ?? undefined,
+        detalhesAreas: f.detalhesAreas ?? [],
+      };
+      // Incluir id apenas se existir (para update de fita existente)
+      if (f.id !== undefined && f.id !== null) {
+        fitaFormatada.id = f.id;
+      }
+      return fitaFormatada;
+    });
   }
 
   /**
@@ -527,8 +539,9 @@ export class PedidosMobileController {
     if (!culturaId) return false;
 
     // Verifica se alguma fruta do pedido pertence à cultura do usuário
+    // A estrutura do Prisma retorna fruta.cultura.id (objeto relacionado), não fruta.culturaId
     return pedido.frutasPedidos?.some(
-      (fp: any) => fp.fruta?.culturaId === culturaId,
+      (fp: any) => fp.fruta?.cultura?.id === culturaId,
     );
   }
 
@@ -589,8 +602,10 @@ export class PedidosMobileController {
   )
   async createPedido(
     @Body() createPedidoDto: CreatePedidoDto,
+    @Req() request: any,
   ): Promise<PedidoResponseDto> {
+    const usuarioId = request?.user?.id;
     // Criar pedido usando o service principal
-    return this.pedidosService.create(createPedidoDto);
+    return this.pedidosService.create(createPedidoDto, usuarioId);
   }
 }

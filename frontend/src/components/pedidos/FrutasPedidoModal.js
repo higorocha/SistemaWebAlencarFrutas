@@ -19,7 +19,7 @@ import {
   CalendarOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
-import { formatarValorMonetario, capitalizeName } from "../../utils/formatters";
+import { formatarValorMonetario, capitalizeName, intFormatter } from "../../utils/formatters";
 
 const { Title, Text } = Typography;
 
@@ -76,8 +76,10 @@ const FrutasPedidoModal = ({ open, onClose, pedido }) => {
       width: 120,
       align: "center",
       render: (_, record) => (
-        <Text>
-          {record.quantidadePrevista?.toFixed(2)} {record.unidadeMedida1}
+        <Text strong>
+          <span style={{ color: "#059669", fontWeight: 600 }}>
+            {intFormatter(record.quantidadePrevista)} {record.unidadeMedida1}
+          </span>
         </Text>
       ),
     },
@@ -105,8 +107,10 @@ const FrutasPedidoModal = ({ open, onClose, pedido }) => {
         
         if (quantidade > 0) {
           return (
-            <Text strong style={{ color: "#059669" }}>
-              {quantidade.toFixed(2)} {unidade}
+            <Text strong>
+              <span style={{ color: "#1890ff", fontWeight: 600 }}>
+                {intFormatter(quantidade)} {unidade}
+              </span>
             </Text>
           );
         }

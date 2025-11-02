@@ -216,4 +216,28 @@ export class PedidoResponseDto {
     valorColheita: number;
     observacoes?: string;
   }>;
+
+  // ✅ NOVO: Usuário criador do pedido
+  @ApiProperty({ description: 'Usuário que criou o pedido', required: false })
+  usuarioCriador?: {
+    id: number;
+    nome: string;
+    email: string;
+  };
+
+  // ✅ NOVO: Histórico completo do pedido
+  @ApiProperty({ description: 'Histórico completo de alterações do pedido', required: false })
+  historicoCompleto?: Array<{
+    id: number;
+    acao: string;
+    statusAnterior?: string;
+    statusNovo?: string;
+    detalhes?: any;
+    createdAt: Date;
+    usuario: {
+      id: number;
+      nome: string;
+      email: string;
+    } | null;
+  }>;
 }

@@ -226,15 +226,24 @@ const VincularFitasModal = ({
                 if (controleEspecifico) {
                   
                   const chave = `${fitaData.id}_${controleEspecifico.id}`;
-                  
+
+                  // ✅ CORREÇÃO: No modo de edição, calcular estoque sem somar as fitas já vinculadas
+                  // Estoque consumido por outras frutas
+                  const estoqueConsumido = fruta?.estoqueConsumidoPorOutrasFrutas || {};
+                  const consumidoPorOutras = estoqueConsumido[chave] || 0;
+
+                  // Estoque disponível = Original - Consumido por outras
+                  // NÃO somar vinculadoNaFrutaAtual aqui porque estamos editando essas fitas
+                  const estoqueVirtualEdit = Math.max(0, controleEspecifico.quantidadeFitas - consumidoPorOutras);
+
                   novasSelecoes[chave] = {
                     fitaNome: fitaData.nome,
                     areaNome: area.nome,
                     fitaCor: fitaData.corHex,
-                    maxDisponivel: controleEspecifico.quantidadeFitas,
+                    maxDisponivel: estoqueVirtualEdit, // ✅ CORREÇÃO: Usar estoque sem somar vinculadas
                     dataRegistro: controleEspecifico.dataRegistro
                   };
-                  
+
                   novosLotesSelecionados.push({
                     chave,
                     fitaId: fitaData.fitaBananaId,
@@ -245,7 +254,7 @@ const VincularFitasModal = ({
                     fitaCor: fitaData.corHex,
                     quantidade: detalhe.quantidade || 0,
                     observacoes: fitaExistente.observacoes || '',
-                    maxDisponivel: controleEspecifico.quantidadeFitas,
+                    maxDisponivel: estoqueVirtualEdit, // ✅ CORREÇÃO: Usar estoque sem somar vinculadas
                     dataRegistro: controleEspecifico.dataRegistro
                   });
                 }
@@ -261,15 +270,23 @@ const VincularFitasModal = ({
               // Usar o primeiro controle disponível como fallback
               const primeiroControle = area.controles[0];
               const chave = `${fitaData.id}_${primeiroControle.id}`;
-              
+
+              // ✅ CORREÇÃO: No modo de edição, calcular estoque sem somar as fitas já vinculadas
+              // Estoque consumido por outras frutas
+              const estoqueConsumido = fruta?.estoqueConsumidoPorOutrasFrutas || {};
+              const consumidoPorOutras = estoqueConsumido[chave] || 0;
+
+              // Estoque disponível = Original - Consumido por outras
+              const estoqueVirtualEdit = Math.max(0, primeiroControle.quantidadeFitas - consumidoPorOutras);
+
               novasSelecoes[chave] = {
                 fitaNome: fitaData.nome,
                 areaNome: area.nome,
                 fitaCor: fitaData.corHex,
-                maxDisponivel: primeiroControle.quantidadeFitas,
+                maxDisponivel: estoqueVirtualEdit, // ✅ CORREÇÃO: Usar estoque sem somar vinculadas
                 dataRegistro: primeiroControle.dataRegistro
               };
-              
+
               novosLotesSelecionados.push({
                 chave,
                 fitaId: fitaData.fitaBananaId,
@@ -280,7 +297,7 @@ const VincularFitasModal = ({
                 fitaCor: fitaData.corHex,
                 quantidade: fitaExistente.quantidadeFita || 0,
                 observacoes: fitaExistente.observacoes || '',
-                maxDisponivel: primeiroControle.quantidadeFitas,
+                maxDisponivel: estoqueVirtualEdit, // ✅ CORREÇÃO: Usar estoque sem somar vinculadas
                 dataRegistro: primeiroControle.dataRegistro
               });
             }
@@ -293,16 +310,24 @@ const VincularFitasModal = ({
             if (primeiraArea.controles.length > 0) {
               const primeiroControle = primeiraArea.controles[0];
               const chave = `${fitaData.id}_${primeiroControle.id}`;
-              
+
+              // ✅ CORREÇÃO: No modo de edição, calcular estoque sem somar as fitas já vinculadas
+              // Estoque consumido por outras frutas
+              const estoqueConsumido = fruta?.estoqueConsumidoPorOutrasFrutas || {};
+              const consumidoPorOutras = estoqueConsumido[chave] || 0;
+
+              // Estoque disponível = Original - Consumido por outras
+              const estoqueVirtualEdit = Math.max(0, primeiroControle.quantidadeFitas - consumidoPorOutras);
+
               if (!novasSelecoes[chave]) {
                 novasSelecoes[chave] = {
                   fitaNome: fitaData.nome,
                   areaNome: primeiraArea.nome,
                   fitaCor: fitaData.corHex,
-                  maxDisponivel: primeiroControle.quantidadeFitas,
+                  maxDisponivel: estoqueVirtualEdit, // ✅ CORREÇÃO: Usar estoque sem somar vinculadas
                   dataRegistro: primeiroControle.dataRegistro
                 };
-                
+
                 novosLotesSelecionados.push({
                   chave,
                   fitaId: fitaData.fitaBananaId,
@@ -313,7 +338,7 @@ const VincularFitasModal = ({
                   fitaCor: fitaData.corHex,
                   quantidade: fitaExistente.quantidadeFita || 0,
                   observacoes: fitaExistente.observacoes || '',
-                  maxDisponivel: primeiroControle.quantidadeFitas,
+                  maxDisponivel: estoqueVirtualEdit, // ✅ CORREÇÃO: Usar estoque sem somar vinculadas
                   dataRegistro: primeiroControle.dataRegistro
                 });
               }
@@ -328,10 +353,37 @@ const VincularFitasModal = ({
     }
   };
 
+  // ✅ NOVO: Calcular estoque disponível real considerando uso de outras frutas
+  const calcularEstoqueDisponivel = (fitaBananaId, controleBananaId, estoqueOriginal) => {
+    const chave = `${fitaBananaId}_${controleBananaId}`;
+
+    // Estoque consumido por outras frutas do pedido
+    const estoqueConsumido = fruta?.estoqueConsumidoPorOutrasFrutas || {};
+    const consumidoPorOutras = estoqueConsumido[chave] || 0;
+
+    // ✅ CORREÇÃO: Estoque ORIGINALMENTE vinculado no banco (não do state atual)
+    // Usar fitasOriginaisBank em vez de fruta?.fitas
+    const fitaAtual = fitasOriginaisBank.find(f => f.fitaBananaId === fitaBananaId);
+    const detalheAtual = fitaAtual?.detalhesAreas?.find(d => d.controleBananaId === controleBananaId);
+    const vinculadoNaFrutaAtual = detalheAtual?.quantidade || 0;
+
+    // Estoque disponível = Original - Consumido por outras + Vinculado na atual (banco)
+    const disponivel = estoqueOriginal - consumidoPorOutras + vinculadoNaFrutaAtual;
+
+    console.log(`📊 Estoque lote ${chave}:`, {
+      estoqueOriginal,
+      consumidoPorOutras,
+      vinculadoNaFrutaAtual: `${vinculadoNaFrutaAtual} (do banco)`,
+      disponivel
+    });
+
+    return Math.max(0, disponivel); // Nunca negativo
+  };
+
   const toggleLoteSelection = (fitaId, area, controle) => {
     const chave = `${fitaId}_${controle.id}`;
     const fita = fitasComAreas.find(f => f.id === fitaId);
-    
+
     if (selecoesPorLote[chave]) {
       // Remover seleção
       setSelecoesPorLote(prev => {
@@ -339,43 +391,43 @@ const VincularFitasModal = ({
         delete novo[chave];
         return novo;
       });
-      
+
       // Remover da lista de selecionados
       setLotesSelecionados(prev => prev.filter(item => item.chave !== chave));
     } else {
+      // ✅ NOVA LÓGICA: Calcular estoque disponível real
+      const estoqueDisponivel = calcularEstoqueDisponivel(fita.fitaBananaId, controle.id, controle.quantidadeFitas);
+
       // ✅ NOVA LÓGICA: Verificar se pode selecionar este lote
       const loteJaVinculado = isLoteVinculadoAoPedido(fita.fitaBananaId, controle.id);
-      const podeSelecionar = controle.quantidadeFitas > 0 || loteJaVinculado;
-      
+      const podeSelecionar = estoqueDisponivel > 0 || loteJaVinculado;
+
       if (!podeSelecionar) {
-        if (isModoEdicao) {
-          warning("Estoque Esgotado",
-            `O lote da área "${area.nome}" não possui fitas disponíveis`);
-        }
-        // No modo criação, não mostra notification - apenas não permite seleção
+        warning("Estoque Esgotado",
+          `O lote da área "${area.nome}" não possui fitas disponíveis. ${estoqueDisponivel === 0 && controle.quantidadeFitas > 0 ? 'Todas as fitas deste lote já foram alocadas para outras frutas do pedido.' : ''}`);
         return;
       }
-      
+
       // Verificar se já não existe para evitar duplicação
       const jaExiste = lotesSelecionados.some(item => item.chave === chave);
       if (jaExiste) {
         return;
       }
-      
+
       // Adicionar seleção
       const novaSelecao = {
         fitaNome: fita?.nome || '',
         areaNome: area.nome,
         fitaCor: fita?.corHex || '#52c41a',
-        maxDisponivel: controle.quantidadeFitas,
+        maxDisponivel: estoqueDisponivel, // ✅ ALTERADO: Usar estoque virtual
         dataRegistro: controle.dataRegistro
       };
-      
+
       setSelecoesPorLote(prev => ({
         ...prev,
         [chave]: novaSelecao
       }));
-      
+
       // Adicionar à lista de selecionados (com verificação extra de duplicação)
       setLotesSelecionados(prev => {
         // Verificação dupla para evitar duplicações
@@ -383,7 +435,7 @@ const VincularFitasModal = ({
         if (jaExisteNaLista) {
           return prev; // Retorna lista atual sem alterações
         }
-        
+
         return [...prev, {
           chave,
           fitaId: fita?.fitaBananaId || fitaId, // fitaBananaId
@@ -394,7 +446,7 @@ const VincularFitasModal = ({
           fitaCor: fita?.corHex || '#52c41a',
           quantidade: 0,
           observacoes: '',
-          maxDisponivel: controle.quantidadeFitas,
+          maxDisponivel: estoqueDisponivel, // ✅ ALTERADO: Usar estoque virtual
           dataRegistro: controle.dataRegistro
         }];
       });
@@ -860,15 +912,39 @@ const VincularFitasModal = ({
                     {(() => {
                       // ✅ Verificar se esta fita está vinculada ao pedido
                       const estaVinculada = fruta?.fitas?.some(f => f.fitaBananaId === fita.fitaBananaId);
-                      return estaVinculada ? (
-                        <Tag color="green" size="small">
-                          ✅ Vinculada ao pedido
-                        </Tag>
-                      ) : (
+
+                      if (estaVinculada) {
+                        return (
+                          <Tag color="green" size="small">
+                            ✅ Vinculada ao pedido
+                          </Tag>
+                        );
+                      }
+
+                      // ✅ CORRIGIDO: Calcular total considerando apenas áreas vinculadas E estoque virtual
+                      let totalVirtual = 0;
+                      let areasComEstoqueCount = 0;
+
+                      fita.areas.forEach(area => {
+                        let areaTemEstoque = false;
+                        area.controles.forEach(controle => {
+                          // Usar estoque virtual em vez de quantidadeFitas direto
+                          const estoqueVirtual = calcularEstoqueDisponivel(
+                            fita.fitaBananaId,
+                            controle.id,
+                            controle.quantidadeFitas
+                          );
+                          if (estoqueVirtual > 0) {
+                            totalVirtual += estoqueVirtual;
+                            areaTemEstoque = true;
+                          }
+                        });
+                        if (areaTemEstoque) areasComEstoqueCount++;
+                      });
+
+                      return (
                         <Tag color="blue" size="small">
-                          {fita.totalDisponivel} fitas em {fita.areas.filter(area => 
-                            area.controles.some(controle => controle.quantidadeFitas > 0)
-                          ).length} área(s)
+                          {totalVirtual} fitas em {areasComEstoqueCount} área(s)
                         </Tag>
                       );
                     })()}
@@ -929,9 +1005,10 @@ const VincularFitasModal = ({
                                   
                                   const diasTotais = controle.tempoDesdeData?.dias || 0;
                                   const semanasExatas = diasTotais / 7;
-                                  const tempoFormatado = diasTotais < 7 
+                                  // ✅ Mostrar semanas E dias (igual ao mobile)
+                                  const tempoFormatado = diasTotais < 7
                                     ? `${diasTotais} dia${diasTotais !== 1 ? 's' : ''}`
-                                    : `${Math.ceil(semanasExatas)} semana${Math.ceil(semanasExatas) !== 1 ? 's' : ''}`;
+                                    : `${Math.ceil(semanasExatas)} semana${Math.ceil(semanasExatas) !== 1 ? 's' : ''} (${diasTotais} dias)`;
                                   
                                   // Função para escurecer a cor hex
                                   const darkenColor = (hex, amount = 0.2) => {
@@ -977,17 +1054,33 @@ const VincularFitasModal = ({
                                           alignItems: 'center',
                                           color: '#fff',
                                           fontWeight: '600',
-                                          textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                                          textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                                          flexWrap: 'nowrap', // ✅ Evitar quebra de linha
+                                          gap: '8px'
                                         }}>
-                                          <div style={{ fontSize: '12px' }}>
-                                            Marcado: {moment(controle.dataRegistro).format('DD/MM/YY')}
+                                          <div style={{
+                                            fontSize: '11px', // ✅ Reduzido de 12px para 11px
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px', // ✅ Reduzido de 8px para 4px
+                                            whiteSpace: 'nowrap', // ✅ Não quebrar linha
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            flex: 1, // ✅ Permitir encolher se necessário
+                                            minWidth: 0 // ✅ Permitir encolher abaixo do conteúdo
+                                          }}>
+                                            <span>Lote #{controle.id}</span>
+                                            <span>•</span>
+                                            <span>{moment(controle.dataRegistro).format('DD/MM/YY')}</span>
                                           </div>
                                           {loteJaVinculado && (
-                                            <div style={{ 
-                                              backgroundColor: 'rgba(255,255,255,0.2)', 
-                                              borderRadius: '12px', 
+                                            <div style={{
+                                              backgroundColor: 'rgba(255,255,255,0.2)',
+                                              borderRadius: '12px',
                                               padding: '2px 6px',
-                                              fontSize: '10px'
+                                              fontSize: '9px', // ✅ Reduzido de 10px para 9px
+                                              whiteSpace: 'nowrap',
+                                              flexShrink: 0 // ✅ Nunca encolher este badge
                                             }}>
                                               ✅ Vinculado
                                             </div>
@@ -1018,7 +1111,7 @@ const VincularFitasModal = ({
                                                 {tempoFormatado}
                                               </div>
                                             </div>
-                                            
+
                                             <div style={{
                                               backgroundColor: fita.corHex,
                                               color: '#fff',
@@ -1028,7 +1121,7 @@ const VincularFitasModal = ({
                                               borderRadius: '12px',
                                               textShadow: '0 1px 1px rgba(0,0,0,0.2)'
                                             }}>
-                                              {controle.quantidadeFitas} fitas
+                                              {calcularEstoqueDisponivel(fita.fitaBananaId, controle.id, controle.quantidadeFitas)} fitas
                                             </div>
                                           </div>
                                           
@@ -1169,7 +1262,10 @@ const VincularFitasModal = ({
                       borderRadius: '8px',
                       whiteSpace: 'nowrap'
                     }}>
-                      {isMobile ? moment(item.dataRegistro).format('DD/MM/YY') : `Marcado em ${moment(item.dataRegistro).format('DD/MM/YY')}`}
+                      {isMobile
+                        ? `Lote #${item.controleBananaId} • ${moment(item.dataRegistro).format('DD/MM/YY')}`
+                        : `Lote #${item.controleBananaId} • Marcado em ${moment(item.dataRegistro).format('DD/MM/YY')}`
+                      }
                     </div>
                   </div>
                     

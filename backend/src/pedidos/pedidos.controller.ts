@@ -110,8 +110,9 @@ export class PedidosController {
     status: HttpStatus.NOT_FOUND,
     description: 'Cliente ou fruta não encontrados',
   })
-  create(@Body() createPedidoDto: CreatePedidoDto): Promise<PedidoResponseDto> {
-    return this.pedidosService.create(createPedidoDto);
+  create(@Body() createPedidoDto: CreatePedidoDto, @Req() req): Promise<PedidoResponseDto> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.create(createPedidoDto, usuarioId);
   }
 
   // NOVO: Endpoint para criar pagamento individual
@@ -130,8 +131,9 @@ export class PedidosController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Status do pedido não permite pagamento ou valor excede o limite',
   })
-  createPagamento(@Body() createPagamentoDto: CreatePagamentoDto): Promise<PagamentoPedidoResponseDto> {
-    return this.pedidosService.createPagamento(createPagamentoDto);
+  createPagamento(@Body() createPagamentoDto: CreatePagamentoDto, @Req() req): Promise<PagamentoPedidoResponseDto> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.createPagamento(createPagamentoDto, usuarioId);
   }
 
   // NOVO: Endpoint para buscar pagamentos de um pedido
@@ -169,8 +171,10 @@ export class PedidosController {
   updatePagamentoIndividual(
     @Param('id') id: string,
     @Body() updatePagamentoDto: UpdatePagamentoDto,
+    @Req() req,
   ): Promise<PagamentoPedidoResponseDto> {
-    return this.pedidosService.updatePagamentoIndividual(+id, updatePagamentoDto);
+    const usuarioId = req.user.id;
+    return this.pedidosService.updatePagamentoIndividual(+id, updatePagamentoDto, usuarioId);
   }
 
   // NOVO: Endpoint para remover pagamento individual
@@ -188,8 +192,9 @@ export class PedidosController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Status do pedido não permite remoção',
   })
-  removePagamento(@Param('id') id: string): Promise<void> {
-    return this.pedidosService.removePagamento(+id);
+  removePagamento(@Param('id') id: string, @Req() req): Promise<void> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.removePagamento(+id, usuarioId);
   }
 
   @Get()
@@ -334,8 +339,10 @@ export class PedidosController {
   update(
     @Param('id') id: string,
     @Body() updatePedidoDto: UpdatePedidoDto,
+    @Req() req,
   ): Promise<PedidoResponseDto> {
-    return this.pedidosService.update(+id, updatePedidoDto);
+    const usuarioId = req.user.id;
+    return this.pedidosService.update(+id, updatePedidoDto, usuarioId);
   }
 
   @Patch(':id/colheita')
@@ -380,8 +387,10 @@ export class PedidosController {
   updatePrecificacao(
     @Param('id') id: string,
     @Body() updatePrecificacaoDto: UpdatePrecificacaoDto,
+    @Req() req,
   ): Promise<PedidoResponseDto> {
-    return this.pedidosService.updatePrecificacao(+id, updatePrecificacaoDto);
+    const usuarioId = req.user.id;
+    return this.pedidosService.updatePrecificacao(+id, updatePrecificacaoDto, usuarioId);
   }
 
   @Patch(':id/ajustes-precificacao')
@@ -402,8 +411,10 @@ export class PedidosController {
   updateAjustesPrecificacao(
     @Param('id') id: string,
     @Body() updateAjustesDto: UpdateAjustesPrecificacaoDto,
+    @Req() req,
   ): Promise<PedidoResponseDto> {
-    return this.pedidosService.updateAjustesPrecificacao(+id, updateAjustesDto);
+    const usuarioId = req.user.id;
+    return this.pedidosService.updateAjustesPrecificacao(+id, updateAjustesDto, usuarioId);
   }
 
   @Patch(':id/pagamento')
@@ -424,8 +435,10 @@ export class PedidosController {
   updatePagamento(
     @Param('id') id: string,
     @Body() updatePagamentoDto: UpdatePagamentoDto,
+    @Req() req,
   ): Promise<PedidoResponseDto> {
-    return this.pedidosService.updatePagamento(+id, updatePagamentoDto);
+    const usuarioId = req.user.id;
+    return this.pedidosService.updatePagamento(+id, updatePagamentoDto, usuarioId);
   }
 
   @Patch(':id/editar-completo')
@@ -467,8 +480,9 @@ export class PedidosController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Status do pedido não permite finalização',
   })
-  finalizar(@Param('id') id: string): Promise<PedidoResponseDto> {
-    return this.pedidosService.finalizar(+id);
+  finalizar(@Param('id') id: string, @Req() req): Promise<PedidoResponseDto> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.finalizar(+id, usuarioId);
   }
 
   @Patch(':id/cancelar')
@@ -486,8 +500,9 @@ export class PedidosController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Não é possível cancelar pedidos finalizados',
   })
-  cancelar(@Param('id') id: string): Promise<PedidoResponseDto> {
-    return this.pedidosService.cancelar(+id);
+  cancelar(@Param('id') id: string, @Req() req): Promise<PedidoResponseDto> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.cancelar(+id, usuarioId);
   }
 
   @Delete(':id')
@@ -504,7 +519,8 @@ export class PedidosController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Só é possível remover pedidos cancelados ou recém criados',
   })
-  remove(@Param('id') id: string): Promise<void> {
-    return this.pedidosService.remove(+id);
+  remove(@Param('id') id: string, @Req() req): Promise<void> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.remove(+id, usuarioId);
   }
 }

@@ -27,6 +27,9 @@ const AddEditClienteDialog = lazy(() =>
 const PedidosClienteModal = lazy(() =>
   import("../components/clientes/PedidosClienteModal")
 );
+const PagamentosClienteModal = lazy(() =>
+  import("../components/clientes/PagamentosClienteModal")
+);
 
 const { Title } = Typography;
 
@@ -59,6 +62,10 @@ const Clientes = () => {
   // Estados do modal de pedidos
   const [pedidosModalOpen, setPedidosModalOpen] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
+
+  // Estados do modal de pagamentos
+  const [pagamentosModalOpen, setPagamentosModalOpen] = useState(false);
+  const [clienteSelecionadoPagamentos, setClienteSelecionadoPagamentos] = useState(null);
 
   // Função para buscar todos os clientes (sem paginação no backend)
   const fetchClientes = useCallback(async () => {
@@ -174,6 +181,18 @@ const Clientes = () => {
   const handleClosePedidosModal = useCallback(() => {
     setPedidosModalOpen(false);
     setClienteSelecionado(null);
+  }, []);
+
+  // Função para abrir modal de pagamentos
+  const handleOpenPagamentosModal = useCallback((cliente) => {
+    setClienteSelecionadoPagamentos(cliente);
+    setPagamentosModalOpen(true);
+  }, []);
+
+  // Função para fechar modal de pagamentos
+  const handleClosePagamentosModal = useCallback(() => {
+    setPagamentosModalOpen(false);
+    setClienteSelecionadoPagamentos(null);
   }, []);
 
   // Função para salvar cliente (criar ou editar)
@@ -326,6 +345,7 @@ const Clientes = () => {
             onEdit={handleOpenEditModal}
             onDelete={handleDeleteCliente}
             onViewPedidos={handleOpenPedidosModal}
+            onViewPagamentos={handleOpenPagamentosModal}
             onStatusFilter={handleStatusFilter}
             currentStatusFilter={statusFilter}
             currentPage={currentPage}
@@ -371,6 +391,15 @@ const Clientes = () => {
           open={pedidosModalOpen}
           onClose={handleClosePedidosModal}
           cliente={clienteSelecionado}
+          loading={false}
+        />
+      </Suspense>
+
+      <Suspense fallback={<Spin size="large" />}>
+        <PagamentosClienteModal
+          open={pagamentosModalOpen}
+          onClose={handleClosePagamentosModal}
+          cliente={clienteSelecionadoPagamentos}
           loading={false}
         />
       </Suspense>

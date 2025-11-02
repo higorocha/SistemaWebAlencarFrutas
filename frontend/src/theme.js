@@ -147,7 +147,7 @@ const getTheme = (mode) =>
               // Status de colheita e precificação (roxo)
               COLHEITA_REALIZADA: "#722ed1", // Roxo - Colheita concluída
               AGUARDANDO_PRECIFICACAO: "#722ed1", // Roxo - Aguardando precificação
-              PRECIFICACAO_REALIZADA: "#722ed1", // Roxo - Precificação concluída
+              PRECIFICACAO_REALIZADA: "#faad14", // Amarelo - Precificação concluída (mesma cor de AGUARDANDO_PAGAMENTO)
               
               // Status de pagamento (amarelo)
               AGUARDANDO_PAGAMENTO: "#faad14", // Amarelo - Aguardando pagamento
@@ -408,7 +408,7 @@ const getTheme = (mode) =>
               // Status de colheita e precificação (roxo)
               COLHEITA_REALIZADA: "#722ed1", // Roxo - Colheita concluída
               AGUARDANDO_PRECIFICACAO: "#722ed1", // Roxo - Aguardando precificação
-              PRECIFICACAO_REALIZADA: "#722ed1", // Roxo - Precificação concluída
+              PRECIFICACAO_REALIZADA: "#faad14", // Amarelo - Precificação concluída (mesma cor de AGUARDANDO_PAGAMENTO)
               
               // Status de pagamento (amarelo)
               AGUARDANDO_PAGAMENTO: "#faad14", // Amarelo - Aguardando pagamento

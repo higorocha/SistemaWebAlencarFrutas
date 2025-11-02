@@ -130,6 +130,116 @@ export class ExtratosService {
   }
 
   /**
+   * Consulta extratos brutos da API com paginação automática (para uso interno)
+   * Aceita contaCorrenteId para especificar qual conta usar
+   * @param dataInicio Data de início no formato DDMMYYYY (sem zeros à esquerda)
+   * @param dataFim Data de fim no formato DDMMYYYY (sem zeros à esquerda)
+   * @param contaCorrenteId ID da conta corrente (opcional, usa a primeira se não informado)
+   * @returns Array de lançamentos brutos da API
+   */
+  async consultarExtratosBrutos(
+    dataInicio: string,
+    dataFim: string,
+    contaCorrenteId?: number
+  ): Promise<any[]> {
+    console.log(`🔍 [EXTRATOS-SERVICE] Consultando extratos brutos de ${dataInicio} até ${dataFim}${contaCorrenteId ? ` (conta: ${contaCorrenteId})` : ''}`);
+
+    try {
+      // Obter token de acesso
+      const token = await this.obterTokenDeAcesso();
+
+      // Buscar credenciais de extratos
+      const credenciaisExtratos = await this.credenciaisAPIService.findByBancoAndModalidade('001', '003 - Extratos');
+      if (!credenciaisExtratos || credenciaisExtratos.length === 0) {
+        throw new NotFoundException('Credenciais de extratos não encontradas. Configure as credenciais primeiro.');
+      }
+      const credencialExtrato = credenciaisExtratos[0];
+
+      // Buscar conta corrente
+      let contaCorrente;
+      if (contaCorrenteId) {
+        contaCorrente = await this.contaCorrenteService.findOne(contaCorrenteId);
+      } else {
+        const contasCorrente = await this.contaCorrenteService.findAll();
+        if (!contasCorrente || contasCorrente.length === 0) {
+          throw new NotFoundException('Conta Corrente não cadastrada. Favor cadastrar uma conta corrente.');
+        }
+        contaCorrente = contasCorrente[0];
+      }
+
+      const agencia = contaCorrente.agencia;
+      const conta = contaCorrente.contaCorrente;
+
+      // Criar cliente HTTP para consulta
+      const apiClient = createExtratosApiClient(credencialExtrato.developerAppKey);
+
+      const extratos: any[] = [];
+      let paginaAtual = 1;
+      let hasMorePages = true;
+
+      // Loop de paginação
+      while (hasMorePages) {
+        console.log(`📄 [EXTRATOS-SERVICE] Consultando página ${paginaAtual}`);
+
+        const response = await apiClient.get(
+          `/conta-corrente/agencia/${agencia}/conta/${conta}`,
+          {
+            params: {
+              dataInicioSolicitacao: dataInicio,
+              dataFimSolicitacao: dataFim,
+              numeroPaginaSolicitacao: paginaAtual,
+              quantidadeRegistroPaginaSolicitacao: 200,
+            },
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const data = response.data as any;
+
+        // Verificar se há lançamentos nesta página
+        if (!data || !data.listaLancamento || data.listaLancamento.length === 0) {
+          console.log(`📄 [EXTRATOS-SERVICE] Página ${paginaAtual} sem lançamentos`);
+          hasMorePages = false;
+          break;
+        }
+
+        // Adicionar lançamentos à lista (dados brutos)
+        extratos.push(...data.listaLancamento);
+        console.log(`📄 [EXTRATOS-SERVICE] Página ${paginaAtual}: ${data.listaLancamento.length} lançamentos encontrados`);
+
+        // Verificar se há mais páginas
+        if (data.numeroPaginaProximo > 0) {
+          paginaAtual = data.numeroPaginaProximo;
+        } else {
+          hasMorePages = false;
+        }
+      }
+
+      console.log(`✅ [EXTRATOS-SERVICE] Consulta finalizada: ${extratos.length} lançamentos encontrados`);
+      return extratos;
+
+    } catch (error) {
+      console.error('❌ [EXTRATOS-SERVICE] Erro ao consultar extratos brutos:', error.response?.data || error.message);
+
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+
+      if (error.response?.data) {
+        const errorMessage = error.response.data.detail || 
+                           error.response.data.error_description || 
+                           error.response.data.error || 
+                           'Erro ao consultar extratos';
+        throw new InternalServerErrorException(`Erro na API BB: ${errorMessage}`);
+      }
+
+      throw new InternalServerErrorException('Erro interno ao consultar extratos');
+    }
+  }
+
+  /**
    * Consulta extratos com paginação automática
    * Baseado EXATAMENTE no extratosController(exemplo).js
    * @param dataInicio Data de início no formato DDMMYYYY

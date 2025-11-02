@@ -17,6 +17,7 @@ import {
 } from "antd";
 import ResponsiveTable from "../common/ResponsiveTable";
 import FrutasPedidoModal from "./FrutasPedidoModal";
+import TurmasPedidoModal from "./TurmasPedidoModal";
 import VisualizarPedidoModal from "./VisualizarPedidoModal";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 import useCoresPorTempo from "../../hooks/useCoresPorTempo";
@@ -132,6 +133,7 @@ const PedidosTable = ({
   onPedidoRemovido
 }) => {
   const [frutasModalOpen, setFrutasModalOpen] = useState(false);
+  const [turmasModalOpen, setTurmasModalOpen] = useState(false);
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [confirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
@@ -142,6 +144,12 @@ const PedidosTable = ({
   const handleOpenFrutasModal = (pedido) => {
     setPedidoSelecionado(pedido);
     setFrutasModalOpen(true);
+  };
+
+  // Função para abrir modal de turmas
+  const handleOpenTurmasModal = (pedido) => {
+    setPedidoSelecionado(pedido);
+    setTurmasModalOpen(true);
   };
 
   // Função para buscar pedido atualizado do banco
@@ -385,6 +393,63 @@ const PedidosTable = ({
       },
     },
     {
+      title: 'Placa',
+      dataIndex: 'placaPrimaria',
+      key: 'placaPrimaria',
+      width: 100,
+      align: 'center',
+      render: (placa) => (
+        <Text style={{ fontWeight: 500, fontSize: 13 }}>
+          {placa ? placa.toUpperCase() : '-'}
+        </Text>
+      ),
+    },
+    {
+      title: 'Turma',
+      key: 'turma',
+      width: 120,
+      align: 'left',
+      ellipsis: true,
+      render: (_, record) => {
+        // Verificar se há turmas (custos de colheita)
+        if (!record.custosColheita || record.custosColheita.length === 0) {
+          return <Text type="secondary">-</Text>;
+        }
+        
+        // Agrupar turmas únicas por turmaColheitaId
+        const turmasUnicas = new Set();
+        record.custosColheita.forEach(custo => {
+          if (custo.turmaColheita?.nomeColhedor) {
+            turmasUnicas.add(custo.turmaColheita.nomeColhedor);
+          }
+        });
+        
+        const turmasArray = Array.from(turmasUnicas);
+        
+        // Se tiver apenas uma turma, mostra badge simples
+        if (turmasArray.length === 1) {
+          return (
+            <Tag color="purple" style={{ cursor: 'default' }}>
+              {capitalizeName(turmasArray[0])}
+            </Tag>
+          );
+        }
+        
+        // Se tiver múltiplas turmas, mostra badge clicável
+        return (
+          <Tooltip title="Clique para ver as turmas">
+            <Tag 
+              color="purple" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => handleOpenTurmasModal(record)}
+            >
+              {turmasArray.length} turmas
+            </Tag>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: 'Data Pedido',
       dataIndex: 'dataPedido',
       key: 'dataPedido',
@@ -609,6 +674,16 @@ const PedidosTable = ({
         open={frutasModalOpen}
         onClose={() => {
           setFrutasModalOpen(false);
+          setPedidoSelecionado(null);
+        }}
+        pedido={pedidoSelecionado}
+      />
+
+      {/* Modal de Turmas */}
+      <TurmasPedidoModal
+        open={turmasModalOpen}
+        onClose={() => {
+          setTurmasModalOpen(false);
           setPedidoSelecionado(null);
         }}
         pedido={pedidoSelecionado}

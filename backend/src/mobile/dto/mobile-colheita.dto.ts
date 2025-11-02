@@ -17,6 +17,12 @@ import { ApiProperty } from '@nestjs/swagger';
  * Agora compatível com o fluxo completo usado no web (áreas, fitas e campos de frete)
  */
 class MobileColheitaAreaDto {
+  @ApiProperty({ description: 'ID da área (para update de área existente)', required: false, example: 1 })
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  id?: number;
+
   @ApiProperty({ description: 'ID da área própria', required: false, example: 1 })
   @IsOptional()
   @IsInt()
@@ -55,6 +61,12 @@ class MobileColheitaAreaDto {
 }
 
 class MobileColheitaFitaDto {
+  @ApiProperty({ description: 'ID da fita (para update de fita existente)', required: false, example: 1 })
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  id?: number;
+
   @ApiProperty({ description: 'ID da fita de banana', example: 1 })
   @IsInt()
   @IsPositive()

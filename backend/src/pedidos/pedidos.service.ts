@@ -17,12 +17,16 @@ import {
   UpdateAjustesPrecificacaoDto
 } from './dto';
 
+import { HistoricoService } from '../historico/historico.service';
+import { TipoAcaoHistorico } from '../historico/types/historico.types';
+
 @Injectable()
 export class PedidosService {
   constructor(
     private prisma: PrismaService,
     private controleBananaService: ControleBananaService,
-    private turmaColheitaService: TurmaColheitaService
+    private turmaColheitaService: TurmaColheitaService,
+    private historicoService: HistoricoService
   ) {}
 
   async getDashboardStats(
@@ -505,6 +509,29 @@ export class PedidosService {
         quantidadeColhida: custo.quantidadeColhida,
         valorColheita: custo.valorColheita,
         observacoes: custo.observacoes
+      })) || [],
+      // ✅ NOVO: Incluir usuário criador do pedido (primeiro registro CRIACAO_PEDIDO)
+      usuarioCriador: (() => {
+        const historicoCriacao = pedido.historico?.find(h => h.acao === 'CRIACAO_PEDIDO');
+        return historicoCriacao?.usuario ? {
+          id: historicoCriacao.usuario.id,
+          nome: historicoCriacao.usuario.nome,
+          email: historicoCriacao.usuario.email
+        } : undefined;
+      })(),
+      // ✅ NOVO: Incluir histórico completo do pedido
+      historicoCompleto: pedido.historico?.map(h => ({
+        id: h.id,
+        acao: h.acao,
+        statusAnterior: h.statusAnterior,
+        statusNovo: h.statusNovo,
+        detalhes: h.detalhes,
+        createdAt: h.createdAt,
+        usuario: h.usuario ? {
+          id: h.usuario.id,
+          nome: h.usuario.nome,
+          email: h.usuario.email
+        } : null
       })) || []
     };
 
@@ -578,7 +605,20 @@ export class PedidosService {
     }
   }
 
-  async create(createPedidoDto: CreatePedidoDto): Promise<PedidoResponseDto> {
+  async create(createPedidoDto: CreatePedidoDto, usuarioId: number): Promise<PedidoResponseDto> {
+    // ✅ Validar se usuarioId foi fornecido
+    if (!usuarioId) {
+      throw new BadRequestException('ID do usuário não fornecido');
+    }
+
+    // Verificar se o usuário existe
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+    });
+    if (!usuario) {
+      throw new NotFoundException(`Usuário com ID ${usuarioId} não encontrado`);
+    }
+
     // Verificar se cliente existe
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: createPedidoDto.clienteId },
@@ -756,6 +796,17 @@ export class PedidosService {
 
       return novoPedido;
     });
+
+    // ✅ CORREÇÃO: Registrar histórico APÓS a transação ser commitada
+    await this.historicoService.registrarAcao(
+      pedido.id,
+      usuarioId,
+      TipoAcaoHistorico.CRIACAO_PEDIDO,
+      {
+        statusNovo: pedido.status,
+        mensagem: `Pedido ${pedido.numeroPedido} criado`,
+      }
+    );
 
     // Buscar dados completos para retorno
     const pedidoCompleto = await this.findOne(pedido.id);
@@ -1486,6 +1537,20 @@ export class PedidosService {
               }
             }
           }
+        },
+        historico: {
+          include: {
+            usuario: {
+              select: {
+                id: true,
+                nome: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
         }
       }
     });
@@ -1516,7 +1581,7 @@ export class PedidosService {
     return this.convertNullToUndefined(pedidoAdaptado);
   }
 
-  async update(id: number, updatePedidoDto: UpdatePedidoDto): Promise<PedidoResponseDto> {
+  async update(id: number, updatePedidoDto: UpdatePedidoDto, usuarioId: number): Promise<PedidoResponseDto> {
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -1525,6 +1590,7 @@ export class PedidosService {
     if (!existingPedido) {
       throw new NotFoundException('Pedido não encontrado');
     }
+    const statusAnterior = existingPedido.status;
 
     // Só permite atualizar pedidos que ainda não foram finalizados
     if (existingPedido.status === 'PEDIDO_FINALIZADO' || existingPedido.status === 'CANCELADO') {
@@ -1617,6 +1683,17 @@ export class PedidosService {
       }
     });
 
+    await this.historicoService.registrarAcao(
+      id,
+      usuarioId,
+      TipoAcaoHistorico.EDICAO_GERAL,
+      {
+        statusAnterior: statusAnterior,
+        statusNovo: pedido.status,
+        mensagem: 'Dados básicos do pedido atualizados',
+      }
+    );
+
     return this.convertNullToUndefined(pedido);
   }
 
@@ -1629,6 +1706,7 @@ export class PedidosService {
     if (!existingPedido) {
       throw new NotFoundException('Pedido não encontrado');
     }
+    const statusAnterior = existingPedido.status;
 
     // Verificar se o status permite atualizar colheita
     if (existingPedido.status !== 'PEDIDO_CRIADO' &&
@@ -1855,6 +1933,46 @@ export class PedidosService {
         }
       }
 
+      // Registrar histórico de atualização de colheita
+      await this.historicoService.registrarAcao(
+        id,
+        usuarioId,
+        TipoAcaoHistorico.ATUALIZACAO_COLHEITA,
+        {
+          statusAnterior: statusAnterior,
+          statusNovo: novoStatus,
+          mensagem: `Colheita atualizada - ${frutasSendoColhidas.length} fruta(s) processada(s)`,
+        }
+      );
+
+      // ✅ NOVO: Registrar explicitamente quando colheita é completada
+      if (statusAnterior === StatusPedido.COLHEITA_PARCIAL && novoStatus === StatusPedido.COLHEITA_REALIZADA) {
+        await this.historicoService.registrarAcao(
+          id,
+          usuarioId,
+          TipoAcaoHistorico.COLHEITA_COMPLETADA,
+          {
+            statusAnterior: StatusPedido.COLHEITA_PARCIAL,
+            statusNovo: StatusPedido.COLHEITA_REALIZADA,
+            mensagem: 'Todas as frutas do pedido foram colhidas',
+          }
+        );
+      }
+
+      // ✅ NOVO: Registrar transição automática para AGUARDANDO_PRECIFICACAO
+      if (novoStatus === StatusPedido.COLHEITA_REALIZADA) {
+        await this.historicoService.registrarAcao(
+          id,
+          usuarioId,
+          TipoAcaoHistorico.TRANSICAO_AGUARDANDO_PRECIFICACAO,
+          {
+            statusAnterior: StatusPedido.COLHEITA_REALIZADA,
+            statusNovo: StatusPedido.AGUARDANDO_PRECIFICACAO,
+            mensagem: 'Pedido aguardando precificação após conclusão da colheita',
+          }
+        );
+      }
+
       return pedidoUpdated;
     });
 
@@ -1919,7 +2037,7 @@ export class PedidosService {
     return this.adaptPedidoResponse(pedidoCompleto);
   }
 
-  async updatePrecificacao(id: number, updatePrecificacaoDto: UpdatePrecificacaoDto): Promise<PedidoResponseDto> {
+  async updatePrecificacao(id: number, updatePrecificacaoDto: UpdatePrecificacaoDto, usuarioId: number): Promise<PedidoResponseDto> {
 
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
@@ -1929,6 +2047,7 @@ export class PedidosService {
     if (!existingPedido) {
       throw new NotFoundException('Pedido não encontrado');
     }
+    const statusAnterior = existingPedido.status;
 
     // Verificar se o status permite precificação
     // ✅ IMPORTANTE: NÃO permitir precificação em COLHEITA_PARCIAL
@@ -2047,6 +2166,31 @@ export class PedidosService {
         },
       });
 
+      // Registrar histórico de atualização de precificação
+      await this.historicoService.registrarAcao(
+        id,
+        usuarioId,
+        TipoAcaoHistorico.ATUALIZACAO_PRECIFICACAO,
+        {
+          statusAnterior: statusAnterior,
+          statusNovo: StatusPedido.PRECIFICACAO_REALIZADA,
+          mensagem: `Precificação realizada - Valor final: R$ ${pedidoAtualizado.valorFinal?.toFixed(2)}`,
+        }
+      );
+
+      // ✅ NOVO: Registrar transição automática para AGUARDANDO_PAGAMENTO
+      await this.historicoService.registrarAcao(
+        id,
+        usuarioId,
+        TipoAcaoHistorico.TRANSICAO_AGUARDANDO_PAGAMENTO,
+        {
+          statusAnterior: StatusPedido.PRECIFICACAO_REALIZADA,
+          statusNovo: StatusPedido.AGUARDANDO_PAGAMENTO,
+          mensagem: 'Pedido aguardando pagamento após conclusão da precificação',
+          valor: pedidoAtualizado.valorFinal ?? undefined,
+        }
+      );
+
       return pedidoAtualizado;
     });
 
@@ -2055,7 +2199,7 @@ export class PedidosService {
     return pedidoCompleto;
   }
 
-  async updateAjustesPrecificacao(id: number, dto: UpdateAjustesPrecificacaoDto): Promise<PedidoResponseDto> {
+  async updateAjustesPrecificacao(id: number, dto: UpdateAjustesPrecificacaoDto, usuarioId: number): Promise<PedidoResponseDto> {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id },
       include: { frutasPedidos: true },
@@ -2064,12 +2208,13 @@ export class PedidosService {
     if (!pedido) {
       throw new NotFoundException('Pedido não encontrado');
     }
+    const statusAnterior = pedido.status;
 
     if (['CANCELADO', 'PEDIDO_FINALIZADO'].includes(pedido.status)) {
       throw new BadRequestException('Não é possível ajustar valores de um pedido finalizado ou cancelado.');
     }
 
-    return this.prisma.$transaction(async (prisma) => {
+    const pedidoAtualizado = await this.prisma.$transaction(async (prisma) => {
       // 1. Calcula o valor total das frutas, que é a base para o cálculo.
       const valorTotalFrutas = pedido.frutasPedidos.reduce((total, fruta) => {
         return total + (fruta.valorTotal || 0);
@@ -2085,7 +2230,7 @@ export class PedidosService {
       const novoValorFinal = valorTotalFrutas + (novoFrete || 0) + (novoIcms || 0) - (novoDesconto || 0) - (novaAvaria || 0);
 
       // 4. Atualiza o pedido no banco de dados com os novos valores.
-      await prisma.pedido.update({
+      const pedidoAtualizadoInterno = await prisma.pedido.update({
         where: { id },
         data: {
           frete: novoFrete,
@@ -2095,6 +2240,8 @@ export class PedidosService {
           valorFinal: Number(novoValorFinal.toFixed(2)),
         },
       });
+
+      let statusNovo = pedido.status;
 
       // 5. Recalcular status de pagamento (se estiver nas fases de pagamento)
       const statusPagamento = ['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO'];
@@ -2107,31 +2254,45 @@ export class PedidosService {
         const valorFinalArredondado = Number(novoValorFinal.toFixed(2));
 
         // Determinar novo status baseado no valor recebido vs valor final
-        let novoStatus: StatusPedido | undefined;
+        let novoStatusCalculado: StatusPedido | undefined;
 
         if (valorRecebidoArredondado >= valorFinalArredondado) {
-          novoStatus = StatusPedido.PEDIDO_FINALIZADO;
+          novoStatusCalculado = StatusPedido.PEDIDO_FINALIZADO;
         } else if (valorRecebidoArredondado > 0) {
-          novoStatus = StatusPedido.PAGAMENTO_PARCIAL;
+          novoStatusCalculado = StatusPedido.PAGAMENTO_PARCIAL;
         } else {
-          novoStatus = StatusPedido.AGUARDANDO_PAGAMENTO;
+          novoStatusCalculado = StatusPedido.AGUARDANDO_PAGAMENTO;
         }
 
         // Só atualizar se o status mudou
-        if (pedido.status !== novoStatus) {
+        if (pedido.status !== novoStatusCalculado) {
           await prisma.pedido.update({
             where: { id },
             data: {
-              status: novoStatus,
+              status: novoStatusCalculado,
               valorRecebido: valorRecebidoArredondado
             },
           });
+          statusNovo = novoStatusCalculado;
         }
       }
+
+      await this.historicoService.registrarAcao(
+        id,
+        usuarioId,
+        TipoAcaoHistorico.AJUSTE_PRECIFICACAO,
+        {
+          statusAnterior: statusAnterior,
+          statusNovo: statusNovo,
+          mensagem: 'Precificação ajustada (frete, ICMS ou desconto)',
+        }
+      );
 
       // 6. Retorna o pedido completo e atualizado.
       return this.findOne(id);
     });
+
+    return pedidoAtualizado;
   }
 
   // NOVA: Buscar pagamentos de um pedido
@@ -2155,7 +2316,7 @@ export class PedidosService {
   }
 
   // NOVA: Criar pagamento individual
-  async createPagamento(createPagamentoDto: CreatePagamentoDto): Promise<any> {
+  async createPagamento(createPagamentoDto: CreatePagamentoDto, usuarioId: number): Promise<any> {
     // Verificar se o pedido existe
     const pedido = await this.prisma.pedido.findUnique({
       where: { id: createPagamentoDto.pedidoId },
@@ -2164,6 +2325,7 @@ export class PedidosService {
     if (!pedido) {
       throw new NotFoundException('Pedido não encontrado');
     }
+    const statusAnterior = pedido.status;
 
     // Verificar se o status permite pagamento
     if (pedido.status !== 'PRECIFICACAO_REALIZADA' && pedido.status !== 'AGUARDANDO_PAGAMENTO' && pedido.status !== 'PAGAMENTO_PARCIAL') {
@@ -2227,6 +2389,19 @@ export class PedidosService {
         }
       });
 
+      await this.historicoService.registrarAcao(
+        createPagamentoDto.pedidoId,
+        usuarioId,
+        TipoAcaoHistorico.PAGAMENTO_ADICIONADO,
+        {
+          statusAnterior: statusAnterior,
+          statusNovo: novoStatus,
+          mensagem: `Pagamento adicionado via ${createPagamentoDto.metodoPagamento}`,
+          valor: createPagamentoDto.valorRecebido,
+          metodoPagamento: createPagamentoDto.metodoPagamento,
+        }
+      );
+
       return novoPagamento;
     });
 
@@ -2234,7 +2409,7 @@ export class PedidosService {
   }
 
   // NOVA: Atualizar pagamento individual
-  async updatePagamentoIndividual(id: number, updatePagamentoDto: UpdatePagamentoDto): Promise<any> {
+  async updatePagamentoIndividual(id: number, updatePagamentoDto: UpdatePagamentoDto, usuarioId: number): Promise<any> {
     // Verificar se o pagamento existe
     const pagamento = await this.prisma.pagamentosPedidos.findUnique({
       where: { id },
@@ -2244,6 +2419,7 @@ export class PedidosService {
     if (!pagamento) {
       throw new NotFoundException('Pagamento não encontrado');
     }
+    const statusAnterior = pagamento.pedido.status;
 
     // Verificar se o status do pedido permite atualização
     if (pagamento.pedido.status !== 'PRECIFICACAO_REALIZADA' && pagamento.pedido.status !== 'AGUARDANDO_PAGAMENTO' && pagamento.pedido.status !== 'PAGAMENTO_PARCIAL') {
@@ -2335,6 +2511,19 @@ export class PedidosService {
         }
       });
 
+      await this.historicoService.registrarAcao(
+        pagamento.pedidoId,
+        usuarioId,
+        TipoAcaoHistorico.PAGAMENTO_ATUALIZADO,
+        {
+          statusAnterior: statusAnterior,
+          statusNovo: novoStatus,
+          mensagem: 'Pagamento atualizado',
+          pagamentoId: id,
+          valor: updatePagamentoDto.valorRecebido,
+        }
+      );
+
       return pagamentoAtualizado;
     });
 
@@ -2342,7 +2531,7 @@ export class PedidosService {
   }
 
   // NOVA: Remover pagamento individual
-  async removePagamento(id: number): Promise<void> {
+  async removePagamento(id: number, usuarioId: number): Promise<void> {
     // Verificar se o pagamento existe
     const pagamento = await this.prisma.pagamentosPedidos.findUnique({
       where: { id },
@@ -2352,6 +2541,7 @@ export class PedidosService {
     if (!pagamento) {
       throw new NotFoundException('Pagamento não encontrado');
     }
+    const statusAnterior = pagamento.pedido.status;
 
     // Verificar se o status do pedido permite remoção
     if (pagamento.pedido.status === 'PEDIDO_FINALIZADO') {
@@ -2394,11 +2584,24 @@ export class PedidosService {
           status: novoStatus
         }
       });
+
+      await this.historicoService.registrarAcao(
+        pagamento.pedidoId,
+        usuarioId,
+        TipoAcaoHistorico.PAGAMENTO_REMOVIDO,
+        {
+          statusAnterior: statusAnterior,
+          statusNovo: novoStatus,
+          mensagem: 'Pagamento removido',
+          pagamentoId: id,
+          valor: pagamento.valorRecebido,
+        }
+      );
     });
   }
 
   // MÉTODO LEGADO: updatePagamento - mantido para compatibilidade
-  async updatePagamento(id: number, updatePagamentoDto: UpdatePagamentoDto): Promise<PedidoResponseDto> {
+  async updatePagamento(id: number, updatePagamentoDto: UpdatePagamentoDto, usuarioId: number): Promise<PedidoResponseDto> {
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -2423,7 +2626,7 @@ export class PedidosService {
       observacoesPagamento: updatePagamentoDto.observacoesPagamento
     };
 
-    await this.createPagamento(createPagamentoDto);
+    await this.createPagamento(createPagamentoDto, usuarioId);
 
     // Retornar pedido atualizado
     return this.findOne(id);
@@ -3216,7 +3419,7 @@ export class PedidosService {
     return pedidoCompleto;
   }
 
-  async finalizar(id: number): Promise<PedidoResponseDto> {
+  async finalizar(id: number, usuarioId: number): Promise<PedidoResponseDto> {
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -3225,6 +3428,7 @@ export class PedidosService {
     if (!existingPedido) {
       throw new NotFoundException('Pedido não encontrado');
     }
+    const statusAnterior = existingPedido.status;
 
     // Verificar se o status permite finalização
     // Permitir finalizar se o pedido estiver 100% pago (valorRecebido >= valorFinal)
@@ -3255,10 +3459,21 @@ export class PedidosService {
       }
     });
 
+    await this.historicoService.registrarAcao(
+      id,
+      usuarioId,
+      TipoAcaoHistorico.FINALIZAR_PEDIDO,
+      {
+        statusAnterior: statusAnterior,
+        statusNovo: StatusPedido.PEDIDO_FINALIZADO,
+        mensagem: 'Pedido finalizado pelo usuário',
+      }
+    );
+
     return this.convertNullToUndefined(pedido);
   }
 
-  async cancelar(id: number): Promise<PedidoResponseDto> {
+  async cancelar(id: number, usuarioId: number): Promise<PedidoResponseDto> {
     // Verificar se o pedido existe
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -3267,6 +3482,7 @@ export class PedidosService {
     if (!existingPedido) {
       throw new NotFoundException('Pedido não encontrado');
     }
+    const statusAnterior = existingPedido.status;
 
     // Verificar se o status permite cancelamento
     if (existingPedido.status === 'PEDIDO_FINALIZADO') {
@@ -3293,10 +3509,22 @@ export class PedidosService {
       }
     });
 
+    await this.historicoService.registrarAcao(
+      id,
+      usuarioId,
+      TipoAcaoHistorico.CANCELAR_PEDIDO,
+      {
+        statusAnterior: statusAnterior,
+        statusNovo: StatusPedido.CANCELADO,
+        mensagem: 'Pedido cancelado pelo usuário',
+        motivo: 'Cancelamento manual',
+      }
+    );
+
     return this.convertNullToUndefined(pedido);
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: number, usuarioId: number): Promise<void> {
     // Verificar se o pedido existe e buscar dados completos
     const existingPedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -3323,6 +3551,18 @@ export class PedidosService {
         'Só é possível remover pedidos cancelados, recém criados, aguardando colheita ou com colheita parcial'
       );
     }
+
+    await this.historicoService.registrarAcao(
+      id,
+      usuarioId,
+      TipoAcaoHistorico.REMOVER_PEDIDO,
+      {
+        statusAnterior: existingPedido.status,
+        statusNovo: StatusPedido.CANCELADO,
+        mensagem: 'Pedido removido pelo usuário',
+        motivo: 'Remoção completa do sistema',
+      }
+    );
 
     // Remover em transação para garantir integridade
     await this.prisma.$transaction(async (prisma) => {

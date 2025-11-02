@@ -11,6 +11,7 @@ import {
   MailOutlined,
   EnvironmentOutlined,
   ShoppingCartOutlined,
+  DollarOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import { showNotification } from "../../config/notificationConfig";
@@ -57,6 +58,7 @@ const ClientesTable = React.memo(({
   onEdit,
   onDelete,
   onViewPedidos,
+  onViewPagamentos,
   currentPage = 1,
   pageSize = 20,
   onPageChange,
@@ -76,6 +78,16 @@ const ClientesTable = React.memo(({
           </Space>
         ),
         onClick: () => onViewPedidos(record),
+      },
+      {
+        key: "pagamentos",
+        label: (
+          <Space>
+            <DollarOutlined style={{ color: "#059669" }} />
+            <span style={{ color: "#333" }}>Pagamentos</span>
+          </Space>
+        ),
+        onClick: () => onViewPagamentos(record),
       },
       {
         key: "view",
@@ -266,6 +278,7 @@ ClientesTable.propTypes = {
   onEdit: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
   onViewPedidos: PropTypes.func.isRequired,
+  onViewPagamentos: PropTypes.func.isRequired,
   currentPage: PropTypes.number,
   pageSize: PropTypes.number,
   onPageChange: PropTypes.func,

@@ -90,12 +90,14 @@ const TurmaColheita = () => {
   useEffect(() => {
     if (searchTerm.trim() === "") {
       setTurmasColheitaFiltradas(turmasColheita);
+      setTotalTurmas(turmasColheita.length || 0);
     } else {
       const termo = searchTerm.toLowerCase().trim();
       const filtrados = turmasColheita.filter((turma) => {
         return (
-          (turma.colhedor && turma.colhedor.toLowerCase().includes(termo)) ||
+          (turma.nomeColhedor && turma.nomeColhedor.toLowerCase().includes(termo)) ||
           (turma.chavePix && turma.chavePix.toLowerCase().includes(termo)) ||
+          (turma.responsavelChavePix && turma.responsavelChavePix.toLowerCase().includes(termo)) ||
           (turma.observacoes && turma.observacoes.toLowerCase().includes(termo))
         );
       });
@@ -264,7 +266,7 @@ const TurmaColheita = () => {
       {/* Busca */}
       <Box sx={{ mb: 2 }}>
         <SearchInput
-          placeholder={isMobile ? "Buscar..." : "Buscar por colhedor, PIX ou observações..."}
+          placeholder={isMobile ? "Buscar..." : "Buscar por nome do colhedor, PIX, responsável ou observações..."}
           value={searchTerm}
           onChange={(value) => setSearchTerm(value)}
           size={isMobile ? "small" : "middle"}

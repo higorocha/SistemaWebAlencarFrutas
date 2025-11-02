@@ -1,0 +1,272 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  ParseIntPipe,
+  HttpStatus,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { LancamentoExtratoService } from './lancamento-extrato.service';
+import {
+  CreateLancamentoExtratoDto,
+  UpdateLancamentoExtratoDto,
+  VincularLancamentoPedidoDto,
+  QueryLancamentoExtratoDto,
+  LancamentoExtratoResponseDto,
+  BuscarProcessarExtratosDto,
+  BuscarProcessarExtratosResponseDto,
+} from './dto/lancamento-extrato.dto';
+import { CredenciaisAPIService } from '../credenciais-api/credenciais-api.service';
+import { ContaCorrenteService } from '../conta-corrente/conta-corrente.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+@ApiTags('Lançamentos de Extrato')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('api/lancamentos-extrato')
+export class LancamentoExtratoController {
+  constructor(
+    private readonly lancamentoExtratoService: LancamentoExtratoService,
+    private readonly credenciaisAPIService: CredenciaisAPIService,
+    private readonly contaCorrenteService: ContaCorrenteService,
+  ) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Criar um novo lançamento de extrato' })
+  @ApiBody({ type: CreateLancamentoExtratoDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Lançamento criado com sucesso',
+    type: LancamentoExtratoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Cliente ou pedido não encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos',
+  })
+  async create(
+    @Body() createDto: CreateLancamentoExtratoDto,
+  ): Promise<LancamentoExtratoResponseDto> {
+    return this.lancamentoExtratoService.create(createDto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Listar todos os lançamentos com filtros opcionais' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de lançamentos',
+    type: [LancamentoExtratoResponseDto],
+  })
+  async findAll(
+    @Query() query?: QueryLancamentoExtratoDto,
+  ): Promise<LancamentoExtratoResponseDto[]> {
+    return this.lancamentoExtratoService.findAll(query);
+  }
+
+  @Get('contas-disponiveis')
+  @ApiOperation({ summary: 'Listar contas correntes com credenciais de extratos disponíveis' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de contas correntes disponíveis',
+    type: [Object],
+  })
+  async listarContasDisponiveis() {
+    try {
+      // Buscar todas as credenciais de extratos
+      const credenciaisExtratos = await this.credenciaisAPIService.findByBancoAndModalidade('001', '003 - Extratos');
+      
+      if (!credenciaisExtratos || credenciaisExtratos.length === 0) {
+        return [];
+      }
+      
+      // Extrair IDs únicos de contas correntes
+      const contaCorrenteIds = [...new Set(credenciaisExtratos.map(c => c.contaCorrenteId).filter((id): id is number => typeof id === 'number' && id > 0))];
+      
+      if (contaCorrenteIds.length === 0) {
+        return [];
+      }
+      
+      // Buscar contas correntes, tratando erros individualmente
+      const contas = await Promise.allSettled(
+        contaCorrenteIds.map((id: number) => this.contaCorrenteService.findOne(id))
+      );
+
+      // Filtrar apenas as contas encontradas com sucesso
+      const contasValidas = contas
+        .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
+        .map(result => result.value);
+
+      return contasValidas.map(conta => ({
+        id: conta.id,
+        agencia: conta.agencia,
+        contaCorrente: conta.contaCorrente,
+        banco: conta.bancoCodigo,
+        nomeBanco: this.getNomeBanco(conta.bancoCodigo),
+      }));
+    } catch (error) {
+      console.error('Erro ao listar contas disponíveis:', error);
+      return [];
+    }
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Buscar um lançamento por ID' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lançamento encontrado',
+    type: LancamentoExtratoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Lançamento não encontrado',
+  })
+  async findOne(
+    @Param('id', ParseIntPipe) id: string,
+  ): Promise<LancamentoExtratoResponseDto> {
+    return this.lancamentoExtratoService.findOne(BigInt(id));
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Atualizar um lançamento' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiBody({ type: UpdateLancamentoExtratoDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lançamento atualizado com sucesso',
+    type: LancamentoExtratoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Lançamento ou pedido não encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos',
+  })
+  async update(
+    @Param('id', ParseIntPipe) id: string,
+    @Body() updateDto: UpdateLancamentoExtratoDto,
+  ): Promise<LancamentoExtratoResponseDto> {
+    return this.lancamentoExtratoService.update(BigInt(id), updateDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Remover um lançamento' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Lançamento removido com sucesso',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Lançamento não encontrado',
+  })
+  async remove(@Param('id', ParseIntPipe) id: string): Promise<void> {
+    return this.lancamentoExtratoService.remove(BigInt(id));
+  }
+
+  @Post(':id/vincular-pedido')
+  @ApiOperation({ summary: 'Vincular manualmente um lançamento a um pedido' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiBody({ type: VincularLancamentoPedidoDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lançamento vinculado ao pedido com sucesso',
+    type: LancamentoExtratoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Lançamento ou pedido não encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'O pedido não pertence ao cliente do lançamento',
+  })
+  async vincularPedido(
+    @Param('id', ParseIntPipe) id: string,
+    @Body() vincularDto: VincularLancamentoPedidoDto,
+  ): Promise<LancamentoExtratoResponseDto> {
+    return this.lancamentoExtratoService.vincularPedido(BigInt(id), vincularDto);
+  }
+
+  @Post(':id/desvincular-pedido')
+  @ApiOperation({ summary: 'Desvincular um lançamento de um pedido' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lançamento desvinculado do pedido com sucesso',
+    type: LancamentoExtratoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Lançamento não encontrado',
+  })
+  async desvincularPedido(
+    @Param('id', ParseIntPipe) id: string,
+  ): Promise<LancamentoExtratoResponseDto> {
+    return this.lancamentoExtratoService.desvincularPedido(BigInt(id));
+  }
+
+  @Post('buscar-processar')
+  @ApiOperation({ summary: 'Buscar e processar extratos da API BB para um cliente' })
+  @ApiBody({ type: BuscarProcessarExtratosDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Extratos processados com sucesso',
+    type: BuscarProcessarExtratosResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Cliente ou conta corrente não encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos ou cliente sem CPF/CNPJ',
+  })
+  async buscarEProcessarExtratos(
+    @Body() dto: BuscarProcessarExtratosDto,
+  ): Promise<BuscarProcessarExtratosResponseDto> {
+    return this.lancamentoExtratoService.buscarEProcessarExtratos(dto);
+  }
+
+  /**
+   * Função helper para obter o nome do banco pelo código
+   */
+  private getNomeBanco(codigo: string): string {
+    const bancos: Record<string, string> = {
+      '001': 'Banco do Brasil',
+      '033': 'Banco Santander',
+      '104': 'Caixa Econômica Federal',
+      '237': 'Bradesco',
+      '341': 'Itaú Unibanco',
+      '356': 'Banco Real',
+      '399': 'HSBC Bank Brasil',
+      '422': 'Banco Safra',
+      '633': 'Banco Rendimento',
+      '652': 'Itaú Unibanco Holding',
+      '745': 'Banco Citibank',
+      '748': 'Banco Cooperativo Sicredi',
+      '756': 'Banco Cooperativo do Brasil',
+    };
+    return bancos[codigo] || 'Banco não identificado';
+  }
+}
+

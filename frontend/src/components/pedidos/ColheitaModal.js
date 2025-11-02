@@ -419,14 +419,61 @@ const ColheitaModal = ({
     setVincularAreasModalOpen(true);
   };
 
+  // ✅ NOVO: Função para calcular estoque consumido por outras frutas do pedido
+  const calcularEstoqueConsumidoPorOutrasFrutas = (frutaIndexAtual) => {
+    const valoresAtuais = form.getFieldsValue();
+    const frutasAtuais = valoresAtuais.frutas || [];
+
+    const estoqueConsumido = {};
+
+    // Percorrer todas as frutas EXCETO a atual
+    frutasAtuais.forEach((fruta, index) => {
+      if (index === frutaIndexAtual) return; // Pular a fruta atual
+
+      // Se a fruta tem fitas vinculadas
+      if (fruta.fitas && Array.isArray(fruta.fitas)) {
+        fruta.fitas.forEach(fita => {
+          // Se tem detalhesAreas (nova estrutura)
+          if (fita.detalhesAreas && Array.isArray(fita.detalhesAreas)) {
+            fita.detalhesAreas.forEach(detalhe => {
+              if (detalhe.controleBananaId && detalhe.quantidade) {
+                const chave = `${fita.fitaBananaId}_${detalhe.controleBananaId}`;
+                estoqueConsumido[chave] = (estoqueConsumido[chave] || 0) + detalhe.quantidade;
+              }
+            });
+          }
+        });
+      }
+    });
+
+    console.log('🎯 Estoque consumido por outras frutas:', estoqueConsumido);
+    return estoqueConsumido;
+  };
+
   const handleVincularFitas = (fruta, frutaIndex) => {
     // Verificar se a fruta tem áreas vinculadas antes de abrir o modal
     if (!hasLinkedAreas(fruta)) {
       warning("Áreas Necessárias", "Você deve vincular áreas à fruta antes de vincular fitas. As fitas são específicas para cada área.");
       return;
     }
-    
-    setFrutaSelecionada({ ...fruta, index: frutaIndex });
+
+    // ✅ NOVO: Calcular estoque consumido por outras frutas
+    const estoqueConsumido = calcularEstoqueConsumidoPorOutrasFrutas(frutaIndex);
+
+    // ✅ NOVO: Pegar todas as frutas do formulário para validação global
+    const valoresAtuais = form.getFieldsValue();
+    const todasFrutas = valoresAtuais.frutas || [];
+
+    setFrutaSelecionada({
+      ...fruta,
+      index: frutaIndex,
+      // ✅ NOVO: Adicionar dados para controle de estoque virtual
+      estoqueConsumidoPorOutrasFrutas: estoqueConsumido,
+      todasFrutasPedido: todasFrutas,
+      // ✅ CORREÇÃO: No ColheitaModal (nova colheita), fitas originais do banco são VAZIAS
+      // Isso garante que o estoque virtual use array vazio em vez de fruta.fitas (state atual)
+      fitasOriginaisBanco: []
+    });
     setVincularFitasModalOpen(true);
   };
 

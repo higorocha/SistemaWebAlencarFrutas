@@ -427,10 +427,48 @@ const ColheitaTab = ({
     setVincularAreasModalOpen(true);
   };
 
+  // ✅ NOVO: Função para calcular estoque consumido por outras frutas do pedido
+  const calcularEstoqueConsumidoPorOutrasFrutas = (frutaIndexAtual) => {
+    // ✅ CORREÇÃO: Usar dados ORIGINAIS do banco para calcular o consumo real
+    // porque o estoque no backend JÁ foi decrementado pelas fitas originais
+    const frutasOriginais = dadosOriginaisBanco?.frutas || [];
+
+    const estoqueConsumido = {};
+
+    // Percorrer todas as frutas EXCETO a atual
+    frutasOriginais.forEach((fruta, index) => {
+      if (index === frutaIndexAtual) return; // Pular a fruta atual
+
+      // Se a fruta tem fitas vinculadas
+      if (fruta.fitas && Array.isArray(fruta.fitas)) {
+        fruta.fitas.forEach(fita => {
+          // Se tem detalhesAreas (nova estrutura)
+          if (fita.detalhesAreas && Array.isArray(fita.detalhesAreas)) {
+            fita.detalhesAreas.forEach(detalhe => {
+              if (detalhe.controleBananaId && detalhe.quantidade) {
+                const chave = `${fita.fitaBananaId}_${detalhe.controleBananaId}`;
+                estoqueConsumido[chave] = (estoqueConsumido[chave] || 0) + detalhe.quantidade;
+              }
+            });
+          }
+        });
+      }
+    });
+
+    console.log('🎯 [ColheitaTab] Estoque consumido por outras frutas (ORIGINAIS DO BANCO):', estoqueConsumido);
+    return estoqueConsumido;
+  };
+
   const handleVincularFitas = (fruta, frutaIndex) => {
     // ✅ BUSCAR dados originais IMUTÁVEIS do banco para esta fruta
     const frutaOriginal = dadosOriginaisBanco?.frutas?.find(f => f.frutaId === fruta.frutaId) || null;
-    
+
+    // ✅ NOVO: Calcular estoque consumido por outras frutas
+    const estoqueConsumido = calcularEstoqueConsumidoPorOutrasFrutas(frutaIndex);
+
+    // ✅ NOVO: Pegar todas as frutas do pedido para validação global
+    const todasFrutas = pedidoAtual.frutas || [];
+
     // ✅ PROCESSAR fitas para incluir detalhesAreas (igual ao ColheitaModal.js)
     const frutaProcessada = {
       ...fruta,
@@ -447,9 +485,12 @@ const ColheitaTab = ({
         detalhesAreas: fita.detalhesAreas || []
       })) : [],
       // ✅ NOVO: Incluir dados originais IMUTÁVEIS do banco para validações
-      fitasOriginaisBanco: frutaOriginal?.fitas || []
+      fitasOriginaisBanco: frutaOriginal?.fitas || [],
+      // ✅ NOVO: Adicionar dados para controle de estoque virtual
+      estoqueConsumidoPorOutrasFrutas: estoqueConsumido,
+      todasFrutasPedido: todasFrutas
     };
-    
+
     setFrutaSelecionada(frutaProcessada);
     setVincularFitasModalOpen(true);
   };

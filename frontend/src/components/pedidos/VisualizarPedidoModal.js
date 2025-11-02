@@ -1,6 +1,6 @@
 // src/components/pedidos/VisualizarPedidoModal.js
 
-import React from "react";
+import React, { useState } from "react";
 import { 
   Modal, 
   Card, 
@@ -32,10 +32,12 @@ import {
   TagOutlined,
   BuildOutlined,
   CloseCircleOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  HistoryOutlined
 } from "@ant-design/icons";
 import { formatarValorMonetario, numberFormatter, capitalizeName, intFormatter } from "../../utils/formatters";
 import { PDFButton } from "../common/buttons";
+import HistoricoPedidoModal from "./HistoricoPedidoModal";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
@@ -53,6 +55,9 @@ const VisualizarPedidoModal = ({
 }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
+
+  // Estado para controlar modal de histórico
+  const [historicoModalOpen, setHistoricoModalOpen] = useState(false);
 
   // Função para formatar datas
   const formatarData = (data) => {
@@ -436,7 +441,7 @@ const VisualizarPedidoModal = ({
         </Row>
         <Divider style={{ margin: isMobile ? "8px 0" : "12px 0" }} />
         <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
-          <Col xs={24} sm={24} md={12}>
+          <Col xs={24} sm={24} md={8}>
             <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
               <UserOutlined style={{ marginRight: 4 }} />
               Cliente:
@@ -446,20 +451,57 @@ const VisualizarPedidoModal = ({
               {pedido.cliente?.nome || '-'}
             </Text>
           </Col>
-          <Col xs={24} sm={24} md={12}>
+          <Col xs={24} sm={24} md={8}>
             <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
               <FileTextOutlined style={{ marginRight: 4 }} />
               Observações:
             </Text>
             <br />
-            <Paragraph style={{ 
-              margin: "4px 0 0 0", 
-              color: "#666", 
+            <Paragraph style={{
+              margin: "4px 0 0 0",
+              color: "#666",
               fontSize: "0.875rem",
               fontStyle: pedido.observacoes ? "normal" : "italic"
             }}>
               {pedido.observacoes || "Nenhuma observação registrada"}
             </Paragraph>
+          </Col>
+          <Col xs={24} sm={24} md={8}>
+            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+              <UserOutlined style={{ marginRight: 4 }} />
+              Criado por:
+            </Text>
+            <br />
+            {pedido.usuarioCriador ? (
+              <Text
+                style={{
+                  fontSize: "0.875rem",
+                  color: "#059669",
+                  marginTop: "4px",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  fontWeight: "500"
+                }}
+                onClick={() => setHistoricoModalOpen(true)}
+              >
+                {pedido.usuarioCriador.nome}
+              </Text>
+            ) : (
+              <Button
+                type="link"
+                size="small"
+                icon={<HistoryOutlined />}
+                onClick={() => setHistoricoModalOpen(true)}
+                style={{
+                  padding: "0",
+                  height: "auto",
+                  fontSize: "0.875rem",
+                  color: "#8c8c8c"
+                }}
+              >
+                Ver Histórico
+              </Button>
+            )}
           </Col>
         </Row>
       </Card>
@@ -1591,6 +1633,14 @@ const VisualizarPedidoModal = ({
           </Col>
         </Row>
       </Card>
+
+      {/* Modal de Histórico */}
+      <HistoricoPedidoModal
+        open={historicoModalOpen}
+        onClose={() => setHistoricoModalOpen(false)}
+        historico={pedido?.historicoCompleto || []}
+        numeroPedido={pedido?.numeroPedido || ''}
+      />
     </Modal>
   );
 };
