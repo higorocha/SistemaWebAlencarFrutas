@@ -18,6 +18,9 @@ export class MobilePedidoSimplificadoDto {
   @ApiProperty({ description: 'Status do pedido', enum: StatusPedido })
   status: StatusPedido;
 
+  @ApiProperty({ description: 'Data de criação do pedido', example: '2025-10-20' })
+  dataPedido: string;
+
   @ApiProperty({ description: 'Data prevista de colheita', example: '2025-10-25' })
   dataPrevistaColheita: string | null;
 

@@ -389,6 +389,7 @@ export class PedidosMobileController {
       numeroPedido: pedido.numeroPedido,
       cliente: pedido.cliente,
       status: pedido.status,
+      dataPedido: pedido.dataPedido,
       dataPrevistaColheita: pedido.dataPrevistaColheita,
       dataColheita: pedido.dataColheita,
       frutas:

@@ -2102,15 +2102,23 @@ export class PedidosService {
           }
         }
 
-        // Determinar a quantidade para cálculo conforme a unidade efetiva
+        // ✅ CORREÇÃO: Priorizar SEMPRE quantidadePrecificada informada pelo usuário
+        // Se não foi informada, usar a quantidade colhida correspondente à unidade efetiva
         let quantidadeParaCalculo = 0;
-        if (unidadeEfetiva === unidadeMedida1) {
-          quantidadeParaCalculo = frutaPedido.quantidadeReal || 0;
-        } else if (unidadeEfetiva === unidadeMedida2) {
-          quantidadeParaCalculo = frutaPedido.quantidadeReal2 || 0;
+        
+        if (fruta.quantidadePrecificada !== undefined && fruta.quantidadePrecificada !== null) {
+          // ✅ SEMPRE usar a quantidade precificada informada pelo usuário
+          quantidadeParaCalculo = fruta.quantidadePrecificada;
         } else {
-          // Fallback seguro
-          quantidadeParaCalculo = frutaPedido.quantidadeReal || 0;
+          // Fallback: usar quantidade colhida correspondente à unidade efetiva
+          if (unidadeEfetiva === unidadeMedida1) {
+            quantidadeParaCalculo = frutaPedido.quantidadeReal || 0;
+          } else if (unidadeEfetiva === unidadeMedida2) {
+            quantidadeParaCalculo = frutaPedido.quantidadeReal2 || 0;
+          } else {
+            // Fallback seguro
+            quantidadeParaCalculo = frutaPedido.quantidadeReal || 0;
+          }
         }
 
         const valores = this.calcularValoresFruta(
@@ -2124,26 +2132,34 @@ export class PedidosService {
             valorUnitario: fruta.valorUnitario,
             valorTotal: valores.valorTotal,
             unidadePrecificada: unidadeEfetiva as any,
-            quantidadePrecificada: fruta.quantidadePrecificada || quantidadeParaCalculo,
+            quantidadePrecificada: quantidadeParaCalculo,
           },
         });
       }
 
       // Calcular valor final consolidado a partir do estado persistido (garantir consistência)
+      // ✅ CORREÇÃO: Usar quantidadePrecificada que já foi salva no loop anterior
       const frutasDoPedido = await prisma.frutasPedidos.findMany({ where: { pedidoId: id } });
       let valorTotalFrutas = 0;
       for (const fp of frutasDoPedido) {
-        const unidadePrec = fp.unidadePrecificada?.toString().trim().toUpperCase();
-        const um1 = fp.unidadeMedida1?.toString().trim().toUpperCase();
-        const um2 = fp.unidadeMedida2?.toString().trim().toUpperCase();
-
-        let qtd = 0;
-        if (unidadePrec === um2) {
-          qtd = fp.quantidadeReal2 || 0;
-        } else {
-          // padrão: um1
-          qtd = fp.quantidadeReal || 0;
+        // ✅ SEMPRE usar quantidadePrecificada (já salva no loop anterior)
+        // Se não houver quantidadePrecificada salva, usar fallback das quantidades colhidas
+        let qtd = fp.quantidadePrecificada;
+        
+        if (qtd === null || qtd === undefined) {
+          // Fallback: usar quantidade colhida baseada na unidade precificada
+          const unidadePrec = fp.unidadePrecificada?.toString().trim().toUpperCase();
+          const um1 = fp.unidadeMedida1?.toString().trim().toUpperCase();
+          const um2 = fp.unidadeMedida2?.toString().trim().toUpperCase();
+          
+          if (unidadePrec === um2) {
+            qtd = fp.quantidadeReal2 || 0;
+          } else {
+            // padrão: um1
+            qtd = fp.quantidadeReal || 0;
+          }
         }
+        
         const vt = Number(((qtd || 0) * (fp.valorUnitario || 0)).toFixed(2));
 
         // Se o valorTotal persistido estiver divergente, atualizar
@@ -2859,15 +2875,23 @@ export class PedidosService {
                 }
               }
 
-              // Determinar a quantidade para cálculo conforme a unidade efetiva
+              // ✅ CORREÇÃO: Priorizar SEMPRE quantidadePrecificada informada pelo usuário
+              // Se não foi informada, usar a quantidade colhida correspondente à unidade efetiva
               let quantidadeParaCalculo = 0;
-              if (unidadeEfetiva === unidadeMedida1) {
-                quantidadeParaCalculo = (fruta.quantidadeReal ?? frutaPedidoAtual.quantidadeReal) || 0;
-              } else if (unidadeEfetiva === unidadeMedida2) {
-                quantidadeParaCalculo = (fruta.quantidadeReal2 ?? frutaPedidoAtual.quantidadeReal2) || 0;
+              
+              if (fruta.quantidadePrecificada !== undefined && fruta.quantidadePrecificada !== null) {
+                // ✅ SEMPRE usar a quantidade precificada informada pelo usuário
+                quantidadeParaCalculo = fruta.quantidadePrecificada;
               } else {
-                // Fallback seguro
-                quantidadeParaCalculo = (fruta.quantidadeReal ?? frutaPedidoAtual.quantidadeReal) || 0;
+                // Fallback: usar quantidade colhida correspondente à unidade efetiva
+                if (unidadeEfetiva === unidadeMedida1) {
+                  quantidadeParaCalculo = (fruta.quantidadeReal ?? frutaPedidoAtual.quantidadeReal) || 0;
+                } else if (unidadeEfetiva === unidadeMedida2) {
+                  quantidadeParaCalculo = (fruta.quantidadeReal2 ?? frutaPedidoAtual.quantidadeReal2) || 0;
+                } else {
+                  // Fallback seguro
+                  quantidadeParaCalculo = (fruta.quantidadeReal ?? frutaPedidoAtual.quantidadeReal) || 0;
+                }
               }
 
               const valorUnitarioEfetivo = (fruta.valorUnitario ?? frutaPedidoAtual.valorUnitario) || 0;
@@ -2883,7 +2907,7 @@ export class PedidosService {
                   unidadeMedida2: fruta.unidadeMedida2,
                   valorUnitario: valorUnitarioEfetivo,
                   unidadePrecificada: unidadeEfetiva as any,
-                  quantidadePrecificada: fruta.quantidadePrecificada || quantidadeParaCalculo,
+                  quantidadePrecificada: quantidadeParaCalculo,
                   valorTotal: valorTotalCalculado,
                   // fitaColheita removido - agora está em FrutasPedidosFitas
                 },
@@ -3301,22 +3325,27 @@ export class PedidosService {
         updatePedidoCompletoDto.avaria !== undefined
       ) {
         // Calcular valor final consolidado a partir do estado persistido (garantir consistência)
+        // ✅ CORREÇÃO: Usar quantidadePrecificada que já foi salva no loop anterior
         const frutasDoPedido = await prisma.frutasPedidos.findMany({ where: { pedidoId: id } });
         let valorTotalFrutas = 0;
         
         for (const fp of frutasDoPedido) {
-          const unidadePrec = fp.unidadePrecificada?.toString().trim().toUpperCase();
-          const um1 = fp.unidadeMedida1?.toString().trim().toUpperCase();
-          const um2 = fp.unidadeMedida2?.toString().trim().toUpperCase();
-
-          let qtd = 0;
-          if (unidadePrec === um1) {
-            qtd = fp.quantidadeReal || 0;
-          } else if (unidadePrec === um2) {
-            qtd = fp.quantidadeReal2 || 0;
-          } else {
-            // padrão: um1
-            qtd = fp.quantidadeReal || 0;
+          // ✅ SEMPRE usar quantidadePrecificada (já salva no loop anterior)
+          // Se não houver quantidadePrecificada salva, usar fallback das quantidades colhidas
+          let qtd = fp.quantidadePrecificada;
+          
+          if (qtd === null || qtd === undefined) {
+            // Fallback: usar quantidade colhida baseada na unidade precificada
+            const unidadePrec = fp.unidadePrecificada?.toString().trim().toUpperCase();
+            const um1 = fp.unidadeMedida1?.toString().trim().toUpperCase();
+            const um2 = fp.unidadeMedida2?.toString().trim().toUpperCase();
+            
+            if (unidadePrec === um2) {
+              qtd = fp.quantidadeReal2 || 0;
+            } else {
+              // padrão: um1
+              qtd = fp.quantidadeReal || 0;
+            }
           }
           
           const vt = Number(((qtd || 0) * (fp.valorUnitario || 0)).toFixed(2));

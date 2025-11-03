@@ -14,6 +14,7 @@ import {
   BankOutlined,
   UpOutlined,
   DownOutlined,
+  LinkOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import axiosInstance from "../../api/axiosConfig";
@@ -22,6 +23,7 @@ import { SearchInput } from "../common/search";
 import { formatCurrency, capitalizeName, formatarDataBR } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
+import VincularPagamentoManualModal from "./VincularPagamentoManualModal";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -47,6 +49,10 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   const [buscandoAPI, setBuscandoAPI] = useState(false);
   const [loadingContas, setLoadingContas] = useState(false);
   const [buscaAPIVisivel, setBuscaAPIVisivel] = useState(false);
+
+  // Estados para vinculação manual
+  const [vinculacaoModalOpen, setVinculacaoModalOpen] = useState(false);
+  const [lancamentoParaVincular, setLancamentoParaVincular] = useState(null);
 
   // Estatísticas do cliente
   const [estatisticas, setEstatisticas] = useState({
@@ -363,7 +369,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
 
       // Recarregar pagamentos após buscar
       await fetchPagamentosCliente();
-      
+
       // Limpar range de busca
       setRangeBuscaAPI(null);
     } catch (error) {
@@ -374,6 +380,69 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       setBuscandoAPI(false);
     }
   }, [cliente?.id, rangeBuscaAPI, contaSelecionada, fetchPagamentosCliente]);
+
+  // Handler para abrir modal de vinculação manual
+  const handleAbrirVinculacaoManual = (lancamento) => {
+    setLancamentoParaVincular(lancamento);
+    setVinculacaoModalOpen(true);
+  };
+
+  // Handler para executar vinculação (dupla operação)
+  const handleVincularPagamento = async (lancamento, pedido) => {
+    try {
+      setLoadingPagamentos(true);
+
+      // 1. Vincular lançamento ao pedido na tabela LancamentoExtrato
+      await axiosInstance.post(
+        `/api/lancamentos-extrato/${lancamento.id}/vincular-pedido`,
+        {
+          pedidoId: pedido.id,
+          observacoes: 'Vinculação manual pelo usuário'
+        }
+      );
+
+      // 2. Criar pagamento na tabela PagamentosPedidos
+      const metodoPagamento = lancamento.categoriaOperacao === 'PIX_RECEBIDO'
+        ? 'PIX'
+        : lancamento.categoriaOperacao === 'PIX_ENVIADO'
+          ? 'PIX'
+          : 'TRANSFERENCIA';
+
+      const pagamentoData = {
+        pedidoId: pedido.id,
+        dataPagamento: moment(lancamento.dataLancamento).startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss'),
+        valorRecebido: lancamento.valorLancamento,
+        metodoPagamento: metodoPagamento,
+        contaDestino: 'ALENCAR', // Pode ser configurável no futuro
+        observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
+      };
+
+      await axiosInstance.post(
+        `/api/pedidos/${pedido.id}/pagamentos`,
+        pagamentoData
+      );
+
+      showNotification(
+        'success',
+        'Sucesso',
+        `Pagamento de ${formatCurrency(lancamento.valorLancamento)} vinculado ao pedido ${pedido.numeroPedido} com sucesso!`
+      );
+
+      // Recarregar lista de lançamentos
+      await fetchPagamentosCliente();
+
+      // Fechar modal (o modal filho já faz isso)
+      setVinculacaoModalOpen(false);
+      setLancamentoParaVincular(null);
+    } catch (error) {
+      console.error('Erro ao vincular pagamento:', error);
+      const message = error.response?.data?.message || 'Erro ao vincular pagamento ao pedido';
+      showNotification('error', 'Erro', message);
+      throw error; // Re-throw para o modal filho tratar
+    } finally {
+      setLoadingPagamentos(false);
+    }
+  };
 
   // Efeito para carregar pagamentos quando o modal abrir
   useEffect(() => {
@@ -563,6 +632,41 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       ),
       width: "12%",
     },
+    {
+      title: "Ação",
+      key: "acao",
+      width: "10%",
+      render: (_, record) => (
+        !record.vinculadoPedido ? (
+          <Button
+            type="primary"
+            size="small"
+            icon={<LinkOutlined />}
+            onClick={() => handleAbrirVinculacaoManual(record)}
+            style={{
+              backgroundColor: '#059669',
+              borderColor: '#047857',
+              fontSize: '0.75rem',
+              height: '28px',
+              padding: '0 8px'
+            }}
+          >
+            Vincular
+          </Button>
+        ) : (
+          <Tag
+            color="success"
+            style={{
+              fontSize: '0.65rem',
+              padding: '2px 8px',
+              borderRadius: '4px'
+            }}
+          >
+            Vinculado
+          </Tag>
+        )
+      ),
+    },
   ];
 
   return (
@@ -633,6 +737,37 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           }
         }}
       >
+        {/* Primeira linha: Nome e CNPJ do Cliente */}
+        <div style={{
+          marginBottom: isMobile ? "16px" : "20px",
+          paddingBottom: isMobile ? "12px" : "16px",
+          borderBottom: "1px solid #e8e8e8"
+        }}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+            <Col xs={24} sm={12}>
+              <Space direction="vertical" size={2}>
+                <Text strong style={{ fontSize: isMobile ? "11px" : "12px", color: "#666" }}>
+                  Cliente
+                </Text>
+                <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "600", color: "#333" }}>
+                  {capitalizeName(cliente?.nome || "Cliente")}
+                </Text>
+              </Space>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Space direction="vertical" size={2}>
+                <Text strong style={{ fontSize: isMobile ? "11px" : "12px", color: "#666" }}>
+                  {cliente?.cpf ? "CPF" : "CNPJ"}
+                </Text>
+                <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "600", color: "#333" }}>
+                  {cliente?.cpf || cliente?.cnpj || "-"}
+                </Text>
+              </Space>
+            </Col>
+          </Row>
+        </div>
+
+        {/* Segunda linha: Estatísticas */}
         <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
           <Col xs={12} sm={12} md={6}>
             <Statistic
@@ -872,7 +1007,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
             showSizeChanger: true,
             showTotal: (total) => `Total: ${total} pagamentos`,
           }}
-          minWidthMobile={1000}
+          minWidthMobile={1200}
           showScrollHint={true}
           size="middle"
           bordered={true}
@@ -890,6 +1025,18 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           }}
         />
       </Spin>
+
+      {/* Modal de Vinculação Manual */}
+      <VincularPagamentoManualModal
+        open={vinculacaoModalOpen}
+        onClose={() => {
+          setVinculacaoModalOpen(false);
+          setLancamentoParaVincular(null);
+        }}
+        lancamento={lancamentoParaVincular}
+        cliente={cliente}
+        onVincular={handleVincularPagamento}
+      />
     </Modal>
   );
 };
