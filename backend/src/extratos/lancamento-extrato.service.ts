@@ -681,6 +681,21 @@ export class LancamentoExtratoService {
       vinculacaoAutomatica: lancamento.vinculacaoAutomatica,
       createdAt: lancamento.createdAt,
       updatedAt: lancamento.updatedAt,
+      // ✅ Incluir dados do cliente vinculado
+      cliente: lancamento.cliente ? {
+        id: lancamento.cliente.id,
+        nome: lancamento.cliente.nome,
+        cnpj: lancamento.cliente.cnpj || undefined,
+        cpf: lancamento.cliente.cpf || undefined,
+      } : undefined,
+      // ✅ Incluir dados do pedido vinculado
+      // Se pedidoId existe, o relacionamento deve estar carregado
+      pedido: lancamento.pedido ? {
+        id: lancamento.pedido.id,
+        numeroPedido: lancamento.pedido.numeroPedido,
+        valorFinal: lancamento.pedido.valorFinal ? Number(lancamento.pedido.valorFinal) : undefined,
+        status: lancamento.pedido.status,
+      } : undefined,
     };
   }
 }

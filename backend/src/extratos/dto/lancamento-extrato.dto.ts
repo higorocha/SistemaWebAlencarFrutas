@@ -339,6 +339,22 @@ export class LancamentoExtratoResponseDto {
 
   @ApiProperty({ description: 'Data de atualização' })
   updatedAt: Date;
+
+  @ApiPropertyOptional({ description: 'Dados do cliente vinculado' })
+  cliente?: {
+    id: number;
+    nome: string;
+    cnpj?: string;
+    cpf?: string;
+  };
+
+  @ApiPropertyOptional({ description: 'Dados do pedido vinculado' })
+  pedido?: {
+    id: number;
+    numeroPedido: string;
+    valorFinal?: number;
+    status: string;
+  };
 }
 
 /**

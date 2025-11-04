@@ -98,9 +98,11 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         pagamentosData = [];
       }
       
+      // Logs de debug removidos
+
       setPagamentos(pagamentosData);
       setPagamentosFiltrados(pagamentosData);
-      
+
       // Calcular estatísticas
       const stats = calcularEstatisticas(pagamentosData);
       setEstatisticas(stats);
