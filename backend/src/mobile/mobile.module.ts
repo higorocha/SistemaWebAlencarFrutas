@@ -1,11 +1,14 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { PedidosMobileController } from './controllers/pedidos-mobile.controller';
 import { FitasMobileController } from './controllers/fitas-mobile.controller';
+import { PushTokensMobileController } from './controllers/push-tokens-mobile.controller';
 import { PedidosModule } from '../pedidos/pedidos.module';
 import { TurmaColheitaModule } from '../turma-colheita/turma-colheita.module';
 import { FitasBananaModule } from '../fitas-banana/fitas-banana.module';
 import { ControleBananaModule } from '../controle-banana/controle-banana.module';
+import { PrismaModule } from '../prisma/prisma.module';
 import { CulturaGuard } from './guards/cultura.guard';
+import { PushTokensService } from './services/push-tokens.service';
 
 /**
  * Módulo Mobile - API específica para o aplicativo mobile
@@ -24,7 +27,8 @@ import { CulturaGuard } from './guards/cultura.guard';
  */
 @Module({
   imports: [
-    PedidosModule, // Importa para reutilizar PedidosService
+    PrismaModule,
+    forwardRef(() => PedidosModule), // Importa para reutilizar PedidosService
     TurmaColheitaModule, // Importa para reutilizar TurmaColheitaService
     FitasBananaModule, // Reutiliza FitasBananaService
     ControleBananaModule, // Reutiliza ControleBananaService
@@ -32,9 +36,14 @@ import { CulturaGuard } from './guards/cultura.guard';
   controllers: [
     PedidosMobileController,
     FitasMobileController,
+    PushTokensMobileController,
   ],
   providers: [
     CulturaGuard,
+    PushTokensService,
+  ],
+  exports: [
+    PushTokensService, // Exportar para uso em outros módulos
   ],
 })
 export class MobileModule {}

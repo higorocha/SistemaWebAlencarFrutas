@@ -19,6 +19,7 @@ import {
 
 import { HistoricoService } from '../historico/historico.service';
 import { TipoAcaoHistorico } from '../historico/types/historico.types';
+import { NotificacoesService } from '../notificacoes/notificacoes.service';
 
 @Injectable()
 export class PedidosService {
@@ -26,7 +27,8 @@ export class PedidosService {
     private prisma: PrismaService,
     private controleBananaService: ControleBananaService,
     private turmaColheitaService: TurmaColheitaService,
-    private historicoService: HistoricoService
+    private historicoService: HistoricoService,
+    private notificacoesService: NotificacoesService
   ) {}
 
   async getDashboardStats(
@@ -605,7 +607,7 @@ export class PedidosService {
     }
   }
 
-  async create(createPedidoDto: CreatePedidoDto, usuarioId: number): Promise<PedidoResponseDto> {
+  async create(createPedidoDto: CreatePedidoDto, usuarioId: number, origem: 'web' | 'mobile' = 'web'): Promise<PedidoResponseDto> {
     // ✅ Validar se usuarioId foi fornecido
     if (!usuarioId) {
       throw new BadRequestException('ID do usuário não fornecido');
@@ -807,6 +809,16 @@ export class PedidosService {
         mensagem: `Pedido ${pedido.numeroPedido} criado`,
       }
     );
+
+    // Criar notificações para criação do pedido (não bloqueante)
+    // Não aguardamos para não impactar a resposta da API
+    // Excluímos o criador do pedido das notificações (já sabe que criou)
+    this.notificacoesService
+      .criarNotificacaoPedidoCriado(pedido.id, origem, usuarioId)
+      .catch((error) => {
+        // Log erro mas não interromper o fluxo
+        console.error(`[PedidosService] Erro ao criar notificações para pedido ${pedido.id}:`, error);
+      });
 
     // Buscar dados completos para retorno
     const pedidoCompleto = await this.findOne(pedido.id);

@@ -23,6 +23,7 @@ model Usuario {
   fitasBanana     FitaBanana[]
   historicosFitas HistoricoFitas[]
   notificacoes    Notificacao[]
+  pushTokens      PushToken[]
   cultura         Cultura?         @relation(fields: [culturaId], references: [id])
   historicoPedidos HistoricoPedido[]
 
@@ -150,6 +151,22 @@ model Notificacao {
   usuario         Usuario?              @relation(fields: [usuarioId], references: [id])
 
   @@map("notificacoes")
+}
+
+model PushToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  usuarioId Int      @map("usuario_id")
+  platform  String   @db.VarChar(20)
+  deviceId  String?  @map("device_id")
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([token])
+  @@map("push_tokens")
 }
 
 model Cultura {

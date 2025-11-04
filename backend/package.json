@@ -52,6 +52,7 @@
     "class-validator": "^0.14.2",
     "crypto-js": "^4.2.0",
     "dotenv": "^17.2.0",
+    "expo-server-sdk": "^4.0.0",
     "nodemailer": "^7.0.5",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

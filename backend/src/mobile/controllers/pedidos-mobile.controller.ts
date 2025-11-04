@@ -606,7 +606,7 @@ export class PedidosMobileController {
     @Req() request: any,
   ): Promise<PedidoResponseDto> {
     const usuarioId = request?.user?.id;
-    // Criar pedido usando o service principal
-    return this.pedidosService.create(createPedidoDto, usuarioId);
+    // Criar pedido usando o service principal com origem 'mobile'
+    return this.pedidosService.create(createPedidoDto, usuarioId, 'mobile');
   }
 }

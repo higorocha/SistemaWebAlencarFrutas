@@ -55,7 +55,7 @@ Objeto com todas as cores de status disponíveis.
 - `AGUARDANDO_COLHEITA` - Azul (#1890ff)
 - `COLHEITA_REALIZADA` - Roxo (#722ed1)
 - `AGUARDANDO_PRECIFICACAO` - Roxo (#722ed1)
-- `PRECIFICACAO_REALIZADA` - Roxo (#722ed1)
+- `PRECIFICACAO_REALIZADA` - Amarelo (#faad14)
 - `AGUARDANDO_PAGAMENTO` - Amarelo (#faad14)
 - `PAGAMENTO_PARCIAL` - Amarelo (#faad14)
 - `PAGAMENTO_REALIZADO` - Verde (#52c41a)

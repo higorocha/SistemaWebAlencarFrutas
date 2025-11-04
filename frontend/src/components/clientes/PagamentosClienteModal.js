@@ -418,7 +418,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       };
 
       await axiosInstance.post(
-        `/api/pedidos/${pedido.id}/pagamentos`,
+        `/api/pedidos/pagamentos`,
         pagamentoData
       );
 
