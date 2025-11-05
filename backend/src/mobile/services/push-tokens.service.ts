@@ -13,14 +13,20 @@ export class PushTokensService {
     userId: number,
     createPushTokenDto: CreatePushTokenDto,
   ): Promise<PushTokenResponseDto> {
+    console.log(`[Push Token] Registrando token para usuário ${userId}, plataforma: ${createPushTokenDto.platform}`);
+    console.log(`[Push Token] Token (primeiros 20 chars): ${createPushTokenDto.token.substring(0, 20)}...`);
+    
     // Verificar se o token já existe
     const existingToken = await this.prisma.pushToken.findUnique({
       where: { token: createPushTokenDto.token },
     });
 
     if (existingToken) {
+      console.log(`[Push Token] Token já existe. Usuário atual: ${existingToken.usuarioId}, ativo: ${existingToken.ativo}`);
+      
       // Se o token existe mas pertence a outro usuário, atualizar
       if (existingToken.usuarioId !== userId) {
+        console.log(`[Push Token] Token pertence a outro usuário, atualizando para usuário ${userId}`);
         const updated = await this.prisma.pushToken.update({
           where: { token: createPushTokenDto.token },
           data: {
@@ -31,10 +37,12 @@ export class PushTokensService {
             updatedAt: new Date(),
           },
         });
+        console.log(`[Push Token] Token atualizado com sucesso para usuário ${userId}`);
         return this.mapToResponseDto(updated);
       }
 
       // Se já existe para este usuário, apenas atualizar
+      console.log(`[Push Token] Token já existe para este usuário, reativando se necessário`);
       const updated = await this.prisma.pushToken.update({
         where: { token: createPushTokenDto.token },
         data: {
@@ -44,10 +52,12 @@ export class PushTokensService {
           updatedAt: new Date(),
         },
       });
+      console.log(`[Push Token] Token atualizado - ativo: ${updated.ativo}`);
       return this.mapToResponseDto(updated);
     }
 
     // Criar novo token
+    console.log(`[Push Token] Criando novo token para usuário ${userId}`);
     const newToken = await this.prisma.pushToken.create({
       data: {
         token: createPushTokenDto.token,
@@ -58,6 +68,7 @@ export class PushTokensService {
       },
     });
 
+    console.log(`[Push Token] Token criado com sucesso - ID: ${newToken.id}, ativo: ${newToken.ativo}`);
     return this.mapToResponseDto(newToken);
   }
 
@@ -109,6 +120,8 @@ export class PushTokensService {
    * Busca todos os tokens ativos de múltiplos usuários
    */
   async getActiveTokensByUserIds(userIds: number[]): Promise<Map<number, string[]>> {
+    console.log(`[Push Token] Buscando tokens ativos para usuários: ${userIds.join(', ')}`);
+    
     const tokens = await this.prisma.pushToken.findMany({
       where: {
         usuarioId: { in: userIds },
@@ -117,17 +130,56 @@ export class PushTokensService {
       select: {
         token: true,
         usuarioId: true,
+        platform: true,
+        ativo: true,
       },
     });
+
+    console.log(`[Push Token] Encontrados ${tokens.length} token(s) ativo(s) no banco`);
 
     const tokensMap = new Map<number, string[]>();
     for (const token of tokens) {
       const userTokens = tokensMap.get(token.usuarioId) || [];
       userTokens.push(token.token);
       tokensMap.set(token.usuarioId, userTokens);
+      console.log(`[Push Token] Token para usuário ${token.usuarioId} (${token.platform}): ${token.token.substring(0, 20)}...`);
     }
 
+    console.log(`[Push Token] Mapa final: ${tokensMap.size} usuário(s) com tokens`);
     return tokensMap;
+  }
+
+  /**
+   * Retorna informações de diagnóstico sobre tokens do usuário
+   */
+  async getDiagnostico(userId: number): Promise<any> {
+    const todosTokens = await this.prisma.pushToken.findMany({
+      where: {
+        usuarioId: userId,
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    const tokensAtivos = todosTokens.filter(t => t.ativo);
+    const tokensInativos = todosTokens.filter(t => !t.ativo);
+
+    return {
+      usuarioId: userId,
+      totalTokens: todosTokens.length,
+      tokensAtivos: tokensAtivos.length,
+      tokensInativos: tokensInativos.length,
+      tokens: todosTokens.map(t => ({
+        id: t.id,
+        platform: t.platform,
+        deviceId: t.deviceId,
+        ativo: t.ativo,
+        tokenPreview: t.token.substring(0, 20) + '...',
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      })),
+    };
   }
 
   /**

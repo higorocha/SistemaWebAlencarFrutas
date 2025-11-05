@@ -120,8 +120,15 @@ export class AuthService {
     console.log(`⏰ [AUTH] Token expira em: ${this.calcularExpiracao(tipoLogin).toLocaleString()}`);
     console.log(`📱 [AUTH] Tipo de login: ${tipoLogin}`);
 
+    // Gerar token
+    const token = this.jwtService.sign(payload, { expiresIn: duracaoSegundos });
+    
+    console.log(`✅ [AUTH] Token gerado com sucesso`);
+    console.log(`🔑 [AUTH] Token (primeiros 50 caracteres): ${token.substring(0, 50)}...`);
+    console.log(`👤 [AUTH] Retornando dados do usuário: ${usuario.nome} (ID: ${usuario.id})`);
+
     return {
-      access_token: this.jwtService.sign(payload, { expiresIn: duracaoSegundos }),
+      access_token: token,
       usuario: {
         id: usuario.id,
         nome: usuario.nome,

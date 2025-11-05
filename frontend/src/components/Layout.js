@@ -34,7 +34,6 @@ import MapIcon from "@mui/icons-material/Map";
 
 import getTheme from "../theme";
 import { useAuth } from "../contexts/AuthContext";
-import { NotificacaoProvider } from "../contexts/NotificacaoContext";
 import NotificacaoMenu from "./NotificacaoMenu";
 import { capitalizeName } from "../utils/formatters";
 
@@ -204,9 +203,8 @@ const Layout = ({ children }) => {
 
   return (
     <ThemeProvider theme={theme}>
-      <NotificacaoProvider>
-        <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-          <CssBaseline />
+      <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+        <CssBaseline />
 
           <AppBar
             position="fixed"
@@ -395,7 +393,6 @@ const Layout = ({ children }) => {
             </Box>
           </Box>
         </Box>
-      </NotificacaoProvider>
     </ThemeProvider>
   );
 };

@@ -2059,8 +2059,9 @@ const ColheitaModal = ({
          title="Inconsistências Detectadas"
          confirmText="Sim, Salvar Mesmo Assim"
          cancelText="Cancelar"
-         message={
-                     <div>
+         message="Foram detectadas inconsistências entre as quantidades informadas e as quantidades das áreas vinculadas."
+         customContent={
+           <div>
              <Text strong>As seguintes inconsistências foram detectadas:</Text>
              <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
                {inconsistenciasData?.map((item, index) => (
@@ -2075,8 +2076,8 @@ const ColheitaModal = ({
              </ul>
              <Text type="warning" style={{ display: 'block', marginTop: '12px' }}>
                Deseja continuar mesmo assim?
-               </Text>
-             </div>
+             </Text>
+           </div>
          }
        />
      </Modal>

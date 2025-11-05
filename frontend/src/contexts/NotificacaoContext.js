@@ -1,9 +1,9 @@
 // src/contexts/NotificacaoContext.js
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { message } from "antd";
 import axiosInstance from "../api/axiosConfig";
-import { showNotification } from "../config/notificationConfig";
+import { showNotification, showPedidoNotification } from "../config/notificationConfig";
 import useSocket from "../hooks/useSocket";
 
 const NotificacaoContext = createContext();
@@ -17,6 +17,20 @@ export const NotificacaoProvider = ({ children }) => {
 
   // Verificar autenticação baseado na presença do token no localStorage
   const isAuthenticated = !!localStorage.getItem("alencar_frutas_token");
+  
+  // Obter ID do usuário logado
+  const getUserId = () => {
+    try {
+      const userData = localStorage.getItem("alencar_frutas_user");
+      if (userData) {
+        const user = JSON.parse(userData);
+        return user?.id;
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  };
 
   // NOVO: Configurar Socket.io
   const { on, off, isConnected } = useSocket();
@@ -47,12 +61,23 @@ export const NotificacaoProvider = ({ children }) => {
 
   // Função para formatar o texto do toast baseado na nova estrutura
   const formatarTextoToast = (notificacao) => {
+    // Parsear dados_adicionais se for string
+    let dadosAdicionais = notificacao.dados_adicionais || notificacao.dadosAdicionais;
+    if (typeof dadosAdicionais === 'string') {
+      try {
+        dadosAdicionais = JSON.parse(dadosAdicionais || '{}');
+      } catch (error) {
+        console.error('Erro ao parsear dados_adicionais no toast:', error);
+        dadosAdicionais = {};
+      }
+    }
+    
     // Se tem estrutura de toast definida, usa ela
-    if (notificacao.dados_adicionais?.toast) {
+    if (dadosAdicionais?.toast) {
       return {
-        titulo: notificacao.dados_adicionais.toast.titulo,
-        conteudo: notificacao.dados_adicionais.toast.conteudo,
-        tipo: notificacao.dados_adicionais.toast.tipo
+        titulo: dadosAdicionais.toast.titulo,
+        conteudo: dadosAdicionais.toast.conteudo,
+        tipo: dadosAdicionais.toast.tipo
       };
     }
     
@@ -77,29 +102,77 @@ export const NotificacaoProvider = ({ children }) => {
       setNaoLidas(novasNaoLidas);
 
       // Exibir toasts para notificações não lidas que ainda não foram exibidas
-      novasNotificacoes
-        .filter(notificacao => !notificacao.lida && !foiExibidaComoToast(notificacao.id))
-        .forEach(notificacao => {
-          const toastInfo = formatarTextoToast(notificacao);
-          
-          // Se formatarTextoToast retorna um objeto, extrair as propriedades
-          let titulo = notificacao.titulo;
-          let conteudoToast = toastInfo;
-          
-          if (typeof toastInfo === 'object' && toastInfo.titulo) {
-            titulo = toastInfo.titulo;
-            conteudoToast = toastInfo.conteudo;
-          }
-
-          showNotification(
-            toastInfo.tipo || 'info',
-            titulo,
-            conteudoToast
-          );
-
-          // Marcar como exibida em toast
-          marcarComoExibidaEmToast(notificacao.id);
-        });
+      // IMPORTANTE: Só exibir toasts na busca inicial (silencioso=false) para evitar duplicação
+      if (!silencioso) {
+        novasNotificacoes
+          .filter(notificacao => {
+            // Verificar status de diferentes formas (compatibilidade)
+            const naoLida = notificacao.status === 'NAO_LIDA' || 
+                           notificacao.status === 'nao_lida' || 
+                           notificacao.status === 'NAO_LIDA' ||
+                           (!notificacao.lida && !notificacao.status);
+            return naoLida && !foiExibidaComoToast(notificacao.id);
+          })
+          .forEach(notificacao => {
+            // Marcar como exibida ANTES de exibir para evitar duplicação
+            marcarComoExibidaEmToast(notificacao.id);
+            
+            const toastInfo = formatarTextoToast(notificacao);
+            const titulo = toastInfo.titulo || notificacao.titulo || 'Notificação';
+            const tipo = toastInfo.tipo || 'info';
+            
+            // Verificar se é notificação de pedido para usar layout customizado
+            const dadosAdicionais = typeof notificacao.dadosAdicionais === 'string'
+              ? JSON.parse(notificacao.dadosAdicionais || '{}')
+              : notificacao.dadosAdicionais || {};
+            
+            if (dadosAdicionais.pedidoId || dadosAdicionais.toast) {
+              // Extrair cliente e frutas do conteúdo do toast
+              const conteudoToast = dadosAdicionais.toast?.conteudo || notificacao.conteudo || '';
+              const linhas = conteudoToast.split('\n').filter(l => l.trim());
+              
+              // Encontrar linha do cliente e extrair apenas o nome
+              const linhaCliente = linhas.find(l => l.trim().startsWith('Cliente:'));
+              let cliente = '';
+              if (linhaCliente) {
+                let clienteTexto = linhaCliente.trim().replace(/^Cliente:\s*/, '').trim();
+                if (clienteTexto.includes(' - ')) {
+                  cliente = clienteTexto.split(' - ')[0].trim();
+                } else {
+                  cliente = clienteTexto;
+                }
+              }
+              
+              // Encontrar frutas
+              const frutas = linhas
+                .filter(l => {
+                  const linha = l.trim();
+                  return linha.includes(' - ') && 
+                         !linha.includes('Prev.') && 
+                         !linha.startsWith('Cliente:');
+                })
+                .map(l => l.trim());
+              
+              // Se tem cliente e frutas, usar layout customizado
+              if (cliente && frutas.length > 0) {
+                const frutasComDados = dadosAdicionais.frutas || [];
+                showPedidoNotification(tipo, titulo, cliente, frutas, frutasComDados);
+              } else {
+                // Fallback para notificação padrão
+                const conteudo = typeof toastInfo.conteudo === 'string' 
+                  ? toastInfo.conteudo 
+                  : (notificacao.conteudo || '');
+                showNotification(tipo, titulo, conteudo);
+              }
+            } else {
+              // Notificação padrão
+              const conteudo = typeof toastInfo.conteudo === 'string' 
+                ? toastInfo.conteudo 
+                : (notificacao.conteudo || '');
+              showNotification(tipo, titulo, conteudo);
+            }
+          });
+      }
 
     } catch (error) {
       console.error("Erro ao buscar notificações:", error);
@@ -166,47 +239,146 @@ export const NotificacaoProvider = ({ children }) => {
   // Callback para novas notificações via Socket.io
   const handleNovaNotificacao = useCallback((data) => {
     const novaNotificacao = data.notificacao;
-    
-    // Adicionar à lista de notificações
-    setNotificacoes(prev => [novaNotificacao, ...prev]);
-    
-    // Incrementar contador de não lidas
-    setNaoLidas(prev => prev + 1);
-    
-    // Exibir toast se não foi exibida antes
-    if (!foiExibidaComoToast(novaNotificacao.id)) {
-      const toastInfo = formatarTextoToast(novaNotificacao);
-      
-      // Se formatarTextoToast retorna um objeto, extrair as propriedades
-      let titulo = novaNotificacao.titulo;
-      let conteudoToast = toastInfo;
-      
-      if (typeof toastInfo === 'object' && toastInfo.titulo) {
-        titulo = toastInfo.titulo;
-        conteudoToast = toastInfo.conteudo;
+    if (!novaNotificacao?.id) return;
+
+    const notificacaoId = novaNotificacao.id;
+    const naoLida = novaNotificacao.status === 'NAO_LIDA' ||
+                    novaNotificacao.status === 'nao_lida' ||
+                    (!novaNotificacao.lida && !novaNotificacao.status);
+    const jaExibida = foiExibidaComoToast(notificacaoId);
+
+    // Verificar se já existe na lista ANTES de atualizar
+    let ehNovaNotificacao = false;
+    setNotificacoes(prev => {
+      const jaExiste = prev.some(notif => notif.id === notificacaoId);
+      ehNovaNotificacao = !jaExiste;
+
+      if (jaExiste) {
+        return prev.map(notif => notif.id === notificacaoId ? novaNotificacao : notif);
       }
+      return [novaNotificacao, ...prev];
+    });
 
-      showNotification(
-        toastInfo.tipo || 'info',
-        titulo,
-        conteudoToast
-      );
-
-      // Marcar como exibida em toast
-      marcarComoExibidaEmToast(novaNotificacao.id);
+    // Incrementar contador se for nova notificação não lida
+    if (ehNovaNotificacao && naoLida && !jaExibida) {
+      setNaoLidas(count => (count || 0) + 1);
+    }
+    
+    // Exibir toast
+    if (!jaExibida) {
+      marcarComoExibidaEmToast(notificacaoId);
+      const toastInfo = formatarTextoToast(novaNotificacao);
+      const titulo = toastInfo.titulo || novaNotificacao.titulo || 'Notificação';
+      const tipo = toastInfo.tipo || 'info';
+      
+      // Verificar se é notificação de pedido para usar layout customizado
+      const dadosAdicionais = typeof novaNotificacao.dadosAdicionais === 'string'
+        ? JSON.parse(novaNotificacao.dadosAdicionais || '{}')
+        : novaNotificacao.dadosAdicionais || {};
+      
+      if (dadosAdicionais.pedidoId || dadosAdicionais.toast) {
+        // Extrair cliente e frutas do conteúdo do toast
+        const conteudoToast = dadosAdicionais.toast?.conteudo || novaNotificacao.conteudo || '';
+        const linhas = conteudoToast.split('\n').filter(l => l.trim());
+        
+        // Encontrar linha do cliente e extrair apenas o nome
+        const linhaCliente = linhas.find(l => l.trim().startsWith('Cliente:'));
+        let cliente = '';
+        if (linhaCliente) {
+          // Remover "Cliente:" e extrair apenas o nome (antes do primeiro " - " se houver)
+          let clienteTexto = linhaCliente.trim().replace(/^Cliente:\s*/, '').trim();
+          // Se contém " - ", pegar apenas a parte antes (nome do cliente)
+          if (clienteTexto.includes(' - ')) {
+            cliente = clienteTexto.split(' - ')[0].trim();
+          } else {
+            cliente = clienteTexto;
+          }
+        }
+        
+        // Encontrar frutas (linhas que contêm " - " mas não "Prev." e não começam com "Cliente:")
+        const frutas = linhas
+          .filter(l => {
+            const linha = l.trim();
+            return linha.includes(' - ') && 
+                   !linha.includes('Prev.') && 
+                   !linha.startsWith('Cliente:');
+          })
+          .map(l => l.trim());
+        
+        // Se tem cliente e frutas, usar layout customizado
+        if (cliente && frutas.length > 0) {
+          const frutasComDados = dadosAdicionais.frutas || [];
+          showPedidoNotification(tipo, titulo, cliente, frutas, frutasComDados);
+        } else {
+          // Fallback para notificação padrão
+          const conteudo = typeof toastInfo.conteudo === 'string' 
+            ? toastInfo.conteudo 
+            : (novaNotificacao.conteudo || '');
+          showNotification(tipo, titulo, conteudo);
+        }
+      } else {
+        // Notificação padrão
+        const conteudo = typeof toastInfo.conteudo === 'string' 
+          ? toastInfo.conteudo 
+          : (novaNotificacao.conteudo || '');
+        showNotification(tipo, titulo, conteudo);
+      }
     }
   }, []);
 
-  // Configurar Socket.io quando autenticado
+  // Set para rastrear notificações já processadas via Socket.io (evitar duplicação)
+  const notificacoesProcessadasRef = useRef(new Set());
+  const handlerRef = useRef(null);
+  const listenerRegistradoRef = useRef(false);
+  
+  // Criar handler estável que não muda entre renders
+  if (!handlerRef.current) {
+    handlerRef.current = (data) => {
+      const notificacao = data?.notificacao;
+      if (!notificacao?.id) return;
+
+      // FILTRO CRÍTICO: Verificar se a notificação é para este usuário
+      const userId = getUserId();
+      const notificacaoUserId = notificacao.usuario_id || notificacao.usuarioId;
+
+      // Se a notificação tem usuarioId, deve ser para o usuário logado
+      // Se não tem usuarioId, é notificação global (processar)
+      if (notificacaoUserId && userId && notificacaoUserId !== userId) {
+        return;
+      }
+
+      const id = notificacao.id;
+
+      // Verificar e marcar IMEDIATAMENTE para evitar processamento duplicado
+      if (notificacoesProcessadasRef.current.has(id)) {
+        return;
+      }
+      notificacoesProcessadasRef.current.add(id);
+
+      // Limpar IDs antigos (manter últimos 50)
+      if (notificacoesProcessadasRef.current.size > 100) {
+        const ids = Array.from(notificacoesProcessadasRef.current);
+        notificacoesProcessadasRef.current = new Set(ids.slice(-50));
+      }
+
+      handleNovaNotificacao(data);
+    };
+  }
+  
+  // Configurar Socket.io quando autenticado - APENAS UMA VEZ
   useEffect(() => {
-    if (isAuthenticated && isConnected) {
-      on('nova_notificacao', handleNovaNotificacao);
-      
-      return () => {
-        off('nova_notificacao', handleNovaNotificacao);
-      };
-    }
-  }, [isAuthenticated, isConnected, on, off, handleNovaNotificacao]);
+    if (!isAuthenticated) return;
+    if (listenerRegistradoRef.current) return;
+    
+    // Registrar listener apenas uma vez com handler estável
+    listenerRegistradoRef.current = true;
+    on('nova_notificacao', handlerRef.current);
+    
+    return () => {
+      listenerRegistradoRef.current = false;
+      off('nova_notificacao', handlerRef.current);
+    };
+  }, [isAuthenticated, on, off]);
 
   // Buscar notificações quando autenticado
   useEffect(() => {

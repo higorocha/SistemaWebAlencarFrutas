@@ -70,18 +70,28 @@ export class NotificacoesService {
     this.emitNovaNotificacao(notificacao);
 
     // Enviar push notification se houver usuarioId
+    // NOTA: Para notificações de pedido, o push é enviado separadamente no método criarNotificacaoPedidoCriado
+    // para evitar duplicação e permitir envio em lote para múltiplos usuários
     if (notificacao.usuarioId) {
       const dadosAdicionais = notificacao.dadosAdicionais as any;
-      const textoToast = dadosAdicionais?.toast?.conteudo || notificacao.conteudo;
+      const isPedido = dadosAdicionais?.pedidoId || notificacao.titulo === 'Novo pedido adicionado';
       
-      this.enviarPushNotificationParaUsuario(
-        notificacao.usuarioId,
-        notificacao.titulo,
-        textoToast,
-        dadosAdicionais,
-      ).catch((error) => {
-        console.error(`[Push] Erro ao enviar push para usuário ${notificacao.usuarioId}:`, error);
-      });
+      // Não enviar push aqui para notificações de pedido (será enviado em criarNotificacaoPedidoCriado)
+      if (!isPedido) {
+        const textoToast = dadosAdicionais?.toast?.conteudo || notificacao.conteudo;
+        
+        console.log(`[Push] Enviando push para usuário ${notificacao.usuarioId} (título: ${notificacao.titulo})`);
+        this.enviarPushNotificationParaUsuario(
+          notificacao.usuarioId,
+          notificacao.titulo,
+          textoToast,
+          dadosAdicionais,
+        ).catch((error) => {
+          console.error(`[Push] Erro ao enviar push para usuário ${notificacao.usuarioId}:`, error);
+        });
+      } else {
+        console.log(`[Push] Push de pedido será enviado em lote via criarNotificacaoPedidoCriado`);
+      }
     }
 
     return this.mapToResponseDto(notificacao);
@@ -97,16 +107,30 @@ export class NotificacoesService {
     data?: any,
   ): Promise<void> {
     try {
+      console.log(`[Push] Buscando tokens para usuário ${userId}`);
       const tokens = await this.pushTokensService.getActiveTokensByUserId(userId);
 
       if (tokens.length === 0) {
+        console.log(`[Push] Usuário ${userId} não tem tokens registrados`);
         return; // Usuário não tem tokens registrados
       }
 
+      console.log(`[Push] Usuário ${userId} tem ${tokens.length} token(s) ativo(s)`);
+
       // Enviar para todos os tokens do usuário
+      let successCount = 0;
+      let failedCount = 0;
+      
       for (const token of tokens) {
-        await this.expoPushService.sendPushNotification(token, title, body, data);
+        const result = await this.expoPushService.sendPushNotification(token, title, body, data);
+        if (result) {
+          successCount++;
+        } else {
+          failedCount++;
+        }
       }
+
+      console.log(`[Push] Resultado para usuário ${userId}: ${successCount} sucesso, ${failedCount} falhas`);
     } catch (error) {
       console.error(`[Push] Erro ao enviar push para usuário ${userId}:`, error);
       // Não propagar erro
@@ -403,6 +427,20 @@ export class NotificacoesService {
               },
             },
           },
+          historico: {
+            include: {
+              usuario: {
+                select: {
+                  id: true,
+                  nome: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'asc',
+            },
+          },
         },
       });
 
@@ -507,32 +545,24 @@ export class NotificacoesService {
         });
       };
 
-      // Gerar texto curto para toast (nome da fruta + quantidade prevista + data prevista colheita)
-      const gerarTextoCurto = (): string => {
+      // Gerar conteúdo simplificado para o menu de notificações
+      const gerarConteudoMenu = (): string => {
         if (pedidoCompleto.frutasPedidos.length === 0) {
-          return `Pedido #${numeroPedido}`;
+          return `Cliente: ${nomeCliente}`;
         }
 
-        // Se tiver apenas uma fruta, mostrar detalhado
-        if (pedidoCompleto.frutasPedidos.length === 1) {
-          const fruta = pedidoCompleto.frutasPedidos[0];
-          const nomeFruta = fruta.fruta.nome;
-          const quantidade = formatarQuantidade(fruta.quantidadePrevista, fruta.unidadeMedida1);
-          const dataColheita = formatarData(dataPrevistaColheita);
-          return `${nomeFruta}: ${quantidade} - Colheita: ${dataColheita}`;
-        }
-
-        // Se tiver múltiplas frutas, listar todas com quantidades
-        const frutasTexto = pedidoCompleto.frutasPedidos
-          .map((fp) => {
-            const nomeFruta = fp.fruta.nome;
-            const quantidade = formatarQuantidade(fp.quantidadePrevista, fp.unidadeMedida1);
-            return `${nomeFruta} (${quantidade})`;
-          })
-          .join(', ');
-        
         const dataColheita = formatarData(dataPrevistaColheita);
-        return `${frutasTexto} - Colheita: ${dataColheita}`;
+        let conteudo = `Cliente: ${nomeCliente}\n`;
+
+        // Listar todas as frutas
+        pedidoCompleto.frutasPedidos.forEach((frutaPedido) => {
+          const nomeFruta = frutaPedido.fruta.nome;
+          const quantidade = formatarQuantidade(frutaPedido.quantidadePrevista, frutaPedido.unidadeMedida1);
+          conteudo += `${nomeFruta} - ${quantidade}\n`;
+        });
+
+        conteudo += `\nPrev. Colheita: ${dataColheita}`;
+        return conteudo;
       };
 
       // Gerar conteúdo completo para modal
@@ -576,49 +606,107 @@ export class NotificacoesService {
         usuariosParaNotificar.map((u) => `${u.nome} (ID: ${u.id}, Nível: ${u.nivel})`).join(', ')
       );
 
+      // Preparar dados de todas as frutas para exibição no menu (ícones)
+      const frutasComDados = pedidoCompleto.frutasPedidos.map((frutaPedido) => ({
+        nome: frutaPedido.fruta.nome,
+        quantidade: formatarQuantidade(frutaPedido.quantidadePrevista, frutaPedido.unidadeMedida1),
+      }));
+
+      // Buscar usuário criador do pedido UMA VEZ antes do loop
+      type UsuarioCriador = { id: number; nome: string; email: string } | null;
+      let usuarioCriador: UsuarioCriador = null;
+
+      // Tentar obter do histórico primeiro
+      if (pedidoCompleto.historico && pedidoCompleto.historico.length > 0) {
+        const historicoCriacao = pedidoCompleto.historico.find(h => h.acao === 'CRIACAO_PEDIDO');
+        
+        if (historicoCriacao?.usuario) {
+          usuarioCriador = {
+            id: historicoCriacao.usuario.id,
+            nome: historicoCriacao.usuario.nome,
+            email: historicoCriacao.usuario.email,
+          };
+          console.log(`[Notificações] Usuário criador obtido do histórico: ${usuarioCriador.nome}`);
+        }
+      }
+
+      // Fallback: buscar usuário diretamente se histórico não estiver disponível
+      if (!usuarioCriador && usuarioCriadorId) {
+        try {
+          const usuario = await this.prisma.usuario.findUnique({
+            where: { id: usuarioCriadorId },
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          });
+          
+          if (usuario) {
+            usuarioCriador = {
+              id: usuario.id,
+              nome: usuario.nome,
+              email: usuario.email,
+            };
+            console.log(`[Notificações] Usuário criador obtido por busca direta: ${usuarioCriador.nome}`);
+          } else {
+            console.warn(`[Notificações] Usuário criador ${usuarioCriadorId} não encontrado no banco`);
+          }
+        } catch (error) {
+          console.error(`[Notificações] Erro ao buscar usuário criador ${usuarioCriadorId}:`, error);
+        }
+      }
+
+      if (!usuarioCriador) {
+        console.warn(`[Notificações] Não foi possível obter usuário criador para pedido ${pedidoId}`);
+      }
+
       const notificacoes = await Promise.all(
         usuariosParaNotificar.map((usuario) => {
-          const textoCurto = gerarTextoCurto();
+          const conteudoMenu = gerarConteudoMenu();
           const conteudoCompleto = gerarConteudoCompleto();
 
-          const emoji = this.getEmojiPedido();
-          const tituloComEmoji = `${emoji} Novo Pedido Criado`;
-          const tituloToastComEmoji = `${emoji} Novo Pedido`;
+          const titulo = 'Novo pedido adicionado';
 
           const dadosAdicionais = {
             // Informações de exibição
             toast: {
-              titulo: tituloToastComEmoji,
-              conteudo: textoCurto,
+              titulo: titulo,
+              conteudo: conteudoMenu,
               tipo: 'info' as const,
             },
             menu: {
-              titulo: tituloToastComEmoji,
-              resumo: `Pedido #${numeroPedido}`,
-              icone: 'cart-outline',
+              titulo: titulo,
+              conteudo: conteudoMenu, // Conteúdo simplificado para o menu
             },
             modal: {
-              titulo: tituloComEmoji,
+              titulo: titulo,
               conteudo: conteudoCompleto,
             },
-            // Dados adicionais do pedido
+            // Dados adicionais do pedido para renderização no frontend
             pedidoId: pedidoCompleto.id,
             numeroPedido: numeroPedido,
-            culturasIds: Array.from(culturasDoPedido), // Array de IDs de culturas do pedido
+            culturasIds: Array.from(culturasDoPedido),
             origem: origem,
+            // Dados de todas as frutas para exibir ícones no menu
+            frutas: frutasComDados,
+            cliente: nomeCliente,
+            dataPrevistaColheita: formatarData(dataPrevistaColheita),
+            // Usuário criador do pedido
+            usuarioCriador: usuarioCriador,
           };
 
           return this.create(
             {
-              titulo: tituloComEmoji,
-              conteudo: conteudoCompleto, // Conteúdo completo para o campo principal
+              titulo: titulo,
+              conteudo: conteudoMenu, // Usar conteúdo simplificado no campo principal também
               tipo: TipoNotificacao.SISTEMA,
               prioridade: PrioridadeNotificacao.MEDIA,
-              usuarioId: usuario.id, // Notificação específica para este usuário
+              usuarioId: usuario.id,
               dadosAdicionais: dadosAdicionais,
               link: `/pedidos/${pedidoCompleto.id}`,
             },
-            usuario.id // Passar userId como segundo parâmetro também
+            usuario.id
           ).catch((error) => {
             // Log erro individual sem interromper outras notificações
             console.error(
@@ -638,11 +726,47 @@ export class NotificacoesService {
       );
 
       // 6. Enviar push notifications para usuários com tokens registrados
-      const emoji = this.getEmojiPedido();
+      // Formatar body seguindo o modelo do teste: cliente na primeira linha, frutas com emojis abaixo
+      const getFruitEmoji = (nomeFruta: string): string => {
+        const nome = nomeFruta.toLowerCase().trim();
+        if (nome.includes('banana') || nome.includes('prata') || nome.includes('nanica')) {
+          return '🍌';
+        }
+        if (nome.includes('coco')) {
+          return '🥥';
+        }
+        if (nome.includes('melancia')) {
+          return '🍉';
+        }
+        if (nome.includes('limão') || nome.includes('lima')) {
+          return '🍋';
+        }
+        if (nome.includes('mamão')) {
+          return '🥭';
+        }
+        if (nome.includes('melão') || nome.includes('melao')) {
+          return '🍈';
+        }
+        return '🍎'; // Emoji padrão
+      };
+
+      // Formatar frutas com emojis (seguindo formato do teste)
+      const frutasFormatadas = pedidoCompleto.frutasPedidos.map((frutaPedido) => {
+        const nomeFruta = frutaPedido.fruta.nome;
+        const quantidade = formatarQuantidade(frutaPedido.quantidadePrevista, frutaPedido.unidadeMedida1);
+        const emoji = getFruitEmoji(nomeFruta);
+        return `${emoji} ${nomeFruta} - ${quantidade}`;
+      }).join('\n');
+
+      // Body formatado: Cliente na primeira linha, depois frutas listadas
+      const textoPush = pedidoCompleto.frutasPedidos.length > 0
+        ? `${nomeCliente}\n${frutasFormatadas}`
+        : `${nomeCliente}\nPedido #${numeroPedido}`;
+      
       await this.enviarPushNotificationsParaUsuarios(
         usuariosParaNotificar.map((u) => u.id),
-        `${emoji} Novo Pedido`,
-        gerarTextoCurto(),
+        'Novo pedido adicionado',
+        textoPush,
         {
           pedidoId: pedidoCompleto.id,
           numeroPedido: numeroPedido,
@@ -666,33 +790,46 @@ export class NotificacoesService {
   ): Promise<void> {
     try {
       if (userIds.length === 0) {
+        console.log('[Push] Nenhum usuário para enviar push');
         return;
       }
 
+      console.log(`[Push] Iniciando envio de push para ${userIds.length} usuário(s):`, userIds);
+
       // Buscar tokens ativos dos usuários
       const tokensMap = await this.pushTokensService.getActiveTokensByUserIds(userIds);
+
+      console.log(`[Push] Tokens encontrados: ${tokensMap.size} usuário(s) com tokens ativos`);
 
       if (tokensMap.size === 0) {
         console.log('[Push] Nenhum token ativo encontrado para os usuários');
         return;
       }
 
-      // Coletar todos os tokens
+      // Coletar todos os tokens e logar por usuário
       const allTokens: string[] = [];
-      for (const tokens of tokensMap.values()) {
+      for (const [userId, tokens] of tokensMap.entries()) {
+        console.log(`[Push] Usuário ${userId} tem ${tokens.length} token(s) ativo(s)`);
         allTokens.push(...tokens);
       }
 
       if (allTokens.length === 0) {
+        console.log('[Push] Nenhum token válido coletado');
         return;
       }
+
+      console.log(`[Push] Enviando push para ${allTokens.length} token(s) - Título: "${title}", Body: "${body}"`);
 
       // Enviar push notifications
       const result = await this.expoPushService.sendPushNotifications(allTokens, title, body, data);
 
       console.log(
-        `[Push] Enviadas ${result.success} notificações push, ${result.failed} falharam para ${userIds.length} usuário(s)`
+        `[Push] Resultado: ${result.success} notificações enviadas com sucesso, ${result.failed} falharam para ${userIds.length} usuário(s)`
       );
+
+      if (result.failed > 0) {
+        console.warn(`[Push] Atenção: ${result.failed} push notification(s) falharam`);
+      }
     } catch (error) {
       console.error('[Push] Erro ao enviar push notifications:', error);
       // Não propagar erro para não interromper o fluxo principal

@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Delete,
+  Get,
   Body,
   Param,
   Req,
@@ -71,6 +72,17 @@ export class PushTokensMobileController {
   })
   async removeToken(@Param('token') token: string): Promise<void> {
     return this.pushTokensService.removeToken(token);
+  }
+
+  @Get('diagnostico')
+  @ApiOperation({ summary: 'Diagnóstico de tokens de push (apenas para debug)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Informações de diagnóstico dos tokens',
+  })
+  async diagnostico(@Req() req: any) {
+    const userId = req.user.id;
+    return this.pushTokensService.getDiagnostico(userId);
   }
 }
 

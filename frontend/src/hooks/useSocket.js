@@ -48,7 +48,7 @@ const useSocket = (options = {}) => {
 
       // Event listeners para debug
       globalSocket.on('connect', () => {
-        // Conectado ao Socket.io
+        console.log('[SOCKET] Conectado ao Socket.io');
       });
 
       globalSocket.on('disconnect', (reason) => {
@@ -104,56 +104,63 @@ const useSocket = (options = {}) => {
 
   // Função para se inscrever em eventos
   const on = useCallback((event, callback) => {
-    if (globalSocket) {
-      // Chave única para identificar listener
-      const listenerKey = `${event}_${callback}`;
-      
-      // Remover listener anterior se existir
-      if (globalListeners.has(listenerKey)) {
-        globalSocket.off(event, globalListeners.get(listenerKey));
-      }
-      
-      // Wrapper para adicionar logs apenas para eventos importantes
-      const wrappedCallback = (data) => {
-        // CORRIGIDO: Verificar duplicação de eventos importantes de forma menos agressiva
-        if (data.eventId && (event === 'mensagem_enviada' || event === 'nova_mensagem')) {
-          // CORREÇÃO: Só verificar duplicação se o evento já foi processado MUITAS vezes
-          const eventKey = `${data.eventId}_${event}`;
-          const currentCount = processedEvents.has(eventKey) ? processedEvents.get(eventKey) : 0;
-          
-          if (currentCount > 3) { // Permitir até 3 processamentos do mesmo evento
-            console.log(`🔄 [SOCKET] Evento duplicado ignorado (muitas vezes): ${data.eventId}`);
-            return;
-          }
-          
-          // Incrementar contador
-          processedEvents.set(eventKey, currentCount + 1);
-          
-          // Limpar eventos antigos (manter apenas últimos 100)
-          if (processedEvents.size > 100) {
-            const entries = Array.from(processedEvents.entries());
-            processedEvents = new Map(entries.slice(-50));
-          }
+    if (!globalSocket) {
+      console.warn(`⚠️ [SOCKET] Tentativa de registrar listener para '${event}' sem conexão`);
+      return;
+    }
+    
+    // Para eventos críticos, remover TODOS os listeners anteriores antes de registrar
+    if (event === 'nova_notificacao') {
+      globalSocket.removeAllListeners(event);
+      globalListeners.forEach((listener, key) => {
+        if (key.startsWith(`${event}_`)) {
+          globalListeners.delete(key);
+        }
+      });
+      localListenersRef.current.delete(event);
+    }
+    
+    // Wrapper para adicionar logs apenas para eventos importantes
+    const wrappedCallback = (data) => {
+      // CORRIGIDO: Verificar se data existe antes de acessar propriedades
+      if (data && data.eventId && (event === 'mensagem_enviada' || event === 'nova_mensagem')) {
+        // CORREÇÃO: Só verificar duplicação se o evento já foi processado MUITAS vezes
+        const eventKey = `${data.eventId}_${event}`;
+        const currentCount = processedEvents.has(eventKey) ? processedEvents.get(eventKey) : 0;
+        
+        if (currentCount > 3) { // Permitir até 3 processamentos do mesmo evento
+          console.log(`🔄 [SOCKET] Evento duplicado ignorado (muitas vezes): ${data.eventId}`);
+          return;
         }
         
-        // Log apenas para eventos importantes ou PDFs
-        if (event === 'mensagem_enviada' && data.mensagem?.tipo_mensagem === 'document') {
-          console.log(`🔔 [SOCKET] Evento '${event}' recebido (PDF):`, data.mensagem.midia_nome);
+        // Incrementar contador
+        processedEvents.set(eventKey, currentCount + 1);
+        
+        // Limpar eventos antigos (manter apenas últimos 100)
+        if (processedEvents.size > 100) {
+          const entries = Array.from(processedEvents.entries());
+          processedEvents = new Map(entries.slice(-50));
         }
-        callback(data);
-      };
-      
-      // Adicionar novo listener
-      globalSocket.on(event, wrappedCallback);
-      globalListeners.set(listenerKey, wrappedCallback);
-      localListenersRef.current.set(event, wrappedCallback);
-      
-      // Log apenas na primeira vez ou para eventos importantes
-      if (event.includes('mensagem')) {
-        console.log(`📡 [SOCKET] Listener registrado para evento '${event}'`);
       }
-    } else {
-      console.warn(`⚠️ [SOCKET] Tentativa de registrar listener para '${event}' sem conexão`);
+      
+      // Log apenas para eventos importantes ou PDFs
+      if (event === 'mensagem_enviada' && data && data.mensagem?.tipo_mensagem === 'document') {
+        console.log(`🔔 [SOCKET] Evento '${event}' recebido (PDF):`, data.mensagem.midia_nome);
+      }
+      callback(data);
+    };
+    
+    // Chave única para identificar listener (usar timestamp para garantir unicidade)
+    const listenerKey = `${event}_${Date.now()}_${Math.random()}`;
+    
+    // Adicionar novo listener
+    globalSocket.on(event, wrappedCallback);
+    globalListeners.set(listenerKey, wrappedCallback);
+    localListenersRef.current.set(event, wrappedCallback);
+    
+    // Log para eventos de notificação
+    if (event === 'nova_notificacao') {
+      console.log(`📡 [SOCKET] Listener registrado para evento '${event}'`);
     }
   }, []);
 
