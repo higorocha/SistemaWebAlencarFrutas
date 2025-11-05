@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
-  Button, 
   Typography, 
   Space, 
   Alert, 
-  Spin, 
   Tag, 
   Divider,
   Row,
@@ -23,16 +21,66 @@ import {
   CloseCircleOutlined,
   ReloadOutlined,
   BellOutlined,
-  QuestionCircleOutlined,
   BookOutlined,
-  CodeOutlined,
-  ToolOutlined
+  InfoCircleOutlined,
+  ClockCircleOutlined,
+  GlobalOutlined
 } from '@ant-design/icons';
+import styled from 'styled-components';
 import axiosInstance from '../../api/axiosConfig';
 import { showNotification } from '../../config/notificationConfig';
 import CentralizedLoader from '../common/loaders/CentralizedLoader';
+import { PrimaryButton } from '../common/buttons';
 
 const { Title, Text, Paragraph } = Typography;
+
+// Styled components para aplicar o estilo do sistema
+const PageContainer = styled.div`
+  padding: 24px;
+`;
+
+const StyledCard = styled(Card)`
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e8f5e8;
+  overflow: hidden;
+  margin-bottom: 24px;
+  
+  .ant-card-body {
+    padding: 24px;
+  }
+`;
+
+const SectionContainer = styled.div`
+  border: 1px solid #e8f5e8;
+  padding: 24px;
+  border-radius: 16px;
+  margin-top: 16px;
+  background: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 8px 32px rgba(5, 150, 105, 0.1);
+  }
+`;
+
+const StyledTable = styled(Table)`
+  .ant-table-thead > tr > th {
+    background: #f0fdf4 !important;
+    color: #059669 !important;
+    font-weight: 600 !important;
+    border-bottom: 2px solid #e8f5e8 !important;
+  }
+  
+  .ant-table-tbody > tr:hover > td {
+    background: #f0fdf4 !important;
+  }
+  
+  .ant-table-tbody > tr > td {
+    border-bottom: 1px solid #e8f5e8 !important;
+  }
+`;
 
 const Certificados = () => {
   const [loading, setLoading] = useState(false);
@@ -275,23 +323,32 @@ const Certificados = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={2} style={{ color: '#059669', marginBottom: '24px' }}>
-        <SafetyCertificateOutlined style={{ marginRight: '8px' }} />
+    <PageContainer>
+      <Title level={2} style={{ color: '#059669', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <SafetyCertificateOutlined />
         Monitoramento de Certificados
       </Title>
 
       {/* Status do Monitoramento */}
-      <Card title="Status do Monitoramento" style={{ marginBottom: '24px' }}>
-        {loading ? (
-          <CentralizedLoader 
-            visible={true} 
-            message="Carregando status do monitoramento..." 
-            size="large"
-          />
-        ) : status ? (
+      <StyledCard
+        title={
+          <Space>
+            <BellOutlined style={{ color: '#ffffff' }} />
+            <span style={{ color: '#ffffff', fontWeight: '600' }}>Status do Monitoramento</span>
+          </Space>
+        }
+        loading={loading}
+        styles={{ 
+          header: { 
+            backgroundColor: '#059669', 
+            color: '#ffffff', 
+            borderRadius: '8px 8px 0 0' 
+          }
+        }}
+      >
+        {status ? (
           <Row gutter={[16, 16]}>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Statistic
                 title="Status"
                 value={status.isActive ? 'Ativo' : 'Inativo'}
@@ -299,48 +356,62 @@ const Certificados = () => {
                 valueStyle={{ color: status.isActive ? '#52c41a' : '#ff4d4f' }}
               />
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Statistic
                 title="Próxima Verificação"
                 value={status.nextCheck}
-                prefix={<BellOutlined />}
+                prefix={<BellOutlined style={{ color: '#059669' }} />}
               />
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Statistic
                 title="Fuso Horário"
                 value={status.timeZone}
+                prefix={<GlobalOutlined style={{ color: '#059669' }} />}
               />
             </Col>
           </Row>
         ) : (
           <Alert message="Erro ao carregar status" type="error" />
         )}
-      </Card>
+      </StyledCard>
 
       {/* Status dos Certificados */}
-      <Card 
-        title="Status dos Certificados" 
-        style={{ marginBottom: '24px' }}
-        extra={
+      <StyledCard
+        title={
           <Space>
-            <Button 
-              icon={<ReloadOutlined />} 
-              onClick={() => checkCertificates(true)}
-              loading={certificateLoading}
-            >
-              Verificar Agora
-            </Button>
-            <Button 
-              type="primary"
-              icon={<BellOutlined />} 
-              onClick={simulateCronJob}
-              loading={testingNotification}
-            >
-              Simular Cron Job
-            </Button>
+            <SafetyCertificateOutlined style={{ color: '#ffffff' }} />
+            <span style={{ color: '#ffffff', fontWeight: '600' }}>Status dos Certificados</span>
           </Space>
         }
+        extra={
+          <Space>
+            <PrimaryButton
+              icon={<ReloadOutlined />}
+              onClick={() => checkCertificates(true)}
+              loading={certificateLoading}
+              size="large"
+            >
+              Verificar Agora
+            </PrimaryButton>
+            <PrimaryButton
+              icon={<BellOutlined />}
+              onClick={simulateCronJob}
+              loading={testingNotification}
+              size="large"
+              style={{ backgroundColor: '#6b7280', borderColor: '#6b7280' }}
+            >
+              Simular Cron Job
+            </PrimaryButton>
+          </Space>
+        }
+        styles={{ 
+          header: { 
+            backgroundColor: '#059669', 
+            color: '#ffffff', 
+            borderRadius: '8px 8px 0 0' 
+          }
+        }}
       >
         {certificateStatus ? (
           <div>
@@ -376,123 +447,181 @@ const Certificados = () => {
 
             {/* Tabela de Certificados */}
             {certificateStatus.certificates && (
-              <div style={{ marginBottom: '16px' }}>
-                <Title level={4}>Certificados e Suas Validades</Title>
-                <Table
-                  dataSource={Object.entries(certificateStatus.certificates).map(([apiName, certInfo]) => ({
-                    key: apiName,
-                    nome: certInfo.apiName,
-                    validade: certInfo.expiryInfo?.isExpired ? 'Vencido' :
-                             certInfo.expiryInfo?.isExpiringSoon ? 'Vence em Breve' : 'Válido',
-                    status: certInfo.status,
-                    dataVencimento: certInfo.expiryInfo?.expiryDate ? 
-                      new Date(certInfo.expiryInfo.expiryDate).toLocaleDateString('pt-BR') : 'N/A',
-                    diasRestantes: certInfo.expiryInfo?.daysUntilExpiry || 0
-                  }))}
-                  columns={[
-                    {
-                      title: 'Nome',
-                      dataIndex: 'nome',
-                      key: 'nome',
-                      render: (text) => (
-                        <Space>
-                          <SafetyCertificateOutlined />
-                          <Text strong>{text}</Text>
-                        </Space>
-                      )
-                    },
-                    {
-                      title: 'Validade',
-                      dataIndex: 'validade',
-                      key: 'validade',
-                      render: (validade, record) => {
-                        let color = 'green';
-                        let icon = <CheckCircleOutlined />;
-                        
-                        if (validade === 'Vencido') {
-                          color = 'red';
-                          icon = <CloseCircleOutlined />;
-                        } else if (validade === 'Vence em Breve') {
-                          color = 'orange';
-                          icon = <ExclamationCircleOutlined />;
-                        }
-                        
-                        return (
-                          <Space>
-                            {icon}
-                            <Tag color={color}>{validade}</Tag>
-                          </Space>
-                        );
-                      }
-                    },
-                    {
-                      title: 'Data de Vencimento',
-                      dataIndex: 'dataVencimento',
-                      key: 'dataVencimento',
-                      render: (data) => <Text>{data}</Text>
-                    },
-                    {
-                      title: 'Dias Restantes',
-                      dataIndex: 'diasRestantes',
-                      key: 'diasRestantes',
-                      render: (dias) => {
-                        if (dias < 0) {
-                          return <Text style={{ color: '#ff4d4f' }}>Vencido há {Math.abs(dias)} dias</Text>;
-                        } else if (dias <= 30) {
-                          return <Text style={{ color: '#faad14' }}>{dias} dias</Text>;
-                        } else {
-                          return <Text style={{ color: '#52c41a' }}>{dias} dias</Text>;
-                        }
-                      }
+              <SectionContainer>
+                <Title level={5} style={{ color: '#059669', marginBottom: '8px', marginTop: '0' }}>
+                  <SafetyCertificateOutlined style={{ marginRight: 8 }} />
+                  Certificados e Suas Validades
+                </Title>
+                <Divider style={{ margin: '0 0 16px 0', borderColor: '#e8e8e8' }} />
+                
+                {/* Processar dados para a tabela */}
+                {(() => {
+                  const tableData = [];
+                  
+                  // Adicionar certificado da empresa
+                  if (certificateStatus.certificates.EMPRESA) {
+                    const empresa = certificateStatus.certificates.EMPRESA;
+                    const cert = empresa.certificado;
+                    tableData.push({
+                      key: 'EMPRESA',
+                      nome: empresa.nome || 'Empresa',
+                      tipo: 'Certificado da Empresa',
+                      usadoPor: empresa.usadoPor?.join(', ') || 'PIX, EXTRATOS',
+                      validade: cert.expiryInfo?.isExpired ? 'Vencido' :
+                               cert.expiryInfo?.isExpiringSoon ? 'Vence em Breve' : 'Válido',
+                      dataVencimento: cert.expiryInfo?.expiryDate ? 
+                        new Date(cert.expiryInfo.expiryDate).toLocaleDateString('pt-BR') : 'N/A',
+                      diasRestantes: cert.expiryInfo?.daysUntilExpiry || 0
+                    });
+                  }
+                  
+                  // Adicionar certificados CA do BB (compartilhados entre PIX e EXTRATOS)
+                  if (certificateStatus.certificates.CA_BB) {
+                    const caBB = certificateStatus.certificates.CA_BB;
+                    if (caBB.certificadosCA && caBB.certificadosCA.length > 0) {
+                      caBB.certificadosCA.forEach((caCert, index) => {
+                        tableData.push({
+                          key: `CA_BB-${index}`,
+                          nome: caCert.nome,
+                          tipo: 'CA do BB',
+                          usadoPor: caBB.usadoPor?.join(', ') || 'PIX, EXTRATOS',
+                          validade: caCert.expiryInfo?.isExpired ? 'Vencido' :
+                                   caCert.expiryInfo?.isExpiringSoon ? 'Vence em Breve' : 'Válido',
+                          dataVencimento: caCert.expiryInfo?.expiryDate ? 
+                            new Date(caCert.expiryInfo.expiryDate).toLocaleDateString('pt-BR') : 'N/A',
+                          diasRestantes: caCert.expiryInfo?.daysUntilExpiry || 0
+                        });
+                      });
                     }
-                  ]}
-                  pagination={false}
-                  size="small"
-                />
-                <Divider />
-              </div>
+                  }
+                  
+                  return (
+                    <StyledTable
+                      dataSource={tableData}
+                      columns={[
+                        {
+                          title: 'Nome',
+                          dataIndex: 'nome',
+                          key: 'nome',
+                          render: (text, record) => (
+                            <Space>
+                              <SafetyCertificateOutlined style={{ color: '#059669' }} />
+                              <Text strong style={{ color: '#059669' }}>{text}</Text>
+                            </Space>
+                          )
+                        },
+                        {
+                          title: 'Tipo',
+                          dataIndex: 'tipo',
+                          key: 'tipo',
+                          render: (tipo) => <Text>{tipo}</Text>
+                        },
+                        {
+                          title: 'Usado Por',
+                          dataIndex: 'usadoPor',
+                          key: 'usadoPor',
+                          render: (usadoPor) => <Text>{usadoPor}</Text>
+                        },
+                        {
+                          title: 'Validade',
+                          dataIndex: 'validade',
+                          key: 'validade',
+                          render: (validade) => {
+                            let color = 'green';
+                            let icon = <CheckCircleOutlined />;
+                            
+                            if (validade === 'Vencido') {
+                              color = 'red';
+                              icon = <CloseCircleOutlined />;
+                            } else if (validade === 'Vence em Breve') {
+                              color = 'orange';
+                              icon = <ExclamationCircleOutlined />;
+                            }
+                            
+                            return (
+                              <Space>
+                                {icon}
+                                <Tag color={color}>{validade}</Tag>
+                              </Space>
+                            );
+                          }
+                        },
+                        {
+                          title: 'Data de Vencimento',
+                          dataIndex: 'dataVencimento',
+                          key: 'dataVencimento',
+                          render: (data) => <Text>{data}</Text>
+                        },
+                        {
+                          title: 'Dias Restantes',
+                          dataIndex: 'diasRestantes',
+                          key: 'diasRestantes',
+                          render: (dias) => {
+                            if (dias < 0) {
+                              return <Text style={{ color: '#ff4d4f' }}>Vencido há {Math.abs(dias)} dias</Text>;
+                            } else if (dias <= 30) {
+                              return <Text style={{ color: '#faad14' }}>{dias} dias</Text>;
+                            } else {
+                              return <Text style={{ color: '#52c41a' }}>{dias} dias</Text>;
+                            }
+                          }
+                        }
+                      ]}
+                      pagination={false}
+                      size="small"
+                    />
+                  );
+                })()}
+              </SectionContainer>
             )}
 
             {/* Detalhes dos Certificados */}
-            <Timeline>
-              {certificateStatus.expiredCerts?.length > 0 && (
-                <Timeline.Item color="red" dot={<CloseCircleOutlined />}>
-                  <div>
-                    <Text strong style={{ color: '#ff4d4f' }}>Certificados Vencidos:</Text>
-                    <ul style={{ marginTop: '8px' }}>
-                      {certificateStatus.expiredCerts.map((cert, index) => (
-                        <li key={index}>
-                          <Text code>{cert}</Text>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </Timeline.Item>
-              )}
+            <SectionContainer>
+              <Title level={5} style={{ color: '#059669', marginBottom: '8px', marginTop: '0' }}>
+                <InfoCircleOutlined style={{ marginRight: 8 }} />
+                Detalhes dos Certificados
+              </Title>
+              <Divider style={{ margin: '0 0 16px 0', borderColor: '#e8e8e8' }} />
+              <Timeline>
+                {certificateStatus.expiredCerts?.length > 0 && (
+                  <Timeline.Item color="red" dot={<CloseCircleOutlined />}>
+                    <div>
+                      <Text strong style={{ color: '#ff4d4f' }}>Certificados Vencidos:</Text>
+                      <ul style={{ marginTop: '8px' }}>
+                        {certificateStatus.expiredCerts.map((cert, index) => (
+                          <li key={index}>
+                            <Text code>{cert}</Text>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </Timeline.Item>
+                )}
 
-              {certificateStatus.expiringSoonCerts?.length > 0 && (
-                <Timeline.Item color="orange" dot={<ExclamationCircleOutlined />}>
-                  <div>
-                    <Text strong style={{ color: '#faad14' }}>Certificados Vencendo em Breve:</Text>
-                    <ul style={{ marginTop: '8px' }}>
-                      {certificateStatus.expiringSoonCerts.map((cert, index) => (
-                        <li key={index}>
-                          <Text code>{cert}</Text>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </Timeline.Item>
-              )}
+                {certificateStatus.expiringSoonCerts?.length > 0 && (
+                  <Timeline.Item color="orange" dot={<ExclamationCircleOutlined />}>
+                    <div>
+                      <Text strong style={{ color: '#faad14' }}>Certificados Vencendo em Breve:</Text>
+                      <ul style={{ marginTop: '8px' }}>
+                        {certificateStatus.expiringSoonCerts.map((cert, index) => (
+                          <li key={index}>
+                            <Text code>{cert}</Text>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </Timeline.Item>
+                )}
 
-              {(!certificateStatus.hasExpired && !certificateStatus.hasExpiringSoon) && (
-                <Timeline.Item color="green" dot={<CheckCircleOutlined />}>
-                  <Text strong style={{ color: '#52c41a' }}>
-                    Todos os certificados estão válidos e dentro do prazo!
-                  </Text>
-                </Timeline.Item>
-              )}
-            </Timeline>
+                {(!certificateStatus.hasExpired && !certificateStatus.hasExpiringSoon) && (
+                  <Timeline.Item color="green" dot={<CheckCircleOutlined />}>
+                    <Text strong style={{ color: '#52c41a' }}>
+                      Todos os certificados estão válidos e dentro do prazo!
+                    </Text>
+                  </Timeline.Item>
+                )}
+              </Timeline>
+            </SectionContainer>
           </div>
         ) : certificateLoading ? (
           <CentralizedLoader 
@@ -508,58 +637,101 @@ const Certificados = () => {
             showIcon 
           />
         )}
-      </Card>
+      </StyledCard>
 
       {/* Informações Adicionais */}
-      <Card 
-        title="Informações"
+      <StyledCard
+        title={
+          <Space>
+            <InfoCircleOutlined style={{ color: '#ffffff' }} />
+            <span style={{ color: '#ffffff', fontWeight: '600' }}>Informações</span>
+          </Space>
+        }
         extra={
-          <Button 
-            type="link" 
+          <PrimaryButton
+            type="link"
             icon={<BookOutlined />}
             onClick={() => setTutorialModalVisible(true)}
-            style={{ color: '#059669' }}
+            style={{ color: '#ffffff', padding: 0 }}
           >
             Tutorial: Como Extrair Certificados
-          </Button>
+          </PrimaryButton>
         }
+        styles={{ 
+          header: { 
+            backgroundColor: '#059669', 
+            color: '#ffffff', 
+            borderRadius: '8px 8px 0 0' 
+          }
+        }}
       >
         <Paragraph>
-          <Text strong>Monitoramento Automático:</Text> O sistema verifica automaticamente os certificados 
+          <Text strong style={{ color: '#059669' }}>
+            <ClockCircleOutlined style={{ marginRight: 8 }} />
+            Monitoramento Automático:
+          </Text> O sistema verifica automaticamente os certificados 
           todos os dias às 06:00 (horário de Brasília) e envia notificações quando necessário.
         </Paragraph>
         <Paragraph>
-          <Text strong>Verificação Manual:</Text> Use o botão "Verificar Agora" para executar uma 
+          <Text strong style={{ color: '#059669' }}>
+            <ReloadOutlined style={{ marginRight: 8 }} />
+            Verificação Manual:
+          </Text> Use o botão "Verificar Agora" para executar uma 
           verificação imediata dos certificados.
         </Paragraph>
         <Paragraph>
-          <Text strong>Simulação do Cron Job:</Text> Use o botão "Simular Cron Job" para executar 
+          <Text strong style={{ color: '#059669' }}>
+            <BellOutlined style={{ marginRight: 8 }} />
+            Simulação do Cron Job:
+          </Text> Use o botão "Simular Cron Job" para executar 
           exatamente o mesmo processo que o cron job diário executa, incluindo o envio das notificações 
           reais para o sistema. Isso permite testar o layout e comportamento das notificações.
         </Paragraph>
         <Paragraph>
-          <Text strong>Tutorial:</Text> Clique em "Tutorial: Como Extrair Certificados" para ver o 
+          <Text strong style={{ color: '#059669' }}>
+            <BookOutlined style={{ marginRight: 8 }} />
+            Tutorial:
+          </Text> Clique em "Tutorial: Como Extrair Certificados" para ver o 
           passo a passo completo de como extrair certificados, chave privada e cadeia a partir de um arquivo .pfx.
         </Paragraph>
-      </Card>
+      </StyledCard>
 
       {/* Modal do Tutorial */}
       <Modal
         title={
-          <Space>
-            <BookOutlined style={{ color: '#059669' }} />
-            <span>Tutorial: Extrair Certificado, Chave Privada e Cadeia a partir de um arquivo .pfx</span>
-          </Space>
+          <span style={{ 
+            color: '#ffffff', 
+            fontWeight: '600', 
+            fontSize: '16px',
+            backgroundColor: '#059669',
+            padding: '12px 16px',
+            margin: '-20px -24px 0 -24px',
+            display: 'block',
+            borderRadius: '8px 8px 0 0',
+          }}>
+            <BookOutlined style={{ marginRight: 8 }} />
+            Tutorial: Extrair Certificado, Chave Privada e Cadeia a partir de um arquivo .pfx
+          </span>
         }
         open={tutorialModalVisible}
         onCancel={() => setTutorialModalVisible(false)}
         footer={[
-          <Button key="close" onClick={() => setTutorialModalVisible(false)}>
+          <PrimaryButton 
+            key="close" 
+            onClick={() => setTutorialModalVisible(false)}
+            size="large"
+          >
             Fechar
-          </Button>
+          </PrimaryButton>
         ]}
         width={800}
-        style={{ top: 20 }}
+        styles={{
+          body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', overflowX: 'hidden', padding: 20 },
+          header: { backgroundColor: '#059669', borderBottom: '2px solid #047857', padding: 0 },
+          wrapper: { zIndex: 1100 }
+        }}
+        centered
+        destroyOnClose
       >
         <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           <Alert
@@ -577,7 +749,7 @@ const Certificados = () => {
           />
         </div>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

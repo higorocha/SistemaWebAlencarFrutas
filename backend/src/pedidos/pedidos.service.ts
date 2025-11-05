@@ -731,6 +731,9 @@ export class PedidosService {
           dataPedido: createPedidoDto.dataPedido,
           dataPrevistaColheita: createPedidoDto.dataPrevistaColheita,
           observacoes: createPedidoDto.observacoes,
+          // Campos de frete (opcionais - usados principalmente no app mobile)
+          placaPrimaria: createPedidoDto.placaPrimaria || undefined,
+          placaSecundaria: createPedidoDto.placaSecundaria || undefined,
           // Campos específicos para clientes indústria
           indDataEntrada: createPedidoDto.indDataEntrada ? new Date(createPedidoDto.indDataEntrada) : null,
           indDataDescarga: createPedidoDto.indDataDescarga ? new Date(createPedidoDto.indDataDescarga) : null,
@@ -3266,7 +3269,7 @@ export class PedidosService {
 
         // Processar cada item de mão de obra
         for (const maoObra of updatePedidoCompletoDto.maoObra) {
-          // Buscar dados da fruta para derivar a unidadeMedida
+          // Buscar dados da fruta para fallback (se unidadeMedida não for fornecido)
           const frutaPedido = await prisma.frutasPedidos.findFirst({
             where: {
               pedidoId: id,
@@ -3274,8 +3277,7 @@ export class PedidosService {
             },
             select: {
               unidadeMedida1: true,
-              unidadeMedida2: true,
-              unidadePrecificada: true
+              unidadeMedida2: true
             }
           });
 
@@ -3284,17 +3286,21 @@ export class PedidosService {
             continue;
           }
 
-          // ✅ SEMPRE usar unidadeMedida1 da fruta para mão de obra
-          const unidadeMedida = frutaPedido.unidadeMedida1;
-
-          if (!unidadeMedida) {
-            console.log(`⚠️ Unidade de medida 1 não encontrada para fruta ${maoObra.frutaId}, pulando...`);
-            continue;
+          // ✅ SIMPLIFICADO: Usar unidadeMedida do DTO se fornecido, senão usar unidadeMedida1 como fallback
+          let unidadeMedida: string = 'KG';
+          
+          if (maoObra.unidadeMedida && ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'].includes(maoObra.unidadeMedida)) {
+            unidadeMedida = maoObra.unidadeMedida;
+          } else {
+            // Fallback: usar unidadeMedida1 da fruta
+            const unidadeCompleta = frutaPedido.unidadeMedida1 || 'KG';
+            const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+            const unidadeEncontrada = unidadesValidas.find(u => unidadeCompleta.includes(u));
+            unidadeMedida = unidadeEncontrada || 'KG';
           }
 
           if (maoObra.id) {
             // Atualizar custo existente
-            console.log(`✏️ Atualizando custo ${maoObra.id}...`);
             await prisma.turmaColheitaPedidoCusto.update({
               where: { id: maoObra.id },
               data: {
@@ -4057,6 +4063,18 @@ export class PedidosService {
   }
 
   /**
+   * Normaliza string removendo acentos para busca case-insensitive e accent-insensitive
+   * @param str String a ser normalizada
+   * @returns String sem acentos em minúsculas
+   */
+  private normalizeForSearch(str: string): string {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+  }
+
+  /**
    * Busca inteligente que retorna sugestões categorizadas baseadas no termo de pesquisa
    * @param term Termo de busca (mínimo 2 caracteres)
    * @returns Array de sugestões categorizadas
@@ -4068,6 +4086,7 @@ export class PedidosService {
 
     const suggestions: any[] = [];
     const lowerTerm = term.toLowerCase();
+    const normalizedTerm = this.normalizeForSearch(term);
 
     try {
       // 1. Buscar por número do pedido
@@ -4109,21 +4128,28 @@ export class PedidosService {
         });
       }
 
-      // 2. Buscar por nome do cliente
+      // 2. Buscar por nome do cliente (ignorando acentos)
       const numericTerm = term.replace(/[^0-9]/g, '');
-      const clienteWhereConditions: any[] = [
-        { nome: { contains: term, mode: 'insensitive' } },
-        { razaoSocial: { contains: term, mode: 'insensitive' } },
-      ];
-
-      if (numericTerm) {
+      
+      // Buscar mais resultados para filtrar por acentos
+      const clienteWhereConditions: any[] = [];
+      
+      if (numericTerm && numericTerm.length >= 2) {
+        // Se há termo numérico significativo, buscar por CNPJ/CPF
         clienteWhereConditions.push({ cnpj: { contains: numericTerm } });
         clienteWhereConditions.push({ cpf: { contains: numericTerm } });
       }
 
-      const clientes = await this.prisma.cliente.findMany({
-        where: {
+      // Buscar clientes (sempre buscar um conjunto limitado para filtrar depois)
+      const clientesRaw = await this.prisma.cliente.findMany({
+        where: numericTerm && numericTerm.length >= 2 ? {
           OR: clienteWhereConditions
+        } : {
+          // Se não há termo numérico, buscar por nome/razão social com contains (pré-filtro)
+          OR: [
+            { nome: { contains: term.substring(0, 2), mode: 'insensitive' } }, // Pré-filtro com 2 primeiros caracteres
+            { razaoSocial: { contains: term.substring(0, 2), mode: 'insensitive' } }
+          ]
         },
         select: {
           id: true,
@@ -4136,9 +4162,20 @@ export class PedidosService {
             select: { pedidos: true }
           }
         },
-        take: 3,
+        take: 20, // Buscar mais para garantir que teremos resultados após filtrar por acentos
         orderBy: { nome: 'asc' }
       });
+
+      // Filtrar clientes que correspondem ao termo normalizado (sem acentos)
+      const clientes = clientesRaw.filter(cliente => {
+        if (numericTerm) {
+          // Se há termo numérico, já foi filtrado pelo Prisma
+          return true;
+        }
+        const nomeNormalizado = this.normalizeForSearch(cliente.nome);
+        const razaoSocialNormalizada = cliente.razaoSocial ? this.normalizeForSearch(cliente.razaoSocial) : '';
+        return nomeNormalizado.includes(normalizedTerm) || razaoSocialNormalizada.includes(normalizedTerm);
+      }).slice(0, 3); // Limitar a 3 resultados finais
 
       clientes.forEach(cliente => {
         const documento = cliente.cnpj || cliente.cpf || 'N/A';
@@ -4158,31 +4195,32 @@ export class PedidosService {
         });
       });
 
-      // 3. Buscar por motorista (campo: nomeMotorista)
+      // 3. Buscar por motorista (campo: nomeMotorista) - ignorando acentos
       if (term.length >= 3) {
+        // Buscar mais resultados para filtrar por acentos
         const motoristasUnicos = await this.prisma.pedido.groupBy({
           by: ['nomeMotorista'],
           where: {
             AND: [
               { nomeMotorista: { not: null } },
-              { nomeMotorista: { contains: term, mode: 'insensitive' } }
+              { nomeMotorista: { contains: term.substring(0, 2), mode: 'insensitive' } } // Pré-filtro
             ]
           },
           _count: { id: true },
           orderBy: { _count: { id: 'desc' } },
-          take: 10 // Aumentar para capturar todas as variações
+          take: 20 // Aumentar para capturar todas as variações incluindo acentos
         });
 
-        // ✅ AGRUPAR MOTORISTAS POR NOME NORMALIZADO (case-insensitive)
+        // ✅ AGRUPAR MOTORISTAS POR NOME NORMALIZADO (sem acentos e case-insensitive)
         const motoristasAgrupados = new Map();
         
         motoristasUnicos.forEach(motorista => {
           if (motorista.nomeMotorista) {
-            const nomeNormalizado = motorista.nomeMotorista.toLowerCase();
+            const nomeNormalizadoSemAcentos = this.normalizeForSearch(motorista.nomeMotorista);
             
-            if (motoristasAgrupados.has(nomeNormalizado)) {
+            if (motoristasAgrupados.has(nomeNormalizadoSemAcentos)) {
               // Somar contadores se já existe
-              const existente = motoristasAgrupados.get(nomeNormalizado);
+              const existente = motoristasAgrupados.get(nomeNormalizadoSemAcentos);
               existente.totalPedidos += motorista._count.id;
               // Manter o nome com capitalização original mais comum
               if (motorista._count.id > existente.contadorOriginal) {
@@ -4190,7 +4228,7 @@ export class PedidosService {
                 existente.contadorOriginal = motorista._count.id;
               }
             } else {
-              motoristasAgrupados.set(nomeNormalizado, {
+              motoristasAgrupados.set(nomeNormalizadoSemAcentos, {
                 nomeOriginal: motorista.nomeMotorista,
                 totalPedidos: motorista._count.id,
                 contadorOriginal: motorista._count.id
@@ -4199,8 +4237,15 @@ export class PedidosService {
           }
         });
 
+        // Filtrar motoristas que correspondem ao termo normalizado (sem acentos)
+        const motoristasFiltrados = Array.from(motoristasAgrupados.values())
+          .filter(motorista => {
+            const nomeNormalizado = this.normalizeForSearch(motorista.nomeOriginal);
+            return nomeNormalizado.includes(normalizedTerm);
+          });
+
         // Converter para array e ordenar por total de pedidos
-        const motoristasFinal = Array.from(motoristasAgrupados.values())
+        const motoristasFinal = motoristasFiltrados
           .sort((a, b) => b.totalPedidos - a.totalPedidos)
           .slice(0, 3); // Limitar a 3 resultados
 
@@ -4395,12 +4440,13 @@ export class PedidosService {
         });
       }
 
-      // 6. Buscar por fornecedor
+      // 6. Buscar por fornecedor - ignorando acentos
       if (term.length >= 3) {
-        const fornecedores = await this.prisma.fornecedor.findMany({
+        // Buscar mais resultados para filtrar por acentos
+        const fornecedoresRaw = await this.prisma.fornecedor.findMany({
           where: {
             nome: {
-              contains: term,
+              contains: term.substring(0, 2), // Pré-filtro com 2 primeiros caracteres
               mode: 'insensitive'
             }
           },
@@ -4413,9 +4459,15 @@ export class PedidosService {
               select: { areas: true }
             }
           },
-          take: 3,
+          take: 10, // Buscar mais para filtrar depois
           orderBy: { nome: 'asc' }
         });
+
+        // Filtrar fornecedores que correspondem ao termo normalizado (sem acentos)
+        const fornecedores = fornecedoresRaw.filter(fornecedor => {
+          const nomeNormalizado = this.normalizeForSearch(fornecedor.nome);
+          return nomeNormalizado.includes(normalizedTerm);
+        }).slice(0, 3); // Limitar a 3 resultados finais
 
         fornecedores.forEach(fornecedor => {
           const documento = fornecedor.cnpj || fornecedor.cpf || 'N/A';
@@ -4435,13 +4487,13 @@ export class PedidosService {
         });
       }
 
-      // 7. Buscar por áreas (próprias e de fornecedores)
+      // 7. Buscar por áreas (próprias e de fornecedores) - ignorando acentos
       if (term.length >= 3) {
-        // Buscar áreas próprias
-        const areasAgricolas = await this.prisma.areaAgricola.findMany({
+        // Buscar áreas próprias (pré-filtrar e depois filtrar por acentos)
+        const areasAgricolasRaw = await this.prisma.areaAgricola.findMany({
           where: {
             nome: {
-              contains: term,
+              contains: term.substring(0, 2), // Pré-filtro com 2 primeiros caracteres
               mode: 'insensitive'
             }
           },
@@ -4451,9 +4503,15 @@ export class PedidosService {
             categoria: true,
             areaTotal: true
           },
-          take: 2,
+          take: 10, // Buscar mais para filtrar depois
           orderBy: { nome: 'asc' }
         });
+
+        // Filtrar áreas que correspondem ao termo normalizado (sem acentos)
+        const areasAgricolas = areasAgricolasRaw.filter(area => {
+          const nomeNormalizado = this.normalizeForSearch(area.nome);
+          return nomeNormalizado.includes(normalizedTerm);
+        }).slice(0, 2); // Limitar a 2 resultados finais
 
         areasAgricolas.forEach(area => {
           suggestions.push({
@@ -4472,11 +4530,11 @@ export class PedidosService {
           });
         });
 
-        // Buscar áreas de fornecedores
-        const areasFornecedores = await this.prisma.areaFornecedor.findMany({
+        // Buscar áreas de fornecedores (pré-filtrar e depois filtrar por acentos)
+        const areasFornecedoresRaw = await this.prisma.areaFornecedor.findMany({
           where: {
             nome: {
-              contains: term,
+              contains: term.substring(0, 2), // Pré-filtro com 2 primeiros caracteres
               mode: 'insensitive'
             }
           },
@@ -4496,9 +4554,15 @@ export class PedidosService {
               }
             }
           },
-          take: 2,
+          take: 10, // Buscar mais para filtrar depois
           orderBy: { nome: 'asc' }
         });
+
+        // Filtrar áreas que correspondem ao termo normalizado (sem acentos)
+        const areasFornecedores = areasFornecedoresRaw.filter(area => {
+          const nomeNormalizado = this.normalizeForSearch(area.nome);
+          return nomeNormalizado.includes(normalizedTerm);
+        }).slice(0, 2); // Limitar a 2 resultados finais
 
         areasFornecedores.forEach(area => {
           suggestions.push({
@@ -4518,15 +4582,10 @@ export class PedidosService {
         });
       }
 
-      // 8. Buscar por fruta
+      // 8. Buscar por fruta (ignorando acentos)
       if (term.length >= 3) {
-        const frutas = await this.prisma.fruta.findMany({
-          where: {
-            OR: [
-              { nome: { contains: term, mode: 'insensitive' } },
-              { codigo: { contains: term, mode: 'insensitive' } }
-            ]
-          },
+        // Buscar um pouco mais de resultados para filtrar por acentos
+        const frutasRaw = await this.prisma.fruta.findMany({
           select: {
             id: true,
             nome: true,
@@ -4541,9 +4600,16 @@ export class PedidosService {
               select: { frutasPedidos: true }
             }
           },
-          take: 3,
+          take: 10, // Buscar mais para filtrar depois
           orderBy: { nome: 'asc' }
         });
+
+        // Filtrar frutas que correspondem ao termo normalizado (sem acentos)
+        const frutas = frutasRaw.filter(fruta => {
+          const nomeNormalizado = this.normalizeForSearch(fruta.nome);
+          const codigoNormalizado = fruta.codigo ? this.normalizeForSearch(fruta.codigo) : '';
+          return nomeNormalizado.includes(normalizedTerm) || codigoNormalizado.includes(normalizedTerm);
+        }).slice(0, 3); // Limitar a 3 resultados finais
 
         frutas.forEach(fruta => {
           suggestions.push({
@@ -4563,12 +4629,10 @@ export class PedidosService {
         });
       }
 
-      // 8b. Buscar por cultura (descrição)
+      // 8b. Buscar por cultura (descrição) - ignorando acentos
       if (term.length >= 2) {
-        const culturas = await this.prisma.cultura.findMany({
-          where: {
-            descricao: { contains: term, mode: 'insensitive' }
-          },
+        // Buscar mais resultados para filtrar por acentos
+        const culturasRaw = await this.prisma.cultura.findMany({
           select: {
             id: true,
             descricao: true,
@@ -4576,9 +4640,15 @@ export class PedidosService {
               select: { frutas: true }
             }
           },
-          take: 3,
+          take: 10, // Buscar mais para filtrar depois
           orderBy: { descricao: 'asc' }
         });
+
+        // Filtrar culturas que correspondem ao termo normalizado (sem acentos)
+        const culturas = culturasRaw.filter(cultura => {
+          const descricaoNormalizada = this.normalizeForSearch(cultura.descricao);
+          return descricaoNormalizada.includes(normalizedTerm);
+        }).slice(0, 3); // Limitar a 3 resultados finais
 
         culturas.forEach(cultura => {
           suggestions.push({

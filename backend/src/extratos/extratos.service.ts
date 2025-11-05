@@ -24,10 +24,19 @@ export class ExtratosService {
   ) {}
 
   /**
-   * Formata data do formato DDMMYYYY para o formato usado pela API
-   * Baseado EXATAMENTE no extratosController(exemplo).js
+   * Formata data do formato DDMMYYYY para o formato usado pela API do BB
+   * 
+   * Conforme documentação da API:
+   * - Formato: DDMMAAAA (omitir zeros à esquerda APENAS no DIA)
+   * - Exemplo: 19042023 (dia 19, mês 04, ano 2023)
+   * 
+   * Regras:
+   * - DIA: 1 ou 2 dígitos (sem zero à esquerda se dia < 10)
+   * - MÊS: SEMPRE 2 dígitos (com zero à esquerda se mês < 10)
+   * - ANO: SEMPRE 4 dígitos
+   * 
    * @param dateStr Data no formato DDMMYYYY
-   * @returns Data formatada sem zeros à esquerda
+   * @returns Data formatada: D ou DD + MM + YYYY (mês sempre 2 dígitos)
    */
   private formatDateForAPI(dateStr: string): string {
     if (!/^\d{8}$/.test(dateStr)) {
@@ -42,8 +51,12 @@ export class ExtratosService {
       throw new BadRequestException(`Data inválida: ${dateStr}`);
     }
 
-    // Reconstroi removendo zeros à esquerda (EXATAMENTE como no exemplo)
-    return `${dia}${mes}${ano}`;
+    // Dia: omitir zeros à esquerda (conforme documentação da API)
+    // Mês: SEMPRE 2 dígitos (com zero à esquerda se < 10)
+    // Ano: sempre 4 dígitos
+    const diaFormatado = dia.toString(); // Sem zero à esquerda (ex: 1, 8, 19, 23)
+    const mesFormatado = mes.toString().padStart(2, '0'); // Sempre 2 dígitos (ex: 01, 04, 09, 11)
+    return `${diaFormatado}${mesFormatado}${ano}`;
   }
 
   /**
@@ -66,11 +79,8 @@ export class ExtratosService {
   private async obterTokenDeAcesso(): Promise<string> {
     // Verifica se o token está em cache e ainda é válido (EXATAMENTE como no exemplo)
     if (this.cachedToken && this.tokenExpiry && new Date() < this.tokenExpiry) {
-      console.log('🔄 [EXTRATOS-SERVICE] Usando token em cache');
       return this.cachedToken;
     }
-
-    console.log('🔐 [EXTRATOS-SERVICE] Obtendo novo token de acesso...');
 
     try {
       // Buscar credenciais de extratos do banco de dados (EXATAMENTE como no exemplo)
@@ -109,7 +119,6 @@ export class ExtratosService {
       const expiresIn = (response.data as any).expires_in || 3600; // segundos
       this.tokenExpiry = new Date(new Date().getTime() + (expiresIn - 60) * 1000); // 60 segundos antes
 
-      console.log('✅ [EXTRATOS-SERVICE] Token obtido com sucesso');
       return this.cachedToken!;
 
     } catch (error) {
@@ -142,8 +151,6 @@ export class ExtratosService {
     dataFim: string,
     contaCorrenteId?: number
   ): Promise<any[]> {
-    console.log(`🔍 [EXTRATOS-SERVICE] Consultando extratos brutos de ${dataInicio} até ${dataFim}${contaCorrenteId ? ` (conta: ${contaCorrenteId})` : ''}`);
-
     try {
       // Obter token de acesso
       const token = await this.obterTokenDeAcesso();
@@ -179,8 +186,6 @@ export class ExtratosService {
 
       // Loop de paginação
       while (hasMorePages) {
-        console.log(`📄 [EXTRATOS-SERVICE] Consultando página ${paginaAtual}`);
-
         const response = await apiClient.get(
           `/conta-corrente/agencia/${agencia}/conta/${conta}`,
           {
@@ -200,14 +205,12 @@ export class ExtratosService {
 
         // Verificar se há lançamentos nesta página
         if (!data || !data.listaLancamento || data.listaLancamento.length === 0) {
-          console.log(`📄 [EXTRATOS-SERVICE] Página ${paginaAtual} sem lançamentos`);
           hasMorePages = false;
           break;
         }
 
         // Adicionar lançamentos à lista (dados brutos)
         extratos.push(...data.listaLancamento);
-        console.log(`📄 [EXTRATOS-SERVICE] Página ${paginaAtual}: ${data.listaLancamento.length} lançamentos encontrados`);
 
         // Verificar se há mais páginas
         if (data.numeroPaginaProximo > 0) {
@@ -217,11 +220,10 @@ export class ExtratosService {
         }
       }
 
-      console.log(`✅ [EXTRATOS-SERVICE] Consulta finalizada: ${extratos.length} lançamentos encontrados`);
       return extratos;
 
     } catch (error) {
-      console.error('❌ [EXTRATOS-SERVICE] Erro ao consultar extratos brutos:', error.response?.data || error.message);
+      // Erro será tratado no serviço chamador
 
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
@@ -313,7 +315,6 @@ export class ExtratosService {
         }
       }
 
-      console.log(`✅ [EXTRATOS-SERVICE] Consulta finalizada: ${extratos.length} lançamentos encontrados`);
       return extratos;
 
     } catch (error) {

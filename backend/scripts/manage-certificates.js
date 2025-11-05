@@ -121,7 +121,7 @@ function showHelp() {
   console.log('  ├── final_key.pem                (Chave privada)');
   console.log('  ├── GeoTrust_EV_RSA_CA_G2.cer    (CA 1)');
   console.log('  ├── DigiCert_Global_Root_G2.cer  (CA 2)');
-  console.log('  └── api-pix.bb.com.br.cer        (CA 3)');
+  console.log('  └── api-pix_bb_com_br.crt        (CA 3)');
 }
 
 // Executa o script

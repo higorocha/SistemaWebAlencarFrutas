@@ -238,8 +238,6 @@ export class CredenciaisAPIService {
    * Busca credenciais por banco e modalidade
    */
   async findByBancoAndModalidade(banco: string, modalidadeApi: string): Promise<CredenciaisAPIResponseDto[]> {
-    console.log('🔍 [CREDENCIAIS-API] Buscando credenciais por banco e modalidade:', banco, modalidadeApi);
-    
     const credenciais = await this.prisma.credenciaisAPI.findMany({
       where: {
         banco,
@@ -253,7 +251,6 @@ export class CredenciaisAPIService {
       },
     });
 
-    console.log(`✅ [CREDENCIAIS-API] Encontradas ${credenciais.length} credenciais`);
     return credenciais;
   }
 } 

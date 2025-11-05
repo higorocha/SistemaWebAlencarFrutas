@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import * as path from 'path';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { checkCertificateExpiry, validateAllCertificates } from '../utils/certificate-manager';
 import { CreateNotificacaoCompletaDto } from '../notificacoes/dto/create-notificacao-completa.dto';
@@ -294,29 +295,80 @@ export class CertificateMonitorService {
 
   /**
    * Obtém informações detalhadas de todos os certificados
+   * Separa certificados da empresa dos certificados CA do BB
    */
   private getDetailedCertificateInfo(): any {
     const statuses = validateAllCertificates();
     const certificates: any = {};
     
-    statuses.forEach(status => {
-      certificates[status.apiName] = {
-        apiName: status.apiName,
-        status: status.overallStatus,
-        certificates: {
-          clientCert: status.certificates.clientCert.path,
-          clientKey: status.certificates.clientKey.path,
-          caCerts: status.certificates.caCerts.map(ca => ca.path)
-        },
-        issues: status.issues,
+    // Extrai o nome da empresa do primeiro certificado encontrado
+    // Prioriza CN (Common Name) e remove CNPJ se presente
+    let empresaNome = 'Empresa';
+    const primeiroCert = statuses[0]?.certificates?.clientCert;
+    if (primeiroCert?.subject) {
+      // Usa CN primeiro (sem CNPJ, já removido no parseCertificateSubject)
+      empresaNome = primeiroCert.subject.commonName || 
+                    primeiroCert.subject.organization || 
+                    'Empresa';
+    }
+    
+    // Agrupa certificados da empresa (mesmos para todas as APIs)
+    const empresaCert = statuses[0]?.certificates?.clientCert;
+    const empresaKey = statuses[0]?.certificates?.clientKey;
+    
+    // Certificado da empresa (compartilhado entre PIX e EXTRATOS)
+    certificates['EMPRESA'] = {
+      tipo: 'empresa',
+      nome: empresaNome,
+      status: empresaCert?.exists && empresaCert?.isValid ? 'valid' : 'invalid',
+      certificado: {
+        path: empresaCert?.path || '',
+        exists: empresaCert?.exists || false,
+        size: empresaCert?.size || 0,
+        lastModified: empresaCert?.lastModified?.toISOString(),
+        subject: empresaCert?.subject,
         expiryInfo: {
-          isExpired: status.certificates.clientCert.isExpired,
-          isExpiringSoon: status.certificates.clientCert.isExpiringSoon,
-          expiryDate: status.certificates.clientCert.expiryDate?.toISOString(),
-          daysUntilExpiry: status.certificates.clientCert.daysUntilExpiry
+          isExpired: empresaCert?.isExpired || false,
+          isExpiringSoon: empresaCert?.isExpiringSoon || false,
+          expiryDate: empresaCert?.expiryDate?.toISOString(),
+          daysUntilExpiry: empresaCert?.daysUntilExpiry
         }
+      },
+      chavePrivada: {
+        path: empresaKey?.path || '',
+        exists: empresaKey?.exists || false,
+        size: empresaKey?.size || 0,
+        lastModified: empresaKey?.lastModified?.toISOString()
+      },
+      usadoPor: statuses.map(s => s.apiName), // ['PIX', 'EXTRATOS']
+      issues: statuses.flatMap(s => s.issues.filter(i => i.includes('Certificado cliente') || i.includes('Chave privada')))
+    };
+    
+    // Certificados CA do BB (compartilhados entre PIX e EXTRATOS)
+    // Usa os certificados CA do primeiro status (todos são iguais)
+    const primeiroStatus = statuses[0];
+    if (primeiroStatus && primeiroStatus.certificates.caCerts.length > 0) {
+      certificates['CA_BB'] = {
+        tipo: 'ca_bb',
+        nome: 'Certificados CA do BB',
+        status: primeiroStatus.overallStatus,
+        certificadosCA: primeiroStatus.certificates.caCerts.map((caCert) => ({
+          nome: path.basename(caCert.path),
+          path: caCert.path,
+          exists: caCert.exists,
+          size: caCert.size,
+          lastModified: caCert.lastModified?.toISOString(),
+          expiryInfo: {
+            isExpired: caCert.isExpired || false,
+            isExpiringSoon: caCert.isExpiringSoon || false,
+            expiryDate: caCert.expiryDate?.toISOString(),
+            daysUntilExpiry: caCert.daysUntilExpiry
+          }
+        })),
+        usadoPor: statuses.map(s => s.apiName), // ['PIX', 'EXTRATOS']
+        issues: primeiroStatus.issues.filter(i => i.includes('CA'))
       };
-    });
+    }
     
     return certificates;
   }

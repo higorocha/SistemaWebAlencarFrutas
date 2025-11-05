@@ -406,13 +406,6 @@ export class LancamentoExtratoService {
   async buscarEProcessarExtratos(
     dto: BuscarProcessarExtratosDto
   ): Promise<BuscarProcessarExtratosResponseDto> {
-    console.log(`🔍 [LANCAMENTO-EXTRATO-SERVICE] Iniciando busca e processamento de extratos`, {
-      dataInicio: dto.dataInicio,
-      dataFim: dto.dataFim,
-      clienteId: dto.clienteId,
-      contaCorrenteId: dto.contaCorrenteId,
-    });
-
     // Validar e buscar cliente
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: dto.clienteId },
@@ -422,18 +415,35 @@ export class LancamentoExtratoService {
       throw new NotFoundException(`Cliente com ID ${dto.clienteId} não encontrado`);
     }
 
+    // Formatar data para exibição (antes de processar)
+    const dataInicioExibicao = `${dto.dataInicio.slice(0, 2)}/${dto.dataInicio.slice(2, 4)}/${dto.dataInicio.slice(4)}`;
+    const dataFimExibicao = `${dto.dataFim.slice(0, 2)}/${dto.dataFim.slice(2, 4)}/${dto.dataFim.slice(4)}`;
+    console.log(`📅 Buscando extratos para cliente ${cliente.nome || cliente.id}, período ${dataInicioExibicao} a ${dataFimExibicao}`);
+
     // Validar e buscar conta corrente
     const contaCorrente = await this.contaCorrenteService.findOne(dto.contaCorrenteId);
 
-    // Formatar datas para API (remover zeros à esquerda)
+    // Formatar datas para API do BB
+    // Conforme documentação: Formato DDMMAAAA, omitir zeros à esquerda APENAS no DIA
+    // Exemplo: 19042023 (dia 19, mês 04, ano 2023)
+    // - DIA: 1 ou 2 dígitos (sem zero à esquerda se dia < 10)
+    // - MÊS: SEMPRE 2 dígitos (com zero à esquerda se mês < 10)
+    // - ANO: SEMPRE 4 dígitos
     const formatDateForAPI = (dateStr: string): string => {
       if (!/^\d{8}$/.test(dateStr)) {
         throw new BadRequestException(`Data inválida: ${dateStr}. Formato esperado: DDMMYYYY`);
       }
+      
       const dia = parseInt(dateStr.slice(0, 2), 10);
       const mes = parseInt(dateStr.slice(2, 4), 10);
       const ano = parseInt(dateStr.slice(4), 10);
-      return `${dia}${mes}${ano}`;
+      
+      // Dia: omitir zeros à esquerda (conforme documentação da API)
+      // Mês: SEMPRE 2 dígitos (com zero à esquerda se < 10)
+      // Ano: sempre 4 dígitos
+      const diaFormatado = dia.toString(); // Sem zero à esquerda (ex: 1, 8, 19, 23)
+      const mesFormatado = mes.toString().padStart(2, '0'); // Sempre 2 dígitos (ex: 01, 04, 09, 11)
+      return `${diaFormatado}${mesFormatado}${ano}`;
     };
 
     const dataInicioFormatada = formatDateForAPI(dto.dataInicio);
@@ -445,8 +455,6 @@ export class LancamentoExtratoService {
       dataFimFormatada,
       dto.contaCorrenteId
     );
-
-    console.log(`📊 [LANCAMENTO-EXTRATO-SERVICE] Encontrados ${extratosBrutos.length} lançamentos na API`);
 
     // Preparar CPF/CNPJ do cliente para comparação (sem formatação)
     const cpfCnpjClienteRaw = (cliente.cnpj || cliente.cpf || '').replace(/\D/g, '');
@@ -492,7 +500,6 @@ export class LancamentoExtratoService {
       return cpfCnpjExtrato === cpfCnpjCliente;
     });
 
-    console.log(`✅ [LANCAMENTO-EXTRATO-SERVICE] Filtrados ${extratosFiltrados.length} lançamentos de crédito do cliente`);
 
     // Processar e salvar cada lançamento
     let totalSalvos = 0;
@@ -586,7 +593,6 @@ export class LancamentoExtratoService {
 
         if (lancamentoExistente) {
           totalDuplicados++;
-          console.log(`⚠️ [LANCAMENTO-EXTRATO-SERVICE] Lançamento duplicado ignorado: ${numeroDocumento}`);
           continue;
         }
 
@@ -627,15 +633,14 @@ export class LancamentoExtratoService {
 
         await this.create(createDto);
         totalSalvos++;
-        console.log(`✅ [LANCAMENTO-EXTRATO-SERVICE] Lançamento salvo: ${numeroDocumento} - R$ ${valorLancamento.toFixed(2)}`);
 
       } catch (error) {
-        console.error(`❌ [LANCAMENTO-EXTRATO-SERVICE] Erro ao processar lançamento:`, error);
+        // Erro silencioso - continua processando os demais
         // Continua processando os demais
       }
     }
 
-    console.log(`🎉 [LANCAMENTO-EXTRATO-SERVICE] Processamento concluído: ${totalSalvos} salvos, ${totalDuplicados} duplicados`);
+    console.log(`✅ Busca concluída: ${totalSalvos} salvos, ${totalDuplicados} duplicados`);
 
     return {
       totalEncontrados: extratosBrutos.length,

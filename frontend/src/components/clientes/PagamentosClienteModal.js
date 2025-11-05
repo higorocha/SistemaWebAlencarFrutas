@@ -580,7 +580,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           </Text>
         </Space>
       ),
-      width: "12%",
+      width: "16%",
       sorter: (a, b) => (Number(a.valorLancamento) || 0) - (Number(b.valorLancamento) || 0),
     },
     {
@@ -599,7 +599,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           {text || "-"}
         </Text>
       ),
-      width: "20%",
+      width: "14%",
     },
     {
       title: "Origem",

@@ -33,6 +33,7 @@ const MaoObraRow = ({
   const quantidadeColhida = Form.useWatch(['maoObra', index, 'quantidadeColhida'], form);
   const valorUnitario = Form.useWatch(['maoObra', index, 'valorUnitario'], form);
   const valorColheita = Form.useWatch(['maoObra', index, 'valorColheita'], form);
+  const usarUnidadeSecundariaForm = Form.useWatch(['maoObra', index, 'usarUnidadeSecundaria'], form);
 
   const { key, name, ...restField } = field;
 
@@ -41,9 +42,104 @@ const MaoObraRow = ({
   const turmaSelecionada = turmasColheita.find(t => t.id === maoObraItem?.turmaColheitaId);
   const identificador = turmaSelecionada ? turmaSelecionada.nomeColhedor : `Colheitador ${index + 1}`;
 
-  // Obter a fruta selecionada e sua unidade
+  // Obter a fruta selecionada e suas unidades
   const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === frutaIdSelecionado);
-  const unidadeFruta = frutaSelecionada?.unidadeMedida1 || '';
+  
+  // ✅ Ref para rastrear se já inicializou o estado (evitar loop infinito)
+  const inicializadoRef = React.useRef(false);
+  const ultimoValorFormRef = React.useRef(usarUnidadeSecundariaForm);
+  
+  // Estado para controlar qual unidade está ativa (toggle entre primária e secundária)
+  // ✅ Inicializar baseado no valor do form (se já foi carregado do backend)
+  const [usarUnidadeSecundaria, setUsarUnidadeSecundaria] = React.useState(() => {
+    return usarUnidadeSecundariaForm === true;
+  });
+  
+  // Determinar qual unidade usar baseado no toggle
+  const unidadeFruta = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
+    ? frutaSelecionada.unidadeMedida2
+    : (frutaSelecionada?.unidadeMedida1 || '');
+  
+  // Verificar se pode alternar (só se tiver unidade secundária)
+  const podeAlternar = frutaSelecionada?.unidadeMedida2 ? true : false;
+
+  // ✅ Sincronizar estado local com valor do form quando mudar (ao carregar dados do backend)
+  // Mas apenas quando o valor do form mudar externamente (não por nossa própria atualização)
+  React.useEffect(() => {
+    const valorAtualForm = usarUnidadeSecundariaForm === true;
+    const ultimoValor = ultimoValorFormRef.current === true;
+    
+    // Se o valor do form mudou E ainda não inicializamos
+    if (!inicializadoRef.current && usarUnidadeSecundariaForm !== undefined) {
+      // Inicialização: sincronizar estado com form
+      setUsarUnidadeSecundaria(valorAtualForm);
+      inicializadoRef.current = true;
+      ultimoValorFormRef.current = valorAtualForm;
+    } else if (inicializadoRef.current && valorAtualForm !== ultimoValor) {
+      // Form mudou externamente (ex: carregamento de dados do backend)
+      // Atualizar estado e ref para evitar loop
+      setUsarUnidadeSecundaria(valorAtualForm);
+      ultimoValorFormRef.current = valorAtualForm;
+    }
+  }, [usarUnidadeSecundariaForm]);
+
+  // ✅ Ref para rastrear o último frutaId (resetar refs quando fruta mudar)
+  const ultimoFrutaIdRef = React.useRef(frutaIdSelecionado);
+  
+  // Resetar para unidade primária quando a fruta mudar (mas não ao carregar dados)
+  React.useEffect(() => {
+    // Se a fruta mudou, resetar refs para permitir nova inicialização
+    if (ultimoFrutaIdRef.current !== frutaIdSelecionado) {
+      inicializadoRef.current = false;
+      ultimoFrutaIdRef.current = frutaIdSelecionado;
+    }
+    
+    // Só resetar se a fruta realmente mudou (não na primeira renderização)
+    if (frutaIdSelecionado) {
+      const itemAtual = form.getFieldValue('maoObra')?.[index];
+      // Se não tem usarUnidadeSecundaria definido, usar padrão (false)
+      if (itemAtual?.usarUnidadeSecundaria === undefined && !inicializadoRef.current) {
+        setUsarUnidadeSecundaria(false);
+        inicializadoRef.current = true;
+        ultimoValorFormRef.current = false;
+        // Atualizar campo oculto no formulário
+        const maoObraAtual = form.getFieldValue('maoObra') || [];
+        maoObraAtual[index] = { ...maoObraAtual[index], usarUnidadeSecundaria: false };
+        form.setFieldsValue({ maoObra: maoObraAtual });
+      }
+    }
+  }, [frutaIdSelecionado, index, form]);
+
+  // ✅ Atualizar campo unidadeMedida no form quando toggle mudar (via useEffect para sincronização)
+  React.useEffect(() => {
+    if (frutaIdSelecionado && inicializadoRef.current) {
+      const itemAtual = form.getFieldValue('maoObra')?.[index];
+      const valorAtualNoForm = itemAtual?.usarUnidadeSecundaria === true;
+      
+      // Só atualizar form se o estado mudou E for diferente do form (evita loop)
+      if (valorAtualNoForm !== usarUnidadeSecundaria && ultimoValorFormRef.current !== usarUnidadeSecundaria) {
+        ultimoValorFormRef.current = usarUnidadeSecundaria;
+        
+        // Calcular unidadeMedida diretamente
+        const unidadeBase = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
+          ? frutaSelecionada.unidadeMedida2
+          : (frutaSelecionada?.unidadeMedida1 || 'KG');
+        
+        const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+        const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
+        const unidadeMedida = unidadeEncontrada || 'KG';
+        
+        // Atualizar form (igual ao valorColheita)
+        const maoObraAtual = form.getFieldValue('maoObra') || [];
+        maoObraAtual[index] = { 
+          ...maoObraAtual[index], 
+          usarUnidadeSecundaria,
+          unidadeMedida
+        };
+        form.setFieldsValue({ maoObra: maoObraAtual });
+      }
+    }
+  }, [usarUnidadeSecundaria, frutaIdSelecionado, index, form, frutaSelecionada]);
 
   // ✅ Verificar se quantidade está preenchida para habilitar os campos de valor
   const qtdStr = quantidadeColhida ? String(quantidadeColhida).replace(',', '.') : '0';
@@ -329,7 +425,52 @@ const MaoObraRow = ({
           >
             <MonetaryInput
               placeholder="Ex: 1.234,56"
-              addonAfter={unidadeFruta}
+              addonAfter={
+                podeAlternar ? (
+                  <span
+                    onClick={() => {
+                      const novoValor = !usarUnidadeSecundaria;
+                      setUsarUnidadeSecundaria(novoValor);
+                      
+                      // ✅ ATUALIZAR FORM IMEDIATAMENTE no clique (igual ao valor)
+                      const maoObraAtual = form.getFieldValue('maoObra') || [];
+                      const unidadeBase = novoValor && frutaSelecionada?.unidadeMedida2
+                        ? frutaSelecionada.unidadeMedida2
+                        : (frutaSelecionada?.unidadeMedida1 || 'KG');
+                      const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+                      const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
+                      const unidadeMedida = unidadeEncontrada || 'KG';
+                      
+                      maoObraAtual[index] = { 
+                        ...maoObraAtual[index], 
+                        usarUnidadeSecundaria: novoValor,
+                        unidadeMedida
+                      };
+                      
+                      form.setFieldsValue({ maoObra: maoObraAtual });
+                      ultimoValorFormRef.current = novoValor;
+                    }}
+                    style={{
+                      cursor: 'pointer',
+                      backgroundColor: '#f0f9ff',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      transition: 'background-color 0.2s',
+                      userSelect: 'none'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = '#e0f2fe';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = '#f0f9ff';
+                    }}
+                  >
+                    {unidadeFruta}
+                  </span>
+                ) : (
+                  unidadeFruta
+                )
+              }
               size={isMobile ? "small" : "large"}
               style={{
                 fontSize: isMobile ? "0.875rem" : "1rem"

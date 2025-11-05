@@ -30,18 +30,14 @@ export class ContaCorrenteService {
    * Busca uma conta corrente específica por ID
    */
   async findOne(id: number): Promise<ContaCorrenteResponseDto> {
-    console.log('🔍 [CONTA-CORRENTE] Buscando conta corrente ID:', id);
-    
     const contaCorrente = await this.prisma.contaCorrente.findUnique({
       where: { id },
     });
 
     if (!contaCorrente) {
-      console.log('❌ [CONTA-CORRENTE] Conta corrente não encontrada');
       throw new NotFoundException('Conta corrente não encontrada');
     }
 
-    console.log('✅ [CONTA-CORRENTE] Conta corrente encontrada:', contaCorrente.bancoCodigo);
     return contaCorrente;
   }
 

@@ -24,6 +24,14 @@ export interface CertificateInfo {
   daysUntilExpiry?: number;
   isExpired?: boolean;
   isExpiringSoon?: boolean;
+  // Informações do Subject do certificado (para certificados da empresa)
+  subject?: {
+    commonName?: string;
+    organization?: string;
+    organizationUnit?: string;
+    country?: string;
+    fullSubject?: string;
+  };
 }
 
 export interface CertificateStatus {
@@ -38,13 +46,69 @@ export interface CertificateStatus {
 }
 
 /**
- * Extrai informações de vencimento de um certificado
+ * Extrai informações do Subject do certificado
+ * Suporta formatos com vírgulas e barras (ex: CN=Nome, O=Empresa ou /CN=Nome/O=Empresa)
+ */
+function parseCertificateSubject(subject: string): {
+  commonName?: string;
+  organization?: string;
+  organizationUnit?: string;
+  country?: string;
+  fullSubject?: string;
+} {
+  const subjectInfo: any = {};
+  subjectInfo.fullSubject = subject;
+
+  // Normaliza o formato: substitui barras por vírgulas para facilitar parsing
+  const normalizedSubject = subject.replace(/\//g, ',');
+
+  // Extrai CN (Common Name) - tenta com vírgula e barra
+  const cnMatch = normalizedSubject.match(/CN=([^,]+)/);
+  if (cnMatch) {
+    let cn = cnMatch[1].trim();
+    // Remove CNPJ após os dois pontos (ex: "EMPRESA LTDA:12345678000190" -> "EMPRESA LTDA")
+    if (cn.includes(':')) {
+      cn = cn.split(':')[0].trim();
+    }
+    subjectInfo.commonName = cn;
+  }
+
+  // Extrai O (Organization)
+  const oMatch = normalizedSubject.match(/O=([^,]+)/);
+  if (oMatch) {
+    subjectInfo.organization = oMatch[1].trim();
+  }
+
+  // Extrai OU (Organization Unit)
+  const ouMatch = normalizedSubject.match(/OU=([^,]+)/);
+  if (ouMatch) {
+    subjectInfo.organizationUnit = ouMatch[1].trim();
+  }
+
+  // Extrai C (Country)
+  const cMatch = normalizedSubject.match(/C=([^,]+)/);
+  if (cMatch) {
+    subjectInfo.country = cMatch[1].trim();
+  }
+
+  return subjectInfo;
+}
+
+/**
+ * Extrai informações de vencimento e subject de um certificado
  */
 function getCertificateExpiryInfo(certPath: string): {
   expiryDate?: Date;
   daysUntilExpiry?: number;
   isExpired?: boolean;
   isExpiringSoon?: boolean;
+  subject?: {
+    commonName?: string;
+    organization?: string;
+    organizationUnit?: string;
+    country?: string;
+    fullSubject?: string;
+  };
 } {
   try {
     const certBuffer = fs.readFileSync(certPath);
@@ -54,11 +118,15 @@ function getCertificateExpiryInfo(certPath: string): {
     const now = new Date();
     const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     
+    // Extrai informações do Subject
+    const subjectInfo = parseCertificateSubject(cert.subject);
+    
     return {
       expiryDate,
       daysUntilExpiry,
       isExpired: daysUntilExpiry < 0,
-      isExpiringSoon: daysUntilExpiry <= 30 && daysUntilExpiry >= 0 // Vence em 30 dias ou menos
+      isExpiringSoon: daysUntilExpiry <= 30 && daysUntilExpiry >= 0, // Vence em 30 dias ou menos
+      subject: subjectInfo
     };
   } catch (error) {
     // Se não conseguir ler o certificado, retorna undefined
@@ -130,6 +198,10 @@ export function validateAPICertificates(apiName: string): CertificateStatus {
       issues.push(`Certificado CA ${index + 1} não encontrado: ${caCert.path}`);
     } else if (!caCert.isValid) {
       issues.push(`Certificado CA ${index + 1} inválido (vazio): ${caCert.path}`);
+    } else if (caCert.isExpired) {
+      issues.push(`🚨 CERTIFICADO CA ${index + 1} VENCIDO: ${caCert.path} (Venceu em ${caCert.expiryDate?.toLocaleDateString('pt-BR')})`);
+    } else if (caCert.isExpiringSoon) {
+      issues.push(`⚠️ Certificado CA ${index + 1} vence em breve: ${caCert.path} (Vence em ${caCert.daysUntilExpiry} dias)`);
     }
   });
 
@@ -286,6 +358,7 @@ function getStatusEmoji(status: string): string {
 
 /**
  * Verifica especificamente vencimentos de certificados
+ * Agora inclui tanto certificados da empresa quanto CA do BB
  */
 export function checkCertificateExpiry(): {
   hasExpired: boolean;
@@ -298,12 +371,28 @@ export function checkCertificateExpiry(): {
   const expiringSoonCerts: string[] = [];
   
   statuses.forEach(status => {
+    // Verifica certificado cliente (empresa)
     const clientCert = status.certificates.clientCert;
     if (clientCert.isExpired) {
-      expiredCerts.push(`${status.apiName}: ${clientCert.path} (Venceu em ${clientCert.expiryDate?.toLocaleDateString('pt-BR')})`);
+      // Usa CN primeiro (já sem CNPJ)
+      const empresaNome = clientCert.subject?.commonName || clientCert.subject?.organization || 'Empresa';
+      expiredCerts.push(`${empresaNome} (${status.apiName}): ${clientCert.path} (Venceu em ${clientCert.expiryDate?.toLocaleDateString('pt-BR')})`);
     } else if (clientCert.isExpiringSoon) {
-      expiringSoonCerts.push(`${status.apiName}: ${clientCert.path} (Vence em ${clientCert.daysUntilExpiry} dias)`);
+      // Usa CN primeiro (já sem CNPJ)
+      const empresaNome = clientCert.subject?.commonName || clientCert.subject?.organization || 'Empresa';
+      expiringSoonCerts.push(`${empresaNome} (${status.apiName}): ${clientCert.path} (Vence em ${clientCert.daysUntilExpiry} dias)`);
     }
+    
+    // Verifica certificados CA do BB
+    status.certificates.caCerts.forEach((caCert, index) => {
+      if (caCert.isExpired) {
+        const caNome = path.basename(caCert.path);
+        expiredCerts.push(`${status.apiName} - CA ${caNome}: ${caCert.path} (Venceu em ${caCert.expiryDate?.toLocaleDateString('pt-BR')})`);
+      } else if (caCert.isExpiringSoon) {
+        const caNome = path.basename(caCert.path);
+        expiringSoonCerts.push(`${status.apiName} - CA ${caNome}: ${caCert.path} (Vence em ${caCert.daysUntilExpiry} dias)`);
+      }
+    });
   });
   
   return {

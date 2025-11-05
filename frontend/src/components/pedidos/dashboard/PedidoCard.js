@@ -138,8 +138,8 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
               </div>
               {(() => {
                 let diasInfo = null;
-                if (['AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL'].includes(pedido.status)) {
-                    let dataReferencia = pedido.dataPrecificacaoRealizada;
+                if (['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL'].includes(pedido.status)) {
+                    let dataReferencia = pedido.dataColheita;
                     if (pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0) {
                         const ultimoPagamento = [...pedido.pagamentosPedidos].sort((a, b) => new Date(b.dataPagamento) - new Date(a.dataPagamento))[0];
                         dataReferencia = ultimoPagamento.dataPagamento;

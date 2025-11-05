@@ -58,14 +58,17 @@ const ResumoMaoObra = ({ form, isMobile, pedido }) => {
   };
 
   maoObraValida.forEach(item => {
-    // ✅ Buscar a unidade da fruta selecionada
+    // ✅ Buscar a unidade da fruta selecionada (usando toggle se disponível)
     const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
-    let unidade = frutaSelecionada?.unidadeMedida1 || 'N/A';
+    const usarUnidadeSecundaria = item.usarUnidadeSecundaria === true;
+    const unidadeBase = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
+      ? frutaSelecionada.unidadeMedida2
+      : (frutaSelecionada?.unidadeMedida1 || 'N/A');
     
     // ✅ Extrair apenas a sigla
     const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
-    const unidadeEncontrada = unidadesValidas.find(u => unidade.includes(u));
-    unidade = unidadeEncontrada || unidade;
+    const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
+    const unidade = unidadeEncontrada || unidadeBase;
     
     // ✅ Converter valores (tratando vírgula)
     const qtdStr = String(item.quantidadeColhida || '0').replace(',', '.');
@@ -730,15 +733,18 @@ const ColheitaModal = ({
         for (let i = 0; i < values.maoObra.length; i++) {
           const item = values.maoObra[i];
           if (item.turmaColheitaId && item.frutaId && item.quantidadeColhida && item.valorColheita) {
-            // Obter a unidade da fruta selecionada
+            // Obter a unidade da fruta selecionada (usando toggle se disponível)
             const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
-            let unidadeMedida = frutaSelecionada?.unidadeMedida1 || 'KG';
+            const usarUnidadeSecundaria = item.usarUnidadeSecundaria === true;
+            const unidadeBase = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
+              ? frutaSelecionada.unidadeMedida2
+              : (frutaSelecionada?.unidadeMedida1 || 'KG');
             
             // ✅ GARANTIR que a unidade é um valor válido do enum (KG, CX, TON, UND, ML, LT)
             // Se vier com texto adicional, extrair apenas a sigla
             const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
-            const unidadeEncontrada = unidadesValidas.find(u => unidadeMedida.includes(u));
-            unidadeMedida = unidadeEncontrada || 'KG'; // Default para KG se não encontrar
+            const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
+            const unidadeMedida = unidadeEncontrada || 'KG'; // Default para KG se não encontrar
             
             maoObraValida.push({
               turmaColheitaId: item.turmaColheitaId,
@@ -1043,13 +1049,16 @@ const ColheitaModal = ({
 
       // ✅ FORMATAR: Mão de obra com valores corretos (números e unidadeMedida válida)
       const maoObraFormatada = maoObraValida.map(item => {
-        // Buscar unidadeMedida da fruta se não estiver formatado
+        // Buscar unidadeMedida da fruta se não estiver formatado (usando toggle se disponível)
         let unidadeMedida = item.unidadeMedida;
         if (!unidadeMedida || !['KG', 'TON', 'CX', 'UND', 'ML', 'LT'].includes(unidadeMedida)) {
           const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
-          let unidadeCompleta = frutaSelecionada?.unidadeMedida1 || 'KG';
+          const usarUnidadeSecundaria = item.usarUnidadeSecundaria === true;
+          const unidadeBase = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
+            ? frutaSelecionada.unidadeMedida2
+            : (frutaSelecionada?.unidadeMedida1 || 'KG');
           const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
-          const unidadeEncontrada = unidadesValidas.find(u => unidadeCompleta.includes(u));
+          const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
           unidadeMedida = unidadeEncontrada || 'KG';
         }
 

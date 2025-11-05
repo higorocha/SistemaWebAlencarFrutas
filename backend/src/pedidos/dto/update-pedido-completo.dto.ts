@@ -107,6 +107,15 @@ export class UpdateCompletoMaoObraDto {
   quantidadeColhida: number;
 
   @ApiPropertyOptional({
+    description: 'Unidade de medida (se não informada, será derivada da fruta)',
+    enum: ['KG', 'TON', 'CX', 'UND', 'ML', 'LT'],
+    example: 'KG',
+  })
+  @IsOptional()
+  @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'])
+  unidadeMedida?: 'KG' | 'TON' | 'CX' | 'UND' | 'ML' | 'LT';
+
+  @ApiPropertyOptional({
     description: 'Valor pago pela colheita',
     example: 2500.0,
   })

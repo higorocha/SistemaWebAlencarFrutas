@@ -57,14 +57,17 @@ const ResumoMaoObra = ({ form, isMobile, pedido }) => {
   };
 
   maoObraValida.forEach(item => {
-    // ✅ Buscar a unidade da fruta selecionada
+    // ✅ Buscar a unidade da fruta selecionada (usando toggle se disponível)
     const frutaSelecionada = pedido?.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
-    let unidade = frutaSelecionada?.unidadeMedida1 || 'N/A';
+    const usarUnidadeSecundaria = item.usarUnidadeSecundaria === true;
+    const unidadeBase = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
+      ? frutaSelecionada.unidadeMedida2
+      : (frutaSelecionada?.unidadeMedida1 || 'N/A');
     
     // ✅ Extrair apenas a sigla
     const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
-    const unidadeEncontrada = unidadesValidas.find(u => unidade.includes(u));
-    unidade = unidadeEncontrada || unidade;
+    const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
+    const unidade = unidadeEncontrada || unidadeBase;
     
     // ✅ Converter valores (tratando vírgula)
     const qtdStr = String(item.quantidadeColhida || '0').replace(',', '.');
@@ -869,8 +872,35 @@ const ColheitaTab = ({
       // Fechar modal de confirmação
       setConfirmInconsistenciaOpen(false);
 
+      // ✅ Sincronizar dados do form com pedidoAtual antes de normalizar
+      const formValues = form.getFieldsValue();
+      if (formValues.maoObra && Array.isArray(formValues.maoObra)) {
+        // Processar mão de obra do form e atualizar unidadeMedida baseada no toggle
+        const maoObraComUnidade = formValues.maoObra.map(item => {
+          if (!item.frutaId) return item;
+          
+          const frutaSelecionada = pedidoAtual.frutas?.find(f => f.frutaId === item.frutaId);
+          if (!frutaSelecionada) return item;
+          
+          const usarUnidadeSecundaria = item.usarUnidadeSecundaria === true;
+          const unidadeBase = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
+            ? frutaSelecionada.unidadeMedida2
+            : (frutaSelecionada?.unidadeMedida1 || 'KG');
+          
+          const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+          const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
+          const unidadeMedida = unidadeEncontrada || 'KG';
+          
+          return { ...item, unidadeMedida };
+        });
+        
+        // Atualizar pedidoAtual com mão de obra processada antes de normalizar
+        setPedidoAtual(prev => ({ ...prev, maoObra: maoObraComUnidade }));
+      }
+
       // ✅ NORMALIZAR dados antes de validar e salvar
-      const pedidoNormalizado = normalizarDadosParaBackend(pedidoAtual);
+      const pedidoComMaoObraAtualizada = { ...pedidoAtual, maoObra: formValues.maoObra || pedidoAtual.maoObra };
+      const pedidoNormalizado = normalizarDadosParaBackend(pedidoComMaoObraAtualizada);
 
       // ✅ VALIDAÇÃO GLOBAL de fitas antes de salvar
       try {
@@ -896,7 +926,7 @@ const ColheitaTab = ({
 
         // Aguardar um tick para garantir que o estado foi atualizado
         setTimeout(() => {
-          // Se passou na validação, chamar o onSave original
+          // Se passou na validação, chamar o onSave original (sem parâmetro, usa pedidoAtual.maoObra)
           onSave();
         }, 0);
 
@@ -1730,13 +1760,26 @@ const ColheitaTab = ({
                   return;
                 }
 
-                // ✅ Atualizar pedidoAtual com dados normalizados antes de salvar
-                setPedidoAtual(pedidoNormalizado);
-
-                // Aguardar um tick para garantir que o estado foi atualizado
+                // ✅ SIMPLIFICADO: Ler dados do FORM (não do pedidoAtual) e passar diretamente
+                const formValues = form.getFieldsValue();
+                
+                // ✅ Usar unidadeMedida DIRETO do form (já está atualizado pelo MaoObraRow quando toggle muda)
+                const maoObraAtualizada = formValues.maoObra && Array.isArray(formValues.maoObra)
+                  ? formValues.maoObra.filter(item => item.unidadeMedida && ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'].includes(item.unidadeMedida))
+                  : (pedidoNormalizado.maoObra || []);
+                
+                // Atualizar pedidoNormalizado com dados do form
+                pedidoNormalizado.maoObra = maoObraAtualizada;
+                
+                // Atualizar pedidoAtual (para outros usos)
+                setPedidoAtual({
+                  ...pedidoNormalizado,
+                  maoObra: maoObraAtualizada
+                });
+                
+                // ✅ SIMPLIFICADO: Passar dados diretamente para onSave (não depender do estado React)
                 setTimeout(() => {
-                  // Se passou na validação, chamar o onSave original
-                  onSave();
+                  onSave(maoObraAtualizada);
                 }, 0);
               } catch (error) {
                 console.error('Erro na validação global de fitas:', error);

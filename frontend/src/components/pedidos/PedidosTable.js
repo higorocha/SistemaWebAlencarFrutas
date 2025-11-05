@@ -568,8 +568,27 @@ const PedidosTable = ({
       width: 110,
       align: 'center',
       sorter: (a, b) => {
-        const diasA = a.dataPrecificacaoRealizada ? moment().diff(moment(a.dataPrecificacaoRealizada), 'days') : -1;
-        const diasB = b.dataPrecificacaoRealizada ? moment().diff(moment(b.dataPrecificacaoRealizada), 'days') : -1;
+        // Função auxiliar para obter data de referência (mesma lógica do render)
+        const obterDataReferencia = (record) => {
+          let dataReferencia = record.dataColheita;
+
+          // Se houver pagamentos, usar a data do último pagamento
+          if (record.pagamentosPedidos && record.pagamentosPedidos.length > 0) {
+            const ultimoPagamento = [...record.pagamentosPedidos].sort((a, b) => 
+              new Date(b.dataPagamento) - new Date(a.dataPagamento)
+            )[0];
+            dataReferencia = ultimoPagamento.dataPagamento;
+          }
+
+          return dataReferencia;
+        };
+
+        const dataA = obterDataReferencia(a);
+        const dataB = obterDataReferencia(b);
+
+        const diasA = dataA ? moment().diff(moment(dataA), 'days') : -1;
+        const diasB = dataB ? moment().diff(moment(dataB), 'days') : -1;
+        
         return diasA - diasB;
       },
       render: (_, record) => {
@@ -577,7 +596,7 @@ const PedidosTable = ({
           return <Text type="secondary">-</Text>;
         }
 
-        let dataReferencia = record.dataPrecificacaoRealizada;
+        let dataReferencia = record.dataColheita;
 
         // Se houver pagamentos, usar a data do último pagamento
         if (record.pagamentosPedidos && record.pagamentosPedidos.length > 0) {

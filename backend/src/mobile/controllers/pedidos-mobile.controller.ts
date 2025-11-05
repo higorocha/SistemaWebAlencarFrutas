@@ -35,7 +35,7 @@ import {
   MobileDashboardDto,
   MobilePedidoSimplificadoDto,
 } from '../dto';
-import { UpdateColheitaDto, CreatePedidoDto, PedidoResponseDto } from '../../pedidos/dto';
+import { UpdateColheitaDto, CreatePedidoDto, PedidoResponseDto, UpdatePrecificacaoDto } from '../../pedidos/dto';
 import { CreateTurmaColheitaPedidoCustoDto } from '../../turma-colheita/dto/create-colheita-pedido.dto';
 import { TurmaColheitaPedidoCustoResponseDto } from '../../turma-colheita/dto/colheita-pedido-response.dto';
 import { StatusPedido } from '@prisma/client';
@@ -575,6 +575,56 @@ export class PedidosMobileController {
       const dataColheita = new Date(p.dataColheita);
       return dataColheita >= inicioSemana;
     }).length;
+  }
+
+  /**
+   * Definir precificação do pedido via mobile
+   * Reutiliza o service principal de precificação
+   * Nota: GERENTE_CULTURA não tem acesso a esta funcionalidade
+   */
+  @Patch(':id/precificacao')
+  @UsePipes(new ValidationPipe({ 
+    whitelist: true, 
+    forbidNonWhitelisted: false,
+    transform: true 
+  }))
+  @Niveis(
+    NivelUsuario.ADMINISTRADOR,
+    NivelUsuario.GERENTE_GERAL,
+    NivelUsuario.ESCRITORIO,
+  )
+  @ApiOperation({
+    summary: 'Definir precificação pelo mobile',
+    description: 'Define a precificação de um pedido com valores unitários, frete, ICMS, desconto e avaria. Disponível para ADMINISTRADOR, GERENTE_GERAL e ESCRITORIO.',
+  })
+  @ApiParam({ name: 'id', description: 'ID do pedido', type: Number })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Precificação definida com sucesso',
+    type: PedidoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos ou status do pedido não permite precificação',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Pedido não encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Sem permissão para precificar este pedido',
+  })
+  async definirPrecificacaoMobile(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePrecificacaoDto,
+    @Req() request: any,
+  ): Promise<PedidoResponseDto> {
+    const usuarioId = request?.user?.id;
+
+    // Chamar service existente
+    // O decorator @Niveis já garante que apenas ADMINISTRADOR, GERENTE_GERAL e ESCRITORIO têm acesso
+    return this.pedidosService.updatePrecificacao(id, dto, usuarioId);
   }
 
   /**

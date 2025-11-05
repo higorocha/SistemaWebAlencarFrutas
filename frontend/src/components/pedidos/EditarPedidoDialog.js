@@ -305,18 +305,40 @@ const EditarPedidoDialog = ({
           const maoObraExistente = response.data || [];
 
           // Transformar dados da API para o formato do frontend
-          const maoObraFormatada = maoObraExistente.map(item => ({
-            id: item.id,
-            turmaColheitaId: item.turmaColheitaId,
-            frutaId: item.frutaId, // ✅ PRESERVAR frutaId original do banco
-            quantidadeColhida: item.quantidadeColhida,
-            unidadeMedida: item.unidadeMedida,
-            valorColheita: item.valorColheita,
-            // ✅ Calcular valorUnitario
-            valorUnitario: item.quantidadeColhida > 0 ? (item.valorColheita / item.quantidadeColhida) : undefined,
-            observacoes: item.observacoes || '',
-            pagamentoEfetuado: item.pagamentoEfetuado || false
-          }));
+          const maoObraFormatada = maoObraExistente.map(item => {
+            // ✅ NOVO: Determinar se deve usar unidade secundária baseado na unidadeMedida do backend
+            const frutaPedido = pedido.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
+            const unidadeMedidaBackend = item.unidadeMedida;
+            const unidadeMedida1 = frutaPedido?.unidadeMedida1 || '';
+            const unidadeMedida2 = frutaPedido?.unidadeMedida2 || '';
+            
+            // Extrair apenas a sigla das unidades para comparação
+            const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+            const unidadeBackendSigla = unidadesValidas.find(u => unidadeMedidaBackend?.includes(u));
+            const unidade1Sigla = unidadesValidas.find(u => unidadeMedida1?.includes(u));
+            const unidade2Sigla = unidadesValidas.find(u => unidadeMedida2?.includes(u));
+            
+            // Se a unidade do backend corresponde à unidade secundária, marcar toggle como true
+            const usarUnidadeSecundaria = unidadeBackendSigla && unidade2Sigla && unidadeBackendSigla === unidade2Sigla;
+            
+            // ✅ IMPORTANTE: Garantir que unidadeMedida está no formato correto (apenas sigla)
+            const unidadeMedidaFormatada = unidadeBackendSigla || 'KG';
+            
+            return {
+              id: item.id,
+              turmaColheitaId: item.turmaColheitaId,
+              frutaId: item.frutaId, // ✅ PRESERVAR frutaId original do banco
+              quantidadeColhida: item.quantidadeColhida,
+              unidadeMedida: unidadeMedidaFormatada, // ✅ Campo direto no form (igual ao valorColheita)
+              valorColheita: item.valorColheita,
+              // ✅ Calcular valorUnitario
+              valorUnitario: item.quantidadeColhida > 0 ? (item.valorColheita / item.quantidadeColhida) : undefined,
+              observacoes: item.observacoes || '',
+              pagamentoEfetuado: item.pagamentoEfetuado || false,
+              // ✅ NOVO: Incluir estado do toggle baseado na unidadeMedida do backend
+              usarUnidadeSecundaria: usarUnidadeSecundaria
+            };
+          });
 
           // ✅ CORREÇÃO: Se não há dados, inicializar com array vazio (não criar objeto inválido)
           // A ColheitaTab criará o primeiro item vazio quando o usuário clicar em "Adicionar"
@@ -729,7 +751,8 @@ const EditarPedidoDialog = ({
   };
 
   // Função auxiliar para salvar mão de obra via API
-  const handleSalvarPedido = async () => {
+  // ✅ Aceita dados opcionais de maoObra para usar dados atualizados diretamente do ColheitaTab
+  const handleSalvarPedido = async (maoObraAtualizada = null) => {
     const validacao = validarFormulario();
     if (!validacao.valido) {
       // Se o erro é só inconsistência de unidades, não mostrar mensagem genérica
@@ -898,9 +921,17 @@ const EditarPedidoDialog = ({
       }
 
       // ✅ NOVO: Processar mão de obra (custos de colheita) se a aba 2 estiver disponível
-      if (canEditTab("2") && pedidoAtual.maoObra && pedidoAtual.maoObra.length > 0) {
+      // ✅ CRÍTICO: Usar maoObraAtualizada se fornecida (dados diretos do ColheitaTab), senão usar pedidoAtual.maoObra
+      const maoObraParaProcessar = maoObraAtualizada || pedidoAtual.maoObra;
+      
+      if (canEditTab("2") && maoObraParaProcessar && maoObraParaProcessar.length > 0) {
+        console.log('🔍 [EditarPedidoDialog] maoObraParaProcessar (usando dados diretos do ColheitaTab?):', 
+          maoObraAtualizada ? 'SIM' : 'NÃO (lendo de pedidoAtual)',
+          JSON.stringify(maoObraParaProcessar, null, 2)
+        );
+        
         // Filtrar apenas itens válidos com dados obrigatórios preenchidos
-        const maoObraValida = pedidoAtual.maoObra.filter(item =>
+        const maoObraValida = maoObraParaProcessar.filter(item =>
           item.turmaColheitaId &&
           item.frutaId &&
           item.quantidadeColhida &&
@@ -909,22 +940,37 @@ const EditarPedidoDialog = ({
 
         // Só incluir maoObra no formData se houver itens válidos
         if (maoObraValida.length > 0) {
-          console.log('✅ Incluindo mão de obra válida no formData:', maoObraValida);
-          formData.maoObra = maoObraValida.map(item => ({
-            id: item.id || undefined, // ID do custo (para update)
-            turmaColheitaId: item.turmaColheitaId,
-            frutaId: item.frutaId,
-            quantidadeColhida: item.quantidadeColhida,
-            valorColheita: item.valorColheita || 0,
-            observacoes: item.observacoes || undefined,
-            // ✅ CORREÇÃO: Incluir dataColheita para update de registros existentes e criação de novos
-            dataColheita: pedidoAtual.dataColheita
-              ? moment(pedidoAtual.dataColheita).startOf('day').add(12, 'hours').toISOString()
-              : undefined
-            // Nota: unidadeMedida NÃO é enviada - será derivada da fruta no backend
-          }));
-        } else {
-          console.log('ℹ️ Nenhuma mão de obra válida para enviar');
+          // ✅ SIMPLIFICADO: Usar unidadeMedida diretamente (igual ao valorColheita)
+          // Se veio do ColheitaTab, já está correto. Se não, usar do item com fallback
+          formData.maoObra = maoObraValida.map(item => {
+            // Usar unidadeMedida do item (já está correto se veio do ColheitaTab)
+            let unidadeMedida = item.unidadeMedida;
+            
+            // Fallback: calcular se não tiver (não deveria acontecer)
+            if (!unidadeMedida || !['KG', 'CX', 'TON', 'UND', 'ML', 'LT'].includes(unidadeMedida)) {
+              const frutaPedido = pedido.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
+              const usarUnidadeSecundaria = item.usarUnidadeSecundaria === true;
+              const unidadeBase = usarUnidadeSecundaria && frutaPedido?.unidadeMedida2
+                ? frutaPedido.unidadeMedida2
+                : (frutaPedido?.unidadeMedida1 || 'KG');
+              const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+              const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
+              unidadeMedida = unidadeEncontrada || 'KG';
+            }
+
+            return {
+              id: item.id || undefined,
+              turmaColheitaId: item.turmaColheitaId,
+              frutaId: item.frutaId,
+              quantidadeColhida: item.quantidadeColhida,
+              unidadeMedida: unidadeMedida,
+              valorColheita: item.valorColheita || 0,
+              observacoes: item.observacoes || undefined,
+              dataColheita: pedidoAtual.dataColheita
+                ? moment(pedidoAtual.dataColheita).startOf('day').add(12, 'hours').toISOString()
+                : undefined
+            };
+          });
         }
       }
 

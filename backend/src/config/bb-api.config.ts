@@ -38,7 +38,7 @@ const BB_CERTIFICATES: BBCertificateConfig = {
   caCertPaths: [
     'certs/GeoTrust_EV_RSA_CA_G2.cer',
     'certs/DigiCert_Global_Root_G2.cer',
-    'certs/api-pix.bb.com.br.cer'
+    'certs/api-pix_bb_com_br.crt'
   ]
 };
 
