@@ -194,9 +194,13 @@ export class NotificacoesService {
     const notificacao = await this.prisma.notificacao.findFirst({
       where: {
         id,
-        OR: [
-          { usuarioId: null },
-          { usuarioId: userId },
+        AND: [
+          {
+            OR: [
+              { usuarioId: null },
+              { usuarioId: userId },
+            ],
+          },
         ],
       },
       include: {
@@ -222,9 +226,13 @@ export class NotificacoesService {
     const existingNotificacao = await this.prisma.notificacao.findFirst({
       where: {
         id,
-        OR: [
-          { usuarioId: null },
-          { usuarioId: userId },
+        AND: [
+          {
+            OR: [
+              { usuarioId: null },
+              { usuarioId: userId },
+            ],
+          },
         ],
       },
     });
@@ -260,9 +268,13 @@ export class NotificacoesService {
     const notificacao = await this.prisma.notificacao.findFirst({
       where: {
         id,
-        OR: [
-          { usuarioId: null },
-          { usuarioId: userId },
+        AND: [
+          {
+            OR: [
+              { usuarioId: null },
+              { usuarioId: userId },
+            ],
+          },
         ],
       },
     });
@@ -280,9 +292,13 @@ export class NotificacoesService {
     const notificacao = await this.prisma.notificacao.findFirst({
       where: {
         id,
-        OR: [
-          { usuarioId: null },
-          { usuarioId: userId },
+        AND: [
+          {
+            OR: [
+              { usuarioId: null },
+              { usuarioId: userId },
+            ],
+          },
         ],
       },
     });
@@ -331,9 +347,13 @@ export class NotificacoesService {
     const notificacao = await this.prisma.notificacao.findFirst({
       where: {
         id,
-        OR: [
-          { usuarioId: null },
-          { usuarioId: userId },
+        AND: [
+          {
+            OR: [
+              { usuarioId: null },
+              { usuarioId: userId },
+            ],
+          },
         ],
       },
     });
