@@ -10,9 +10,8 @@ import { LancamentoExtratoDto, ConsultaExtratosResponseDto, ExtratosMensaisRespo
  */
 @Injectable()
 export class ExtratosService {
-  // Cache de token em memória
-  private cachedToken: string | null = null;
-  private tokenExpiry: Date | null = null;
+  // Cache de token em memória por credencial (chave: credencialId)
+  private cachedTokens: Map<number, { token: string; expiry: Date }> = new Map();
 
   // Cache de extratos mensais
   private cachedExtratosMensal: LancamentoExtratoDto[] | null = null;
@@ -72,33 +71,28 @@ export class ExtratosService {
   }
 
   /**
-   * Obtém token de acesso OAuth2 com cache
-   * Baseado EXATAMENTE no extratosController(exemplo).js
+   * Obtém token de acesso OAuth2 com cache por credencial
+   * Cada credencial tem seu próprio token cacheado
+   * @param credencialExtrato Credencial específica para obter o token
    * @returns Token de acesso válido
    */
-  private async obterTokenDeAcesso(): Promise<string> {
-    // Verifica se o token está em cache e ainda é válido (EXATAMENTE como no exemplo)
-    if (this.cachedToken && this.tokenExpiry && new Date() < this.tokenExpiry) {
-      return this.cachedToken;
+  private async obterTokenDeAcesso(credencialExtrato: any): Promise<string> {
+    const credencialId = credencialExtrato.id;
+    
+    // Verifica se o token está em cache para esta credencial e ainda é válido
+    const cached = this.cachedTokens.get(credencialId);
+    if (cached && cached.expiry && new Date() < cached.expiry) {
+      console.log(`✅ [EXTRATOS-SERVICE] Token em cache válido para credencial ${credencialId}`);
+      return cached.token;
     }
 
     try {
-      // Buscar credenciais de extratos do banco de dados (EXATAMENTE como no exemplo)
-      const credenciaisExtratos = await this.credenciaisAPIService.findByBancoAndModalidade('001', '003 - Extratos');
-      
-      if (!credenciaisExtratos || credenciaisExtratos.length === 0) {
-        throw new NotFoundException(
-          'Credencial de extratos não cadastrada. Favor cadastrar as credenciais de extratos.'
-        );
-      }
+      console.log(`🔑 [EXTRATOS-SERVICE] Obtendo novo token para credencial ${credencialId} (conta ${credencialExtrato.contaCorrenteId})`);
 
-      // Usar a primeira credencial encontrada (EXATAMENTE como no exemplo)
-      const credencialExtrato = credenciaisExtratos[0];
-
-      // Criar cliente HTTP para autenticação (EXATAMENTE como no exemplo)
+      // Criar cliente HTTP para autenticação
       const authClient = createExtratosAuthClient();
 
-      // Fazer requisição de autenticação OAuth2 (EXATAMENTE como no exemplo)
+      // Fazer requisição de autenticação OAuth2
       const response = await authClient.post(
         BB_EXTRATOS_API_URLS.EXTRATOS_AUTH,
         new URLSearchParams({
@@ -113,16 +107,25 @@ export class ExtratosService {
         }
       );
 
-      // Cachear o token (EXATAMENTE como no exemplo)
-      this.cachedToken = (response.data as any).access_token;
-      // Define a expiração para alguns minutos antes de expirar (EXATAMENTE como no exemplo)
+      // Cachear o token para esta credencial específica
+      const accessToken = (response.data as any).access_token;
       const expiresIn = (response.data as any).expires_in || 3600; // segundos
-      this.tokenExpiry = new Date(new Date().getTime() + (expiresIn - 60) * 1000); // 60 segundos antes
+      const expiry = new Date(new Date().getTime() + (expiresIn - 60) * 1000); // 60 segundos antes
+      
+      this.cachedTokens.set(credencialId, {
+        token: accessToken,
+        expiry: expiry
+      });
 
-      return this.cachedToken!;
+      console.log(`✅ [EXTRATOS-SERVICE] Token obtido e cacheado para credencial ${credencialId}`);
+
+      return accessToken;
 
     } catch (error) {
-      console.error('❌ [EXTRATOS-SERVICE] Erro ao obter token de acesso:', error.response?.data || error.message);
+      console.error(`❌ [EXTRATOS-SERVICE] Erro ao obter token de acesso para credencial ${credencialId}:`, {
+        error: error.message,
+        response: error.response?.data
+      });
       
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
@@ -151,27 +154,92 @@ export class ExtratosService {
     dataFim: string,
     contaCorrenteId?: number
   ): Promise<any[]> {
+    // Declarar variáveis no escopo do método para uso no catch
+    let contaCorrente: any = null;
+    
     try {
-      // Obter token de acesso
-      const token = await this.obterTokenDeAcesso();
+      console.log(`🔍 [CONSULTAR-EXTRATOS-BRUTOS] Iniciando consulta:`, {
+        dataInicio,
+        dataFim,
+        contaCorrenteId: contaCorrenteId || 'não informado (usará primeira conta)'
+      });
 
-      // Buscar credenciais de extratos
-      const credenciaisExtratos = await this.credenciaisAPIService.findByBancoAndModalidade('001', '003 - Extratos');
-      if (!credenciaisExtratos || credenciaisExtratos.length === 0) {
-        throw new NotFoundException('Credenciais de extratos não encontradas. Configure as credenciais primeiro.');
-      }
-      const credencialExtrato = credenciaisExtratos[0];
-
-      // Buscar conta corrente
-      let contaCorrente;
+      // PRIMEIRO: Buscar conta corrente
       if (contaCorrenteId) {
-        contaCorrente = await this.contaCorrenteService.findOne(contaCorrenteId);
+        try {
+          contaCorrente = await this.contaCorrenteService.findOne(contaCorrenteId);
+          console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Conta corrente encontrada:`, {
+            id: contaCorrente.id,
+            agencia: contaCorrente.agencia,
+            conta: contaCorrente.contaCorrente,
+            banco: contaCorrente.bancoCodigo
+          });
+        } catch (error) {
+          console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Erro ao buscar conta corrente ${contaCorrenteId}:`, {
+            error: error.message,
+            stack: error.stack
+          });
+          throw error;
+        }
       } else {
         const contasCorrente = await this.contaCorrenteService.findAll();
         if (!contasCorrente || contasCorrente.length === 0) {
+          console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Nenhuma conta corrente cadastrada`);
           throw new NotFoundException('Conta Corrente não cadastrada. Favor cadastrar uma conta corrente.');
         }
         contaCorrente = contasCorrente[0];
+        console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Usando primeira conta corrente disponível:`, {
+          id: contaCorrente.id,
+          agencia: contaCorrente.agencia,
+          conta: contaCorrente.contaCorrente,
+          banco: contaCorrente.bancoCodigo
+        });
+      }
+
+      // SEGUNDO: Buscar credencial ESPECÍFICA para a conta corrente encontrada
+      const credenciaisExtratos = await this.credenciaisAPIService.findByBancoAndModalidade('001', '003 - Extratos');
+      if (!credenciaisExtratos || credenciaisExtratos.length === 0) {
+        console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Credenciais de extratos não encontradas`);
+        throw new NotFoundException('Credenciais de extratos não encontradas. Configure as credenciais primeiro.');
+      }
+      
+      // OBRIGATORIAMENTE usar a credencial vinculada à conta solicitada
+      const credencialExtrato = credenciaisExtratos.find(c => c.contaCorrenteId === contaCorrente.id);
+      
+      if (!credencialExtrato) {
+        console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Credencial não encontrada para conta ${contaCorrente.id} (${contaCorrente.agencia}/${contaCorrente.contaCorrente}):`, {
+          contaCorrenteId: contaCorrente.id,
+          agencia: contaCorrente.agencia,
+          conta: contaCorrente.contaCorrente,
+          credenciaisDisponiveis: credenciaisExtratos.map(c => ({
+            credencialId: c.id,
+            contaCorrenteId: c.contaCorrenteId
+          }))
+        });
+        throw new NotFoundException(
+          `Credenciais de extratos não encontradas para a conta ${contaCorrente.contaCorrente} da agência ${contaCorrente.agencia}. Configure as credenciais para esta conta primeiro.`
+        );
+      }
+      
+      console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Credencial encontrada para conta ${contaCorrente.id}:`, {
+        credencialId: credencialExtrato.id,
+        contaCorrenteIdCredencial: credencialExtrato.contaCorrenteId,
+        agencia: contaCorrente.agencia,
+        conta: contaCorrente.contaCorrente
+      });
+
+      // Obter token de acesso usando a credencial específica
+      let token: string;
+      try {
+        token = await this.obterTokenDeAcesso(credencialExtrato);
+        console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Token obtido com sucesso para credencial ${credencialExtrato.id}`);
+      } catch (error) {
+        console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Erro ao obter token:`, {
+          error: error.message,
+          stack: error.stack,
+          credencialId: credencialExtrato.id
+        });
+        throw error;
       }
 
       const agencia = contaCorrente.agencia;
@@ -184,59 +252,143 @@ export class ExtratosService {
       let paginaAtual = 1;
       let hasMorePages = true;
 
+      console.log(`🔍 [CONSULTAR-EXTRATOS-BRUTOS] Iniciando requisições à API BB:`, {
+        agencia,
+        conta,
+        dataInicio,
+        dataFim,
+        url: `/conta-corrente/agencia/${agencia}/conta/${conta}`
+      });
+
       // Loop de paginação
       while (hasMorePages) {
-        const response = await apiClient.get(
-          `/conta-corrente/agencia/${agencia}/conta/${conta}`,
-          {
-            params: {
-              dataInicioSolicitacao: dataInicio,
-              dataFimSolicitacao: dataFim,
-              numeroPaginaSolicitacao: paginaAtual,
-              quantidadeRegistroPaginaSolicitacao: 200,
-            },
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+        try {
+          console.log(`📄 [CONSULTAR-EXTRATOS-BRUTOS] Buscando página ${paginaAtual}...`);
+          
+          const response = await apiClient.get(
+            `/conta-corrente/agencia/${agencia}/conta/${conta}`,
+            {
+              params: {
+                dataInicioSolicitacao: dataInicio,
+                dataFimSolicitacao: dataFim,
+                numeroPaginaSolicitacao: paginaAtual,
+                quantidadeRegistroPaginaSolicitacao: 200,
+              },
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          const data = response.data as any;
+
+          console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Página ${paginaAtual} retornada:`, {
+            totalLancamentosNestaPagina: data?.listaLancamento?.length || 0,
+            numeroPaginaProximo: data?.numeroPaginaProximo || 0,
+            status: response.status
+          });
+
+          // Verificar se há lançamentos nesta página
+          if (!data || !data.listaLancamento || data.listaLancamento.length === 0) {
+            console.log(`ℹ️ [CONSULTAR-EXTRATOS-BRUTOS] Nenhum lançamento na página ${paginaAtual}, finalizando busca`);
+            hasMorePages = false;
+            break;
           }
-        );
 
-        const data = response.data as any;
+          // Adicionar lançamentos à lista (dados brutos)
+          extratos.push(...data.listaLancamento);
 
-        // Verificar se há lançamentos nesta página
-        if (!data || !data.listaLancamento || data.listaLancamento.length === 0) {
-          hasMorePages = false;
-          break;
-        }
-
-        // Adicionar lançamentos à lista (dados brutos)
-        extratos.push(...data.listaLancamento);
-
-        // Verificar se há mais páginas
-        if (data.numeroPaginaProximo > 0) {
-          paginaAtual = data.numeroPaginaProximo;
-        } else {
-          hasMorePages = false;
+          // Verificar se há mais páginas
+          if (data.numeroPaginaProximo > 0) {
+            paginaAtual = data.numeroPaginaProximo;
+          } else {
+            hasMorePages = false;
+          }
+        } catch (error) {
+          console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Erro na requisição da página ${paginaAtual}:`, {
+            error: error.message,
+            stack: error.stack,
+            agencia,
+            conta,
+            dataInicio,
+            dataFim,
+            paginaAtual,
+            response: error.response?.data,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            headers: error.response?.headers
+          });
+          throw error;
         }
       }
 
+      console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Consulta concluída: ${extratos.length} extratos encontrados`);
       return extratos;
 
     } catch (error) {
-      // Erro será tratado no serviço chamador
+      // Log detalhado do erro
+      console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Erro capturado:`, {
+        errorType: error.constructor.name,
+        errorMessage: error.message,
+        stack: error.stack,
+        contaCorrenteId,
+        dataInicio,
+        dataFim,
+        responseData: error.response?.data,
+        responseStatus: error.response?.status,
+        responseStatusText: error.response?.statusText,
+        responseHeaders: error.response?.headers
+      });
 
+      // Erro será tratado no serviço chamador
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
       }
 
       if (error.response?.data) {
-        const errorMessage = error.response.data.detail || 
-                           error.response.data.error_description || 
-                           error.response.data.error || 
-                           'Erro ao consultar extratos';
+        // Log detalhado da resposta de erro
+        console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Resposta de erro da API BB:`, {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          dataStringified: JSON.stringify(error.response.data, null, 2)
+        });
+
+        // Extrair mensagem de erro mais detalhada
+        let errorMessage = 'Erro ao consultar extratos';
+        
+        if (error.response.status === 403) {
+          // Erro 403 - Forbidden: geralmente significa que a conta não tem permissão
+          const erros = error.response.data.erros;
+          const contaInfo = contaCorrente 
+            ? `conta ${contaCorrente.contaCorrente} da agência ${contaCorrente.agencia}`
+            : contaCorrenteId 
+              ? `conta ID ${contaCorrenteId}`
+              : 'conta desconhecida';
+              
+          if (erros && Array.isArray(erros) && erros.length > 0) {
+            const primeiroErro = erros[0];
+            errorMessage = primeiroErro.mensagem || primeiroErro.descricao || 
+                          `Acesso negado (403) para a ${contaInfo}. Verifique se a conta tem permissão para consulta de extratos via API.`;
+          } else {
+            errorMessage = `Acesso negado (403) para a ${contaInfo}. Verifique se a conta tem permissão para consulta de extratos via API ou se as credenciais estão vinculadas corretamente.`;
+          }
+        } else {
+          errorMessage = error.response.data.detail || 
+                        error.response.data.error_description || 
+                        error.response.data.error || 
+                        `Erro ao consultar extratos (Status: ${error.response.status})`;
+        }
+        
+        console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Erro da API BB:`, {
+          errorMessage,
+          status: error.response.status,
+          fullResponse: error.response.data
+        });
         throw new InternalServerErrorException(`Erro na API BB: ${errorMessage}`);
       }
 
+      console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Erro interno sem resposta da API`);
       throw new InternalServerErrorException('Erro interno ao consultar extratos');
     }
   }
@@ -252,23 +404,34 @@ export class ExtratosService {
     console.log(`🔍 [EXTRATOS-SERVICE] Consultando extratos de ${dataInicio} até ${dataFim}`);
 
     try {
-      // Obter token de acesso
-      const token = await this.obterTokenDeAcesso();
-
-      // Buscar credenciais e conta corrente (EXATAMENTE como no exemplo)
+      // Buscar credenciais e conta corrente
       const credenciaisExtratos = await this.credenciaisAPIService.findByBancoAndModalidade('001', '003 - Extratos');
-      const credencialExtrato = credenciaisExtratos[0];
+      if (!credenciaisExtratos || credenciaisExtratos.length === 0) {
+        throw new NotFoundException('Credenciais de extratos não encontradas. Configure as credenciais primeiro.');
+      }
 
-      // Buscar conta corrente (EXATAMENTE como no exemplo)
+      // Buscar conta corrente
       const contasCorrente = await this.contaCorrenteService.findAll();
       if (!contasCorrente || contasCorrente.length === 0) {
         throw new NotFoundException('Conta Corrente não cadastrada. Favor cadastrar uma conta corrente.');
       }
       const contaCorrente = contasCorrente[0];
+      
+      // Buscar credencial específica para a primeira conta
+      const credencialExtrato = credenciaisExtratos.find(c => c.contaCorrenteId === contaCorrente.id);
+      if (!credencialExtrato) {
+        throw new NotFoundException(
+          `Credenciais de extratos não encontradas para a conta ${contaCorrente.contaCorrente} da agência ${contaCorrente.agencia}. Configure as credenciais para esta conta primeiro.`
+        );
+      }
+
       const agencia = contaCorrente.agencia;
       const conta = contaCorrente.contaCorrente;
 
-      // Criar cliente HTTP para consulta (EXATAMENTE como no exemplo)
+      // Obter token de acesso usando a credencial específica
+      const token = await this.obterTokenDeAcesso(credencialExtrato);
+
+      // Criar cliente HTTP para consulta
       const apiClient = createExtratosApiClient(credencialExtrato.developerAppKey);
 
       const extratos: LancamentoExtratoDto[] = [];

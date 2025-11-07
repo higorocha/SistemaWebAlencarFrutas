@@ -36,6 +36,9 @@ import getTheme from "../theme";
 import { useAuth } from "../contexts/AuthContext";
 import NotificacaoMenu from "./NotificacaoMenu";
 import { capitalizeName } from "../utils/formatters";
+import axiosInstance from "../api/axiosConfig";
+import { message } from "antd";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 64;
@@ -53,6 +56,7 @@ const Layout = ({ children }) => {
   const [mode, setMode] = useState("light");
   const { user, logout, getTokenExpiration } = useAuth();
   const navigate = useNavigate();
+  const [executandoMonitoramento, setExecutandoMonitoramento] = useState(false);
 
   const theme = React.useMemo(() => getTheme(mode), [mode]);
 
@@ -193,6 +197,49 @@ const Layout = ({ children }) => {
     setMode((prevMode) => (prevMode === "light" ? "dark" : "light"));
   };
 
+  /**
+   * Função para executar monitoramento manual de extratos
+   * 
+   * NOTA: Esta função permanece ativa e funcional, mas o botão está oculto visualmente.
+   * A funcionalidade pode ser acessada via console do navegador ou reativada quando necessário.
+   * 
+   * Para testar manualmente via console:
+   * window.__executarMonitoramento?.()
+   * 
+   * Para reativar o botão, remova o style={{ display: 'none' }} do IconButton abaixo.
+   */
+  const executarMonitoramento = useCallback(async () => {
+    setExecutandoMonitoramento(true);
+    try {
+      message.loading({ content: "Executando monitoramento de extratos...", key: "monitoramento", duration: 0 });
+      
+      const response = await axiosInstance.post("/api/extratos-monitor/executar-manual");
+      
+      message.success({
+        content: `Monitoramento executado! ${response.data.contasMonitoradas} conta(s) processada(s), ${response.data.notificacoesCriadas || 0} notificação(ões) criada(s).`,
+        key: "monitoramento",
+        duration: 5,
+      });
+    } catch (error) {
+      console.error("Erro ao executar monitoramento:", error);
+      message.error({
+        content: error.response?.data?.message || "Erro ao executar monitoramento de extratos",
+        key: "monitoramento",
+        duration: 5,
+      });
+    } finally {
+      setExecutandoMonitoramento(false);
+    }
+  }, []);
+
+  // Expor função globalmente para acesso via console (opcional, para testes)
+  useEffect(() => {
+    window.__executarMonitoramento = executarMonitoramento;
+    return () => {
+      delete window.__executarMonitoramento;
+    };
+  }, [executarMonitoramento]);
+
   const handleDrawerToggle = () => {
     setIsOpen(!isOpen);
   };
@@ -318,6 +365,42 @@ const Layout = ({ children }) => {
                     size={isMobile ? "small" : "medium"}
                   >
                     <MapIcon fontSize={isMobile ? "small" : "medium"} />
+                  </IconButton>
+                </Tooltip>
+                {/* 
+                  BOTÃO DE TESTE DO MONITORAMENTO DE EXTRATOS
+                  
+                  STATUS: Funcionalidade mantida ativa, botão oculto visualmente
+                  
+                  Esta função permanece totalmente funcional e pode ser executada via:
+                  1. Console do navegador: window.__executarMonitoramento()
+                  2. Reativando o botão: remover style={{ display: 'none' }} abaixo
+                  
+                  O botão foi ocultado para manter a interface limpa, mas a funcionalidade
+                  de teste permanece disponível para uso quando necessário.
+                */}
+                <Tooltip title="Testar Monitoramento de Extratos" placement="bottom">
+                  <IconButton
+                    sx={{
+                      padding: { xs: "6px", sm: "8px" },
+                      color: executandoMonitoramento ? "warning.main" : "inherit",
+                      display: "none", // Botão oculto visualmente, mas funcionalidade ativa
+                    }}
+                    onClick={executarMonitoramento}
+                    disabled={executandoMonitoramento}
+                    color="inherit"
+                    size={isMobile ? "small" : "medium"}
+                  >
+                    <PlayCircleOutlineIcon 
+                      fontSize={isMobile ? "small" : "medium"}
+                      sx={{
+                        animation: executandoMonitoramento ? "spin 2s linear infinite" : "none",
+                        "@keyframes spin": {
+                          "0%": { transform: "rotate(0deg)" },
+                          "100%": { transform: "rotate(360deg)" },
+                        },
+                      }}
+                    />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Notificações do sistema" placement="bottom">

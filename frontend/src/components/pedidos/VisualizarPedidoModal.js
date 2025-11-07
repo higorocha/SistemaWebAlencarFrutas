@@ -44,6 +44,7 @@ import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import { getFruitIcon } from "../../utils/fruitIcons";
+import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -55,6 +56,9 @@ const VisualizarPedidoModal = ({
 }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
+
+  // Hook para cores de status centralizadas
+  const { getStatusConfig } = usePedidoStatusColors();
 
   // Estado para controlar modal de histórico
   const [historicoModalOpen, setHistoricoModalOpen] = useState(false);
@@ -69,24 +73,6 @@ const VisualizarPedidoModal = ({
   const formatarDataHora = (data) => {
     if (!data) return "-";
     return moment(data).format("DD/MM/YYYY HH:mm");
-  };
-
-  // Função para obter configuração de status
-  const getStatusConfig = (status) => {
-    const configs = {
-      PEDIDO_CRIADO: { color: 'blue', text: 'Pedido Criado' },
-      AGUARDANDO_COLHEITA: { color: 'orange', text: 'Aguardando Colheita' },
-      COLHEITA_PARCIAL: { color: 'orange', text: 'Colheita Parcial' },
-      COLHEITA_REALIZADA: { color: 'green', text: 'Colheita Realizada' },
-      AGUARDANDO_PRECIFICACAO: { color: 'purple', text: 'Aguardando Precificação' },
-      PRECIFICACAO_REALIZADA: { color: 'cyan', text: 'Precificação Realizada' },
-      AGUARDANDO_PAGAMENTO: { color: 'gold', text: 'Aguardando Pagamento' },
-      PAGAMENTO_PARCIAL: { color: 'orange', text: 'Pagamento Parcial' },
-      PAGAMENTO_REALIZADO: { color: 'lime', text: 'Pagamento Realizado' },
-      PEDIDO_FINALIZADO: { color: 'success', text: 'Pedido Finalizado' },
-      CANCELADO: { color: 'error', text: 'Cancelado' },
-    };
-    return configs[status] || { color: 'default', text: status };
   };
 
   // Função para lidar com exportação PDF

@@ -55,6 +55,8 @@ model ContaCorrente {
   agenciaDigito       String
   contaCorrente       String
   contaCorrenteDigito String
+  monitorar           Boolean           @default(false)
+  intervalo           Int?              // Intervalo em segundos para monitoramento
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
   conveniosCobranca   ConvenioCobranca[]

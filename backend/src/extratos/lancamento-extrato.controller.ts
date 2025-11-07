@@ -29,6 +29,7 @@ import {
   LancamentoExtratoResponseDto,
   BuscarProcessarExtratosDto,
   BuscarProcessarExtratosResponseDto,
+  BuscarProcessarExtratosTodosClientesDto,
 } from './dto/lancamento-extrato.dto';
 import { CredenciaisAPIService } from '../credenciais-api/credenciais-api.service';
 import { ContaCorrenteService } from '../conta-corrente/conta-corrente.service';
@@ -244,7 +245,62 @@ export class LancamentoExtratoController {
   async buscarEProcessarExtratos(
     @Body() dto: BuscarProcessarExtratosDto,
   ): Promise<BuscarProcessarExtratosResponseDto> {
-    return this.lancamentoExtratoService.buscarEProcessarExtratos(dto);
+    try {
+      console.log(`🔍 [CONTROLLER] Recebida requisição buscarEProcessarExtratos:`, {
+        dataInicio: dto.dataInicio,
+        dataFim: dto.dataFim,
+        clienteId: dto.clienteId,
+        clienteIds: dto.clienteIds,
+        contaCorrenteId: dto.contaCorrenteId
+      });
+      return await this.lancamentoExtratoService.buscarEProcessarExtratos(dto);
+    } catch (error) {
+      console.error(`❌ [CONTROLLER] Erro em buscarEProcessarExtratos:`, {
+        error: error.message,
+        stack: error.stack,
+        dto
+      });
+      throw error;
+    }
+  }
+
+  @Post('buscar-processar-todos-clientes')
+  @ApiOperation({ 
+    summary: 'Buscar e processar extratos da API BB para TODOS os clientes com CPF/CNPJ',
+    description: 'Faz uma única chamada à API e filtra os lançamentos comparando com todos os CPF/CNPJ cadastrados. Reutilizável por jobs automáticos.'
+  })
+  @ApiBody({ type: BuscarProcessarExtratosTodosClientesDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Extratos processados com sucesso',
+    type: BuscarProcessarExtratosResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Conta corrente não encontrada ou nenhum cliente com CPF/CNPJ',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos',
+  })
+  async buscarEProcessarExtratosTodosClientes(
+    @Body() dto: BuscarProcessarExtratosTodosClientesDto,
+  ): Promise<BuscarProcessarExtratosResponseDto> {
+    try {
+      console.log(`🔍 [CONTROLLER] Recebida requisição buscarEProcessarExtratosTodosClientes:`, {
+        dataInicio: dto.dataInicio,
+        dataFim: dto.dataFim,
+        contaCorrenteId: dto.contaCorrenteId
+      });
+      return await this.lancamentoExtratoService.buscarEProcessarExtratosTodosClientes(dto);
+    } catch (error) {
+      console.error(`❌ [CONTROLLER] Erro em buscarEProcessarExtratosTodosClientes:`, {
+        error: error.message,
+        stack: error.stack,
+        dto
+      });
+      throw error;
+    }
   }
 
   /**

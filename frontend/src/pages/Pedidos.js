@@ -38,6 +38,7 @@ const NovoPedidoModal = lazy(() => import("../components/pedidos/NovoPedidoModal
 const ColheitaModal = lazy(() => import("../components/pedidos/ColheitaModal"));
 const PrecificacaoModal = lazy(() => import("../components/pedidos/PrecificacaoModal"));
 const PagamentoModal = lazy(() => import("../components/pedidos/PagamentoModal"));
+const PagamentosAutomaticosModal = lazy(() => import("../components/pedidos/PagamentosAutomaticosModal"));
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -76,6 +77,7 @@ const Pedidos = () => {
   const [colheitaModalOpen, setColheitaModalOpen] = useState(false);
   const [precificacaoModalOpen, setPrecificacaoModalOpen] = useState(false);
   const [pagamentoModalOpen, setPagamentoModalOpen] = useState(false);
+  const [pagamentosAutomaticosModalOpen, setPagamentosAutomaticosModalOpen] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
 
   // Dados auxiliares
@@ -1232,20 +1234,34 @@ const Pedidos = () => {
         )}
       </Box>
 
-      {/* Botão Novo Pedido */}
-      <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-start" }}>
-                 <PrimaryButton
-           icon={<PlusCircleOutlined />}
-           onClick={handleOpenCreateModal}
-           size={isMobile ? "small" : (isTablet ? "small" : "large")}
-           style={{
-             height: isMobile ? '32px' : (isTablet ? '36px' : '40px'),
-             padding: isMobile ? '0 12px' : (isTablet ? '0 14px' : '0 16px'),
-             fontSize: isMobile ? '0.75rem' : undefined
-           }}
-         >
-           {isMobile ? 'Novo' : 'Novo Pedido'}
-         </PrimaryButton>
+      {/* Botões Novo Pedido e Pagamentos Automáticos */}
+      <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-start", gap: 2, flexWrap: "wrap" }}>
+        <PrimaryButton
+          icon={<PlusCircleOutlined />}
+          onClick={handleOpenCreateModal}
+          size={isMobile ? "small" : (isTablet ? "small" : "large")}
+          style={{
+            height: isMobile ? '32px' : (isTablet ? '36px' : '40px'),
+            padding: isMobile ? '0 12px' : (isTablet ? '0 14px' : '0 16px'),
+            fontSize: isMobile ? '0.75rem' : undefined
+          }}
+        >
+          {isMobile ? 'Novo' : 'Novo Pedido'}
+        </PrimaryButton>
+        <PrimaryButton
+          icon={<DollarOutlined />}
+          onClick={() => setPagamentosAutomaticosModalOpen(true)}
+          size={isMobile ? "small" : (isTablet ? "small" : "large")}
+          style={{
+            height: isMobile ? '32px' : (isTablet ? '36px' : '40px'),
+            padding: isMobile ? '0 12px' : (isTablet ? '0 14px' : '0 16px'),
+            fontSize: isMobile ? '0.75rem' : undefined,
+            backgroundColor: '#059669',
+            borderColor: '#047857'
+          }}
+        >
+          {isMobile ? 'Pagamentos' : 'Pagamentos Automáticos'}
+        </PrimaryButton>
       </Box>
 
       {/* Tabela de Pedidos */}
@@ -1352,6 +1368,12 @@ const Pedidos = () => {
           onRemoverPagamento={handleRemoverPagamento}
           onAjustesSalvos={handleAjustesSalvos}
           pedido={pedidoSelecionado}
+          loading={loading}
+        />
+
+        <PagamentosAutomaticosModal
+          open={pagamentosAutomaticosModalOpen}
+          onClose={() => setPagamentosAutomaticosModalOpen(false)}
           loading={loading}
         />
       </Suspense>

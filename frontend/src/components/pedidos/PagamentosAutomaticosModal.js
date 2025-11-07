@@ -1,48 +1,50 @@
-// src/components/clientes/PagamentosClienteModal.js
+// src/components/pedidos/PagamentosAutomaticosModal.js
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Modal, Table, Space, Typography, Tag, Button, Row, Col, Card, Statistic, Empty, Spin, DatePicker, Select, Divider, Tooltip } from "antd";
 import {
   DollarOutlined,
   FilterOutlined,
-  CloseOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  ShopOutlined,
   SearchOutlined,
   BankOutlined,
   UpOutlined,
   DownOutlined,
   LinkOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
-import { SearchInput } from "../common/search";
+import SearchInputInteligente from "../common/search/SearchInputInteligente";
 import { formatCurrency, capitalizeName, formatarDataBR } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
-import VincularPagamentoManualModal from "./VincularPagamentoManualModal";
-import VisualizarPedidoModal from "../pedidos/VisualizarPedidoModal";
+import VincularPagamentoManualModal from "../clientes/VincularPagamentoManualModal";
+import VisualizarPedidoModal from "./VisualizarPedidoModal";
 import CentralizedLoader from "../common/loaders/CentralizedLoader";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
-
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => {
+const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
   const [pagamentos, setPagamentos] = useState([]);
   const [pagamentosFiltrados, setPagamentosFiltrados] = useState([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [categoriaFilter, setCategoriaFilter] = useState("");
   const [vinculadoFilter, setVinculadoFilter] = useState("");
   const [dateRange, setDateRange] = useState(null);
+  const [contaCorrenteFilter, setContaCorrenteFilter] = useState(null);
+  
+  // Estados para filtro de cliente (agora suporta múltiplos clientes)
+  const [clientesFiltros, setClientesFiltros] = useState([]); // Array de objetos {id, nome, cpf, cnpj}
+  const [clientesFiltrosAplicados, setClientesFiltrosAplicados] = useState([]); // Array de sugestões para exibição
 
   // Estados para busca na API
   const [contasDisponiveis, setContasDisponiveis] = useState([]);
@@ -61,7 +63,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [loadingPedido, setLoadingPedido] = useState(false);
 
-  // Estatísticas do cliente
+  // Estatísticas gerais
   const [estatisticas, setEstatisticas] = useState({
     totalPagamentos: 0,
     valorTotal: 0,
@@ -71,16 +73,14 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     valorNaoVinculado: 0,
   });
 
-  // Carregar pagamentos do cliente
-  const fetchPagamentosCliente = useCallback(async () => {
-    if (!cliente?.id) return;
-
+  // Carregar TODOS os pagamentos (sem filtro de cliente inicial)
+  const fetchPagamentos = useCallback(async (clienteId = null) => {
     setLoadingPagamentos(true);
     try {
-      // Buscar TODOS os pagamentos do cliente (sem filtro de data no backend)
-      // O filtro de data será aplicado no frontend
       const params = new URLSearchParams();
-      params.append('clienteId', cliente.id);
+      if (clienteId) {
+        params.append('clienteId', clienteId);
+      }
 
       const response = await axiosInstance.get(`/api/lancamentos-extrato?${params.toString()}`);
       
@@ -104,8 +104,6 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       if (!Array.isArray(pagamentosData)) {
         pagamentosData = [];
       }
-      
-      // Logs de debug removidos
 
       setPagamentos(pagamentosData);
       setPagamentosFiltrados(pagamentosData);
@@ -115,8 +113,8 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       setEstatisticas(stats);
       
     } catch (error) {
-      console.error("Erro ao buscar pagamentos do cliente:", error);
-      showNotification("error", "Erro", "Erro ao carregar pagamentos do cliente");
+      console.error("Erro ao buscar pagamentos:", error);
+      showNotification("error", "Erro", "Erro ao carregar pagamentos");
       setPagamentos([]);
       setPagamentosFiltrados([]);
       setEstatisticas({
@@ -130,7 +128,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     } finally {
       setLoadingPagamentos(false);
     }
-  }, [cliente?.id]);
+  }, []);
 
   // Calcular estatísticas dos pagamentos
   const calcularEstatisticas = (pagamentos) => {
@@ -180,117 +178,31 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     
     let pagamentosFiltrados = [...pagamentos];
 
-    // Aplicar filtro de busca
-    if (searchTerm) {
-      pagamentosFiltrados = pagamentosFiltrados.filter(pagamento => {
-        const searchLower = searchTerm.toLowerCase();
-        const searchTrimmed = searchTerm.trim();
+    // Aplicar filtro de cliente (suporta múltiplos clientes - OR lógico)
+    if (clientesFiltros.length > 0) {
+      const clientesIds = clientesFiltros.map(c => c.id);
+      pagamentosFiltrados = pagamentosFiltrados.filter(p => {
+        // Verificar se o pagamento pertence a QUALQUER um dos clientes selecionados
+        let clienteIdPagamento = null;
         
-        const categoriaMatch = pagamento.categoriaOperacao?.toLowerCase().includes(searchLower);
-        const descricaoMatch = pagamento.textoDescricaoHistorico?.toLowerCase().includes(searchLower);
-        const nomeMatch = pagamento.nomeContrapartida?.toLowerCase().includes(searchLower);
-        const documentoMatch = pagamento.numeroDocumento?.toLowerCase().includes(searchLower);
-        
-        // Detectar se é busca de data (contém "/")
-        const isDataSearch = searchTrimmed.includes('/');
-        
-        // Busca por data
-        let dataMatch = false;
-        if (isDataSearch) {
-          // Padrão: "31", "31/", "31/1", "31/10", "31/10/2024", etc
-          const dataParts = searchTrimmed.split('/').map(p => p.trim()).filter(p => p);
-          
-          if (dataParts.length > 0) {
-            const dataLancamento = moment(pagamento.dataLancamento);
-            
-            // Dia
-            if (dataParts[0]) {
-              const diaBuscado = parseInt(dataParts[0], 10);
-              const diaPagamento = dataLancamento.date();
-              
-              if (!isNaN(diaBuscado) && diaBuscado === diaPagamento) {
-                dataMatch = true;
-                
-                // Mês (pode ser parcial, ex: "1" para meses 10, 11, 12)
-                if (dataParts[1]) {
-                  const mesBuscado = dataParts[1];
-                  const mesPagamento = dataLancamento.month() + 1; // moment retorna 0-11
-                  const mesPagamentoStr = mesPagamento.toString();
-                  
-                  // Se buscar por "1", encontra meses 10, 11, 12
-                  if (mesBuscado.length === 1) {
-                    dataMatch = mesPagamentoStr.startsWith(mesBuscado);
-                  } else {
-                    // Busca exata por mês
-                    const mesBuscadoInt = parseInt(mesBuscado, 10);
-                    dataMatch = !isNaN(mesBuscadoInt) && mesBuscadoInt === mesPagamento;
-                  }
-                  
-                  // Ano (opcional)
-                  if (dataMatch && dataParts[2]) {
-                    const anoBuscado = parseInt(dataParts[2], 10);
-                    const anoPagamento = dataLancamento.year();
-                    
-                    if (!isNaN(anoBuscado)) {
-                      // Se ano com 2 dígitos, assume 20xx
-                      if (anoBuscado < 100) {
-                        dataMatch = anoPagamento.toString().endsWith(anoBuscado.toString().padStart(2, '0'));
-                      } else {
-                        dataMatch = anoBuscado === anoPagamento;
-                      }
-                    }
-                  }
-                }
-              } else {
-                dataMatch = false;
-              }
-            }
-          }
-        } else {
-          // Se não é busca de data, verifica se o número pode ser uma data
-          // Ex: "31" pode ser dia 31 OU parte do valor
-          const searchDigits = searchTrimmed.replace(/\D/g, '');
-          
-          if (searchDigits && searchDigits.length > 0) {
-            // Verifica se é um dia válido (1-31)
-            const diaBuscado = parseInt(searchDigits, 10);
-            if (!isNaN(diaBuscado) && diaBuscado >= 1 && diaBuscado <= 31) {
-              const dataLancamento = moment(pagamento.dataLancamento);
-              const diaPagamento = dataLancamento.date();
-              dataMatch = diaBuscado === diaPagamento;
-            }
-          }
+        // Verificar se o pagamento tem cliente associado diretamente
+        if (p.clienteId) {
+          clienteIdPagamento = p.clienteId;
+        } else if (p.cliente?.id) {
+          clienteIdPagamento = p.cliente.id;
+        } else if (p.pedido?.clienteId) {
+          clienteIdPagamento = p.pedido.clienteId;
         }
         
-        // Busca por valor numérico (apenas se não for busca exclusiva de data)
-        let valorMatch = false;
-        if (!isDataSearch && searchTrimmed) {
-          // Extrai TODOS os dígitos do termo de busca (remove tudo exceto números)
-          const searchDigits = searchTrimmed.replace(/\D/g, '');
-          
-          // Verifica se o termo contém números
-          if (searchDigits && searchDigits.length > 0) {
-            // Obtém o valor do pagamento como número
-            const valorPagamento = Number(pagamento.valorLancamento) || 0;
-            
-            // Converte o valor do pagamento para string sem formatação (apenas dígitos)
-            // Ex: 8717.20 → "871720"
-            const valorPagamentoDigits = Math.abs(valorPagamento).toFixed(2).replace(/[^\d]/g, '');
-            
-            // Verifica se os dígitos buscados estão contidos nos dígitos do valor
-            valorMatch = valorPagamentoDigits.includes(searchDigits);
-          }
+        // Se encontrou um clienteId, verificar se está na lista de clientes filtrados
+        if (clienteIdPagamento) {
+          return clientesIds.includes(clienteIdPagamento);
         }
         
-        // Se for busca de data (contém "/"), retorna apenas dataMatch
-        // Se não for, retorna dataMatch OU valorMatch OU outros matches
-        if (isDataSearch) {
-          return categoriaMatch || descricaoMatch || nomeMatch || documentoMatch || dataMatch;
-        } else {
-          return categoriaMatch || descricaoMatch || nomeMatch || documentoMatch || valorMatch || dataMatch;
-        }
+        return false;
       });
     }
+
 
     // Aplicar filtro de categoria
     if (categoriaFilter) {
@@ -303,14 +215,22 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       pagamentosFiltrados = pagamentosFiltrados.filter(p => p.vinculadoPedido === isVinculado);
     }
 
+    // Aplicar filtro de conta-corrente
+    if (contaCorrenteFilter) {
+      pagamentosFiltrados = pagamentosFiltrados.filter(p => {
+        if (p.contaCorrenteId) {
+          return p.contaCorrenteId === contaCorrenteFilter;
+        }
+        return false;
+      });
+    }
+
     // Aplicar filtro de data
     if (dateRange && dateRange.length === 2) {
       const [startDate, endDate] = dateRange;
       
       pagamentosFiltrados = pagamentosFiltrados.filter(pagamento => {
         const dataLancamento = moment(pagamento.dataLancamento);
-        
-        // Comparar apenas as datas (ignorar horário)
         const dataLancamentoOnly = dataLancamento.format('YYYY-MM-DD');
         const startDateOnly = startDate.format('YYYY-MM-DD');
         const endDateOnly = endDate.format('YYYY-MM-DD');
@@ -320,9 +240,9 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     }
 
     setPagamentosFiltrados(pagamentosFiltrados);
-  }, [pagamentos, searchTerm, categoriaFilter, vinculadoFilter, dateRange]);
+  }, [pagamentos, clientesFiltros, categoriaFilter, vinculadoFilter, contaCorrenteFilter, dateRange]);
 
-  // Carregar contas disponíveis quando o modal abrir
+  // Carregar contas disponíveis
   const fetchContasDisponiveis = useCallback(async () => {
     setLoadingContas(true);
     try {
@@ -339,13 +259,15 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     }
   }, []);
 
-  // Buscar e processar extratos na API
-  const buscarNaAPI = useCallback(async () => {
-    if (!cliente?.id) {
-      showNotification('warning', 'Atenção', 'Cliente não selecionado');
-      return;
+  // Carregar contas para filtro (mesmas contas disponíveis)
+  useEffect(() => {
+    if (open && contasDisponiveis.length === 0) {
+      fetchContasDisponiveis();
     }
+  }, [open, fetchContasDisponiveis, contasDisponiveis.length]);
 
+  // Buscar e processar extratos na API para TODOS os clientes com CPF/CNPJ
+  const buscarNaAPI = useCallback(async () => {
     if (!rangeBuscaAPI || !rangeBuscaAPI[0] || !rangeBuscaAPI[1]) {
       showNotification('warning', 'Atenção', 'Selecione o período de busca');
       return;
@@ -358,26 +280,35 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
 
     setBuscandoAPI(true);
     try {
-      // Formatar datas para DDMMYYYY
       const dataInicio = rangeBuscaAPI[0].format('DDMMYYYY');
       const dataFim = rangeBuscaAPI[1].format('DDMMYYYY');
 
-      const response = await axiosInstance.post('/api/lancamentos-extrato/buscar-processar', {
+      // Usar o novo endpoint que busca para TODOS os clientes com CPF/CNPJ
+      const payload = {
         dataInicio,
         dataFim,
-        clienteId: cliente.id,
         contaCorrenteId: contaSelecionada,
-      });
+      };
+
+      const response = await axiosInstance.post('/api/lancamentos-extrato/buscar-processar-todos-clientes', payload);
 
       const totalSalvos = response.data.totalSalvos || 0;
+      const totalFiltrados = response.data.totalFiltrados || 0;
+      const totalClientes = response.data.clientes?.length || 0;
+      
+      let mensagem = `${totalSalvos} ${totalSalvos === 1 ? 'novo lançamento encontrado' : 'novos lançamentos encontrados'}`;
+      if (totalClientes > 0) {
+        mensagem += ` para ${totalClientes} ${totalClientes === 1 ? 'cliente' : 'clientes'}`;
+      }
+      
       showNotification(
         'success',
         'Busca Concluída',
-        `${totalSalvos} ${totalSalvos === 1 ? 'novo lançamento encontrado' : 'novos lançamentos encontrados'}`
+        mensagem
       );
 
-      // Recarregar pagamentos após buscar
-      await fetchPagamentosCliente();
+      // Recarregar pagamentos após buscar (buscar todos, o filtro será aplicado no frontend)
+      await fetchPagamentos();
 
       // Limpar range de busca
       setRangeBuscaAPI(null);
@@ -388,13 +319,55 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     } finally {
       setBuscandoAPI(false);
     }
-  }, [cliente?.id, rangeBuscaAPI, contaSelecionada, fetchPagamentosCliente]);
+  }, [rangeBuscaAPI, contaSelecionada, fetchPagamentos]);
 
-  // Handler para abrir modal de vinculação manual
-  const handleAbrirVinculacaoManual = (lancamento) => {
-    setLancamentoParaVincular(lancamento);
-    setVinculacaoModalOpen(true);
-  };
+  // Handler para seleção de cliente via SearchInputInteligente (adiciona à lista, não substitui)
+  const handleClienteSelect = useCallback((suggestion) => {
+    if (suggestion.type === 'cliente' && suggestion.metadata?.id) {
+      const clienteId = suggestion.metadata.id;
+      
+      // Verificar se o cliente já está na lista
+      const clienteJaExiste = clientesFiltros.some(c => c.id === clienteId);
+      
+      if (!clienteJaExiste) {
+        const novoCliente = {
+          id: clienteId,
+          nome: suggestion.value,
+          cpf: suggestion.metadata.cpf,
+          cnpj: suggestion.metadata.cnpj,
+        };
+        
+        // Adicionar à lista de clientes
+        setClientesFiltros(prev => [...prev, novoCliente]);
+        
+        // Adicionar à lista de sugestões para exibição
+        setClientesFiltrosAplicados(prev => [...prev, {
+          ...suggestion,
+          displayValue: capitalizeName(suggestion.value),
+        }]);
+        
+        // Recarregar pagamentos com todos os clientes selecionados
+        // Como a API aceita apenas um clienteId, vamos buscar todos e filtrar no frontend
+        // ou buscar sem filtro e filtrar aqui
+        fetchPagamentos(); // Buscar todos, o filtro será aplicado no frontend
+      } else {
+        showNotification('info', 'Cliente já selecionado', 'Este cliente já está na lista de filtros');
+      }
+    }
+  }, [clientesFiltros, fetchPagamentos]);
+
+  // Handler para remover um cliente específico da lista
+  const handleRemoverFiltroCliente = useCallback((index) => {
+    setClientesFiltros(prev => {
+      const novoArray = prev.filter((_, i) => i !== index);
+      // Se não houver mais clientes, recarregar todos os pagamentos
+      if (novoArray.length === 0) {
+        fetchPagamentos();
+      }
+      return novoArray;
+    });
+    setClientesFiltrosAplicados(prev => prev.filter((_, i) => i !== index));
+  }, [fetchPagamentos]);
 
   // Função para buscar pedido atualizado do banco
   const buscarPedidoAtualizado = async (pedidoId) => {
@@ -425,12 +398,39 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     }
   };
 
-  // Handler para executar vinculação (dupla operação)
+  // Handler para abrir modal de vinculação manual
+  const handleAbrirVinculacaoManual = (lancamento) => {
+    // Precisamos identificar o cliente do lançamento
+    // Priorizar cliente direto, depois via objeto cliente, depois via pedido
+    let clienteDoLancamento = null;
+    
+    if (lancamento.cliente) {
+      clienteDoLancamento = lancamento.cliente;
+    } else if (lancamento.clienteId) {
+      // Tentar encontrar o cliente na lista de clientes filtrados
+      const clienteFiltrado = clientesFiltros.find(c => c.id === lancamento.clienteId);
+      if (clienteFiltrado) {
+        clienteDoLancamento = clienteFiltrado;
+      }
+    } else if (lancamento.pedido?.cliente) {
+      clienteDoLancamento = lancamento.pedido.cliente;
+    }
+    
+    if (!clienteDoLancamento) {
+      showNotification('warning', 'Atenção', 'Não foi possível identificar o cliente deste pagamento. Selecione o cliente no filtro primeiro.');
+      return;
+    }
+    
+    setLancamentoParaVincular(lancamento);
+    setVinculacaoModalOpen(true);
+  };
+
+  // Handler para executar vinculação
   const handleVincularPagamento = async (lancamento, pedido) => {
     try {
       setLoadingPagamentos(true);
 
-      // 1. Vincular lançamento ao pedido na tabela LancamentoExtrato
+      // 1. Vincular lançamento ao pedido
       await axiosInstance.post(
         `/api/lancamentos-extrato/${lancamento.id}/vincular-pedido`,
         {
@@ -451,7 +451,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         dataPagamento: moment(lancamento.dataLancamento).startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss'),
         valorRecebido: lancamento.valorLancamento,
         metodoPagamento: metodoPagamento,
-        contaDestino: 'ALENCAR', // Pode ser configurável no futuro
+        contaDestino: 'ALENCAR',
         observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
       };
 
@@ -466,17 +466,16 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         `Pagamento de ${formatCurrency(lancamento.valorLancamento)} vinculado ao pedido ${pedido.numeroPedido} com sucesso!`
       );
 
-      // Recarregar lista de lançamentos
-      await fetchPagamentosCliente();
+      // Recarregar lista de lançamentos (buscar todos, o filtro será aplicado no frontend)
+      await fetchPagamentos();
 
-      // Fechar modal (o modal filho já faz isso)
       setVinculacaoModalOpen(false);
       setLancamentoParaVincular(null);
     } catch (error) {
       console.error('Erro ao vincular pagamento:', error);
       const message = error.response?.data?.message || 'Erro ao vincular pagamento ao pedido';
       showNotification('error', 'Erro', message);
-      throw error; // Re-throw para o modal filho tratar
+      throw error;
     } finally {
       setLoadingPagamentos(false);
     }
@@ -484,19 +483,21 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
 
   // Efeito para carregar pagamentos quando o modal abrir
   useEffect(() => {
-    if (open && cliente?.id) {
-      fetchPagamentosCliente();
+    if (open) {
+      fetchPagamentos();
       fetchContasDisponiveis();
     }
-  }, [open, cliente?.id, fetchPagamentosCliente, fetchContasDisponiveis]);
+  }, [open, fetchPagamentos, fetchContasDisponiveis]);
 
   // Efeito para limpar estados quando o modal fechar
   useEffect(() => {
     if (!open) {
-      setSearchTerm("");
       setCategoriaFilter("");
       setVinculadoFilter("");
       setDateRange(null);
+      setContaCorrenteFilter(null);
+      setClientesFiltros([]);
+      setClientesFiltrosAplicados([]);
       setPagamentos([]);
       setPagamentosFiltrados([]);
       setEstatisticas({
@@ -689,36 +690,56 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       title: "Ação",
       key: "acao",
       width: "10%",
-      render: (_, record) => (
-        !record.vinculadoPedido ? (
-          <Button
-            type="primary"
-            size="small"
-            icon={<LinkOutlined />}
-            onClick={() => handleAbrirVinculacaoManual(record)}
-            style={{
-              backgroundColor: '#059669',
-              borderColor: '#047857',
-              fontSize: '0.75rem',
-              height: '28px',
-              padding: '0 8px'
-            }}
-          >
-            Vincular
-          </Button>
-        ) : (
-          <Tag
-            color="success"
-            style={{
-              fontSize: '0.65rem',
-              padding: '2px 8px',
-              borderRadius: '4px'
-            }}
-          >
-            Vinculado
-          </Tag>
-        )
-      ),
+      render: (_, record) => {
+        // Verificar se tem cliente associado
+        const clienteDoLancamento = record.cliente || record.pedido?.cliente;
+        
+        if (!record.vinculadoPedido && clienteDoLancamento) {
+          return (
+            <Button
+              type="primary"
+              size="small"
+              icon={<LinkOutlined />}
+              onClick={() => handleAbrirVinculacaoManual(record)}
+              style={{
+                backgroundColor: '#059669',
+                borderColor: '#047857',
+                fontSize: '0.75rem',
+                height: '28px',
+                padding: '0 8px'
+              }}
+            >
+              Vincular
+            </Button>
+          );
+        } else if (record.vinculadoPedido) {
+          return (
+            <Tag
+              color="success"
+              style={{
+                fontSize: '0.65rem',
+                padding: '2px 8px',
+                borderRadius: '4px'
+              }}
+            >
+              Vinculado
+            </Tag>
+          );
+        } else {
+          return (
+            <Tag
+              color="default"
+              style={{
+                fontSize: '0.65rem',
+                padding: '2px 8px',
+                borderRadius: '4px'
+              }}
+            >
+              Sem cliente
+            </Tag>
+          );
+        }
+      },
     },
   ];
 
@@ -736,7 +757,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           borderRadius: "0.5rem 0.5rem 0 0",
         }}>
           <DollarOutlined style={{ marginRight: "0.5rem" }} />
-          {isMobile ? `Pagamentos - ${capitalizeName(cliente?.nome || "Cliente")}` : `Pagamentos Recebidos de ${capitalizeName(cliente?.nome || "Cliente")}`}
+          Pagamentos Automáticos
         </span>
       }
       open={open}
@@ -761,7 +782,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       centered
       destroyOnClose
     >
-      {/* Estatísticas do Cliente */}
+      {/* Estatísticas Gerais */}
       <Card
         title={
           <Space>
@@ -790,37 +811,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           }
         }}
       >
-        {/* Primeira linha: Nome e CNPJ do Cliente */}
-        <div style={{
-          marginBottom: isMobile ? "16px" : "20px",
-          paddingBottom: isMobile ? "12px" : "16px",
-          borderBottom: "1px solid #e8e8e8"
-        }}>
-          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
-            <Col xs={24} sm={12}>
-              <Space direction="vertical" size={2}>
-                <Text strong style={{ fontSize: isMobile ? "11px" : "12px", color: "#666" }}>
-                  Cliente
-                </Text>
-                <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "600", color: "#333" }}>
-                  {capitalizeName(cliente?.nome || "Cliente")}
-                </Text>
-              </Space>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Space direction="vertical" size={2}>
-                <Text strong style={{ fontSize: isMobile ? "11px" : "12px", color: "#666" }}>
-                  {cliente?.cpf ? "CPF" : "CNPJ"}
-                </Text>
-                <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "600", color: "#333" }}>
-                  {cliente?.cpf || cliente?.cnpj || "-"}
-                </Text>
-              </Space>
-            </Col>
-          </Row>
-        </div>
-
-        {/* Segunda linha: Estatísticas */}
+        {/* Estatísticas */}
         <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
           <Col xs={12} sm={12} md={6}>
             <Statistic
@@ -910,18 +901,49 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         }}
       >
         {/* Filtros Locais */}
+        {/* Primeira linha: Cliente */}
         <Row gutter={[isMobile ? 8 : 16, isMobile ? 18 : 16]}>
-          <Col xs={24} sm={24} md={8}>
-            <SearchInput
-              placeholder="Buscar por categoria, descrição, origem..."
-              value={searchTerm}
-              onChange={(value) => setSearchTerm(value)}
-              allowClear
-              style={{ width: "100%", marginBottom: 0 }}
+          <Col xs={24}>
+            <Text strong style={{ display: "block", marginBottom: 8, fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
+              <UserOutlined style={{ marginRight: 4 }} />
+              Cliente:
+            </Text>
+            <SearchInputInteligente
+              placeholder="Buscar cliente..."
+              value=""
+              onChange={() => {}}
+              onSuggestionSelect={handleClienteSelect}
               size={isMobile ? "middle" : "large"}
+              style={{ width: "100%", marginBottom: 0 }}
             />
+            {/* Chips de filtros aplicados */}
+            {clientesFiltrosAplicados.length > 0 && (
+              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {clientesFiltrosAplicados.map((filtro, index) => (
+                  <Tag
+                    key={`${filtro.type}-${filtro.value}-${index}`}
+                    color="blue"
+                    closable
+                    onClose={() => handleRemoverFiltroCliente(index)}
+                    style={{
+                      fontSize: "0.75rem",
+                      padding: "2px 8px"
+                    }}
+                  >
+                    {filtro.displayValue || filtro.value}
+                  </Tag>
+                ))}
+              </div>
+            )}
           </Col>
-          <Col xs={24} sm={12} md={5}>
+        </Row>
+
+        {/* Segunda linha: Categoria, Status, Conta-Corrente, Range de Datas */}
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 18 : 16]} style={{ marginTop: isMobile ? 12 : 16 }}>
+          <Col xs={24} sm={12} md={6}>
+            <Text strong style={{ display: "block", marginBottom: 8, fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
+              Categoria:
+            </Text>
             <Select
               placeholder="Categoria"
               value={categoriaFilter || undefined}
@@ -935,7 +957,10 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
               ))}
             </Select>
           </Col>
-          <Col xs={24} sm={12} md={5}>
+          <Col xs={24} sm={12} md={6}>
+            <Text strong style={{ display: "block", marginBottom: 8, fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
+              Status:
+            </Text>
             <Select
               placeholder="Status"
               value={vinculadoFilter || undefined}
@@ -949,6 +974,32 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
             </Select>
           </Col>
           <Col xs={24} sm={12} md={6}>
+            <Text strong style={{ display: "block", marginBottom: 8, fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
+              <BankOutlined style={{ marginRight: 4 }} />
+              Conta-Corrente:
+            </Text>
+            <Select
+              placeholder="Selecione a conta"
+              value={contaCorrenteFilter || undefined}
+              onChange={(value) => setContaCorrenteFilter(value || null)}
+              allowClear
+              style={{ width: "100%" }}
+              size={isMobile ? "middle" : "large"}
+              loading={loadingContas}
+              notFoundContent={loadingContas ? <Spin size="small" /> : "Nenhuma conta encontrada"}
+            >
+              {contasDisponiveis.map((conta) => (
+                <Option key={conta.id} value={conta.id}>
+                  {conta.agencia} / {conta.contaCorrente} - {conta.nomeBanco || 'Banco do Brasil'}
+                </Option>
+              ))}
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Text strong style={{ display: "block", marginBottom: 8, fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
+              <CalendarOutlined style={{ marginRight: 4 }} />
+              Período:
+            </Text>
             <RangePicker
               placeholder={isMobile ? ["Início", "Fim"] : ["Data Início", "Data Fim"]}
               value={dateRange}
@@ -1084,16 +1135,38 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       </Spin>
 
       {/* Modal de Vinculação Manual */}
-      <VincularPagamentoManualModal
-        open={vinculacaoModalOpen}
-        onClose={() => {
-          setVinculacaoModalOpen(false);
-          setLancamentoParaVincular(null);
-        }}
-        lancamento={lancamentoParaVincular}
-        cliente={cliente}
-        onVincular={handleVincularPagamento}
-      />
+      {lancamentoParaVincular && (() => {
+        // Identificar cliente do lançamento
+        let clienteParaModal = null;
+        if (lancamentoParaVincular.cliente) {
+          clienteParaModal = lancamentoParaVincular.cliente;
+        } else if (lancamentoParaVincular.clienteId) {
+          // Tentar encontrar o cliente na lista de clientes filtrados
+          const clienteFiltrado = clientesFiltros.find(c => c.id === lancamentoParaVincular.clienteId);
+          if (clienteFiltrado) {
+            clienteParaModal = clienteFiltrado;
+          }
+        } else if (lancamentoParaVincular.pedido?.cliente) {
+          clienteParaModal = lancamentoParaVincular.pedido.cliente;
+        }
+        
+        if (!clienteParaModal) {
+          return null;
+        }
+        
+        return (
+          <VincularPagamentoManualModal
+            open={vinculacaoModalOpen}
+            onClose={() => {
+              setVinculacaoModalOpen(false);
+              setLancamentoParaVincular(null);
+            }}
+            lancamento={lancamentoParaVincular}
+            cliente={clienteParaModal}
+            onVincular={handleVincularPagamento}
+          />
+        );
+      })()}
 
       {/* Modal de Visualização de Pedido */}
       <VisualizarPedidoModal
@@ -1115,14 +1188,13 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   );
 };
 
-PagamentosClienteModal.propTypes = {
+PagamentosAutomaticosModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  cliente: PropTypes.object,
   loading: PropTypes.bool,
 };
 
-PagamentosClienteModal.displayName = 'PagamentosClienteModal';
+PagamentosAutomaticosModal.displayName = 'PagamentosAutomaticosModal';
 
-export default PagamentosClienteModal;
+export default PagamentosAutomaticosModal;
 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { 
   CreateContaCorrenteDto, 
@@ -17,6 +17,9 @@ export class ContaCorrenteService {
     console.log('🔍 [CONTA-CORRENTE] Buscando todas as contas correntes...');
     
     const contasCorrentes = await this.prisma.contaCorrente.findMany({
+      include: {
+        credenciaisAPI: true, // Inclui credenciais API para verificar se tem extrato
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -32,6 +35,9 @@ export class ContaCorrenteService {
   async findOne(id: number): Promise<ContaCorrenteResponseDto> {
     const contaCorrente = await this.prisma.contaCorrente.findUnique({
       where: { id },
+      include: {
+        credenciaisAPI: true, // Inclui credenciais API para verificar se tem extrato
+      },
     });
 
     if (!contaCorrente) {
@@ -48,6 +54,11 @@ export class ContaCorrenteService {
     console.log('💾 [CONTA-CORRENTE] Criando nova conta corrente...', createContaCorrenteDto);
     
     try {
+      // Validação: se monitorar for true, intervalo deve ser informado
+      if (createContaCorrenteDto.monitorar === true && (!createContaCorrenteDto.intervalo || createContaCorrenteDto.intervalo <= 0)) {
+        throw new BadRequestException('Quando monitorar é true, o intervalo deve ser informado e maior que 0');
+      }
+
       // Verifica se já existe uma conta com os mesmos dados
       const existingConta = await this.prisma.contaCorrente.findFirst({
         where: {
@@ -64,7 +75,10 @@ export class ContaCorrenteService {
       }
 
       const novaConta = await this.prisma.contaCorrente.create({
-        data: createContaCorrenteDto,
+        data: {
+          ...createContaCorrenteDto,
+          monitorar: createContaCorrenteDto.monitorar ?? false,
+        },
       });
       
       console.log('✅ [CONTA-CORRENTE] Conta corrente criada com sucesso');
@@ -84,9 +98,22 @@ export class ContaCorrenteService {
    * Atualiza uma conta corrente existente
    */
   async update(id: number, updateContaCorrenteDto: UpdateContaCorrenteDto): Promise<ContaCorrenteResponseDto> {
-    console.log('🔄 [CONTA-CORRENTE] Atualizando conta corrente ID:', id);
-    
     try {
+      // Validação: se monitorar for true, intervalo deve ser informado
+      if (updateContaCorrenteDto.monitorar === true && (!updateContaCorrenteDto.intervalo || updateContaCorrenteDto.intervalo <= 0)) {
+        // Se está atualizando apenas o monitorar para true, verifica se já existe intervalo na conta
+        if (!updateContaCorrenteDto.intervalo) {
+          const contaAtual = await this.prisma.contaCorrente.findUnique({
+            where: { id },
+          });
+          if (!contaAtual || !contaAtual.intervalo || contaAtual.intervalo <= 0) {
+            throw new BadRequestException('Quando monitorar é true, o intervalo deve ser informado e maior que 0');
+          }
+        } else if (updateContaCorrenteDto.intervalo <= 0) {
+          throw new BadRequestException('Intervalo deve ser maior que 0');
+        }
+      }
+
       // Verifica se a conta existe
       await this.findOne(id);
 
@@ -129,12 +156,26 @@ export class ContaCorrenteService {
         }
       }
 
+      // Preparar dados para atualização - usar diretamente o DTO sem modificações
+      const dataUpdate: any = { ...updateContaCorrenteDto };
+      
+      // Se monitorar está sendo atualizado para false E intervalo foi explicitamente enviado como null, limpar
+      // Mas se intervalo foi enviado com um valor, não sobrescrever
+      if (dataUpdate.monitorar === false && dataUpdate.intervalo === null) {
+        // Manter null se foi explicitamente enviado como null
+      } else if (dataUpdate.monitorar === false && dataUpdate.intervalo === undefined) {
+        // Se monitorar é false e intervalo não foi enviado, não incluir no update (mantém valor atual)
+        delete dataUpdate.intervalo;
+      }
+      
       const contaAtualizada = await this.prisma.contaCorrente.update({
         where: { id },
-        data: updateContaCorrenteDto,
+        data: dataUpdate,
+        include: {
+          credenciaisAPI: true, // Inclui credenciais API para manter consistência
+        },
       });
       
-      console.log('✅ [CONTA-CORRENTE] Conta corrente atualizada com sucesso');
       return contaAtualizada;
     } catch (error) {
       console.error('❌ [CONTA-CORRENTE] Erro ao atualizar conta corrente:', error);

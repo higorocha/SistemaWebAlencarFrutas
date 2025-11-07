@@ -193,8 +193,8 @@ export class NotificacoesService {
   async findOne(id: number, userId?: number): Promise<NotificacaoResponseDto> {
     const notificacao = await this.prisma.notificacao.findFirst({
       where: {
-        id,
         AND: [
+          { id },
           {
             OR: [
               { usuarioId: null },
@@ -225,8 +225,8 @@ export class NotificacoesService {
     // Verificar se a notificação existe e pertence ao usuário
     const existingNotificacao = await this.prisma.notificacao.findFirst({
       where: {
-        id,
         AND: [
+          { id },
           {
             OR: [
               { usuarioId: null },
@@ -267,8 +267,8 @@ export class NotificacoesService {
     // Verificar se a notificação existe e pertence ao usuário
     const notificacao = await this.prisma.notificacao.findFirst({
       where: {
-        id,
         AND: [
+          { id },
           {
             OR: [
               { usuarioId: null },
@@ -291,8 +291,8 @@ export class NotificacoesService {
   async marcarComoLida(id: number, userId?: number): Promise<NotificacaoResponseDto> {
     const notificacao = await this.prisma.notificacao.findFirst({
       where: {
-        id,
         AND: [
+          { id },
           {
             OR: [
               { usuarioId: null },
@@ -346,8 +346,8 @@ export class NotificacoesService {
   async descartarNotificacao(id: number, userId?: number): Promise<void> {
     const notificacao = await this.prisma.notificacao.findFirst({
       where: {
-        id,
         AND: [
+          { id },
           {
             OR: [
               { usuarioId: null },

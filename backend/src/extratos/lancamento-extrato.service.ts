@@ -9,7 +9,8 @@ import {
   QueryLancamentoExtratoDto,
   LancamentoExtratoResponseDto,
   BuscarProcessarExtratosDto,
-  BuscarProcessarExtratosResponseDto
+  BuscarProcessarExtratosResponseDto,
+  BuscarProcessarExtratosTodosClientesDto
 } from './dto/lancamento-extrato.dto';
 import { TipoOperacaoExtrato } from '@prisma/client';
 
@@ -400,25 +401,43 @@ export class LancamentoExtratoService {
   }
 
   /**
-   * Busca e processa extratos da API BB, filtrando por cliente e tipo crédito
+   * Busca e processa extratos da API BB, filtrando por cliente(s) e tipo crédito
    * Salva os pagamentos encontrados no banco de dados
+   * Suporta múltiplos clientes para evitar múltiplas chamadas à API
    */
   async buscarEProcessarExtratos(
     dto: BuscarProcessarExtratosDto
   ): Promise<BuscarProcessarExtratosResponseDto> {
-    // Validar e buscar cliente
-    const cliente = await this.prisma.cliente.findUnique({
-      where: { id: dto.clienteId },
+    // Determinar lista de IDs de clientes (suporta clienteId único ou clienteIds array)
+    const clienteIds: number[] = dto.clienteIds && dto.clienteIds.length > 0 
+      ? dto.clienteIds 
+      : (dto.clienteId ? [dto.clienteId] : []);
+
+    if (clienteIds.length === 0) {
+      throw new BadRequestException('É necessário informar pelo menos um cliente (clienteId ou clienteIds)');
+    }
+
+    // Buscar todos os clientes
+    const clientes = await this.prisma.cliente.findMany({
+      where: { id: { in: clienteIds } },
     });
 
-    if (!cliente) {
-      throw new NotFoundException(`Cliente com ID ${dto.clienteId} não encontrado`);
+    if (clientes.length === 0) {
+      throw new NotFoundException(`Nenhum cliente encontrado com os IDs fornecidos: ${clienteIds.join(', ')}`);
+    }
+
+    // Verificar se todos os IDs foram encontrados
+    const idsEncontrados = clientes.map(c => c.id);
+    const idsNaoEncontrados = clienteIds.filter(id => !idsEncontrados.includes(id));
+    if (idsNaoEncontrados.length > 0) {
+      throw new NotFoundException(`Clientes não encontrados: ${idsNaoEncontrados.join(', ')}`);
     }
 
     // Formatar data para exibição (antes de processar)
     const dataInicioExibicao = `${dto.dataInicio.slice(0, 2)}/${dto.dataInicio.slice(2, 4)}/${dto.dataInicio.slice(4)}`;
     const dataFimExibicao = `${dto.dataFim.slice(0, 2)}/${dto.dataFim.slice(2, 4)}/${dto.dataFim.slice(4)}`;
-    console.log(`📅 Buscando extratos para cliente ${cliente.nome || cliente.id}, período ${dataInicioExibicao} a ${dataFimExibicao}`);
+    const nomesClientes = clientes.map(c => c.nome || `ID ${c.id}`).join(', ');
+    console.log(`📅 Buscando extratos para ${clientes.length} cliente(s): ${nomesClientes}, período ${dataInicioExibicao} a ${dataFimExibicao}`);
 
     // Validar e buscar conta corrente
     const contaCorrente = await this.contaCorrenteService.findOne(dto.contaCorrenteId);
@@ -449,28 +468,77 @@ export class LancamentoExtratoService {
     const dataInicioFormatada = formatDateForAPI(dto.dataInicio);
     const dataFimFormatada = formatDateForAPI(dto.dataFim);
 
-    // Buscar extratos brutos da API
-    const extratosBrutos = await this.extratosService.consultarExtratosBrutos(
+    // Log antes de buscar na API
+    console.log(`🔍 [BUSCAR-PROCESSAR] Iniciando busca na API BB:`, {
+      contaCorrenteId: dto.contaCorrenteId,
+      agencia: contaCorrente.agencia,
+      conta: contaCorrente.contaCorrente,
+      dataInicio: dto.dataInicio,
       dataInicioFormatada,
+      dataFim: dto.dataFim,
       dataFimFormatada,
-      dto.contaCorrenteId
-    );
+      clientes: clientes.map(c => ({ id: c.id, nome: c.nome, cpf: c.cpf, cnpj: c.cnpj }))
+    });
 
-    // Preparar CPF/CNPJ do cliente para comparação (sem formatação)
-    const cpfCnpjClienteRaw = (cliente.cnpj || cliente.cpf || '').replace(/\D/g, '');
-
-    if (!cpfCnpjClienteRaw) {
-      throw new BadRequestException('Cliente não possui CPF ou CNPJ cadastrado');
+    // Buscar extratos brutos da API
+    let extratosBrutos: any[] = [];
+    try {
+      extratosBrutos = await this.extratosService.consultarExtratosBrutos(
+        dataInicioFormatada,
+        dataFimFormatada,
+        dto.contaCorrenteId
+      );
+      console.log(`✅ [BUSCAR-PROCESSAR] API retornou ${extratosBrutos.length} extratos brutos`);
+    } catch (error) {
+      console.error(`❌ [BUSCAR-PROCESSAR] Erro ao consultar extratos brutos na API BB:`, {
+        error: error.message,
+        stack: error.stack,
+        contaCorrenteId: dto.contaCorrenteId,
+        agencia: contaCorrente.agencia,
+        conta: contaCorrente.contaCorrente,
+        dataInicioFormatada,
+        dataFimFormatada,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      throw error; // Re-throw para o controller tratar
     }
 
-    // Determinar tamanho esperado (CPF = 11 dígitos, CNPJ = 14 dígitos)
-    const tamanhoEsperado = cliente.cnpj ? 14 : 11;
+    // LOG: Estrutura completa de todos os extratos retornados pela API
+    // Descomente abaixo caso precise visualizar a estrutura completa do JSON retornado pela API do BB
+    // Útil para debug quando houver mudanças na estrutura ou problemas de extração de dados
+    // if (extratosBrutos && extratosBrutos.length > 0) {
+    //   console.log('📋 [API RESPONSE] JSON de todos os extratos retornados pela API:');
+    //   console.log(JSON.stringify(extratosBrutos, null, 2));
+    // }
+
+    // Preparar mapa de CPF/CNPJ normalizados para cada cliente
+    // Estrutura: { cpfCnpjNormalizado: { clienteId, tamanhoEsperado } }
+    const mapaCpfCnpjClientes: Map<string, { clienteId: number; tamanhoEsperado: number }> = new Map();
     
-    // Normalizar CPF/CNPJ do cliente: adicionar zeros à esquerda se necessário
-    const cpfCnpjCliente = cpfCnpjClienteRaw.padStart(tamanhoEsperado, '0');
+    for (const cliente of clientes) {
+      const cpfCnpjClienteRaw = (cliente.cnpj || cliente.cpf || '').replace(/\D/g, '');
+      
+      if (!cpfCnpjClienteRaw) {
+        console.warn(`⚠️ Cliente ${cliente.id} (${cliente.nome}) não possui CPF ou CNPJ cadastrado. Será ignorado na busca.`);
+        continue;
+      }
+
+      // Determinar tamanho esperado (CPF = 11 dígitos, CNPJ = 14 dígitos)
+      const tamanhoEsperado = cliente.cnpj ? 14 : 11;
+      
+      // Normalizar CPF/CNPJ do cliente: adicionar zeros à esquerda se necessário
+      const cpfCnpjCliente = cpfCnpjClienteRaw.padStart(tamanhoEsperado, '0');
+      
+      mapaCpfCnpjClientes.set(cpfCnpjCliente, { clienteId: cliente.id, tamanhoEsperado });
+    }
+
+    if (mapaCpfCnpjClientes.size === 0) {
+      throw new BadRequestException('Nenhum dos clientes informados possui CPF ou CNPJ cadastrado');
+    }
 
     // Função auxiliar para normalizar CPF/CNPJ do extrato
-    const normalizarCpfCnpj = (cpfCnpj: string): string => {
+    const normalizarCpfCnpj = (cpfCnpj: string, tamanhoEsperado: number): string => {
       const numeros = cpfCnpj.replace(/\D/g, '');
       if (!numeros) return '';
       
@@ -483,29 +551,97 @@ export class LancamentoExtratoService {
       return numeros.padStart(tamanhoEsperado, '0');
     };
 
-    // Filtrar: apenas créditos (C) e do cliente específico
-    const extratosFiltrados = extratosBrutos.filter((extrato: any) => {
-      // Apenas créditos
-      if (extrato.indicadorSinalLancamento !== 'C') {
-        return false;
-      }
-
-      // Comparar CPF/CNPJ (remover formatação e normalizar com zeros à esquerda)
-      const cpfCnpjExtratoRaw = String(extrato.numeroCpfCnpjContrapartida || '').replace(/\D/g, '');
-      if (!cpfCnpjExtratoRaw) {
-        return false;
+    // Função para extrair CPF/CNPJ do extrato
+    const extrairCpfCnpjExtrato = (extrato: any): string => {
+      let cpfCnpjExtratoOriginal = '';
+      
+      // 1. PRIMEIRA TENTATIVA: Verificar 'numeroCpfCnpjContrapartida' (campo direto)
+      if (extrato.numeroCpfCnpjContrapartida && Number(extrato.numeroCpfCnpjContrapartida) !== 0) {
+        cpfCnpjExtratoOriginal = String(extrato.numeroCpfCnpjContrapartida);
       }
       
-      const cpfCnpjExtrato = normalizarCpfCnpj(cpfCnpjExtratoRaw);
-      return cpfCnpjExtrato === cpfCnpjCliente;
-    });
+      // 2. SEGUNDA TENTATIVA: Se não encontrou no campo direto, extrair do 'textoInformacaoComplementar'
+      if (!cpfCnpjExtratoOriginal || cpfCnpjExtratoOriginal === '0') {
+        const infoComplementar = extrato.textoInformacaoComplementar || '';
+        const cpfCnpjMatch = infoComplementar.match(/\b(\d{11,14})\b/);
+        if (cpfCnpjMatch) {
+          cpfCnpjExtratoOriginal = cpfCnpjMatch[1];
+        }
+      }
+      
+      // 3. FALLBACK: Tentar outros campos possíveis
+      if (!cpfCnpjExtratoOriginal || cpfCnpjExtratoOriginal === '0') {
+        cpfCnpjExtratoOriginal = String(
+          extrato.numeroCpfCnpj || 
+          extrato.cpfCnpjContrapartida || 
+          extrato.cpfCnpj || 
+          extrato.numeroDocumentoContrapartida ||
+          extrato.documentoContrapartida ||
+          ''
+        );
+      }
+      
+      return cpfCnpjExtratoOriginal.replace(/\D/g, '');
+    };
 
+    // Filtrar: apenas créditos (C) e de QUALQUER um dos clientes informados
+    // E identificar qual cliente pertence cada extrato
+    const extratosFiltradosComCliente: Array<{ extrato: any; clienteId: number }> = [];
+    
+    for (const extrato of extratosBrutos) {
+      // Apenas créditos
+      if (extrato.indicadorSinalLancamento !== 'C') {
+        continue;
+      }
 
-    // Processar e salvar cada lançamento
+      const cpfCnpjExtratoRaw = extrairCpfCnpjExtrato(extrato);
+      
+      if (!cpfCnpjExtratoRaw) {
+        continue;
+      }
+
+      // Tentar encontrar correspondência com qualquer cliente
+      // Como os clientes podem ter CPF (11) ou CNPJ (14), tentamos ambos os tamanhos
+      let clienteEncontrado: { clienteId: number; tamanhoEsperado: number } | null = null;
+
+      // Tentar primeiro como CPF (11 dígitos)
+      if (cpfCnpjExtratoRaw.length === 11) {
+        const cpfCnpjNormalizado = normalizarCpfCnpj(cpfCnpjExtratoRaw, 11);
+        clienteEncontrado = mapaCpfCnpjClientes.get(cpfCnpjNormalizado) || null;
+      }
+      
+      // Se não encontrou como CPF, tentar como CNPJ (14 dígitos)
+      if (!clienteEncontrado && cpfCnpjExtratoRaw.length === 14) {
+        const cpfCnpjNormalizado = normalizarCpfCnpj(cpfCnpjExtratoRaw, 14);
+        clienteEncontrado = mapaCpfCnpjClientes.get(cpfCnpjNormalizado) || null;
+      }
+
+      // Se ainda não encontrou, tentar normalizar para ambos os tamanhos e verificar
+      if (!clienteEncontrado) {
+        // Tentar como CPF (11 dígitos)
+        const comoCPF = normalizarCpfCnpj(cpfCnpjExtratoRaw, 11);
+        clienteEncontrado = mapaCpfCnpjClientes.get(comoCPF) || null;
+        
+        // Se não encontrou, tentar como CNPJ (14 dígitos)
+        if (!clienteEncontrado) {
+          const comoCNPJ = normalizarCpfCnpj(cpfCnpjExtratoRaw, 14);
+          clienteEncontrado = mapaCpfCnpjClientes.get(comoCNPJ) || null;
+        }
+      }
+
+      if (clienteEncontrado) {
+        extratosFiltradosComCliente.push({
+          extrato,
+          clienteId: clienteEncontrado.clienteId,
+        });
+      }
+    }
+
+    // Processar e salvar cada lançamento com o clienteId correto
     let totalSalvos = 0;
     let totalDuplicados = 0;
 
-    for (const extrato of extratosFiltrados) {
+    for (const { extrato, clienteId } of extratosFiltradosComCliente) {
       try {
         // Converter dataLancamento (número DDMMYYYY) para Date
         const dataLancamentoRaw = extrato.dataLancamento;
@@ -621,7 +757,7 @@ export class LancamentoExtratoService {
           categoriaOperacao,
           horarioLancamento,
           nomeContrapartida,
-          clienteId: dto.clienteId,
+          clienteId: clienteId, // Usar o clienteId identificado para este extrato específico
           contaCorrenteId: dto.contaCorrenteId,
           agenciaConta: contaCorrente.agencia,
           numeroConta: contaCorrente.contaCorrente,
@@ -644,7 +780,7 @@ export class LancamentoExtratoService {
 
     return {
       totalEncontrados: extratosBrutos.length,
-      totalFiltrados: extratosFiltrados.length,
+      totalFiltrados: extratosFiltradosComCliente.length,
       totalSalvos,
       totalDuplicados,
       periodo: {
@@ -657,9 +793,382 @@ export class LancamentoExtratoService {
         conta: contaCorrente.contaCorrente,
       },
       cliente: {
-        id: cliente.id,
-        nome: cliente.nome,
+        id: clientes[0].id, // Manter compatibilidade com resposta anterior (primeiro cliente)
+        nome: clientes[0].nome,
       },
+      clientes: clientes.map(c => ({ // Nova propriedade com todos os clientes
+        id: c.id,
+        nome: c.nome,
+      })),
+    };
+  }
+
+  /**
+   * Busca e processa extratos da API BB para TODOS os clientes com CPF/CNPJ cadastrado
+   * Este método será reutilizado por jobs automáticos
+   * Faz uma única chamada à API e filtra os lançamentos comparando com todos os CPF/CNPJ da base
+   */
+  async buscarEProcessarExtratosTodosClientes(
+    dto: BuscarProcessarExtratosTodosClientesDto
+  ): Promise<BuscarProcessarExtratosResponseDto> {
+    // Buscar TODOS os clientes que têm CPF ou CNPJ cadastrado (não nulo e não vazio)
+    const clientes = await this.prisma.cliente.findMany({
+      where: {
+        OR: [
+          { 
+            AND: [
+              { cpf: { not: null } },
+              { cpf: { not: '' } }
+            ]
+          },
+          { 
+            AND: [
+              { cnpj: { not: null } },
+              { cnpj: { not: '' } }
+            ]
+          }
+        ]
+      },
+    });
+
+    if (clientes.length === 0) {
+      throw new NotFoundException('Nenhum cliente com CPF ou CNPJ cadastrado encontrado');
+    }
+
+    // Formatar data para exibição (antes de processar)
+    const dataInicioExibicao = `${dto.dataInicio.slice(0, 2)}/${dto.dataInicio.slice(2, 4)}/${dto.dataInicio.slice(4)}`;
+    const dataFimExibicao = `${dto.dataFim.slice(0, 2)}/${dto.dataFim.slice(2, 4)}/${dto.dataFim.slice(4)}`;
+    console.log(`📅 Buscando extratos para TODOS os ${clientes.length} clientes com CPF/CNPJ, período ${dataInicioExibicao} a ${dataFimExibicao}`);
+
+    // Validar e buscar conta corrente
+    const contaCorrente = await this.contaCorrenteService.findOne(dto.contaCorrenteId);
+
+    // Formatar datas para API do BB
+    const formatDateForAPI = (dateStr: string): string => {
+      if (!/^\d{8}$/.test(dateStr)) {
+        throw new BadRequestException(`Data inválida: ${dateStr}. Formato esperado: DDMMYYYY`);
+      }
+      
+      const dia = parseInt(dateStr.slice(0, 2), 10);
+      const mes = parseInt(dateStr.slice(2, 4), 10);
+      const ano = parseInt(dateStr.slice(4), 10);
+      
+      const diaFormatado = dia.toString();
+      const mesFormatado = mes.toString().padStart(2, '0');
+      return `${diaFormatado}${mesFormatado}${ano}`;
+    };
+
+    const dataInicioFormatada = formatDateForAPI(dto.dataInicio);
+    const dataFimFormatada = formatDateForAPI(dto.dataFim);
+
+    // Log antes de buscar na API
+    console.log(`🔍 [BUSCAR-TODOS-CLIENTES] Iniciando busca na API BB para todos os clientes:`, {
+      contaCorrenteId: dto.contaCorrenteId,
+      agencia: contaCorrente.agencia,
+      conta: contaCorrente.contaCorrente,
+      dataInicio: dto.dataInicio,
+      dataInicioFormatada,
+      dataFim: dto.dataFim,
+      dataFimFormatada,
+      totalClientes: clientes.length
+    });
+
+    // Buscar extratos brutos da API (UMA ÚNICA CHAMADA)
+    let extratosBrutos: any[] = [];
+    try {
+      extratosBrutos = await this.extratosService.consultarExtratosBrutos(
+        dataInicioFormatada,
+        dataFimFormatada,
+        dto.contaCorrenteId
+      );
+      console.log(`✅ [BUSCAR-TODOS-CLIENTES] API retornou ${extratosBrutos.length} extratos brutos`);
+    } catch (error) {
+      console.error(`❌ [BUSCAR-TODOS-CLIENTES] Erro ao consultar extratos brutos na API BB:`, {
+        error: error.message,
+        stack: error.stack,
+        contaCorrenteId: dto.contaCorrenteId,
+        agencia: contaCorrente.agencia,
+        conta: contaCorrente.contaCorrente,
+        dataInicioFormatada,
+        dataFimFormatada,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      throw error; // Re-throw para o controller tratar
+    }
+
+    // Preparar mapa de CPF/CNPJ normalizados para cada cliente
+    const mapaCpfCnpjClientes: Map<string, { clienteId: number; tamanhoEsperado: number }> = new Map();
+    
+    for (const cliente of clientes) {
+      const cpfCnpjClienteRaw = (cliente.cnpj || cliente.cpf || '').replace(/\D/g, '');
+      
+      if (!cpfCnpjClienteRaw) {
+        continue; // Já filtramos, mas garantimos
+      }
+
+      const tamanhoEsperado = cliente.cnpj ? 14 : 11;
+      const cpfCnpjCliente = cpfCnpjClienteRaw.padStart(tamanhoEsperado, '0');
+      
+      mapaCpfCnpjClientes.set(cpfCnpjCliente, { clienteId: cliente.id, tamanhoEsperado });
+    }
+
+    if (mapaCpfCnpjClientes.size === 0) {
+      throw new BadRequestException('Nenhum dos clientes possui CPF ou CNPJ válido');
+    }
+
+    // Função auxiliar para normalizar CPF/CNPJ do extrato
+    const normalizarCpfCnpj = (cpfCnpj: string, tamanhoEsperado: number): string => {
+      const numeros = cpfCnpj.replace(/\D/g, '');
+      if (!numeros) return '';
+      
+      if (numeros.length === tamanhoEsperado) {
+        return numeros;
+      }
+      
+      return numeros.padStart(tamanhoEsperado, '0');
+    };
+
+    // Função para extrair CPF/CNPJ do extrato (mesma lógica do método anterior)
+    const extrairCpfCnpjExtrato = (extrato: any): string => {
+      let cpfCnpjExtratoOriginal = '';
+      
+      if (extrato.numeroCpfCnpjContrapartida && Number(extrato.numeroCpfCnpjContrapartida) !== 0) {
+        cpfCnpjExtratoOriginal = String(extrato.numeroCpfCnpjContrapartida);
+      }
+      
+      if (!cpfCnpjExtratoOriginal || cpfCnpjExtratoOriginal === '0') {
+        const infoComplementar = extrato.textoInformacaoComplementar || '';
+        const cpfCnpjMatch = infoComplementar.match(/\b(\d{11,14})\b/);
+        if (cpfCnpjMatch) {
+          cpfCnpjExtratoOriginal = cpfCnpjMatch[1];
+        }
+      }
+      
+      if (!cpfCnpjExtratoOriginal || cpfCnpjExtratoOriginal === '0') {
+        cpfCnpjExtratoOriginal = String(
+          extrato.numeroCpfCnpj || 
+          extrato.cpfCnpjContrapartida || 
+          extrato.cpfCnpj || 
+          extrato.numeroDocumentoContrapartida ||
+          extrato.documentoContrapartida ||
+          ''
+        );
+      }
+      
+      return cpfCnpjExtratoOriginal.replace(/\D/g, '');
+    };
+
+    // Filtrar: apenas créditos (C) e identificar qual cliente pertence cada extrato
+    const extratosFiltradosComCliente: Array<{ extrato: any; clienteId: number }> = [];
+    
+    for (const extrato of extratosBrutos) {
+      // Apenas créditos
+      if (extrato.indicadorSinalLancamento !== 'C') {
+        continue;
+      }
+
+      const cpfCnpjExtratoRaw = extrairCpfCnpjExtrato(extrato);
+      
+      if (!cpfCnpjExtratoRaw) {
+        continue;
+      }
+
+      // Tentar encontrar correspondência com qualquer cliente
+      let clienteEncontrado: { clienteId: number; tamanhoEsperado: number } | null = null;
+
+      // Tentar primeiro como CPF (11 dígitos)
+      if (cpfCnpjExtratoRaw.length === 11) {
+        const cpfCnpjNormalizado = normalizarCpfCnpj(cpfCnpjExtratoRaw, 11);
+        clienteEncontrado = mapaCpfCnpjClientes.get(cpfCnpjNormalizado) || null;
+      }
+      
+      // Se não encontrou como CPF, tentar como CNPJ (14 dígitos)
+      if (!clienteEncontrado && cpfCnpjExtratoRaw.length === 14) {
+        const cpfCnpjNormalizado = normalizarCpfCnpj(cpfCnpjExtratoRaw, 14);
+        clienteEncontrado = mapaCpfCnpjClientes.get(cpfCnpjNormalizado) || null;
+      }
+
+      // Se ainda não encontrou, tentar normalizar para ambos os tamanhos
+      if (!clienteEncontrado) {
+        const comoCPF = normalizarCpfCnpj(cpfCnpjExtratoRaw, 11);
+        clienteEncontrado = mapaCpfCnpjClientes.get(comoCPF) || null;
+        
+        if (!clienteEncontrado) {
+          const comoCNPJ = normalizarCpfCnpj(cpfCnpjExtratoRaw, 14);
+          clienteEncontrado = mapaCpfCnpjClientes.get(comoCNPJ) || null;
+        }
+      }
+
+      if (clienteEncontrado) {
+        extratosFiltradosComCliente.push({
+          extrato,
+          clienteId: clienteEncontrado.clienteId,
+        });
+      }
+    }
+
+    // Processar e salvar cada lançamento com o clienteId correto
+    let totalSalvos = 0;
+    let totalDuplicados = 0;
+    const clientesComLancamentosSalvos = new Set<number>(); // Rastrear clientes únicos com lançamentos salvos
+
+    for (const { extrato, clienteId } of extratosFiltradosComCliente) {
+      try {
+        // Converter dataLancamento (número DDMMYYYY) para Date
+        const dataLancamentoRaw = extrato.dataLancamento;
+        const dataLancamentoStr = String(dataLancamentoRaw);
+        let dia: number;
+        let mes: number;
+        let ano: number;
+
+        if (dataLancamentoStr.length === 7) {
+          dia = parseInt(dataLancamentoStr.slice(0, 1), 10);
+          mes = parseInt(dataLancamentoStr.slice(1, 3), 10);
+          ano = parseInt(dataLancamentoStr.slice(3), 10);
+        } else if (dataLancamentoStr.length === 8) {
+          dia = parseInt(dataLancamentoStr.slice(0, 2), 10);
+          mes = parseInt(dataLancamentoStr.slice(2, 4), 10);
+          ano = parseInt(dataLancamentoStr.slice(4), 10);
+        } else {
+          throw new Error(`Formato de data inválido: ${dataLancamentoStr}`);
+        }
+
+        const dataLancamento = new Date(ano, mes - 1, dia);
+
+        // Extrair informações do textoInformacaoComplementar
+        const infoComplementar = extrato.textoInformacaoComplementar || '';
+        const horarioMatch = infoComplementar.match(/(\d{2}:\d{2})/);
+        const horarioLancamento = horarioMatch ? horarioMatch[1] : null;
+
+        // Extrair nome da contrapartida
+        let nomeContrapartida: string | undefined = undefined;
+        if (infoComplementar) {
+          const partes = infoComplementar.trim().split(/\s+/);
+          let encontrouCPFCNPJ = false;
+          const partesNome: string[] = [];
+          
+          for (const parte of partes) {
+            if (!encontrouCPFCNPJ && /^\d{11,14}$/.test(parte)) {
+              encontrouCPFCNPJ = true;
+              continue;
+            }
+            if (encontrouCPFCNPJ && parte && !parte.match(/^\d{2}\/\d{2}/) && !parte.match(/^\d{2}:\d{2}$/)) {
+              partesNome.push(parte);
+            }
+          }
+          
+          if (partesNome.length > 0) {
+            nomeContrapartida = partesNome.join(' ');
+          }
+        }
+
+        // Determinar categoria da operação
+        let categoriaOperacao: string | undefined;
+        const descricao = (extrato.textoDescricaoHistorico || '').toUpperCase();
+        if (descricao.includes('PIX') && descricao.includes('RECEBIDO')) {
+          categoriaOperacao = 'PIX_RECEBIDO';
+        } else if (descricao.includes('PIX') && descricao.includes('ENVIADO')) {
+          categoriaOperacao = 'PIX_ENVIADO';
+        } else if (descricao.includes('TRANSFERÊNCIA') || descricao.includes('TRANSFERENCIA')) {
+          categoriaOperacao = 'TRANSFERENCIA';
+        }
+
+        // Converter valor (sempre positivo para créditos)
+        const valorLancamento = Math.abs(Number(extrato.valorLancamento || 0));
+
+        // Verificar se já existe (evitar duplicatas)
+        const numeroDocumento = String(extrato.numeroDocumento || '');
+        const numeroLote = extrato.numeroLote ? BigInt(extrato.numeroLote) : null;
+
+        const lancamentoExistente = await this.prisma.lancamentoExtrato.findUnique({
+          where: {
+            numeroDocumento_dataLancamentoRaw_numeroLote: {
+              numeroDocumento,
+              dataLancamentoRaw: BigInt(dataLancamentoRaw),
+              numeroLote: numeroLote || BigInt(0),
+            },
+          },
+        });
+
+        if (lancamentoExistente) {
+          totalDuplicados++;
+          continue;
+        }
+
+        // Criar lançamento
+        const createDto: CreateLancamentoExtratoDto = {
+          indicadorTipoLancamento: extrato.indicadorTipoLancamento,
+          dataLancamentoRaw: Number(dataLancamentoRaw),
+          dataMovimento: Number(extrato.dataMovimento || 0),
+          codigoAgenciaOrigem: Number(extrato.codigoAgenciaOrigem || 0),
+          numeroLote: extrato.numeroLote ? Number(extrato.numeroLote) : undefined,
+          numeroDocumento,
+          codigoHistorico: extrato.codigoHistorico,
+          textoDescricaoHistorico: extrato.textoDescricaoHistorico,
+          valorLancamentoRaw: Number(extrato.valorLancamento || 0),
+          indicadorSinalLancamento: extrato.indicadorSinalLancamento,
+          textoInformacaoComplementar: extrato.textoInformacaoComplementar,
+          numeroCpfCnpjContrapartida: String(extrato.numeroCpfCnpjContrapartida || ''),
+          indicadorTipoPessoaContrapartida: extrato.indicadorTipoPessoaContrapartida,
+          codigoBancoContrapartida: Number(extrato.codigoBancoContrapartida || 0),
+          codigoAgenciaContrapartida: Number(extrato.codigoAgenciaContrapartida || 0),
+          numeroContaContrapartida: extrato.numeroContaContrapartida,
+          textoDvContaContrapartida: extrato.textoDvContaContrapartida,
+          dataLancamento: dataLancamento.toISOString(),
+          valorLancamento,
+          tipoOperacao: TipoOperacaoExtrato.CREDITO,
+          categoriaOperacao,
+          horarioLancamento,
+          nomeContrapartida,
+          clienteId: clienteId, // Usar o clienteId identificado para este extrato específico
+          contaCorrenteId: dto.contaCorrenteId,
+          agenciaConta: contaCorrente.agencia,
+          numeroConta: contaCorrente.contaCorrente,
+          processado: false,
+          vinculadoPedido: false,
+          vinculadoPagamento: false,
+          vinculacaoAutomatica: false,
+        };
+
+        await this.create(createDto);
+        totalSalvos++;
+        clientesComLancamentosSalvos.add(clienteId); // Adicionar cliente ao Set de clientes com lançamentos salvos
+
+      } catch (error) {
+        // Erro silencioso - continua processando os demais
+        console.error(`Erro ao processar extrato:`, error);
+      }
+    }
+
+    // Buscar informações dos clientes que tiveram lançamentos salvos
+    const clientesIdsArray = Array.from(clientesComLancamentosSalvos);
+    const clientesComLancamentos = clientes.filter(c => clientesIdsArray.includes(c.id));
+
+    console.log(`✅ Busca concluída para todos os clientes: ${totalSalvos} salvos, ${totalDuplicados} duplicados, ${clientesComLancamentos.length} clientes únicos com lançamentos`);
+
+    return {
+      totalEncontrados: extratosBrutos.length,
+      totalFiltrados: extratosFiltradosComCliente.length,
+      totalSalvos,
+      totalDuplicados,
+      periodo: {
+        inicio: dto.dataInicio,
+        fim: dto.dataFim,
+      },
+      contaCorrente: {
+        id: contaCorrente.id,
+        agencia: contaCorrente.agencia,
+        conta: contaCorrente.contaCorrente,
+      },
+      cliente: {
+        id: clientesComLancamentos.length > 0 ? clientesComLancamentos[0].id : clientes[0]?.id, // Manter compatibilidade
+        nome: clientesComLancamentos.length > 0 ? clientesComLancamentos[0].nome : clientes[0]?.nome,
+      },
+      clientes: clientesComLancamentos.map(c => ({
+        id: c.id,
+        nome: c.nome,
+      })),
     };
   }
 

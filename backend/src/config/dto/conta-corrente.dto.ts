@@ -3,7 +3,10 @@ import {
   IsNotEmpty,
   IsOptional,
   MinLength,
-  MaxLength
+  MaxLength,
+  IsBoolean,
+  IsNumber,
+  Min
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -57,6 +60,26 @@ export class CreateContaCorrenteDto {
   @MinLength(1, { message: 'Dígito da conta corrente deve ter pelo menos 1 caractere' })
   @MaxLength(2, { message: 'Dígito da conta corrente deve ter no máximo 2 caracteres' })
   contaCorrenteDigito: string;
+
+  @ApiProperty({
+    description: 'Indica se a conta será monitorada automaticamente',
+    example: false,
+    required: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'Monitorar deve ser um valor booleano' })
+  monitorar?: boolean;
+
+  @ApiProperty({
+    description: 'Intervalo de monitoramento em segundos',
+    example: 3600,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'Intervalo deve ser um número' })
+  @Min(1, { message: 'Intervalo deve ser maior que 0' })
+  intervalo?: number;
 }
 
 export class UpdateContaCorrenteDto {
@@ -114,6 +137,25 @@ export class UpdateContaCorrenteDto {
   @MinLength(1, { message: 'Dígito da conta corrente deve ter pelo menos 1 caractere' })
   @MaxLength(2, { message: 'Dígito da conta corrente deve ter no máximo 2 caracteres' })
   contaCorrenteDigito?: string;
+
+  @ApiProperty({
+    description: 'Indica se a conta será monitorada automaticamente',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'Monitorar deve ser um valor booleano' })
+  monitorar?: boolean;
+
+  @ApiProperty({
+    description: 'Intervalo de monitoramento em segundos',
+    example: 3600,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'Intervalo deve ser um número' })
+  @Min(1, { message: 'Intervalo deve ser maior que 0' })
+  intervalo?: number;
 }
 
 export class ContaCorrenteResponseDto {
@@ -164,4 +206,17 @@ export class ContaCorrenteResponseDto {
     example: '2024-01-15T10:30:00.000Z',
   })
   updatedAt: Date;
+
+  @ApiProperty({
+    description: 'Indica se a conta será monitorada automaticamente',
+    example: false,
+  })
+  monitorar: boolean;
+
+  @ApiProperty({
+    description: 'Intervalo de monitoramento em segundos',
+    example: 3600,
+    required: false,
+  })
+  intervalo?: number | null;
 } 

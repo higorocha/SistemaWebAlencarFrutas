@@ -17,6 +17,7 @@ import {
   InputNumber,
   Space,
   Divider,
+  Alert,
 } from "antd";
 import {
   BankOutlined,
@@ -281,8 +282,19 @@ const DadosBancarios = () => {
     carregarConvenios();
   }, [conveniosForm]);
 
+  // Verifica se a conta corrente em edição tem credenciais de extrato
+  const temCredenciaisExtrato = () => {
+    if (!editingContaCorrente || !editingContaCorrente.credenciaisAPI) {
+      return false;
+    }
+    return editingContaCorrente.credenciaisAPI.some(
+      (cred) => cred.modalidadeApi === "003 - Extratos"
+    );
+  };
+
   const onFinishContaCorrente = async (values) => {
     try {
+      
       // Mapear "conta_banco" para "bancoCodigo" para o backend
       const dadosFormatados = {
         bancoCodigo: values.conta_banco,
@@ -292,17 +304,27 @@ const DadosBancarios = () => {
         contaCorrenteDigito: values.contaCorrenteDigito,
       };
 
+      // Sempre enviar campos de monitoramento quando estiver editando
+      // Se os campos aparecem no formulário, é porque a conta tem credenciais de extrato
+      if (editingContaCorrente && editingContaCorrente.id) {
+        // Usar o valor do formulário diretamente - Boolean() garante true/false
+        dadosFormatados.monitorar = Boolean(values.monitorar);
+        // Enviar intervalo se foi preenchido
+        if (values.intervalo !== undefined && values.intervalo !== null && values.intervalo !== '') {
+          dadosFormatados.intervalo = Number(values.intervalo);
+        }
+      }
+
       if (editingContaCorrente && editingContaCorrente.id) {
         // Atualiza o registro via PUT
-        const response = await axiosInstance.put(
+        await axiosInstance.put(
           `${API_URL.contaCorrente}/${editingContaCorrente.id}`,
           dadosFormatados
         );
-        setContaCorrenteRecords(prev => 
-          prev.map(item => 
-            item.id === editingContaCorrente.id ? response.data : item
-          )
-        );
+        
+        // Recarrega os dados para garantir que venham com relacionamentos atualizados
+        await loadContaCorrente();
+        
         setEditingContaCorrente(null);
         showNotification(
           "success",
@@ -311,11 +333,14 @@ const DadosBancarios = () => {
         );
       } else {
         // Cria um novo registro via POST
-        const response = await axiosInstance.post(
+        await axiosInstance.post(
           API_URL.contaCorrente,
           dadosFormatados
         );
-        setContaCorrenteRecords(prev => [...prev, response.data]);
+        
+        // Recarrega os dados para garantir que venham com relacionamentos atualizados
+        await loadContaCorrente();
+        
         showNotification(
           "success",
           "Dados Bancários",
@@ -355,6 +380,8 @@ const DadosBancarios = () => {
       agenciaDigito: contaCorrente.agenciaDigito,
       contaCorrente: contaCorrente.contaCorrente,
       contaCorrenteDigito: contaCorrente.contaCorrenteDigito,
+      monitorar: Boolean(contaCorrente.monitorar),
+      intervalo: contaCorrente.intervalo || undefined,
     });
   };
 
@@ -456,7 +483,26 @@ const DadosBancarios = () => {
       }
       apiForm.resetFields();
     } catch (error) {
-      showNotification("error", "API", "Erro ao salvar as Credenciais API");
+      console.error('❌ Erro ao salvar credenciais API:', error);
+      
+      // Extrair mensagem de erro mais específica
+      let errorMessage = "Erro ao salvar as Credenciais API!";
+      
+      if (error.response?.data?.message) {
+        if (Array.isArray(error.response.data.message)) {
+          errorMessage = error.response.data.message.join(", ");
+        } else {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      showNotification(
+        "error",
+        "❌ Erro nas Credenciais API",
+        errorMessage
+      );
     }
   };
 
@@ -493,7 +539,26 @@ const DadosBancarios = () => {
             "Credencial API excluída com sucesso!"
           );
         } catch (error) {
-          showNotification("error", "API", "Erro ao excluir a Credencial API");
+          console.error('❌ Erro ao excluir credencial API:', error);
+          
+          // Extrair mensagem de erro mais específica
+          let errorMessage = "Erro ao excluir a Credencial API!";
+          
+          if (error.response?.data?.message) {
+            if (Array.isArray(error.response.data.message)) {
+              errorMessage = error.response.data.message.join(", ");
+            } else {
+              errorMessage = error.response.data.message;
+            }
+          } else if (error.response?.data?.error) {
+            errorMessage = error.response.data.error;
+          }
+          
+          showNotification(
+            "error",
+            "❌ Erro nas Credenciais API",
+            errorMessage
+          );
         }
       },
       onCancel() {
@@ -739,6 +804,86 @@ const DadosBancarios = () => {
                     </Form.Item>
                   </Col>
                 </Row>
+
+                {/* Campos de Monitoramento - Apenas na edição */}
+                {editingContaCorrente && (
+                  <>
+                    <Divider style={{ margin: "24px 0 16px 0", borderColor: "#e8e8e8" }} />
+                    <Title level={5} style={{ color: "#059669", marginBottom: "16px", marginTop: "0" }}>
+                      <ClockCircleOutlined style={{ marginRight: 8 }} />
+                      Configurações de Monitoramento
+                    </Title>
+                    
+                    {!temCredenciaisExtrato() ? (
+                      <Alert
+                        message="Monitoramento Indisponível"
+                        description="Para ativar o monitoramento automático, é necessário vincular credenciais de extrato (003 - Extratos) a esta conta corrente."
+                        type="info"
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                      />
+                    ) : (
+                      <Row gutter={[16, 16]}>
+                        <Col xs={24} sm={12}>
+                          <StyledSwitchContainer>
+                            <Form.Item
+                              label={
+                                <Text strong>
+                                  <ClockCircleOutlined style={{ marginRight: 8 }} />
+                                  Monitorar Conta Automaticamente
+                                </Text>
+                              }
+                            >
+                              <div className="switch-wrapper">
+                                <Form.Item
+                                  name="monitorar"
+                                  valuePropName="checked"
+                                  noStyle
+                                >
+                                  <Switch />
+                                </Form.Item>
+                                <Text style={{ marginLeft: 12, fontSize: '12px', color: '#666' }}>
+                                  Ative para monitorar esta conta automaticamente
+                                </Text>
+                              </div>
+                            </Form.Item>
+                          </StyledSwitchContainer>
+                        </Col>
+                        <Col xs={24} sm={12}>
+                          <Form.Item
+                            name="intervalo"
+                            label={
+                              <Text strong>
+                                <ClockCircleOutlined style={{ marginRight: 8 }} />
+                                Intervalo de Monitoramento (segundos)
+                              </Text>
+                            }
+                            rules={[
+                              ({ getFieldValue }) => ({
+                                validator(_, value) {
+                                  const monitorar = getFieldValue('monitorar');
+                                  if (monitorar && (!value || value <= 0)) {
+                                    return Promise.reject(new Error('Intervalo é obrigatório e deve ser maior que 0 quando monitorar está ativo'));
+                                  }
+                                  return Promise.resolve();
+                                },
+                              }),
+                            ]}
+                          >
+                            <InputNumber
+                              min={1}
+                              placeholder="Ex: 3600 (1 hora)"
+                              size="large"
+                              style={{ width: '100%' }}
+                              formatter={(value) => value ? `${value} segundos` : ''}
+                              parser={(value) => value.replace(' segundos', '').replace(/\D/g, '')}
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    )}
+                  </>
+                )}
 
                 <Form.Item style={{ marginTop: 24 }}>
                   <PrimaryButton 

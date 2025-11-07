@@ -101,9 +101,15 @@ export class CredenciaisAPIService {
       });
 
       if (existingCredenciais) {
-        throw new ConflictException(
-          `Já existem credenciais para ${createCredenciaisAPIDto.banco} - ${createCredenciaisAPIDto.modalidadeApi} nesta conta corrente`
-        );
+        // Formatar mensagem de erro baseada na modalidade
+        let mensagemErro: string;
+        if (createCredenciaisAPIDto.modalidadeApi === '003 - Extratos') {
+          mensagemErro = `Já existem credenciais de Extratos para a conta ${contaCorrente.contaCorrente} da agência ${contaCorrente.agencia}! Por favor, verifique!`;
+        } else {
+          const modalidadeNome = createCredenciaisAPIDto.modalidadeApi.replace(/^\d+\s*-\s*/, ''); // Remove o número e traço do início
+          mensagemErro = `Já existem credenciais de ${modalidadeNome} para a conta ${contaCorrente.contaCorrente} da agência ${contaCorrente.agencia}! Por favor, verifique!`;
+        }
+        throw new ConflictException(mensagemErro);
       }
 
       const novasCredenciais = await this.prisma.credenciaisAPI.create({
@@ -167,6 +173,11 @@ export class CredenciaisAPIService {
           modalidadeApi: updateCredenciaisAPIDto.modalidadeApi || credenciaisAtuais.modalidadeApi,
         };
 
+        // Busca a conta corrente para usar na mensagem de erro
+        const contaCorrenteParaErro = await this.prisma.contaCorrente.findUnique({
+          where: { id: dadosCompletos.contaCorrenteId },
+        });
+
         // Verifica se já existe outra credencial com esses dados
         const existingCredenciais = await this.prisma.credenciaisAPI.findFirst({
           where: {
@@ -178,9 +189,15 @@ export class CredenciaisAPIService {
         });
 
         if (existingCredenciais) {
-          throw new ConflictException(
-            `Já existem credenciais para ${dadosCompletos.banco} - ${dadosCompletos.modalidadeApi} nesta conta corrente`
-          );
+          // Formatar mensagem de erro baseada na modalidade
+          let mensagemErro: string;
+          if (dadosCompletos.modalidadeApi === '003 - Extratos') {
+            mensagemErro = `Já existem credenciais de Extratos para a conta ${contaCorrenteParaErro?.contaCorrente || 'N/A'} da agência ${contaCorrenteParaErro?.agencia || 'N/A'}! Por favor, verifique!`;
+          } else {
+            const modalidadeNome = dadosCompletos.modalidadeApi.replace(/^\d+\s*-\s*/, ''); // Remove o número e traço do início
+            mensagemErro = `Já existem credenciais de ${modalidadeNome} para a conta ${contaCorrenteParaErro?.contaCorrente || 'N/A'} da agência ${contaCorrenteParaErro?.agencia || 'N/A'}! Por favor, verifique!`;
+          }
+          throw new ConflictException(mensagemErro);
         }
       }
 

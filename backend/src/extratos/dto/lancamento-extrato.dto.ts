@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsBoolean, IsInt, IsDateString, IsEnum, IsNotEmpty, Matches } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsBoolean, IsInt, IsDateString, IsEnum, IsNotEmpty, Matches, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { TipoOperacaoExtrato } from '@prisma/client';
@@ -358,6 +358,30 @@ export class LancamentoExtratoResponseDto {
 }
 
 /**
+ * DTO para buscar e processar extratos para todos os clientes com CPF/CNPJ
+ * Usado para busca automática e jobs
+ */
+export class BuscarProcessarExtratosTodosClientesDto {
+  @ApiProperty({ description: 'Data de início no formato DDMMYYYY', example: '01102025' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{8}$/, { message: 'Data deve estar no formato DDMMYYYY' })
+  dataInicio: string;
+
+  @ApiProperty({ description: 'Data de fim no formato DDMMYYYY', example: '31102025' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{8}$/, { message: 'Data deve estar no formato DDMMYYYY' })
+  dataFim: string;
+
+  @ApiProperty({ description: 'ID da conta corrente para buscar extratos', example: 1 })
+  @IsNotEmpty()
+  @IsInt()
+  @Type(() => Number)
+  contaCorrenteId: number;
+}
+
+/**
  * DTO para buscar e processar extratos
  */
 export class BuscarProcessarExtratosDto {
@@ -373,11 +397,27 @@ export class BuscarProcessarExtratosDto {
   @Matches(/^\d{8}$/, { message: 'Data deve estar no formato DDMMYYYY' })
   dataFim: string;
 
-  @ApiProperty({ description: 'ID do cliente para filtrar pagamentos', example: 1 })
-  @IsNotEmpty()
+  @ApiProperty({ 
+    description: 'ID do cliente para filtrar pagamentos (mantido para compatibilidade)', 
+    example: 1,
+    required: false
+  })
+  @IsOptional()
   @IsInt()
   @Type(() => Number)
-  clienteId: number;
+  clienteId?: number;
+
+  @ApiProperty({ 
+    description: 'IDs dos clientes para filtrar pagamentos (aceita múltiplos clientes)', 
+    example: [1, 2, 3],
+    required: false,
+    type: [Number]
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Type(() => Number)
+  clienteIds?: number[];
 
   @ApiProperty({ description: 'ID da conta corrente para buscar extratos', example: 1 })
   @IsNotEmpty()
@@ -415,10 +455,20 @@ export class BuscarProcessarExtratosResponseDto {
     conta: string;
   };
 
-  @ApiProperty({ description: 'Cliente filtrado' })
+  @ApiProperty({ description: 'Cliente filtrado (mantido para compatibilidade)' })
   cliente: {
     id: number;
     nome: string;
   };
+
+  @ApiProperty({ 
+    description: 'Lista de todos os clientes processados', 
+    type: [Object],
+    required: false 
+  })
+  clientes?: Array<{
+    id: number;
+    nome: string;
+  }>;
 }
 

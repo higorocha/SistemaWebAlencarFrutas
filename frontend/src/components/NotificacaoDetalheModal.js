@@ -9,6 +9,7 @@ import {
   UserOutlined,
   CalendarOutlined,
   ShoppingOutlined,
+  EyeOutlined,
   AppleOutlined,
   FileTextOutlined
 } from '@ant-design/icons';
@@ -17,12 +18,14 @@ import moment from '../config/momentConfig';
 import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 import { getFruitIcon } from '../utils/fruitIcons';
+import useResponsive from '../hooks/useResponsive';
 
 const { Title, Text, Paragraph } = Typography;
 
 const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { isMobile } = useResponsive();
 
   // Função para formatar datas
   const formatarData = (dataString) => {
@@ -590,15 +593,15 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
           <span style={{ 
             color: "#ffffff", 
             fontWeight: "600", 
-            fontSize: "1rem",
+            fontSize: isMobile ? "0.875rem" : "1rem",
             backgroundColor: "#059669",
-            padding: "0.75rem 1rem",
+            padding: isMobile ? "0.625rem 0.75rem" : "0.75rem 1rem",
             margin: "-1.25rem -1.5rem 0 -1.5rem",
             display: "block",
             borderRadius: "0.5rem 0.5rem 0 0",
           }}>
-            <ShoppingOutlined style={{ marginRight: "0.5rem" }} />
-            Pedido #{numeroPedido}
+            <EyeOutlined style={{ marginRight: "0.5rem" }} />
+            {isMobile ? `Pedido #${numeroPedido}` : `Visualizar Pedido #${numeroPedido}`}
           </span>
         ) : (
           <Space align="center">
@@ -613,13 +616,28 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
       }
       open={open}
       onCancel={onClose}
-      width={isPedido ? '90%' : 600}
-      style={{ maxWidth: isPedido ? "75rem" : "600px" }}
-      footer={[
-        <Button key="close" onClick={onClose} type="primary">
-          Fechar
-        </Button>
-      ]}
+      width={isPedido ? (isMobile ? '95vw' : '90%') : (isMobile ? '95vw' : 600)}
+      style={{ maxWidth: isPedido ? (isMobile ? '95vw' : "75rem") : (isMobile ? '95vw' : "600px") }}
+      centered
+      footer={
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: isMobile ? "8px" : "12px"
+        }}>
+          <Button 
+            onClick={onClose} 
+            size={isMobile ? "small" : "large"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
+          >
+            Fechar
+          </Button>
+        </div>
+      }
       closeIcon={<CloseOutlined />}
       styles={{
         header: isPedido ? { 
@@ -631,9 +649,12 @@ const NotificacaoDetalheModal = ({ notificacao, open, onClose }) => {
           maxHeight: "calc(100vh - 12.5rem)", 
           overflowY: "auto",
           overflowX: "hidden",
-          padding: "20px"
-        }
+          padding: isMobile ? "12px" : "20px"
+        },
+        wrapper: { zIndex: 1200 },
+        mask: { zIndex: 1200 }
       }}
+      destroyOnClose
     >
       {notificacao ? (
         <>
