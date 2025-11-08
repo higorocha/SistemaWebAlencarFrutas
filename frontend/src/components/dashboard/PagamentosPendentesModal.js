@@ -19,7 +19,8 @@ import {
   Input,
   Divider,
   Tooltip,
-  Empty
+  Empty,
+  Select
 } from "antd";
 import {
   DollarOutlined,
@@ -41,9 +42,13 @@ import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import { getFruitIcon } from "../../utils/fruitIcons";
+import { MaskedDatePicker } from "../common/inputs";
+import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
+import moment from "moment";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+const { Option } = Select;
 
 // Styled components seguindo padrão do sistema - removido, usando ResponsiveTable
 
@@ -126,6 +131,8 @@ const PagamentosPendentesModal = ({
   const [itensComCheckmark, setItensComCheckmark] = useState([]);
   const [pagamentosProcessados, setPagamentosProcessados] = useState(false);
   const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState(false);
+  const [dataPagamentoSelecionada, setDataPagamentoSelecionada] = useState(null);
+  const [formaPagamentoSelecionada, setFormaPagamentoSelecionada] = useState(null);
 
   useEffect(() => {
     if (open && turmaId) {
@@ -143,8 +150,17 @@ const PagamentosPendentesModal = ({
       setItensComCheckmark([]);
       setPagamentosProcessados(false);
       setModalConfirmacaoAberto(false);
+      setDataPagamentoSelecionada(null);
+      setFormaPagamentoSelecionada(null);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (modalConfirmacaoAberto) {
+      setDataPagamentoSelecionada(moment());
+      setFormaPagamentoSelecionada('PIX');
+    }
+  }, [modalConfirmacaoAberto]);
 
   const fetchDados = async () => {
     try {
@@ -215,6 +231,16 @@ const PagamentosPendentesModal = ({
 
   // Função para processar pagamentos (após confirmação)
   const processarPagamentos = async () => {
+    if (!dataPagamentoSelecionada) {
+      showNotification('error', 'Validação', 'Selecione a data do pagamento.');
+      return;
+    }
+
+    if (!formaPagamentoSelecionada) {
+      showNotification('error', 'Validação', 'Selecione a forma de pagamento.');
+      return;
+    }
+
     try {
       // Fechar modal de confirmação
       setModalConfirmacaoAberto(false);
@@ -235,7 +261,11 @@ const PagamentosPendentesModal = ({
 
       const dadosPagamento = {
         colheitaIds: idsParaPagar,
-        observacoes: observacoesPagamento.trim() || undefined
+        observacoes: observacoesPagamento.trim() || undefined,
+        dataPagamento: dataPagamentoSelecionada
+          ? dataPagamentoSelecionada.clone().startOf('day').add(12, 'hours').toISOString()
+          : undefined,
+        formaPagamento: formaPagamentoSelecionada || undefined
       };
 
       const response = await axiosInstance.patch(
@@ -287,6 +317,8 @@ const PagamentosPendentesModal = ({
       setColheitasSelecionadas([]);
       setObservacoesPagamento('');
       setItensComCheckmark([]);
+      setDataPagamentoSelecionada(null);
+      setFormaPagamentoSelecionada(null);
 
       // Chamar callback para atualizar dados no componente pai
       if (onPagamentosProcessados) {
@@ -471,6 +503,52 @@ const PagamentosPendentesModal = ({
       ),
     },
   ];
+
+  const possuiSelecao = colheitasSelecionadas.length > 0;
+  const totalItensConfirmacao = possuiSelecao
+    ? colheitasSelecionadas.length
+    : (dados?.colheitas?.filter(colheita => colheita.status !== 'PAGO').length || 0);
+  const valorTotalConfirmacao = possuiSelecao
+    ? calcularTotalSelecionado()
+    : dados?.resumo?.totalPendente || 0;
+  const mensagemConfirmacao = possuiSelecao
+    ? "Apenas itens selecionados serão pagos"
+    : "Todos os itens pendentes serão pagos";
+
+  const metodosPagamento = [
+    {
+      value: 'PIX',
+      label: 'PIX',
+      color: '#52c41a',
+      icon: <PixIcon width={16} height={16} />
+    },
+    {
+      value: 'BOLETO',
+      label: 'Boleto Bancário',
+      color: '#1890ff',
+      icon: <BoletoIcon width={16} height={16} />
+    },
+    {
+      value: 'TRANSFERENCIA',
+      label: 'Transferência Bancária',
+      color: '#722ed1',
+      icon: <TransferenciaIcon width={16} height={16} />
+    },
+    {
+      value: 'DINHEIRO',
+      label: 'Dinheiro',
+      color: '#faad14',
+      icon: '💰'
+    },
+    {
+      value: 'CHEQUE',
+      label: 'Cheque',
+      color: '#f5222d',
+      icon: '📄'
+    },
+  ];
+
+  const confirmacaoDesabilitada = !dataPagamentoSelecionada || !formaPagamentoSelecionada;
 
 
   return (
@@ -911,6 +989,7 @@ const PagamentosPendentesModal = ({
         cancelText="Cancelar"
         icon={<DollarOutlined />}
         iconColor="#059669"
+        confirmDisabled={confirmacaoDesabilitada}
         customContent={
           <div style={{ textAlign: "center", padding: "16px" }}>
             <div style={{ 
@@ -949,16 +1028,73 @@ const PagamentosPendentesModal = ({
                   <strong>👤 Colhedor:</strong> {turmaNome}
                 </div>
                 <div style={{ marginBottom: "4px" }}>
-                  <strong>📦 Total de itens:</strong> {itensComCheckmark.length > 0 ? itensComCheckmark.length : dados?.colheitas?.length || 0}
+                  <strong>📦 Total de itens:</strong> {totalItensConfirmacao}
                 </div>
                 <div style={{ marginBottom: "4px" }}>
-                  <strong>💰 Valor total:</strong> R$ {(itensComCheckmark.length > 0 ? calcularTotalSelecionado() : dados?.resumo?.totalPendente || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <strong>💰 Valor total:</strong> R$ {valorTotalConfirmacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </div>
                 <div style={{ marginBottom: "0" }}>
-                  <strong>ℹ️ Observação:</strong> {itensComCheckmark.length > 0 ? "Apenas itens selecionados serão pagos" : "Todos os itens pendentes serão pagos"}
+                  <strong>ℹ️ Observação:</strong> {mensagemConfirmacao}
                 </div>
               </div>
             </div>
+            {/* Campos adicionais */}
+            <div style={{ marginTop: "16px" }}>
+              <Row gutter={[12, 12]}>
+                <Col xs={24} sm={12}>
+                  <div style={{ textAlign: "left", marginBottom: "6px" }}>
+                    <Space>
+                      <CalendarOutlined style={{ color: "#059669" }} />
+                      <Text strong style={{ color: "#059669" }}>Data do Pagamento</Text>
+                    </Space>
+                  </div>
+                  <MaskedDatePicker
+                    value={dataPagamentoSelecionada}
+                    onChange={setDataPagamentoSelecionada}
+                    size="middle"
+                    style={{ borderRadius: 6 }}
+                    disabledDate={(current) => current && current > moment().endOf('day')}
+                    placeholder="Selecione a data"
+                  />
+                </Col>
+                <Col xs={24} sm={12}>
+                  <div style={{ textAlign: "left", marginBottom: "6px" }}>
+                    <Space>
+                      <CreditCardOutlined style={{ color: "#059669" }} />
+                      <Text strong style={{ color: "#059669" }}>Método</Text>
+                    </Space>
+                  </div>
+                  <Select
+                    value={formaPagamentoSelecionada}
+                    onChange={setFormaPagamentoSelecionada}
+                    placeholder="Selecione a forma"
+                    style={{ width: "100%" }}
+                    size="middle"
+                  >
+                    {metodosPagamento.map((metodo) => (
+                      <Option key={metodo.value} value={metodo.value}>
+                        <Space>
+                          {typeof metodo.icon === 'string' ? (
+                            <span>{metodo.icon}</span>
+                          ) : (
+                            metodo.icon
+                          )}
+                          <span>{metodo.label}</span>
+                        </Space>
+                      </Option>
+                    ))}
+                  </Select>
+                </Col>
+              </Row>
+            </div>
+            {confirmacaoDesabilitada && (
+              <Alert
+                type="warning"
+                showIcon
+                message="Preencha a data e a forma de pagamento para continuar."
+                style={{ marginTop: "16px", textAlign: "left" }}
+              />
+            )}
           </div>
         }
       />

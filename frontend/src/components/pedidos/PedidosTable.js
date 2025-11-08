@@ -14,6 +14,7 @@ import {
   message,
   Popconfirm,
   Empty,
+  DatePicker,
 } from "antd";
 import ResponsiveTable from "../common/ResponsiveTable";
 import FrutasPedidoModal from "./FrutasPedidoModal";
@@ -130,7 +131,10 @@ const PedidosTable = ({
   onColheita, 
   onPrecificacao, 
   onPagamento,
-  onPedidoRemovido
+  onPedidoRemovido,
+  onResetPagination,
+  onFilterDataPrevista,
+  dataPrevistaFilterValue,
 }) => {
   const [frutasModalOpen, setFrutasModalOpen] = useState(false);
   const [turmasModalOpen, setTurmasModalOpen] = useState(false);
@@ -466,8 +470,74 @@ const PedidosTable = ({
       title: 'Data Prevista',
       dataIndex: 'dataPrevistaColheita',
       key: 'dataPrevistaColheita',
-      width: 90,
+      width: 95,
       align: 'left',
+      filteredValue: dataPrevistaFilterValue ? [dataPrevistaFilterValue] : [],
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => {
+        const selectedDate = selectedKeys && selectedKeys[0] ? moment(selectedKeys[0], 'YYYY-MM-DD') : null;
+        return (
+          <div style={{ padding: 8 }}>
+            <DatePicker
+              format="DD/MM/YYYY"
+              value={selectedDate}
+              onChange={(date) => {
+                const formatted = date ? date.format('YYYY-MM-DD') : undefined;
+                setSelectedKeys(formatted ? [formatted] : []);
+              }}
+              style={{ marginBottom: 8, display: 'block' }}
+              placeholder="Selecione a data"
+            />
+            <Space>
+              <Button
+                type="primary"
+                size="small"
+                onClick={() => {
+                  onResetPagination?.();
+                  if (selectedKeys && selectedKeys[0]) {
+                    onFilterDataPrevista?.(selectedKeys[0]);
+                  }
+                  confirm({ closeDropdown: true });
+                }}
+              >
+                Filtrar
+              </Button>
+              <Button
+                size="small"
+                onClick={() => {
+                  clearFilters?.();
+                  setSelectedKeys([]);
+                  onFilterDataPrevista?.(null);
+                  onResetPagination?.();
+                  confirm({ closeDropdown: true });
+                }}
+              >
+                Limpar
+              </Button>
+            </Space>
+          </div>
+        );
+      },
+      filterIcon: (filtered) => (
+        <Tooltip title="Aplicar filtro de data prevista">
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              backgroundColor: filtered ? '#1890ff' : 'transparent',
+            }}
+          >
+            <CalendarOutlined style={{ color: '#ffffff' }} />
+          </span>
+        </Tooltip>
+      ),
+      onFilter: (value, record) => {
+        if (!record.dataPrevistaColheita) return false;
+        return moment(record.dataPrevistaColheita).format('YYYY-MM-DD') === value;
+      },
       render: (date) => (
         <Text style={{ fontSize: 12 }}>
           {date ? moment(date).format('DD/MM/YY') : '-'}
@@ -623,7 +693,7 @@ const PedidosTable = ({
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      width: 140,
+      width: 135,
       align: 'left',
       sorter: (a, b) => a.status.localeCompare(b.status),
       render: (status) => {
@@ -800,6 +870,9 @@ PedidosTable.propTypes = {
   onPrecificacao: PropTypes.func.isRequired,
   onPagamento: PropTypes.func.isRequired,
   onPedidoRemovido: PropTypes.func,
+  onResetPagination: PropTypes.func,
+  onFilterDataPrevista: PropTypes.func,
+  dataPrevistaFilterValue: PropTypes.string,
 };
 
 

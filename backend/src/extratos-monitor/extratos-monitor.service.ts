@@ -449,9 +449,11 @@ export class ExtratosMonitorService {
     usuariosElegiveis: any[]
   ): Promise<void> {
     try {
-      const nomeCliente = lancamento.cliente?.nome || 'Cliente não identificado';
+      const nomeCliente = lancamento.cliente?.nome || lancamento.nomeContrapartida || 'Cliente não identificado';
       const valorFormatado = this.formatarValorMonetario(Number(lancamento.valorLancamento));
       const dataFormatada = new Date(lancamento.dataLancamento).toLocaleDateString('pt-BR');
+      const documentoContrapartida = lancamento.numeroCpfCnpjContrapartida || 'Não informado';
+      const nomeContrapartida = lancamento.nomeContrapartida || 'Não identificado';
       
       // Buscar dados da conta corrente
       const contaCorrente = await this.prisma.contaCorrente.findUnique({
@@ -466,16 +468,18 @@ export class ExtratosMonitorService {
       const conta = contaCorrente?.contaCorrente || 'N/A';
       
       // Gerar conteúdo simplificado para o menu
-      const conteudoMenu = `Cliente: ${nomeCliente}\nValor: ${valorFormatado}\nData: ${dataFormatada}`;
+      const conteudoMenu = `Origem: ${nomeCliente}\nValor: ${valorFormatado}\nData: ${dataFormatada}`;
       
       // Gerar conteúdo completo para modal
       const conteudoCompleto = `Novo Pagamento Recebido\n\n` +
-        `Cliente: ${nomeCliente}\n` +
+        `Origem: ${nomeCliente}\n` +
+        `Documento: ${documentoContrapartida}\n` +
         `Valor: ${valorFormatado}\n` +
         `Data: ${dataFormatada}\n` +
         `Conta: ${agencia}/${conta}\n` +
         `Descrição: ${lancamento.textoDescricaoHistorico || 'N/A'}\n` +
-        `Categoria: ${lancamento.categoriaOperacao || 'N/A'}`;
+        `Categoria: ${lancamento.categoriaOperacao || 'N/A'}\n` +
+        `Contrapartida (nome): ${nomeContrapartida}`;
       
       const titulo = 'Novo pagamento recebido';
       
@@ -507,6 +511,7 @@ export class ExtratosMonitorService {
                 lancamentoId: lancamento.id,
                 clienteId: lancamento.clienteId,
                 clienteNome: nomeCliente,
+                contrapartidaDocumento: documentoContrapartida,
                 valor: lancamento.valorLancamento,
                 dataLancamento: lancamento.dataLancamento,
                 contaCorrenteId: lancamento.contaCorrenteId,

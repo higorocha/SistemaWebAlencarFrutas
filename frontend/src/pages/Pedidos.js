@@ -48,6 +48,7 @@ const Pedidos = () => {
   const { isMobile, isTablet } = useResponsive();
   const [pedidos, setPedidos] = useState([]);
   const [pedidosFiltrados, setPedidosFiltrados] = useState([]);
+  const [dataPrevistaFiltroTabela, setDataPrevistaFiltroTabela] = useState(null);
   
   // Estados para paginação controlada
   const [currentPage, setCurrentPage] = useState(1);
@@ -238,40 +239,58 @@ const Pedidos = () => {
   useEffect(() => {
     let dataInicio = null;
     let dataFim = null;
+    let tipoDataParaEnviar = dateFilterType;
 
-    // Se tem período rápido selecionado, calcular as datas
-    if (quickDateFilter) {
+    if (dataPrevistaFiltroTabela) {
+      const dataMoment = moment(dataPrevistaFiltroTabela, 'YYYY-MM-DD');
+      dataInicio = dataMoment.clone().startOf('day').toISOString();
+      dataFim = dataMoment.clone().endOf('day').toISOString();
+      tipoDataParaEnviar = 'colheita';
+    } else if (quickDateFilter) {
       const calculatedDates = calculateQuickDateRange(quickDateFilter);
       if (calculatedDates) {
         dataInicio = calculatedDates[0].toISOString();
         dataFim = calculatedDates[1].toISOString();
       }
-    } 
-    // Senão, usar o RangePicker se estiver preenchido
-    else if (dateRange && dateRange.length === 2) {
+    } else if (dateRange && dateRange.length === 2) {
       dataInicio = dateRange[0].toISOString();
       dataFim = dateRange[1].toISOString();
     }
 
-    // ✅ Usar função auxiliar para criar filtros aninhados
-    // Só passa o tipoData se houver filtros de data ativos
-    const tipoDataParaEnviar = (dataInicio && dataFim) ? dateFilterType : 'criacao';
-    
+    if (!dataPrevistaFiltroTabela && !(dataInicio && dataFim)) {
+      tipoDataParaEnviar = 'criacao';
+    }
+
     fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoDataParaEnviar);
     
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateRange, quickDateFilter, calculateQuickDateRange]);
+  }, [
+    fetchPedidos,
+    currentPage,
+    pageSize,
+    createFiltersObject,
+    statusFilters,
+    dateRange,
+    quickDateFilter,
+    calculateQuickDateRange,
+    dataPrevistaFiltroTabela,
+    dateFilterType,
+  ]);
 
   // ✅ Efeito separado para reaplicar filtros quando mudar o tipo de data (se houver filtros ativos)
   useEffect(() => {
-    // Só reaplica se houver filtros de data ativos
-    const temFiltroDeData = quickDateFilter || (dateRange && dateRange.length === 2);
+    const temFiltroDeData = dataPrevistaFiltroTabela || quickDateFilter || (dateRange && dateRange.length === 2);
     
     if (temFiltroDeData) {
       let dataInicio = null;
       let dataFim = null;
+      let tipoDataAtual = dateFilterType;
 
-      // Recalcular as datas
-      if (quickDateFilter) {
+      if (dataPrevistaFiltroTabela) {
+        const dataMoment = moment(dataPrevistaFiltroTabela, 'YYYY-MM-DD');
+        dataInicio = dataMoment.clone().startOf('day').toISOString();
+        dataFim = dataMoment.clone().endOf('day').toISOString();
+        tipoDataAtual = 'colheita';
+      } else if (quickDateFilter) {
         const calculatedDates = calculateQuickDateRange(quickDateFilter);
         if (calculatedDates) {
           dataInicio = calculatedDates[0].toISOString();
@@ -282,13 +301,12 @@ const Pedidos = () => {
         dataFim = dateRange[1].toISOString();
       }
 
-      // Reaplicar filtro com o novo tipo
       if (dataInicio && dataFim) {
-        fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, dateFilterType);
+        fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoDataAtual);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFilterType]); // Só monitora mudanças no dateFilterType
+  }, [dateFilterType, dataPrevistaFiltroTabela]); // Só monitora mudanças no tipo e filtro de data prevista
 
   // Funções de manipulação de filtros
   const handleSearch = useCallback((value) => {
@@ -412,6 +430,7 @@ const Pedidos = () => {
      setDateFilterType("criacao"); // Reset para "Criação"
      setQuickDateFilter(""); // Reset filtro rápido de período
      setDateRange([]);
+    setDataPrevistaFiltroTabela(null);
      setCurrentPage(1);
    }, []);
 
@@ -1278,6 +1297,20 @@ const Pedidos = () => {
             onPrecificacao={handleOpenPrecificacaoModal}
             onPagamento={handleOpenPagamentoModal}
             onPedidoRemovido={handlePedidoRemovido}
+            onResetPagination={() => setCurrentPage(1)}
+            onFilterDataPrevista={(valor) => {
+              setCurrentPage(1);
+              if (valor) {
+                setQuickDateFilter('');
+                setDateRange([]);
+                setDateFilterType('colheita');
+                setDataPrevistaFiltroTabela(valor);
+              } else {
+                setDataPrevistaFiltroTabela(null);
+                setDateFilterType('criacao');
+              }
+            }}
+            dataPrevistaFilterValue={dataPrevistaFiltroTabela}
           />
         </Suspense>
 

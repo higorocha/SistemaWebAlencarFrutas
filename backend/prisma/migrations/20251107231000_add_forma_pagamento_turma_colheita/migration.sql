@@ -1,0 +1,2 @@
+-- Esta migration já foi aplicada manualmente anteriormente.
+-- Nenhuma operação é executada aqui para manter consistência com o histórico do banco.

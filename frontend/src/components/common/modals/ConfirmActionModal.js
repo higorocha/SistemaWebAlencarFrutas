@@ -23,6 +23,7 @@ const ConfirmActionModal = ({
   cancelText = "Cancelar",
   confirmButtonType = "primary",
   confirmButtonDanger = false,
+  confirmDisabled = false,
   icon = <ExclamationCircleOutlined />,
   iconColor = "#fa8c16",
   customContent = null,
@@ -129,6 +130,7 @@ const ConfirmActionModal = ({
           type="primary"
           danger={confirmButtonDanger}
           onClick={onConfirm}
+          disabled={confirmDisabled}
           size={isMobile ? "small" : "large"}
           style={{
             backgroundColor: confirmButtonDanger ? "#ff4d4f" : "#059669",
@@ -154,6 +156,7 @@ ConfirmActionModal.propTypes = {
   cancelText: PropTypes.string,
   confirmButtonType: PropTypes.string,
   confirmButtonDanger: PropTypes.bool,
+  confirmDisabled: PropTypes.bool,
   icon: PropTypes.node,
   iconColor: PropTypes.string,
   customContent: PropTypes.node,

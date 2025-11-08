@@ -330,6 +330,7 @@ model Pedido {
   cliente              Cliente                    @relation(fields: [clienteId], references: [id])
   custosColheita       TurmaColheitaPedidoCusto[]
   lancamentosExtrato   LancamentoExtrato[]
+  lancamentosExtratoVinculos LancamentoExtratoPedido[]
   historico            HistoricoPedido[]
 
   @@map("pedidos")
@@ -409,8 +410,8 @@ model LancamentoExtrato {
   nomeContrapartida          String?              @db.VarChar(200) // Nome extraído do textoInformacaoComplementar (ex: "AGC NORDEST")
   
   // Relacionamento com Cliente (OBRIGATÓRIO - só salvamos lançamentos de clientes do sistema)
-  clienteId                  Int
-  cliente                    Cliente              @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  clienteId                  Int?
+  cliente                    Cliente?             @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   
   // Relacionamento com Pedido (opcional - quando for detectada correspondência automática ou vinculação manual)
   pedidoId                   Int?
@@ -427,10 +428,15 @@ model LancamentoExtrato {
   vinculadoPagamento         Boolean              @default(false) // Se foi criado um registro em PagamentosPedidos
   vinculacaoAutomatica       Boolean              @default(false) // Se a vinculação foi automática (true) ou manual (false)
   valorComparacao            Decimal?             @db.Decimal(15, 2) // Valor usado na comparação com pedido (pode ter pequenas diferenças)
+  valorDisponivel            Decimal              @default(0) @db.Decimal(15, 2) // Saldo disponível para novas vinculações
+  valorVinculadoTotal        Decimal              @default(0) @db.Decimal(15, 2) // Soma dos valores já vinculados
+  estaLiquidado              Boolean              @default(false) // Indica se o saldo foi completamente distribuído
   observacoesProcessamento   String?             @db.Text // Observações sobre o processamento/vinculação
   
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
+
+  vinculos                   LancamentoExtratoPedido[]
 
   // Índices para performance nas consultas e filtros
   @@index([dataLancamento])
@@ -450,6 +456,24 @@ model LancamentoExtrato {
   // Unique constraint para evitar duplicatas ao importar
   @@unique([numeroDocumento, dataLancamentoRaw, numeroLote])
   @@map("lancamentos_extrato")
+}
+
+model LancamentoExtratoPedido {
+  id                   Int               @id @default(autoincrement())
+  lancamentoExtratoId  BigInt
+  pedidoId             Int
+  valorVinculado       Decimal           @db.Decimal(15, 2)
+  vinculacaoAutomatica Boolean           @default(false)
+  observacoes          String?           @db.Text
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  lancamentoExtrato    LancamentoExtrato @relation(fields: [lancamentoExtratoId], references: [id], onDelete: Cascade)
+  pedido               Pedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@index([lancamentoExtratoId])
+  @@index([pedidoId])
+  @@map("lancamentos_extrato_pedidos")
 }
 
 model FrutasPedidosAreas {
@@ -559,6 +583,7 @@ model TurmaColheitaPedidoCusto {
   valorColheita     Float?
   dataColheita      DateTime?
   pagamentoEfetuado Boolean       @default(false)
+  formaPagamento    String?       @db.VarChar(50)
   observacoes       String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt

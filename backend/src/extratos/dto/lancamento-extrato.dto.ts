@@ -122,10 +122,10 @@ export class CreateLancamentoExtratoDto {
   @IsString()
   nomeContrapartida?: string;
 
-  @ApiProperty({ description: 'ID do cliente (obrigatório)', example: 1 })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ description: 'ID do cliente identificado', example: 1 })
+  @IsOptional()
   @IsInt()
-  clienteId: number;
+  clienteId?: number;
 
   @ApiPropertyOptional({ description: 'ID do pedido vinculado', example: 1 })
   @IsOptional()
@@ -172,6 +172,21 @@ export class CreateLancamentoExtratoDto {
   @IsNumber()
   valorComparacao?: number;
 
+  @ApiPropertyOptional({ description: 'Valor disponível para vinculações', example: 5000 })
+  @IsOptional()
+  @IsNumber()
+  valorDisponivel?: number;
+
+  @ApiPropertyOptional({ description: 'Total já vinculado a pedidos', example: 13557.4 })
+  @IsOptional()
+  @IsNumber()
+  valorVinculadoTotal?: number;
+
+  @ApiPropertyOptional({ description: 'Indica se o lançamento foi totalmente liquidado', example: false })
+  @IsOptional()
+  @IsBoolean()
+  estaLiquidado?: boolean;
+
   @ApiPropertyOptional({ description: 'Observações sobre o processamento' })
   @IsOptional()
   @IsString()
@@ -212,6 +227,21 @@ export class UpdateLancamentoExtratoDto {
   @IsNumber()
   valorComparacao?: number;
 
+  @ApiPropertyOptional({ description: 'Valor disponível para vinculações', example: 5000 })
+  @IsOptional()
+  @IsNumber()
+  valorDisponivel?: number;
+
+  @ApiPropertyOptional({ description: 'Total já vinculado a pedidos', example: 13557.4 })
+  @IsOptional()
+  @IsNumber()
+  valorVinculadoTotal?: number;
+
+  @ApiPropertyOptional({ description: 'Indica se o lançamento foi totalmente liquidado', example: false })
+  @IsOptional()
+  @IsBoolean()
+  estaLiquidado?: boolean;
+
   @ApiPropertyOptional({ description: 'Observações sobre o processamento' })
   @IsOptional()
   @IsString()
@@ -226,6 +256,12 @@ export class VincularLancamentoPedidoDto {
   @IsNotEmpty()
   @IsInt()
   pedidoId: number;
+
+  @ApiPropertyOptional({ description: 'Valor que será vinculado ao pedido', example: 5000 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  valorVinculado?: number;
 
   @ApiPropertyOptional({ description: 'Observações sobre a vinculação' })
   @IsOptional()
@@ -316,8 +352,8 @@ export class LancamentoExtratoResponseDto {
   @ApiPropertyOptional({ description: 'Nome da contrapartida' })
   nomeContrapartida?: string;
 
-  @ApiProperty({ description: 'ID do cliente' })
-  clienteId: number;
+  @ApiPropertyOptional({ description: 'ID do cliente' })
+  clienteId?: number;
 
   @ApiPropertyOptional({ description: 'ID do pedido vinculado' })
   pedidoId?: number;
@@ -333,6 +369,15 @@ export class LancamentoExtratoResponseDto {
 
   @ApiProperty({ description: 'Se a vinculação foi automática' })
   vinculacaoAutomatica: boolean;
+
+  @ApiProperty({ description: 'Valor disponível para vinculações' })
+  valorDisponivel: number;
+
+  @ApiProperty({ description: 'Total já vinculado a pedidos' })
+  valorVinculadoTotal: number;
+
+  @ApiProperty({ description: 'Indica se o lançamento foi totalmente liquidado' })
+  estaLiquidado: boolean;
 
   @ApiProperty({ description: 'Data de criação' })
   createdAt: Date;
@@ -355,6 +400,21 @@ export class LancamentoExtratoResponseDto {
     valorFinal?: number;
     status: string;
   };
+
+  @ApiPropertyOptional({
+    description: 'Vínculos parciais associados ao lançamento',
+    type: [Object],
+  })
+  vinculos?: Array<{
+    id: number;
+    pedidoId: number;
+    pedidoNumero: string;
+    valorVinculado: number;
+    vinculacaoAutomatica: boolean;
+    observacoes?: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
 }
 
 /**
@@ -433,7 +493,7 @@ export class BuscarProcessarExtratosResponseDto {
   @ApiProperty({ description: 'Total de lançamentos encontrados na API' })
   totalEncontrados: number;
 
-  @ApiProperty({ description: 'Total de lançamentos filtrados (créditos do cliente)' })
+  @ApiProperty({ description: 'Total de lançamentos elegíveis (créditos retornados pela API)' })
   totalFiltrados: number;
 
   @ApiProperty({ description: 'Total de lançamentos salvos (não duplicados)' })
@@ -441,6 +501,21 @@ export class BuscarProcessarExtratosResponseDto {
 
   @ApiProperty({ description: 'Total de lançamentos duplicados (já existentes)' })
   totalDuplicados: number;
+
+  @ApiPropertyOptional({ description: 'Total de lançamentos com cliente identificado' })
+  totalComClienteIdentificado?: number;
+
+  @ApiPropertyOptional({ description: 'Total de lançamentos sem cliente identificado' })
+  totalSemClienteIdentificado?: number;
+
+  @ApiPropertyOptional({ description: 'Total de lançamentos salvos com cliente identificado' })
+  totalSalvosComClienteIdentificado?: number;
+
+  @ApiPropertyOptional({ description: 'Total de lançamentos salvos sem cliente identificado' })
+  totalSalvosSemClienteIdentificado?: number;
+
+  @ApiPropertyOptional({ description: 'Total de lançamentos que apresentaram erro durante o salvamento' })
+  totalErros?: number;
 
   @ApiProperty({ description: 'Período consultado' })
   periodo: {
@@ -455,8 +530,8 @@ export class BuscarProcessarExtratosResponseDto {
     conta: string;
   };
 
-  @ApiProperty({ description: 'Cliente filtrado (mantido para compatibilidade)' })
-  cliente: {
+  @ApiPropertyOptional({ description: 'Cliente principal processado (mantido para compatibilidade)' })
+  cliente?: {
     id: number;
     nome: string;
   };

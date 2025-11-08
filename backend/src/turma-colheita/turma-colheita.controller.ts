@@ -281,7 +281,12 @@ export class TurmaColheitaController {
   })
   processarPagamentos(
     @Param('id') id: string,
-    @Body() dadosPagamento: { colheitaIds: number[]; observacoes?: string }
+    @Body() dadosPagamento: {
+      colheitaIds: number[];
+      observacoes?: string;
+      formaPagamento?: string;
+      dataPagamento?: string;
+    }
   ) {
     return this.turmaColheitaService.processarPagamentosSeletivos(+id, dadosPagamento);
   }

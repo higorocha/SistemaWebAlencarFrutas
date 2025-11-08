@@ -55,6 +55,8 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   // Estados para vinculação manual
   const [vinculacaoModalOpen, setVinculacaoModalOpen] = useState(false);
   const [lancamentoParaVincular, setLancamentoParaVincular] = useState(null);
+  const [pedidosVinculacao, setPedidosVinculacao] = useState([]);
+  const [loadingPedidosVinculacao, setLoadingPedidosVinculacao] = useState(false);
 
   // Estados para visualização de pedido
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
@@ -390,10 +392,52 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     }
   }, [cliente?.id, rangeBuscaAPI, contaSelecionada, fetchPagamentosCliente]);
 
-  // Handler para abrir modal de vinculação manual
+  const carregarPedidosParaLancamento = useCallback(async (lancamentoReferencia) => {
+    if (!cliente?.id) {
+      setPedidosVinculacao([]);
+      return;
+    }
+
+    setLoadingPedidosVinculacao(true);
+    try {
+      const statuses = 'PRECIFICACAO_REALIZADA,AGUARDANDO_PAGAMENTO,PAGAMENTO_PARCIAL';
+      const response = await axiosInstance.get(`/api/pedidos/cliente/${cliente.id}`, {
+        params: { status: statuses },
+      });
+
+      const pedidosResposta = response?.data;
+      let pedidosArray = Array.isArray(pedidosResposta)
+        ? pedidosResposta
+        : Array.isArray(pedidosResposta?.data)
+          ? pedidosResposta.data
+          : [];
+
+      if (!Array.isArray(pedidosArray)) {
+        pedidosArray = [];
+      }
+
+      const pedidosNormalizados = pedidosArray
+        .map((pedido) => ({
+          ...pedido,
+          cliente: pedido.cliente || cliente,
+        }))
+        .filter(Boolean);
+
+      setPedidosVinculacao(pedidosNormalizados);
+    } catch (error) {
+      console.error('Erro ao carregar pedidos para vinculação:', error);
+      setPedidosVinculacao([]);
+      showNotification('error', 'Erro', 'Não foi possível carregar pedidos para vinculação');
+    } finally {
+      setLoadingPedidosVinculacao(false);
+    }
+  }, [cliente, showNotification]);
+
   const handleAbrirVinculacaoManual = (lancamento) => {
     setLancamentoParaVincular(lancamento);
+    setPedidosVinculacao([]);
     setVinculacaoModalOpen(true);
+    carregarPedidosParaLancamento(lancamento);
   };
 
   // Função para buscar pedido atualizado do banco
@@ -426,57 +470,68 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   };
 
   // Handler para executar vinculação (dupla operação)
-  const handleVincularPagamento = async (lancamento, pedido) => {
+  const handleVincularPagamento = async (lancamento, itensSelecionados) => {
+    if (!Array.isArray(itensSelecionados) || itensSelecionados.length === 0) {
+      showNotification('warning', 'Atenção', 'Selecione pelo menos um pedido para vincular');
+      return;
+    }
+
     try {
       setLoadingPagamentos(true);
 
-      // 1. Vincular lançamento ao pedido na tabela LancamentoExtrato
+      const payload = {
+        itens: itensSelecionados.map((item) => ({
+          pedidoId: item.pedidoId,
+          valorVinculado: item.valorVinculado,
+        })),
+      };
+
       await axiosInstance.post(
-        `/api/lancamentos-extrato/${lancamento.id}/vincular-pedido`,
-        {
-          pedidoId: pedido.id,
-          observacoes: 'Vinculação manual pelo usuário'
-        }
+        `/api/lancamentos-extrato/${lancamento.id}/vinculos`,
+        payload
       );
 
-      // 2. Criar pagamento na tabela PagamentosPedidos
       const metodoPagamento = lancamento.categoriaOperacao === 'PIX_RECEBIDO'
         ? 'PIX'
         : lancamento.categoriaOperacao === 'PIX_ENVIADO'
           ? 'PIX'
           : 'TRANSFERENCIA';
 
-      const pagamentoData = {
-        pedidoId: pedido.id,
-        dataPagamento: moment(lancamento.dataLancamento).startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss'),
-        valorRecebido: lancamento.valorLancamento,
-        metodoPagamento: metodoPagamento,
-        contaDestino: 'ALENCAR', // Pode ser configurável no futuro
-        observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
-      };
+      const dataPagamentoBase = moment(lancamento.dataLancamento)
+        .startOf('day')
+        .add(12, 'hours')
+        .format('YYYY-MM-DD HH:mm:ss');
 
-      await axiosInstance.post(
-        `/api/pedidos/pagamentos`,
-        pagamentoData
-      );
+      for (const item of itensSelecionados) {
+        const pedidoReferencia = item.pedido;
+        const pagamentoData = {
+          pedidoId: item.pedidoId,
+          dataPagamento: dataPagamentoBase,
+          valorRecebido: item.valorVinculado,
+          metodoPagamento,
+          contaDestino: 'ALENCAR',
+          observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
+        };
 
-      showNotification(
-        'success',
-        'Sucesso',
-        `Pagamento de ${formatCurrency(lancamento.valorLancamento)} vinculado ao pedido ${pedido.numeroPedido} com sucesso!`
-      );
+        await axiosInstance.post('/api/pedidos/pagamentos', pagamentoData);
 
-      // Recarregar lista de lançamentos
+        showNotification(
+          'success',
+          'Pagamento vinculado',
+          `Pagamento de ${formatCurrency(item.valorVinculado)} vinculado ao pedido ${pedidoReferencia?.numeroPedido || item.pedidoId}`
+        );
+      }
+
       await fetchPagamentosCliente();
 
-      // Fechar modal (o modal filho já faz isso)
       setVinculacaoModalOpen(false);
       setLancamentoParaVincular(null);
+      setPedidosVinculacao([]);
     } catch (error) {
       console.error('Erro ao vincular pagamento:', error);
-      const message = error.response?.data?.message || 'Erro ao vincular pagamento ao pedido';
-      showNotification('error', 'Erro', message);
-      throw error; // Re-throw para o modal filho tratar
+      const messageErro = error.response?.data?.message || 'Erro ao vincular pagamento ao pedido';
+      showNotification('error', 'Erro', messageErro);
+      throw error;
     } finally {
       setLoadingPagamentos(false);
     }
@@ -1089,9 +1144,12 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         onClose={() => {
           setVinculacaoModalOpen(false);
           setLancamentoParaVincular(null);
+          setPedidosVinculacao([]);
         }}
         lancamento={lancamentoParaVincular}
         cliente={cliente}
+        pedidosDisponiveis={pedidosVinculacao}
+        loadingPedidos={loadingPedidosVinculacao}
         onVincular={handleVincularPagamento}
       />
 

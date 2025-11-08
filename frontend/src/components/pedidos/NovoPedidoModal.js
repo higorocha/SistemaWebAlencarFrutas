@@ -128,12 +128,13 @@ const NovoPedidoModal = ({
       }
 
       // Processar datas para formato ISO
-      const dataPedidoProcessada = values.dataPedido
-        ? moment(values.dataPedido).startOf('day').add(12, 'hours').toISOString()
-        : undefined;
-      const dataPrevistaProcessada = values.dataPrevistaColheita
-        ? moment(values.dataPrevistaColheita).startOf('day').add(12, 'hours').toISOString()
-        : undefined;
+      const ajustarParaHoraPadrao = (data) => {
+        if (!data) return undefined;
+        return moment(data).startOf('day').add(15, 'hours').toISOString();
+      };
+
+      const dataPedidoProcessada = ajustarParaHoraPadrao(values.dataPedido);
+      const dataPrevistaProcessada = ajustarParaHoraPadrao(values.dataPrevistaColheita);
 
 
       const formData = {

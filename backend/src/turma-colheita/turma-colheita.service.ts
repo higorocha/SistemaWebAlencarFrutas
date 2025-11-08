@@ -214,7 +214,15 @@ export class TurmaColheitaService {
   // ========================================
 
   async createCustoColheita(createCustoDto: CreateTurmaColheitaPedidoCustoDto): Promise<TurmaColheitaPedidoCustoResponseDto> {
-    const { turmaColheitaId, pedidoId, frutaId, dataColheita, ...colheitaData } = createCustoDto;
+    const {
+      turmaColheitaId,
+      pedidoId,
+      frutaId,
+      dataColheita,
+      formaPagamento,
+      ...colheitaData
+    } = createCustoDto;
+    const formaPagamentoAjustada = formaPagamento?.trim();
 
     // Verificar se a turma de colheita existe
     const turmaExiste = await this.prisma.turmaColheita.findUnique({
@@ -278,6 +286,11 @@ export class TurmaColheitaService {
           ...(dataColheita && { dataColheita: new Date(dataColheita) }),
           ...(colheitaData.observacoes !== undefined && { observacoes: colheitaData.observacoes }),
           ...(colheitaData.pagamentoEfetuado !== undefined && { pagamentoEfetuado: colheitaData.pagamentoEfetuado }),
+          ...(formaPagamento !== undefined && {
+            formaPagamento: formaPagamentoAjustada && formaPagamentoAjustada.length > 0
+              ? formaPagamentoAjustada
+              : null,
+          }),
         },
         include: {
           turmaColheita: {
@@ -316,6 +329,9 @@ export class TurmaColheitaService {
           frutaId,
           ...colheitaData,
           ...(dataColheita && { dataColheita: new Date(dataColheita) }),
+          ...(formaPagamentoAjustada && formaPagamentoAjustada.length > 0
+            ? { formaPagamento: formaPagamentoAjustada }
+            : {}),
         },
         include: {
           turmaColheita: {
@@ -435,13 +451,19 @@ export class TurmaColheitaService {
       throw new NotFoundException(`Colheita de pedido com ID ${id} não encontrada`);
     }
 
-    const { dataColheita, ...colheitaData } = updateColheitaPedidoDto;
+    const { dataColheita, formaPagamento, ...colheitaData } = updateColheitaPedidoDto;
+    const formaPagamentoAjustada = formaPagamento?.trim();
 
     const colheitaPedido = await this.prisma.turmaColheitaPedidoCusto.update({
       where: { id },
       data: {
         ...colheitaData,
         ...(dataColheita && { dataColheita: new Date(dataColheita) }),
+        ...(formaPagamento !== undefined && {
+          formaPagamento: formaPagamentoAjustada && formaPagamentoAjustada.length > 0
+            ? formaPagamentoAjustada
+            : null,
+        }),
       },
       include: {
         turmaColheita: {
@@ -889,6 +911,7 @@ export class TurmaColheitaService {
       unidadeMedida: custo.unidadeMedida,
       valorColheita: custo.valorColheita || 0,
       dataColheita: custo.dataColheita,
+      formaPagamento: custo.formaPagamento,
       observacoes: custo.observacoes,
       createdAt: custo.createdAt,
       updatedAt: custo.updatedAt,
@@ -915,7 +938,12 @@ export class TurmaColheitaService {
 
   async processarPagamentosSeletivos(
     turmaId: number,
-    dadosPagamento: { colheitaIds: number[]; observacoes?: string }
+    dadosPagamento: {
+      colheitaIds: number[];
+      observacoes?: string;
+      formaPagamento?: string;
+      dataPagamento?: string;
+    }
   ) {
     // Verificar se a turma existe
     const turma = await this.prisma.turmaColheita.findUnique({
@@ -945,6 +973,27 @@ export class TurmaColheitaService {
       );
     }
 
+    const formaPagamentoAjustada = dadosPagamento.formaPagamento?.trim();
+    let dataPagamentoAjustada: Date;
+
+    if (dadosPagamento.dataPagamento) {
+      const dataInformada = new Date(dadosPagamento.dataPagamento);
+      if (Number.isNaN(dataInformada.getTime())) {
+        throw new BadRequestException('Data de pagamento inválida');
+      }
+
+      const limite = new Date();
+      limite.setHours(23, 59, 59, 999);
+
+      if (dataInformada.getTime() > limite.getTime()) {
+        throw new BadRequestException('Data de pagamento não pode ser futura');
+      }
+
+      dataPagamentoAjustada = this.gerarDataComHorarioFixo(dataInformada);
+    } else {
+      dataPagamentoAjustada = this.gerarDataComHorarioFixo();
+    }
+
     // Processar pagamentos em transação
     const resultados = await this.prisma.$transaction(async (prisma) => {
       const pagamentosProcessados: Array<{
@@ -953,6 +1002,8 @@ export class TurmaColheitaService {
         cliente: string;
         fruta: string;
         valorPago: number;
+        formaPagamento?: string | null;
+        dataPagamento: Date | null;
       }> = [];
 
       for (const colheita of colheitasParaPagar) {
@@ -960,10 +1011,13 @@ export class TurmaColheitaService {
           where: { id: colheita.id },
           data: {
             pagamentoEfetuado: true,
-            dataPagamento: this.gerarDataComHorarioFixo(),
+            dataPagamento: dataPagamentoAjustada,
             observacoes: dadosPagamento.observacoes
               ? `${colheita.observacoes || ''}\n[PAGAMENTO] ${dadosPagamento.observacoes}`.trim()
               : colheita.observacoes,
+            ...(formaPagamentoAjustada !== undefined && {
+              formaPagamento: formaPagamentoAjustada.length > 0 ? formaPagamentoAjustada : null,
+            }),
           },
           include: {
             pedido: {
@@ -983,6 +1037,8 @@ export class TurmaColheitaService {
                    pagamentoAtualizado.pedido.cliente.nome,
           fruta: pagamentoAtualizado.fruta.nome,
           valorPago: pagamentoAtualizado.valorColheita || 0,
+          formaPagamento: pagamentoAtualizado.formaPagamento || null,
+          dataPagamento: pagamentoAtualizado.dataPagamento,
         });
       }
 
@@ -1005,11 +1061,11 @@ export class TurmaColheitaService {
    * Gera uma data com horário fixo em 12:00:00 para evitar problemas de fuso horário
    * @returns Date com horário fixo em 12:00:00
    */
-  private gerarDataComHorarioFixo(): Date {
-    const hoje = new Date();
+  private gerarDataComHorarioFixo(dataBase?: Date): Date {
+    const data = dataBase ? new Date(dataBase) : new Date();
     // Definir horário fixo em 12:00:00 (meio-dia)
-    hoje.setHours(12, 0, 0, 0);
-    return hoje;
+    data.setHours(12, 0, 0, 0);
+    return data;
   }
 
   /**
@@ -1100,6 +1156,7 @@ export class TurmaColheitaService {
             valorColheita: custo.valorColheita,
             dataColheita: custo.dataColheita?.toISOString(),
             dataPagamento: custo.dataPagamento?.toISOString(),
+            formaPagamento: custo.formaPagamento,
             observacoes: custo.observacoes,
           });
         }
@@ -1224,6 +1281,7 @@ export class TurmaColheitaService {
           valorColheita: custo.valorColheita,
           dataColheita: custo.dataColheita?.toISOString(),
           dataPagamento: custo.dataPagamento?.toISOString(),
+          formaPagamento: custo.formaPagamento,
           observacoes: custo.observacoes,
         });
       }

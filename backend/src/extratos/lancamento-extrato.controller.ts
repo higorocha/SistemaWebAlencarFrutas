@@ -31,6 +31,11 @@ import {
   BuscarProcessarExtratosResponseDto,
   BuscarProcessarExtratosTodosClientesDto,
 } from './dto/lancamento-extrato.dto';
+import {
+  LancamentoExtratoPedidoResponseDto,
+  UpdateLancamentoExtratoPedidoDto,
+  VincularLancamentoPedidosDto,
+} from './dto/lancamento-extrato-pedido.dto';
 import { CredenciaisAPIService } from '../credenciais-api/credenciais-api.service';
 import { ContaCorrenteService } from '../conta-corrente/conta-corrente.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -224,6 +229,70 @@ export class LancamentoExtratoController {
     @Param('id', ParseIntPipe) id: string,
   ): Promise<LancamentoExtratoResponseDto> {
     return this.lancamentoExtratoService.desvincularPedido(BigInt(id));
+  }
+
+  @Get(':id/vinculos')
+  @ApiOperation({ summary: 'Listar vínculos de pedidos para um lançamento' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de vínculos associados ao lançamento',
+    type: [LancamentoExtratoPedidoResponseDto],
+  })
+  async listarVinculos(
+    @Param('id', ParseIntPipe) id: string,
+  ): Promise<LancamentoExtratoPedidoResponseDto[]> {
+    return this.lancamentoExtratoService.listarVinculos(BigInt(id));
+  }
+
+  @Post(':id/vinculos')
+  @ApiOperation({ summary: 'Vincular múltiplos pedidos a um lançamento' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiBody({ type: VincularLancamentoPedidosDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Pedidos vinculados com sucesso',
+    type: LancamentoExtratoResponseDto,
+  })
+  async vincularPedidos(
+    @Param('id', ParseIntPipe) id: string,
+    @Body() dto: VincularLancamentoPedidosDto,
+  ): Promise<LancamentoExtratoResponseDto> {
+    return this.lancamentoExtratoService.vincularPedidos(BigInt(id), dto);
+  }
+
+  @Patch(':id/vinculos/:vinculoId')
+  @ApiOperation({ summary: 'Atualizar um vínculo de pedido' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiParam({ name: 'vinculoId', description: 'ID do vínculo', type: Number })
+  @ApiBody({ type: UpdateLancamentoExtratoPedidoDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Vínculo atualizado com sucesso',
+    type: LancamentoExtratoResponseDto,
+  })
+  async atualizarVinculo(
+    @Param('id', ParseIntPipe) id: string,
+    @Param('vinculoId', ParseIntPipe) vinculoId: number,
+    @Body() dto: UpdateLancamentoExtratoPedidoDto,
+  ): Promise<LancamentoExtratoResponseDto> {
+    return this.lancamentoExtratoService.atualizarValorVinculo(BigInt(id), vinculoId, dto);
+  }
+
+  @Delete(':id/vinculos/:vinculoId')
+  @ApiOperation({ summary: 'Remover um vínculo de pedido' })
+  @ApiParam({ name: 'id', description: 'ID do lançamento', type: String })
+  @ApiParam({ name: 'vinculoId', description: 'ID do vínculo', type: Number })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Vínculo removido com sucesso',
+    type: LancamentoExtratoResponseDto,
+  })
+  async removerVinculo(
+    @Param('id', ParseIntPipe) id: string,
+    @Param('vinculoId', ParseIntPipe) vinculoId: number,
+  ): Promise<LancamentoExtratoResponseDto> {
+    return this.lancamentoExtratoService.removerVinculo(BigInt(id), vinculoId);
   }
 
   @Post('buscar-processar')

@@ -158,6 +158,13 @@ const StyledResponsiveTable = styled(Table)`
     overflow: hidden;
   }
 
+  .ant-table-measure-row,
+  .ant-table-measure-row td {
+    display: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
   /* CORREÇÃO: Remove sombras de ping (scroll horizontal) do Ant Design */
   .ant-table.ant-table-ping-left:not(.ant-table-has-fix-left) > .ant-table-container::before,
   .ant-table.ant-table-ping-right:not(.ant-table-has-fix-right) > .ant-table-container::after {

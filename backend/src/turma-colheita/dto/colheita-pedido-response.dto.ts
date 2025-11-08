@@ -58,6 +58,12 @@ export class TurmaColheitaPedidoCustoResponseDto {
   pagamentoEfetuado: boolean;
 
   @ApiPropertyOptional({
+    description: 'Forma como o pagamento foi realizado',
+    example: 'PIX',
+  })
+  formaPagamento?: string | null;
+
+  @ApiPropertyOptional({
     description: 'Observações específicas da colheita',
     example: 'Colheita realizada em boas condições climáticas',
   })

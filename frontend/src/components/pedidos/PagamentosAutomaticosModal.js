@@ -57,6 +57,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   // Estados para vinculação manual
   const [vinculacaoModalOpen, setVinculacaoModalOpen] = useState(false);
   const [lancamentoParaVincular, setLancamentoParaVincular] = useState(null);
+  const [pedidosVinculacao, setPedidosVinculacao] = useState([]);
+  const [loadingPedidosVinculacao, setLoadingPedidosVinculacao] = useState(false);
 
   // Estados para visualização de pedido
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
@@ -292,20 +294,57 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
 
       const response = await axiosInstance.post('/api/lancamentos-extrato/buscar-processar-todos-clientes', payload);
 
-      const totalSalvos = response.data.totalSalvos || 0;
-      const totalFiltrados = response.data.totalFiltrados || 0;
-      const totalClientes = response.data.clientes?.length || 0;
-      
-      let mensagem = `${totalSalvos} ${totalSalvos === 1 ? 'novo lançamento encontrado' : 'novos lançamentos encontrados'}`;
-      if (totalClientes > 0) {
-        mensagem += ` para ${totalClientes} ${totalClientes === 1 ? 'cliente' : 'clientes'}`;
+      const {
+        totalSalvos = 0,
+        totalDuplicados = 0,
+        totalFiltrados = 0,
+        totalComClienteIdentificado = 0,
+        totalSemClienteIdentificado = 0,
+        totalSalvosComClienteIdentificado = 0,
+        totalSalvosSemClienteIdentificado = 0,
+        clientes: clientesComLancamentos = [],
+      } = response.data || {};
+
+      const totalClientes = Array.isArray(clientesComLancamentos) ? clientesComLancamentos.length : 0;
+
+      const partesMensagem: string[] = [];
+      const labelSalvos = totalSalvos === 1 ? 'novo lançamento salvo' : 'novos lançamentos salvos';
+      partesMensagem.push(`${totalSalvos} ${labelSalvos}`);
+
+      const detalhesSalvos: string[] = [];
+      if (totalSalvosComClienteIdentificado > 0) {
+        detalhesSalvos.push(`${totalSalvosComClienteIdentificado} com cliente`);
       }
-      
-      showNotification(
-        'success',
-        'Busca Concluída',
-        mensagem
-      );
+      if (totalSalvosSemClienteIdentificado > 0) {
+        detalhesSalvos.push(`${totalSalvosSemClienteIdentificado} sem cliente`);
+      }
+      if (detalhesSalvos.length > 0) {
+        partesMensagem.push(`(${detalhesSalvos.join(' | ')})`);
+      }
+
+      if (totalDuplicados > 0) {
+        partesMensagem.push(
+          `${totalDuplicados} duplicado${totalDuplicados > 1 ? 's' : ''} ignorado${totalDuplicados > 1 ? 's' : ''}`
+        );
+      }
+
+      if (totalSemClienteIdentificado > 0) {
+        partesMensagem.push(
+          `${totalSemClienteIdentificado} lançamento${totalSemClienteIdentificado > 1 ? 's' : ''} sem cliente identificado`
+        );
+      }
+
+      if (totalFiltrados > 0 && totalFiltrados !== totalSalvos + totalDuplicados) {
+        partesMensagem.push(`${totalFiltrados} crédito${totalFiltrados > 1 ? 's' : ''} analisado${totalFiltrados > 1 ? 's' : ''}`);
+      }
+
+      if (totalClientes > 0) {
+        partesMensagem.push(`${totalClientes} cliente${totalClientes > 1 ? 's' : ''} com lançamentos`);
+      }
+
+      const mensagem = partesMensagem.join(' • ') || 'Busca finalizada sem novos lançamentos.';
+
+      showNotification('success', 'Busca Concluída', mensagem);
 
       // Recarregar pagamentos após buscar (buscar todos, o filtro será aplicado no frontend)
       await fetchPagamentos();
@@ -381,6 +420,58 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     }
   };
 
+  // Função auxiliar para carregar pedidos elegíveis para vinculação
+  const carregarPedidosParaLancamento = useCallback(async (lancamento, clienteRelacionado) => {
+    setLoadingPedidosVinculacao(true);
+    try {
+      const statuses = 'PRECIFICACAO_REALIZADA,AGUARDANDO_PAGAMENTO,PAGAMENTO_PARCIAL';
+      const clienteId = clienteRelacionado?.id
+        || lancamento?.cliente?.id
+        || lancamento?.clienteId
+        || lancamento?.pedido?.clienteId
+        || null;
+
+      let response;
+      if (clienteId) {
+        response = await axiosInstance.get(`/api/pedidos/cliente/${clienteId}`, {
+          params: { status: statuses },
+        });
+      } else {
+        response = await axiosInstance.get(`/api/pedidos`, {
+          params: { status: statuses },
+        });
+      }
+
+      const pedidosResposta = response?.data;
+      let pedidosArray = Array.isArray(pedidosResposta)
+        ? pedidosResposta
+        : Array.isArray(pedidosResposta?.data)
+          ? pedidosResposta.data
+          : [];
+
+      if (!Array.isArray(pedidosArray)) {
+        pedidosArray = [];
+      }
+
+      const clienteDefault = clienteRelacionado || lancamento?.cliente || lancamento?.pedido?.cliente || null;
+
+      const pedidosNormalizados = pedidosArray
+        .map((pedido) => ({
+          ...pedido,
+          cliente: pedido.cliente || clienteDefault,
+        }))
+        .filter(Boolean);
+
+      setPedidosVinculacao(pedidosNormalizados);
+    } catch (error) {
+      console.error('Erro ao carregar pedidos para vinculação:', error);
+      setPedidosVinculacao([]);
+      showNotification('error', 'Erro', 'Não foi possível carregar pedidos para vinculação');
+    } finally {
+      setLoadingPedidosVinculacao(false);
+    }
+  }, [showNotification]);
+
   // Função para abrir modal de visualização de pedido
   const handleOpenVisualizarPedido = async (pedido) => {
     setLoadingPedido(true);
@@ -400,14 +491,11 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
 
   // Handler para abrir modal de vinculação manual
   const handleAbrirVinculacaoManual = (lancamento) => {
-    // Precisamos identificar o cliente do lançamento
-    // Priorizar cliente direto, depois via objeto cliente, depois via pedido
     let clienteDoLancamento = null;
-    
+
     if (lancamento.cliente) {
       clienteDoLancamento = lancamento.cliente;
     } else if (lancamento.clienteId) {
-      // Tentar encontrar o cliente na lista de clientes filtrados
       const clienteFiltrado = clientesFiltros.find(c => c.id === lancamento.clienteId);
       if (clienteFiltrado) {
         clienteDoLancamento = clienteFiltrado;
@@ -415,62 +503,75 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     } else if (lancamento.pedido?.cliente) {
       clienteDoLancamento = lancamento.pedido.cliente;
     }
-    
-    if (!clienteDoLancamento) {
-      showNotification('warning', 'Atenção', 'Não foi possível identificar o cliente deste pagamento. Selecione o cliente no filtro primeiro.');
-      return;
-    }
-    
+
     setLancamentoParaVincular(lancamento);
+    setPedidosVinculacao([]);
     setVinculacaoModalOpen(true);
+    carregarPedidosParaLancamento(lancamento, clienteDoLancamento);
   };
 
   // Handler para executar vinculação
-  const handleVincularPagamento = async (lancamento, pedido) => {
+  const handleVincularPagamento = async (lancamento, itensSelecionados) => {
+    if (!Array.isArray(itensSelecionados) || itensSelecionados.length === 0) {
+      showNotification('warning', 'Atenção', 'Selecione pelo menos um pedido para vincular');
+      return;
+    }
+
     try {
       setLoadingPagamentos(true);
 
-      // 1. Vincular lançamento ao pedido
+      // 1. Vincular lançamento aos pedidos selecionados
+      const payload = {
+        itens: itensSelecionados.map((item) => ({
+          pedidoId: item.pedidoId,
+          valorVinculado: item.valorVinculado,
+        })),
+      };
+
       await axiosInstance.post(
-        `/api/lancamentos-extrato/${lancamento.id}/vincular-pedido`,
-        {
-          pedidoId: pedido.id,
-          observacoes: 'Vinculação manual pelo usuário'
-        }
+        `/api/lancamentos-extrato/${lancamento.id}/vinculos`,
+        payload
       );
 
-      // 2. Criar pagamento na tabela PagamentosPedidos
+      // 2. Criar pagamentos na tabela PagamentosPedidos para cada vínculo
       const metodoPagamento = lancamento.categoriaOperacao === 'PIX_RECEBIDO'
         ? 'PIX'
         : lancamento.categoriaOperacao === 'PIX_ENVIADO'
           ? 'PIX'
           : 'TRANSFERENCIA';
 
-      const pagamentoData = {
-        pedidoId: pedido.id,
-        dataPagamento: moment(lancamento.dataLancamento).startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss'),
-        valorRecebido: lancamento.valorLancamento,
-        metodoPagamento: metodoPagamento,
-        contaDestino: 'ALENCAR',
-        observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
-      };
+      const dataPagamentoBase = moment(lancamento.dataLancamento)
+        .startOf('day')
+        .add(12, 'hours')
+        .format('YYYY-MM-DD HH:mm:ss');
 
-      await axiosInstance.post(
-        `/api/pedidos/pagamentos`,
-        pagamentoData
-      );
+      // Criar um pagamento para cada pedido selecionado
+      for (const item of itensSelecionados) {
+        const pedidoReferencia = item.pedido;
+        const pagamentoData = {
+          pedidoId: item.pedidoId,
+          dataPagamento: dataPagamentoBase,
+          valorRecebido: item.valorVinculado,
+          metodoPagamento,
+          contaDestino: 'ALENCAR',
+          observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
+        };
 
-      showNotification(
-        'success',
-        'Sucesso',
-        `Pagamento de ${formatCurrency(lancamento.valorLancamento)} vinculado ao pedido ${pedido.numeroPedido} com sucesso!`
-      );
+        await axiosInstance.post('/api/pedidos/pagamentos', pagamentoData);
+
+        showNotification(
+          'success',
+          'Pagamento vinculado',
+          `Pagamento de ${formatCurrency(item.valorVinculado)} vinculado ao pedido ${pedidoReferencia?.numeroPedido || item.pedidoId}`
+        );
+      }
 
       // Recarregar lista de lançamentos (buscar todos, o filtro será aplicado no frontend)
       await fetchPagamentos();
 
       setVinculacaoModalOpen(false);
       setLancamentoParaVincular(null);
+      setPedidosVinculacao([]);
     } catch (error) {
       console.error('Erro ao vincular pagamento:', error);
       const message = error.response?.data?.message || 'Erro ao vincular pagamento ao pedido';
@@ -515,6 +616,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       setVisualizarModalOpen(false);
       setPedidoSelecionado(null);
       setLoadingPedido(false);
+      setPedidosVinculacao([]);
+      setLoadingPedidosVinculacao(false);
     }
   }, [open]);
 
@@ -1136,12 +1239,10 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
 
       {/* Modal de Vinculação Manual */}
       {lancamentoParaVincular && (() => {
-        // Identificar cliente do lançamento
         let clienteParaModal = null;
         if (lancamentoParaVincular.cliente) {
           clienteParaModal = lancamentoParaVincular.cliente;
         } else if (lancamentoParaVincular.clienteId) {
-          // Tentar encontrar o cliente na lista de clientes filtrados
           const clienteFiltrado = clientesFiltros.find(c => c.id === lancamentoParaVincular.clienteId);
           if (clienteFiltrado) {
             clienteParaModal = clienteFiltrado;
@@ -1149,20 +1250,19 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
         } else if (lancamentoParaVincular.pedido?.cliente) {
           clienteParaModal = lancamentoParaVincular.pedido.cliente;
         }
-        
-        if (!clienteParaModal) {
-          return null;
-        }
-        
+
         return (
           <VincularPagamentoManualModal
             open={vinculacaoModalOpen}
             onClose={() => {
               setVinculacaoModalOpen(false);
               setLancamentoParaVincular(null);
+              setPedidosVinculacao([]);
             }}
             lancamento={lancamentoParaVincular}
             cliente={clienteParaModal}
+            pedidosDisponiveis={pedidosVinculacao}
+            loadingPedidos={loadingPedidosVinculacao}
             onVincular={handleVincularPagamento}
           />
         );

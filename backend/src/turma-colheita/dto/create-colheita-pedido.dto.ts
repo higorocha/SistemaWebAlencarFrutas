@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsNumber, IsPositive, IsNotEmpty, IsDateString, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsNumber, IsPositive, IsNotEmpty, IsDateString, IsBoolean, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // Definindo o tipo do enum UnidadeMedida
@@ -69,6 +69,15 @@ export class CreateTurmaColheitaPedidoCustoDto {
   @IsOptional()
   @IsBoolean()
   pagamentoEfetuado?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Forma como o pagamento foi realizado',
+    example: 'PIX',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  formaPagamento?: string;
 
   @ApiPropertyOptional({
     description: 'Observações específicas da colheita',
