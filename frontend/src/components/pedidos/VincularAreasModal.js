@@ -53,6 +53,23 @@ const VincularAreasModal = ({
   const [searchTermAreasFornecedores, setSearchTermAreasFornecedores] = useState("");
   const [quantidadesPorArea, setQuantidadesPorArea] = useState({});
 
+  const normalizarNumero = (valor) => {
+    if (valor === null || valor === undefined || valor === '') {
+      return 0;
+    }
+
+    if (typeof valor === 'number') {
+      return Number.isFinite(valor) ? valor : 0;
+    }
+
+    if (typeof valor === 'string') {
+      const parsed = parseFloat(valor.replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
+  };
+
   // Estados para modal de confirmação
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [confirmData, setConfirmData] = useState(null);
@@ -226,373 +243,154 @@ const VincularAreasModal = ({
   // Função para validar e sincronizar quantidades
   const validarESincronizarQuantidades = (areasFormatted) => {
     // Calcular somas
-    const somaUnidade1 = areasFormatted.reduce((sum, area) => 
+    const somaUnidade1 = areasFormatted.reduce((sum, area) =>
       sum + (area.quantidadeColhidaUnidade1 || 0), 0);
-    const somaUnidade2 = areasFormatted.reduce((sum, area) => 
+    const somaUnidade2 = areasFormatted.reduce((sum, area) =>
       sum + (area.quantidadeColhidaUnidade2 || 0), 0);
-    
-    
-    // Cenário 1: Ambas quantidades informadas no pai (valores > 0)
-    if (fruta.quantidadeReal > 0 && fruta.quantidadeReal2 > 0) {
-      // ✅ CORREÇÃO: Só considerar diferenças REAIS (diferentes de 0) para unidades que têm valor > 0 no modal pai
-      const temDiferencaUnidade1 = fruta.quantidadeReal > 0 && somaUnidade1 !== fruta.quantidadeReal && (somaUnidade1 - fruta.quantidadeReal) !== 0;
-      const temDiferencaUnidade2 = fruta.quantidadeReal2 > 0 && somaUnidade2 !== fruta.quantidadeReal2 && (somaUnidade2 - fruta.quantidadeReal2) !== 0;
-      
-      if (temDiferencaUnidade1 || temDiferencaUnidade2) {
-        // Criar dados para a tabela
-        const dadosTabela = [];
-        
-        if (temDiferencaUnidade1) {
-          dadosTabela.push({
-            key: 'unidade1',
-            unidade: fruta.unidadeMedida1,
-            areasSelecionadas: somaUnidade1,
-            totalColheita: fruta.quantidadeReal,
-            diferenca: somaUnidade1 - fruta.quantidadeReal // ✅ Mostrar diferença real (pode ser positiva ou negativa)
-          });
-        }
-        
-        if (temDiferencaUnidade2) {
-          dadosTabela.push({
-            key: 'unidade2',
-            unidade: fruta.unidadeMedida2,
-            areasSelecionadas: somaUnidade2,
-            totalColheita: fruta.quantidadeReal2,
-            diferenca: somaUnidade2 - fruta.quantidadeReal2 // ✅ Mostrar diferença real (pode ser positiva ou negativa)
-          });
-        }
 
-        // Colunas da tabela
-        const colunasTabela = [
-          {
-            title: 'Unidade',
-            dataIndex: 'unidade',
-            key: 'unidade',
-            width: 80,
-            render: (text) => <Text strong style={{ color: "#059669" }}>{text}</Text>
-          },
-          {
-            title: 'Áreas Selecionadas',
-            dataIndex: 'areasSelecionadas',
-            key: 'areasSelecionadas',
-            width: 120,
-            align: 'center'
-          },
-          {
-            title: 'Total da Colheita',
-            dataIndex: 'totalColheita',
-            key: 'totalColheita',
-            width: 120,
-            align: 'center'
-          },
-          {
-            title: 'Diferença',
-            dataIndex: 'diferenca',
-            key: 'diferenca',
-            width: 120,
-            align: 'center',
-            render: (value) => (
-              <Text style={{ 
-                color: value > 0 ? "#52c41a" : value < 0 ? "#ff4d4f" : "#333", 
-                fontWeight: "bold" 
-              }}>
-                {value > 0 ? '+' : ''}{value}
-              </Text>
-            )
-          }
-        ];
+    const usarReferenciaGrupo = Array.isArray(fruta?.frutasDoGrupo) && fruta?.frutasDoGrupo.length > 0 && fruta?.dePrimeira;
 
-        const customContent = (
-          <div style={{ padding: isMobile ? "12px" : "16px" }}>
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <div style={{ fontSize: isMobile ? "36px" : "48px", color: "#fa8c16", marginBottom: "12px" }}>
-                ⚠️
-              </div>
-              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500", color: "#333" }}>
-                As quantidades das áreas selecionadas diferem do total da colheita
-              </Text>
-            </div>
-            
-            <Table
-              dataSource={dadosTabela}
-              columns={colunasTabela}
-              pagination={false}
-              size="small"
-              style={{ marginBottom: "16px" }}
-              bordered
-            />
-            
-            <div style={{ 
-              backgroundColor: "#f6ffed", 
-              border: "1px solid #b7eb8f", 
-              borderRadius: "6px", 
-              padding: "12px",
-              marginTop: "12px"
-            }}>
-              <Text style={{ color: "#389e0d", fontSize: isMobile ? "12px" : "14px" }}>
-                💡 As quantidades serão atualizadas automaticamente com a soma das áreas selecionadas.
-              </Text>
-            </div>
-            
-            <div style={{ textAlign: "center", marginTop: "16px" }}>
-              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500" }}>
-                Deseja continuar mesmo assim?
-              </Text>
-            </div>
-          </div>
-        );
-        
-        setConfirmData({
-          mensagem: "", // Não usado quando customContent é fornecido
-          customContent,
-          onConfirm: () => {
-            setConfirmModalOpen(false);
-            // Continuar com salvamento
-            return true;
-          }
-        });
-        setConfirmModalOpen(true);
-        return 'pending'; // Indica que está aguardando confirmação
-      }
-    }
-    
-    // Cenário 2: Apenas unidade 1 informada no pai (valor > 0)
-    else if (fruta.quantidadeReal > 0 && (fruta.quantidadeReal2 === 0 || !fruta.quantidadeReal2)) {
-      // ✅ CORREÇÃO: Só considerar diferenças REAIS (diferentes de 0) para unidades que têm valor > 0 no modal pai
-      if (fruta.quantidadeReal > 0 && somaUnidade1 !== fruta.quantidadeReal && (somaUnidade1 - fruta.quantidadeReal) !== 0) {
-        const dadosTabela = [{
+    const referenciaUnidade1 = usarReferenciaGrupo
+      ? fruta.frutasDoGrupo.reduce((sum, item) => sum + normalizarNumero(item.quantidadeReal), 0)
+      : normalizarNumero(fruta.quantidadeReal);
+    const referenciaUnidade2 = usarReferenciaGrupo
+      ? fruta.frutasDoGrupo.reduce((sum, item) => sum + normalizarNumero(item.quantidadeReal2), 0)
+      : normalizarNumero(fruta.quantidadeReal2);
+
+    const possuiReferenciaUnidade1 = referenciaUnidade1 > 0;
+    const possuiReferenciaUnidade2 = referenciaUnidade2 > 0;
+
+    const diferencaUnidade1 = somaUnidade1 - referenciaUnidade1;
+    const diferencaUnidade2 = somaUnidade2 - referenciaUnidade2;
+
+    const temDiferencaUnidade1 = possuiReferenciaUnidade1 && Math.abs(diferencaUnidade1) > 0.01;
+    const temDiferencaUnidade2 = possuiReferenciaUnidade2 && Math.abs(diferencaUnidade2) > 0.01;
+
+    if (temDiferencaUnidade1 || temDiferencaUnidade2) {
+      const labelTotalColheita = usarReferenciaGrupo ? "Total da colheita da cultura" : "Total da colheita";
+      const mensagemIntro = usarReferenciaGrupo
+        ? "As quantidades das áreas selecionadas diferem do total registrado para esta cultura."
+        : "As quantidades das áreas selecionadas diferem do total da colheita.";
+
+      const dadosTabela = [];
+      if (temDiferencaUnidade1) {
+        dadosTabela.push({
           key: 'unidade1',
           unidade: fruta.unidadeMedida1,
           areasSelecionadas: somaUnidade1,
-          totalColheita: fruta.quantidadeReal,
-          diferenca: somaUnidade1 - fruta.quantidadeReal // ✅ Mostrar diferença real (pode ser positiva ou negativa)
-        }];
-
-        const colunasTabela = [
-          {
-            title: 'Unidade',
-            dataIndex: 'unidade',
-            key: 'unidade',
-            width: 80,
-            render: (text) => <Text strong style={{ color: "#059669" }}>{text}</Text>
-          },
-          {
-            title: 'Áreas Selecionadas',
-            dataIndex: 'areasSelecionadas',
-            key: 'areasSelecionadas',
-            width: 120,
-            align: 'center'
-          },
-          {
-            title: 'Total da Colheita',
-            dataIndex: 'totalColheita',
-            key: 'totalColheita',
-            width: 120,
-            align: 'center'
-          },
-          {
-            title: 'Diferença',
-            dataIndex: 'diferenca',
-            key: 'diferenca',
-            width: 120,
-            align: 'center',
-            render: (value) => (
-              <Text style={{ 
-                color: value > 0 ? "#52c41a" : value < 0 ? "#ff4d4f" : "#333", 
-                fontWeight: "bold" 
-              }}>
-                {value > 0 ? '+' : ''}{value}
-              </Text>
-            )
-          }
-        ];
-
-        const customContent = (
-          <div style={{ padding: isMobile ? "12px" : "16px" }}>
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <div style={{ fontSize: isMobile ? "36px" : "48px", color: "#fa8c16", marginBottom: "12px" }}>
-                ⚠️
-              </div>
-              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500", color: "#333" }}>
-                As quantidades das áreas selecionadas diferem do total da colheita
-              </Text>
-            </div>
-            
-            <Table
-              dataSource={dadosTabela}
-              columns={colunasTabela}
-              pagination={false}
-              size="small"
-              style={{ marginBottom: "16px" }}
-              bordered
-            />
-            
-            <div style={{ 
-              backgroundColor: "#f6ffed", 
-              border: "1px solid #b7eb8f", 
-              borderRadius: "6px", 
-              padding: "12px",
-              marginTop: "12px"
-            }}>
-              <Text style={{ color: "#389e0d", fontSize: isMobile ? "12px" : "14px" }}>
-                💡 As quantidades serão atualizadas automaticamente com a soma das áreas selecionadas.
-              </Text>
-            </div>
-            
-            <div style={{ textAlign: "center", marginTop: "16px" }}>
-              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500" }}>
-                Deseja continuar mesmo assim?
-              </Text>
-            </div>
-          </div>
-        );
-        
-        setConfirmData({
-          mensagem: "",
-          customContent,
-          onConfirm: () => {
-            setConfirmModalOpen(false);
-            // Sincronizar unidade 2 e continuar
-            if (somaUnidade2 > 0) {
-              fruta.quantidadeReal2 = somaUnidade2;
-            }
-            return true;
-          }
+          totalColheita: referenciaUnidade1,
+          diferenca: diferencaUnidade1
         });
-        setConfirmModalOpen(true);
-        return 'pending';
       }
-      
-      // Sincronizar unidade 2
-      if (somaUnidade2 > 0) {
-        fruta.quantidadeReal2 = somaUnidade2;
-      }
-    }
-    
-    // Cenário 3: Apenas unidade 2 informada no pai (valor > 0)
-    else if ((fruta.quantidadeReal === 0 || !fruta.quantidadeReal) && fruta.quantidadeReal2 > 0) {
-      // ✅ CORREÇÃO: Só considerar diferenças REAIS (diferentes de 0) para unidades que têm valor > 0 no modal pai
-      if (fruta.quantidadeReal2 > 0 && somaUnidade2 !== fruta.quantidadeReal2 && (somaUnidade2 - fruta.quantidadeReal2) !== 0) {
-        const dadosTabela = [{
+      if (temDiferencaUnidade2) {
+        dadosTabela.push({
           key: 'unidade2',
           unidade: fruta.unidadeMedida2,
           areasSelecionadas: somaUnidade2,
-          totalColheita: fruta.quantidadeReal2,
-          diferenca: somaUnidade2 - fruta.quantidadeReal2 // ✅ Mostrar diferença real (pode ser positiva ou negativa)
-        }];
-
-        const colunasTabela = [
-          {
-            title: 'Unidade',
-            dataIndex: 'unidade',
-            key: 'unidade',
-            width: 80,
-            render: (text) => <Text strong style={{ color: "#059669" }}>{text}</Text>
-          },
-          {
-            title: 'Áreas Selecionadas',
-            dataIndex: 'areasSelecionadas',
-            key: 'areasSelecionadas',
-            width: 120,
-            align: 'center'
-          },
-          {
-            title: 'Total da Colheita',
-            dataIndex: 'totalColheita',
-            key: 'totalColheita',
-            width: 120,
-            align: 'center'
-          },
-          {
-            title: 'Diferença',
-            dataIndex: 'diferenca',
-            key: 'diferenca',
-            width: 120,
-            align: 'center',
-            render: (value) => (
-              <Text style={{ 
-                color: value > 0 ? "#52c41a" : value < 0 ? "#ff4d4f" : "#333", 
-                fontWeight: "bold" 
-              }}>
-                {value > 0 ? '+' : ''}{value}
-              </Text>
-            )
-          }
-        ];
-
-        const customContent = (
-          <div style={{ padding: isMobile ? "12px" : "16px" }}>
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <div style={{ fontSize: isMobile ? "36px" : "48px", color: "#fa8c16", marginBottom: "12px" }}>
-                ⚠️
-              </div>
-              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500", color: "#333" }}>
-                As quantidades das áreas selecionadas diferem do total da colheita
-              </Text>
-            </div>
-            
-            <Table
-              dataSource={dadosTabela}
-              columns={colunasTabela}
-              pagination={false}
-              size="small"
-              style={{ marginBottom: "16px" }}
-              bordered
-            />
-            
-            <div style={{ 
-              backgroundColor: "#f6ffed", 
-              border: "1px solid #b7eb8f", 
-              borderRadius: "6px", 
-              padding: "12px",
-              marginTop: "12px"
-            }}>
-              <Text style={{ color: "#389e0d", fontSize: isMobile ? "12px" : "14px" }}>
-                💡 As quantidades serão atualizadas automaticamente com a soma das áreas selecionadas.
-              </Text>
-            </div>
-            
-            <div style={{ textAlign: "center", marginTop: "16px" }}>
-              <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500" }}>
-                Deseja continuar mesmo assim?
-              </Text>
-            </div>
-          </div>
-        );
-        
-        setConfirmData({
-          mensagem: "",
-          customContent,
-          onConfirm: () => {
-            setConfirmModalOpen(false);
-            // Sincronizar unidade 1 e continuar
-            if (somaUnidade1 > 0) {
-              fruta.quantidadeReal = somaUnidade1;
-            }
-            return true;
-          }
+          totalColheita: referenciaUnidade2,
+          diferenca: diferencaUnidade2
         });
-        setConfirmModalOpen(true);
-        return 'pending';
       }
-      
-      // Sincronizar unidade 1
-      if (somaUnidade1 > 0) {
-        fruta.quantidadeReal = somaUnidade1;
-      }
+
+      const colunasTabela = [
+        {
+          title: 'Unidade',
+          dataIndex: 'unidade',
+          key: 'unidade',
+          width: 80,
+          render: (text) => <Text strong style={{ color: "#059669" }}>{text}</Text>
+        },
+        {
+          title: 'Áreas Selecionadas',
+          dataIndex: 'areasSelecionadas',
+          key: 'areasSelecionadas',
+          width: 120,
+          align: 'center'
+        },
+        {
+          title: labelTotalColheita,
+          dataIndex: 'totalColheita',
+          key: 'totalColheita',
+          width: 150,
+          align: 'center'
+        },
+        {
+          title: 'Diferença',
+          dataIndex: 'diferenca',
+          key: 'diferenca',
+          width: 120,
+          align: 'center',
+          render: (value) => (
+            <Text style={{
+              color: value > 0 ? "#52c41a" : value < 0 ? "#ff4d4f" : "#333",
+              fontWeight: "bold"
+            }}>
+              {value > 0 ? '+' : ''}{value}
+            </Text>
+          )
+        }
+      ];
+
+      const customContent = (
+        <div style={{ padding: isMobile ? "12px" : "16px" }}>
+          <div style={{ textAlign: "center", marginBottom: "16px" }}>
+            <div style={{ fontSize: isMobile ? "36px" : "48px", color: "#fa8c16", marginBottom: "12px" }}>
+              ⚠️
+            </div>
+            <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500", color: "#333" }}>
+              {mensagemIntro}
+            </Text>
+          </div>
+
+          <Table
+            dataSource={dadosTabela}
+            columns={colunasTabela}
+            pagination={false}
+            size="small"
+            style={{ marginBottom: "16px" }}
+            bordered
+          />
+
+          <div style={{
+            backgroundColor: "#f6ffed",
+            border: "1px solid #b7eb8f",
+            borderRadius: "6px",
+            padding: "12px",
+            marginTop: "12px"
+          }}>
+            <Text style={{ color: "#389e0d", fontSize: isMobile ? "12px" : "14px" }}>
+              💡 As quantidades serão atualizadas automaticamente com a soma das áreas selecionadas.
+            </Text>
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: "16px" }}>
+            <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "500" }}>
+              Deseja continuar mesmo assim?
+            </Text>
+          </div>
+        </div>
+      );
+
+      setConfirmData({
+        mensagem: "",
+        customContent,
+        onConfirm: () => {
+          setConfirmModalOpen(false);
+          return true;
+        }
+      });
+      setConfirmModalOpen(true);
+      return 'pending';
     }
-    
-    // Cenário 4: Nenhuma quantidade informada no pai
-    else if (!fruta.quantidadeReal && !fruta.quantidadeReal2) {
-      // Sincronizar ambas unidades
-      if (somaUnidade1 > 0) {
-        fruta.quantidadeReal = somaUnidade1;
-      }
-      if (somaUnidade2 > 0) {
-        fruta.quantidadeReal2 = somaUnidade2;
-      }
+
+    if (!possuiReferenciaUnidade1 && somaUnidade1 > 0) {
+      fruta.quantidadeReal = somaUnidade1;
     }
-    
+
+    if (!possuiReferenciaUnidade2 && somaUnidade2 > 0) {
+      fruta.quantidadeReal2 = somaUnidade2;
+    }
+
     return true;
   };
 

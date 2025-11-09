@@ -86,6 +86,12 @@ export class FrutaResponseDto {
   observacoes?: string;
 
   @ApiProperty({
+    description: 'Indica se a fruta é a principal (de primeira) da cultura',
+    example: false,
+  })
+  dePrimeira: boolean;
+
+  @ApiProperty({
     description: 'Data de criação',
     example: '2024-01-15T10:30:00Z',
   })

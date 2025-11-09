@@ -227,6 +227,7 @@ model Fruta {
   corPredominante String?                    @map("cor_predominante")
   epocaColheita   String?                    @map("epoca_colheita")
   observacoes     String?
+  dePrimeira      Boolean                    @default(false) @map("de_primeira")
   createdAt       DateTime                   @default(now()) @map("created_at")
   updatedAt       DateTime                   @updatedAt @map("updated_at")
   culturaId       Int                        @map("cultura_id")

@@ -31,6 +31,21 @@ export class FrutasService {
         throw new NotFoundException(`Cultura com ID ${createFrutaDto.culturaId} não encontrada`);
       }
 
+      const dePrimeira = createFrutaDto.dePrimeira ?? false;
+
+      if (dePrimeira) {
+        const frutaDePrimeiraExistente = await this.prisma.fruta.findFirst({
+          where: {
+            culturaId: createFrutaDto.culturaId,
+            dePrimeira: true,
+          },
+        });
+
+        if (frutaDePrimeiraExistente) {
+          throw new ConflictException('Já existe uma fruta de primeira cadastrada para esta cultura');
+        }
+      }
+
       const fruta = await this.prisma.fruta.create({
         data: {
           nome: createFrutaDto.nome,
@@ -42,6 +57,7 @@ export class FrutasService {
           corPredominante: createFrutaDto.corPredominante,
           epocaColheita: createFrutaDto.epocaColheita,
           observacoes: createFrutaDto.observacoes,
+          dePrimeira,
         },
         include: {
           cultura: true, // Incluir cultura na resposta
@@ -167,6 +183,24 @@ export class FrutasService {
       }
     }
 
+    const culturaIdAlvo = updateFrutaDto.culturaId ?? existingFruta.culturaId;
+    const desejaSerPrimeira =
+      updateFrutaDto.dePrimeira !== undefined ? updateFrutaDto.dePrimeira : existingFruta.dePrimeira;
+
+    if (desejaSerPrimeira) {
+      const frutaDePrimeiraExistente = await this.prisma.fruta.findFirst({
+        where: {
+          culturaId: culturaIdAlvo,
+          dePrimeira: true,
+          id: { not: id },
+        },
+      });
+
+      if (frutaDePrimeiraExistente) {
+        throw new ConflictException('Já existe outra fruta de primeira cadastrada para esta cultura');
+      }
+    }
+
     const fruta = await this.prisma.fruta.update({
       where: { id },
       data: {
@@ -179,6 +213,7 @@ export class FrutasService {
         corPredominante: updateFrutaDto.corPredominante,
         epocaColheita: updateFrutaDto.epocaColheita,
         observacoes: updateFrutaDto.observacoes,
+        dePrimeira: updateFrutaDto.dePrimeira,
       },
       include: {
         cultura: true, // Incluir cultura na resposta
@@ -239,6 +274,7 @@ export class FrutasService {
       corPredominante: fruta.corPredominante,
       epocaColheita: fruta.epocaColheita,
       observacoes: fruta.observacoes,
+      dePrimeira: fruta.dePrimeira,
       createdAt: fruta.createdAt,
       updatedAt: fruta.updatedAt,
     };

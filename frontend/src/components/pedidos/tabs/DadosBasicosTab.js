@@ -1,6 +1,6 @@
 // src/components/pedidos/tabs/DadosBasicosTab.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag } from "antd";
 import PropTypes from "prop-types";
 import {
@@ -39,6 +39,15 @@ const DadosBasicosTab = ({
   isSaving,
 }) => {
   const [frutas, setFrutas] = useState([]);
+  const frutasPorId = useMemo(() => {
+    const mapa = {};
+    frutas.forEach((fruta) => {
+      if (fruta?.id) {
+        mapa[fruta.id] = fruta;
+      }
+    });
+    return mapa;
+  }, [frutas]);
 
   // Estados para confirmação de mudança de fruta
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -467,167 +476,279 @@ const DadosBasicosTab = ({
             </Col>
           </Row>
 
-          {pedidoAtual.frutas.map((fruta, index) => (
-            <div key={index}>
-              {/* 🆕 INDICADOR: Nova fruta adicionada durante edição */}
-              {!fruta.frutaPedidoId && (
-                <div style={{ marginBottom: 8 }}>
-                  <Tag color="blue" style={{ fontSize: '13px', padding: '4px 8px' }}>
-                    🆕 Nova Fruta - Preencher dados de {
-                      pedidoAtual.status === 'PRECIFICACAO_REALIZADA' ||
-                      pedidoAtual.status === 'AGUARDANDO_PAGAMENTO' ||
-                      pedidoAtual.status === 'PAGAMENTO_PARCIAL' ||
-                      pedidoAtual.status === 'PAGAMENTO_REALIZADO'
-                        ? 'colheita e precificação'
-                        : pedidoAtual.status === 'COLHEITA_REALIZADA' ||
-                          pedidoAtual.status === 'AGUARDANDO_PRECIFICACAO'
-                        ? 'colheita'
-                        : 'básicos'
-                    }
-                  </Tag>
-                </div>
-              )}
-              <Row gutter={[16, 16]} align="baseline">
-                <Col xs={24} md={6}>
-                  <Form.Item>
-                    <Select
-                      placeholder="Selecione uma fruta"
-                      value={fruta.frutaId || undefined}
-                      onChange={(value) => handleFrutaChange(index, 'frutaId', value)}
-                      showSearch
-                      optionFilterProp="children"
-                      filterOption={(input, option) =>
-                        option.children.toLowerCase().includes(input.toLowerCase())
-                      }
+          {useMemo(() => {
+            const culturaPrimeiraIndexMap = {};
+            pedidoAtual.frutas.forEach((fruta, idx) => {
+              const frutaCatalogo = fruta?.frutaId
+                ? frutasPorId[fruta.frutaId]
+                : undefined;
+              if (frutaCatalogo?.culturaId && frutaCatalogo?.dePrimeira) {
+                culturaPrimeiraIndexMap[frutaCatalogo.culturaId] = idx;
+              }
+            });
+
+            const frutasOrdenadas = pedidoAtual.frutas
+              .map((fruta, index) => {
+                const frutaCatalogo = fruta?.frutaId
+                  ? frutasPorId[fruta.frutaId]
+                  : undefined;
+                return {
+                  fruta,
+                  index,
+                  culturaId: frutaCatalogo?.culturaId,
+                  isPrimeira: Boolean(frutaCatalogo?.dePrimeira),
+                  frutaCatalogo,
+                };
+              })
+              .sort((a, b) => {
+                if (a.culturaId !== b.culturaId) {
+                  if (a.culturaId === undefined) return 1;
+                  if (b.culturaId === undefined) return -1;
+                  return a.culturaId - b.culturaId;
+                }
+
+                if (a.isPrimeira !== b.isPrimeira) {
+                  return a.isPrimeira ? -1 : 1;
+                }
+
+                return a.index - b.index;
+              });
+
+            return frutasOrdenadas.map((item, ordemIndex) => {
+              const { fruta, index, culturaId, isPrimeira, frutaCatalogo } = item;
+              const existePrimeiraNaCultura =
+                culturaId !== undefined &&
+                culturaPrimeiraIndexMap[culturaId] !== undefined;
+              const isFilha = Boolean(existePrimeiraNaCultura && !isPrimeira);
+
+              return (
+                <div
+                  key={`${index}-${fruta.frutaId ?? "novo"}`}
+                  style={{
+                    position: "relative",
+                    padding: isFilha ? "12px 16px 16px" : 0,
+                    marginLeft: isFilha ? 18 : 0,
+                    marginBottom: isFilha ? 10 : 0,
+                    borderLeft: isFilha ? "3px solid #059669" : "none",
+                    backgroundColor: isFilha ? "#f0fdf4" : "transparent",
+                    borderRadius: isFilha ? "8px" : "0",
+                  }}
+                >
+                  {!fruta.frutaPedidoId && (
+                    <div style={{ marginBottom: 8 }}>
+                      <Tag
+                        color={isPrimeira ? "green" : "blue"}
+                        style={{ fontSize: "13px", padding: "4px 8px" }}
+                      >
+                        🆕 Nova Fruta - Preencher dados de{" "}
+                        {pedidoAtual.status === "PRECIFICACAO_REALIZADA" ||
+                        pedidoAtual.status === "AGUARDANDO_PAGAMENTO" ||
+                        pedidoAtual.status === "PAGAMENTO_PARCIAL" ||
+                        pedidoAtual.status === "PAGAMENTO_REALIZADO"
+                          ? "colheita e precificação"
+                          : pedidoAtual.status === "COLHEITA_REALIZADA" ||
+                            pedidoAtual.status === "AGUARDANDO_PRECIFICACAO"
+                          ? "colheita"
+                          : "básicos"}
+                      </Tag>
+                    </div>
+                  )}
+                  {isFilha && (
+                    <div
                       style={{
-                        borderRadius: "6px",
-                        borderColor: "#d9d9d9",
+                        position: "absolute",
+                        top: -10,
+                        left: 14,
+                        backgroundColor: "#059669",
+                        color: "#ffffff",
+                        padding: "2px 8px",
+                        borderRadius: "999px",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        boxShadow: "0 2px 6px rgba(5, 150, 105, 0.2)",
                       }}
-                      disabled={!canEditTab("1")}
                     >
-                      {frutas.map((frutaOption) => (
-                        <Option key={frutaOption.id} value={frutaOption.id}>
-                          {capitalizeName(frutaOption.nome)}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
+                      Vinculada à fruta de primeira
+                    </div>
+                  )}
+                  <Row gutter={[16, 16]} align="baseline">
+                    <Col xs={24} md={6}>
+                      <Form.Item>
+                        <Select
+                          placeholder="Selecione uma fruta"
+                          value={fruta.frutaId || undefined}
+                          onChange={(value) =>
+                            handleFrutaChange(index, "frutaId", value)
+                          }
+                          showSearch
+                          optionFilterProp="children"
+                          filterOption={(input, option) =>
+                            option.children
+                              .toLowerCase()
+                              .includes(input.toLowerCase())
+                          }
+                          style={{
+                            borderRadius: "6px",
+                            borderColor: "#d9d9d9",
+                          }}
+                          disabled={!canEditTab("1")}
+                        >
+                          {frutas.map((frutaOption) => (
+                            <Option key={frutaOption.id} value={frutaOption.id}>
+                              {capitalizeName(frutaOption.nome)}
+                              {frutaOption.dePrimeira
+                                ? " • Primeira"
+                                : " • Segunda"}
+                            </Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    </Col>
 
-                <Col xs={24} md={4}>
-                  <Form.Item>
-                    <MonetaryInput
-                      placeholder="Ex: 1.234,56"
-                      size="large"
-                      style={{ 
-                        width: "100%",
-                        borderRadius: "6px",
-                        borderColor: "#d9d9d9",
-                      }}
-                      value={fruta.quantidadePrevista}
-                      onChange={(value) => handleFrutaChange(index, 'quantidadePrevista', value)}
-                      disabled={!canEditTab("1")}
-                    />
-                  </Form.Item>
-                </Col>
+                    <Col xs={24} md={4}>
+                      <Form.Item>
+                        <MonetaryInput
+                          placeholder="Ex: 1.234,56"
+                          size="large"
+                          style={{
+                            width: "100%",
+                            borderRadius: "6px",
+                            borderColor: "#d9d9d9",
+                          }}
+                          value={fruta.quantidadePrevista}
+                          onChange={(value) =>
+                            handleFrutaChange(
+                              index,
+                              "quantidadePrevista",
+                              value
+                            )
+                          }
+                          disabled={!canEditTab("1")}
+                        />
+                      </Form.Item>
+                    </Col>
 
-                <Col xs={24} md={6}>
-                  <Form.Item>
-                    <Select 
-                      placeholder="Selecione a unidade"
-                      value={fruta.unidadeMedida1 || undefined}
-                      onChange={(value) => handleFrutaChange(index, 'unidadeMedida1', value)}
-                      style={{
-                        borderRadius: "6px",
-                        borderColor: "#d9d9d9",
-                      }}
-                      disabled={!canEditTab("1")}
-                    >
-                      {unidadesMedida.map((unidade) => (
-                        <Option key={unidade.value} value={unidade.value}>
-                          {unidade.label}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
+                    <Col xs={24} md={6}>
+                      <Form.Item>
+                        <Select
+                          placeholder="Selecione a unidade"
+                          value={fruta.unidadeMedida1 || undefined}
+                          onChange={(value) =>
+                            handleFrutaChange(index, "unidadeMedida1", value)
+                          }
+                          style={{
+                            borderRadius: "6px",
+                            borderColor: "#d9d9d9",
+                          }}
+                          disabled={!canEditTab("1")}
+                        >
+                          {unidadesMedida.map((unidade) => (
+                            <Option key={unidade.value} value={unidade.value}>
+                              {unidade.label}
+                            </Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    </Col>
 
-                <Col xs={24} md={6}>
-                  <Form.Item>
-                    <Select 
-                      placeholder="Selecione a unidade (opcional)" 
-                      value={fruta.unidadeMedida2}
-                      onChange={(value) => handleFrutaChange(index, 'unidadeMedida2', value)}
-                      allowClear
-                      style={{
-                        borderRadius: "6px",
-                        borderColor: "#d9d9d9",
-                      }}
-                      disabled={!canEditTab("1")}
-                    >
-                      {unidadesMedida.map((unidade) => (
-                        <Option key={unidade.value} value={unidade.value}>
-                          {unidade.label}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
+                    <Col xs={24} md={6}>
+                      <Form.Item>
+                        <Select
+                          placeholder="Selecione a unidade (opcional)"
+                          value={fruta.unidadeMedida2}
+                          onChange={(value) =>
+                            handleFrutaChange(index, "unidadeMedida2", value)
+                          }
+                          allowClear
+                          style={{
+                            borderRadius: "6px",
+                            borderColor: "#d9d9d9",
+                          }}
+                          disabled={!canEditTab("1")}
+                        >
+                          {unidadesMedida.map((unidade) => (
+                            <Option key={unidade.value} value={unidade.value}>
+                              {unidade.label}
+                            </Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    </Col>
 
-                <Col xs={24} md={2}>
-                  <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                    {/* Botão de remover */}
-                    <Button
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => removerFruta(index)}
-                      size="large"
-                      style={{
-                        borderRadius: "50px",
-                        height: "40px",
-                        width: "40px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: 0,
-                        border: "2px solid #ff4d4f",
-                        color: "#ff4d4f",
-                        backgroundColor: "#ffffff",
-                      }}
-                      disabled={!canEditTab("1") || pedidoAtual.frutas.length <= 1}
-                    />
-
-                    {/* Botão de adicionar apenas na última fruta */}
-                    {index === pedidoAtual.frutas.length - 1 && (
-                      <Button
-                        type="dashed"
-                        icon={<PlusOutlined />}
-                        onClick={adicionarFruta}
-                        size="large"
+                    <Col xs={24} md={2}>
+                      <div
                         style={{
-                          borderRadius: "50px",
-                          borderColor: "#10b981",
-                          color: "#10b981",
-                          borderWidth: "2px",
-                          height: "40px",
-                          width: "40px",
                           display: "flex",
-                          alignItems: "center",
+                          gap: "8px",
                           justifyContent: "center",
-                          padding: 0,
-                          backgroundColor: "#ffffff",
-                          boxShadow: "0 2px 8px rgba(16, 185, 129, 0.15)",
                         }}
-                        disabled={!canEditTab("1")}
-                      />
-                    )}
-                  </div>
-                </Col>
-              </Row>
-              {index < pedidoAtual.frutas.length - 1 && <Divider style={{ margin: "8px 0" }} />}
-            </div>
-          ))}
+                      >
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => removerFruta(index)}
+                          size="large"
+                          style={{
+                            borderRadius: "50px",
+                            height: "40px",
+                            width: "40px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            border: "2px solid #ff4d4f",
+                            color: "#ff4d4f",
+                            backgroundColor: "#ffffff",
+                          }}
+                          disabled={
+                            !canEditTab("1") || pedidoAtual.frutas.length <= 1
+                          }
+                        />
+
+                        {ordemIndex === frutasOrdenadas.length - 1 && (
+                          <Button
+                            type="dashed"
+                            icon={<PlusOutlined />}
+                            onClick={adicionarFruta}
+                            size="large"
+                            style={{
+                              borderRadius: "50px",
+                              borderColor: "#10b981",
+                              color: "#10b981",
+                              borderWidth: "2px",
+                              height: "40px",
+                              width: "40px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 0,
+                              backgroundColor: "#ffffff",
+                              boxShadow:
+                                "0 2px 8px rgba(16, 185, 129, 0.15)",
+                            }}
+                            disabled={!canEditTab("1")}
+                          />
+                        )}
+                      </div>
+                    </Col>
+                  </Row>
+                  {ordemIndex < frutasOrdenadas.length - 1 && (
+                    <Divider style={{ margin: "8px 0" }} />
+                  )}
+                </div>
+              );
+            });
+          }, [
+            adicionarFruta,
+            canEditTab,
+            frutas,
+            frutasPorId,
+            handleFrutaChange,
+            pedidoAtual.frutas,
+            removerFruta,
+            unidadesMedida,
+          ])}
         </Card>
 
         {/* Seção 3: Observações */}

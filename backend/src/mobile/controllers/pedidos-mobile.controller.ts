@@ -34,8 +34,9 @@ import {
   MobilePedidosListResponseDto,
   MobileDashboardDto,
   MobilePedidoSimplificadoDto,
+  MobileUpdatePedidoDto,
 } from '../dto';
-import { UpdateColheitaDto, CreatePedidoDto, PedidoResponseDto, UpdatePrecificacaoDto } from '../../pedidos/dto';
+import { UpdateColheitaDto, CreatePedidoDto, PedidoResponseDto, UpdatePrecificacaoDto, UpdatePedidoDto } from '../../pedidos/dto';
 import { CreateTurmaColheitaPedidoCustoDto } from '../../turma-colheita/dto/create-colheita-pedido.dto';
 import { TurmaColheitaPedidoCustoResponseDto } from '../../turma-colheita/dto/colheita-pedido-response.dto';
 import { StatusPedido } from '@prisma/client';
@@ -240,6 +241,73 @@ export class PedidosMobileController {
   }
 
   /**
+   * Atualizar dados básicos de um pedido via mobile
+   */
+  @Patch(':id')
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+    }),
+  )
+  @Niveis(
+    NivelUsuario.ADMINISTRADOR,
+    NivelUsuario.GERENTE_GERAL,
+    NivelUsuario.ESCRITORIO,
+    NivelUsuario.GERENTE_CULTURA,
+  )
+  @ApiOperation({
+    summary: 'Atualizar dados básicos do pedido',
+    description:
+      'Permite ajustar informações como cliente, datas e observações diretamente pelo aplicativo mobile.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Pedido atualizado com sucesso',
+    type: PedidoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Sem permissão para atualizar este pedido',
+  })
+  async atualizarPedidoMobile(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: MobileUpdatePedidoDto,
+    @Req() request: any,
+  ): Promise<PedidoResponseDto> {
+    const usuarioId = request?.user?.id;
+    const usuarioNivel = request?.user?.nivel;
+    const usuarioCulturaId = request?.user?.culturaId;
+
+    if (usuarioNivel === NivelUsuario.GERENTE_CULTURA) {
+      const pedido = await this.pedidosService.findOne(
+        id,
+        usuarioNivel,
+        usuarioCulturaId,
+      );
+
+      const temAcesso = this.validarAcessoPorCultura(pedido, usuarioCulturaId);
+      if (!temAcesso) {
+        throw new ForbiddenException(
+          'Você não tem permissão para atualizar este pedido',
+        );
+      }
+    }
+
+    const updateDto: UpdatePedidoDto = {
+      clienteId: dto.clienteId,
+      dataPedido: dto.dataPedido,
+      dataPrevistaColheita: dto.dataPrevistaColheita,
+      observacoes: dto.observacoes,
+      placaPrimaria: dto.placaPrimaria,
+      placaSecundaria: dto.placaSecundaria,
+    };
+
+    return this.pedidosService.update(id, updateDto, usuarioId);
+  }
+
+  /**
    * Registrar colheita de um pedido
    * Converte DTO mobile para DTO do service existente
    * Permite propriedades extras (como areaNome, maoObra) que são ignoradas na conversão
@@ -392,11 +460,15 @@ export class PedidosMobileController {
       dataPedido: pedido.dataPedido,
       dataPrevistaColheita: pedido.dataPrevistaColheita,
       dataColheita: pedido.dataColheita,
+      observacoes: pedido.observacoes ?? undefined,
+      placaPrimaria: pedido.placaPrimaria ?? undefined,
+      placaSecundaria: pedido.placaSecundaria ?? undefined,
       frutas:
         pedido.frutasPedidos?.map((fp: any) => ({
           id: fp.id,
           frutaId: fp.frutaId, // Adicionar frutaId para correspondência com mão de obra
           nome: fp.fruta?.nome || 'Fruta não informada',
+          dePrimeira: fp.fruta?.dePrimeira ?? false,
           quantidadePrevista: fp.quantidadePrevista || 0,
           quantidadeReal: fp.quantidadeReal,
           quantidadeReal2: fp.quantidadeReal2,

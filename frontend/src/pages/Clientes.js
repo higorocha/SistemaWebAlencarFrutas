@@ -111,8 +111,16 @@ const Clientes = () => {
         const cpf = c.cpf?.toLowerCase() || "";
         const cnpj = c.cnpj?.toLowerCase() || "";
         const razao = c.razaoSocial?.toLowerCase() || "";
+        const termoNumerico = termo.replace(/\D/g, "");
+        const cpfNumerico = cpf.replace(/\D/g, "");
+        const cnpjNumerico = cnpj.replace(/\D/g, "");
         return (
-          nome.includes(termo) || cpf.includes(termo) || cnpj.includes(termo) || razao.includes(termo)
+          nome.includes(termo) ||
+          razao.includes(termo) ||
+          cpf.includes(termo) ||
+          cnpj.includes(termo) ||
+          (termoNumerico &&
+            (cpfNumerico.includes(termoNumerico) || cnpjNumerico.includes(termoNumerico)))
         );
       });
     }

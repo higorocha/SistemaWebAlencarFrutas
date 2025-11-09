@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ControleBananaService } from '../controle-banana/controle-banana.service';
 import { TurmaColheitaService } from '../turma-colheita/turma-colheita.service';
 import { CreateTurmaColheitaPedidoCustoDto } from '../turma-colheita/dto/create-colheita-pedido.dto';
-import { StatusPedido } from '@prisma/client';
+import { StatusPedido, Prisma } from '@prisma/client';
 import { capitalizeName } from '../utils/formatters';
 import {
   CreatePedidoDto,
@@ -80,6 +80,8 @@ export class PedidosService {
               select: {
                 id: true,
                 nome: true,
+                dePrimeira: true,
+                culturaId: true,
                 cultura: {
                   select: {
                     id: true,
@@ -661,53 +663,78 @@ export class PedidosService {
       );
     }
 
-    // Verificar se todas as frutas existem
-    for (const fruta of createPedidoDto.frutas) {
-      const frutaExiste = await this.prisma.fruta.findUnique({
-        where: { id: fruta.frutaId },
+    const frutasCatalogo = await this.prisma.fruta.findMany({
+      where: { id: { in: Array.from(frutasUnicas) } },
+      select: { id: true, culturaId: true, dePrimeira: true },
+    });
+
+    const frutaCatalogoPorId = new Map<number, { culturaId: number; dePrimeira: boolean }>();
+    const culturaComFrutaDePrimeira = new Map<number, boolean>();
+
+    for (const frutaInfo of frutasCatalogo) {
+      frutaCatalogoPorId.set(frutaInfo.id, {
+        culturaId: frutaInfo.culturaId,
+        dePrimeira: frutaInfo.dePrimeira ?? false,
       });
-      if (!frutaExiste) {
+    }
+
+    for (const frutaPedido of createPedidoDto.frutas) {
+      const info = frutaCatalogoPorId.get(frutaPedido.frutaId);
+      if (info?.dePrimeira) {
+        culturaComFrutaDePrimeira.set(info.culturaId, true);
+      }
+    }
+
+    // Verificar se todas as frutas existem e validar áreas/fitas
+    for (const fruta of createPedidoDto.frutas) {
+      const frutaInfo = frutaCatalogoPorId.get(fruta.frutaId);
+      if (!frutaInfo) {
         throw new NotFoundException(`Fruta com ID ${fruta.frutaId} não encontrada`);
       }
 
-      // Validar que cada fruta tem pelo menos uma área
-      if (!fruta.areas || fruta.areas.length === 0) {
-        throw new BadRequestException(`Fruta ${fruta.frutaId} deve ter pelo menos uma área associada`);
+      const isFrutaDePrimeira = frutaInfo.dePrimeira === true;
+      const existeFrutaDePrimeiraNaCultura =
+        culturaComFrutaDePrimeira.get(frutaInfo.culturaId) === true;
+
+      const deveExigirArea = isFrutaDePrimeira || !existeFrutaDePrimeiraNaCultura;
+
+      if (deveExigirArea && (!fruta.areas || fruta.areas.length === 0)) {
+        throw new BadRequestException(
+          `A fruta ${fruta.frutaId} precisa ter pelo menos uma área vinculada porque não existe outra fruta de primeira para a cultura selecionada.`
+        );
       }
 
-      // Validar que cada área é ou própria OU de fornecedor OU placeholder (não ambas)
-      for (const area of fruta.areas) {
-        const temAreaPropria = !!area.areaPropriaId;
-        const temAreaFornecedor = !!area.areaFornecedorId;
-        
-        if (temAreaPropria && temAreaFornecedor) {
-          throw new BadRequestException('Área não pode ser própria E de fornecedor simultaneamente');
-        }
-        
-        // Permitir áreas placeholder durante criação (sem área definida)
-        // Serão preenchidas durante a colheita
-        if (!temAreaPropria && !temAreaFornecedor) {
-          // Área placeholder é permitida na criação - será definida na colheita
-          continue;
-        }
+      if (fruta.areas && fruta.areas.length > 0) {
+        // Validar que cada área é ou própria OU de fornecedor OU placeholder (não ambas)
+        for (const area of fruta.areas) {
+          const temAreaPropria = !!area.areaPropriaId;
+          const temAreaFornecedor = !!area.areaFornecedorId;
 
-        // Verificar se área própria existe
-        if (temAreaPropria) {
-          const areaPropriaExiste = await this.prisma.areaAgricola.findUnique({
-            where: { id: area.areaPropriaId },
-          });
-          if (!areaPropriaExiste) {
-            throw new NotFoundException(`Área própria com ID ${area.areaPropriaId} não encontrada`);
+          if (temAreaPropria && temAreaFornecedor) {
+            throw new BadRequestException('Área não pode ser própria E de fornecedor simultaneamente');
           }
-        }
 
-        // Verificar se área de fornecedor existe
-        if (temAreaFornecedor) {
-          const areaFornecedorExiste = await this.prisma.areaFornecedor.findUnique({
-            where: { id: area.areaFornecedorId },
-          });
-          if (!areaFornecedorExiste) {
-            throw new NotFoundException(`Área de fornecedor com ID ${area.areaFornecedorId} não encontrada`);
+          // Permitir áreas placeholder durante criação (sem área definida)
+          if (!temAreaPropria && !temAreaFornecedor) {
+            continue;
+          }
+
+          if (temAreaPropria) {
+            const areaPropriaExiste = await this.prisma.areaAgricola.findUnique({
+              where: { id: area.areaPropriaId },
+            });
+            if (!areaPropriaExiste) {
+              throw new NotFoundException(`Área própria com ID ${area.areaPropriaId} não encontrada`);
+            }
+          }
+
+          if (temAreaFornecedor) {
+            const areaFornecedorExiste = await this.prisma.areaFornecedor.findUnique({
+              where: { id: area.areaFornecedorId },
+            });
+            if (!areaFornecedorExiste) {
+              throw new NotFoundException(`Área de fornecedor com ID ${area.areaFornecedorId} não encontrada`);
+            }
           }
         }
       }
@@ -757,17 +784,19 @@ export class PedidosService {
         });
 
         // Criar as áreas da fruta
-        for (const area of fruta.areas) {
-          await prisma.frutasPedidosAreas.create({
-            data: {
-              frutaPedidoId: frutaPedido.id,
-              areaPropriaId: area.areaPropriaId || null,
-              areaFornecedorId: area.areaFornecedorId || null,
-              observacoes: area.observacoes,
-              quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
-              quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
-            },
-          });
+        if (fruta.areas && fruta.areas.length > 0) {
+          for (const area of fruta.areas) {
+            await prisma.frutasPedidosAreas.create({
+              data: {
+                frutaPedidoId: frutaPedido.id,
+                areaPropriaId: area.areaPropriaId || null,
+                areaFornecedorId: area.areaFornecedorId || null,
+                observacoes: area.observacoes,
+                quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+                quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
+              },
+            });
+          }
         }
 
         // Criar as fitas da fruta (se informadas)
@@ -1012,154 +1041,178 @@ export class PedidosService {
 
     // ✅ NOVA LÓGICA: Processar filtros aninhados
     if (filters) {
-      const filterConditions: any[] = [];
-      
       // Garantir que filters seja um array
       const filtersArray = Array.isArray(filters) ? filters : [filters];
-      
-      filtersArray.forEach(filter => {
-        if (filter && filter.includes(':')) {
-          const [type, value] = filter.split(':', 2);
-          if (type && value) {
-            switch (type) {
-              case 'cliente':
-                // Verificar se o valor é um ID numérico ou nome
-                if (/^\d+$/.test(value)) {
-                  // Se for um ID numérico, filtrar por ID
-                  filterConditions.push({
-                    clienteId: parseInt(value)
-                  });
-                } else {
-                  // Se for um nome, filtrar por nome (busca exata)
-                  filterConditions.push({
-                    cliente: { nome: { equals: value, mode: 'insensitive' } }
-                  });
-                }
-                break;
-              case 'numero':
-                // Para número de pedido, usar busca exata
-                filterConditions.push({
-                  numeroPedido: { equals: value, mode: 'insensitive' }
-                });
-                break;
-              case 'motorista':
-                filterConditions.push({
-                  nomeMotorista: { contains: value, mode: 'insensitive' }
-                });
-                break;
-              case 'placa':
-                filterConditions.push({
-                  OR: [
-                    { placaPrimaria: { contains: value, mode: 'insensitive' } },
-                    { placaSecundaria: { contains: value, mode: 'insensitive' } }
-                  ]
-                });
-                break;
-              case 'vale':
-                // Para vale, usar busca exata por referência externa
-                filterConditions.push({
-                  pagamentosPedidos: {
-                    some: { referenciaExterna: { equals: value, mode: 'insensitive' } }
-                  }
-                });
-                break;
-              case 'fornecedor':
-                filterConditions.push({
-                  frutasPedidos: {
-                    some: {
-                      areas: {
-                        some: {
-                          areaFornecedor: {
-                            fornecedor: { nome: { contains: value, mode: 'insensitive' } }
-                          }
-                        }
-                      }
-                    }
-                  }
-                });
-                break;
-              case 'area':
-                if (/^\d+$/.test(value)) {
-                  // Se for um ID numérico, filtrar por ID da área
-                  filterConditions.push({
-                    frutasPedidos: {
-                      some: {
-                        areas: {
-                          some: {
-                            OR: [
-                              { areaPropriaId: parseInt(value) },
-                              { areaFornecedorId: parseInt(value) }
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  });
-                } else {
-                  // Fallback: se for um nome, filtrar por nome
-                  filterConditions.push({
-                    frutasPedidos: {
-                      some: {
-                        areas: {
-                          some: {
-                            OR: [
-                              { areaPropria: { nome: { contains: value, mode: 'insensitive' } } },
-                              { areaFornecedor: { nome: { contains: value, mode: 'insensitive' } } }
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  });
-                }
-                break;
-              case 'fruta':
-                if (/^\d+$/.test(value)) {
-                  // Se for um ID numérico, filtrar por ID
-                  filterConditions.push({
-                    frutasPedidos: {
-                      some: { frutaId: parseInt(value) }
-                    }
-                  });
-                } else {
-                  // Fallback: se for um nome, filtrar por nome
-                  filterConditions.push({
-                    frutasPedidos: {
-                      some: { fruta: { nome: { contains: value, mode: 'insensitive' } } }
-                    }
-                  });
-                }
-                break;
-              case 'cultura':
-                if (/^\d+$/.test(value)) {
-                  // Filtrar pedidos que tenham alguma fruta com a cultura especificada
-                  filterConditions.push({
-                    frutasPedidos: {
-                      some: { fruta: { culturaId: parseInt(value) } }
-                    }
-                  });
-                } else {
-                  // Filtrar por descrição da cultura
-                  filterConditions.push({
-                    frutasPedidos: {
-                      some: { fruta: { cultura: { descricao: { contains: value, mode: 'insensitive' } } } }
-                    }
-                  });
-                }
-                break;
-              case 'pesagem':
-                filterConditions.push({
-                  pesagem: { contains: value, mode: 'insensitive' }
-                });
-                break;
+
+      const groupedFilters = filtersArray.reduce<Record<string, string[]>>((acc, filter) => {
+        if (!filter || !filter.includes(':')) {
+          return acc;
+        }
+
+        const [type, rawValue] = filter.split(':', 2);
+
+        if (!type || rawValue === undefined) {
+          return acc;
+        }
+
+        const decodedValue = decodeURIComponent(rawValue).trim();
+
+        if (!decodedValue) {
+          return acc;
+        }
+
+        if (!acc[type]) {
+          acc[type] = [];
+        }
+
+        acc[type].push(decodedValue);
+        return acc;
+      }, {});
+
+      const buildFilterCondition = (type: string, value: string): Prisma.PedidoWhereInput | null => {
+        switch (type) {
+          case 'cliente':
+            if (/^\d+$/.test(value)) {
+              return { clienteId: parseInt(value, 10) };
             }
+            return { cliente: { nome: { equals: value, mode: 'insensitive' } } };
+          case 'numero':
+            return { numeroPedido: { equals: value, mode: 'insensitive' } };
+          case 'motorista':
+            return { nomeMotorista: { contains: value, mode: 'insensitive' } };
+          case 'placa':
+            return {
+              OR: [
+                { placaPrimaria: { contains: value, mode: 'insensitive' } },
+                { placaSecundaria: { contains: value, mode: 'insensitive' } },
+              ],
+            };
+          case 'vale':
+            return {
+              pagamentosPedidos: {
+                some: { referenciaExterna: { equals: value, mode: 'insensitive' } },
+              },
+            };
+          case 'fornecedor':
+            return {
+              frutasPedidos: {
+                some: {
+                  areas: {
+                    some: {
+                      areaFornecedor: {
+                        fornecedor: { nome: { contains: value, mode: 'insensitive' } },
+                      },
+                    },
+                  },
+                },
+              },
+            };
+          case 'area':
+            if (/^\d+$/.test(value)) {
+              const areaId = parseInt(value, 10);
+              return {
+                frutasPedidos: {
+                  some: {
+                    areas: {
+                      some: {
+                        OR: [
+                          { areaPropriaId: areaId },
+                          { areaFornecedorId: areaId },
+                        ],
+                      },
+                    },
+                  },
+                },
+              };
+            }
+            return {
+              frutasPedidos: {
+                some: {
+                  areas: {
+                    some: {
+                      OR: [
+                        { areaPropria: { nome: { contains: value, mode: 'insensitive' } } },
+                        { areaFornecedor: { nome: { contains: value, mode: 'insensitive' } } },
+                      ],
+                    },
+                  },
+                },
+              },
+            };
+          case 'fruta':
+            if (/^\d+$/.test(value)) {
+              return {
+                frutasPedidos: {
+                  some: { frutaId: parseInt(value, 10) },
+                },
+              };
+            }
+            return {
+              frutasPedidos: {
+                some: { fruta: { nome: { contains: value, mode: 'insensitive' } } },
+              },
+            };
+          case 'cultura':
+            if (/^\d+$/.test(value)) {
+              return {
+                frutasPedidos: {
+                  some: { fruta: { culturaId: parseInt(value, 10) } },
+                },
+              };
+            }
+            return {
+              frutasPedidos: {
+                some: {
+                  fruta: {
+                    cultura: { descricao: { contains: value, mode: 'insensitive' } },
+                  },
+                },
+              },
+            };
+          case 'pesagem':
+            return { pesagem: { contains: value, mode: 'insensitive' } };
+          case 'turma':
+            if (/^\d+$/.test(value)) {
+              return {
+                custosColheita: {
+                  some: { turmaColheitaId: parseInt(value, 10) },
+                },
+              };
+            }
+            return {
+              custosColheita: {
+                some: {
+                  turmaColheita: {
+                    nomeColhedor: { contains: value, mode: 'insensitive' },
+                  },
+                },
+              },
+            };
+          default:
+            return null;
+        }
+      };
+
+      const filterConditions: Prisma.PedidoWhereInput[] = [];
+
+      Object.entries(groupedFilters).forEach(([type, values]) => {
+        const conditions: Prisma.PedidoWhereInput[] = [];
+
+        values.forEach((value) => {
+          const condition = buildFilterCondition(type, value);
+          if (condition) {
+            conditions.push(condition);
           }
+        });
+
+        if (conditions.length === 1) {
+          filterConditions.push(conditions[0]);
+        } else if (conditions.length > 1) {
+          filterConditions.push({ OR: conditions });
         }
       });
-      
-      // Se há filtros aninhados, combiná-los com AND
+
       if (filterConditions.length > 0) {
-        // Se já existe uma condição AND, preservar e adicionar os novos filtros
         if (where.AND) {
           where.AND = [...where.AND, ...filterConditions];
         } else {
@@ -1212,6 +1265,8 @@ export class PedidosService {
                 select: { 
                   id: true, 
                   nome: true,
+                  dePrimeira: true,
+                  culturaId: true,
                   cultura: {
                     select: {
                       id: true,
@@ -1625,6 +1680,8 @@ export class PedidosService {
               select: { 
                 id: true, 
                 nome: true,
+                dePrimeira: true,
+                culturaId: true,
                 cultura: {
                   select: {
                     id: true,
@@ -1730,6 +1787,42 @@ export class PedidosService {
       throw new BadRequestException('Status do pedido não permite atualizar colheita');
     }
 
+    const frutasPedidoMeta = await this.prisma.frutasPedidos.findMany({
+      where: { pedidoId: id },
+      include: {
+        fruta: {
+          select: {
+            culturaId: true,
+            dePrimeira: true,
+            nome: true,
+          },
+        },
+      },
+    });
+
+    const frutaMetaPorId = new Map<number, { culturaId: number | null; dePrimeira: boolean; nome: string }>();
+    const culturaPossuiPrimeira = new Map<number, boolean>();
+
+    for (const frutaPedido of frutasPedidoMeta) {
+      const culturaId = frutaPedido.fruta?.culturaId ?? null;
+      const dePrimeira = frutaPedido.fruta?.dePrimeira ?? false;
+      const nome = frutaPedido.fruta?.nome ?? `Fruta ${frutaPedido.id}`;
+
+      frutaMetaPorId.set(frutaPedido.id, {
+        culturaId,
+        dePrimeira,
+        nome,
+      });
+
+      if (culturaId !== null) {
+        if (dePrimeira) {
+          culturaPossuiPrimeira.set(culturaId, true);
+        } else if (!culturaPossuiPrimeira.has(culturaId)) {
+          culturaPossuiPrimeira.set(culturaId, false);
+        }
+      }
+    }
+
     // ✅ NOVA VALIDAÇÃO: Validar apenas frutas que estão sendo colhidas (colheita parcial)
     const frutasSendoColhidas = updateColheitaDto.frutas.filter(fruta =>
       fruta.quantidadeReal !== undefined && fruta.quantidadeReal !== null && fruta.quantidadeReal > 0
@@ -1742,9 +1835,28 @@ export class PedidosService {
 
     // Validações das áreas e fitas APENAS para frutas sendo colhidas
     for (const fruta of frutasSendoColhidas) {
+      const meta = frutaMetaPorId.get(fruta.frutaPedidoId);
+      if (!meta) {
+        throw new BadRequestException(`Fruta ${fruta.frutaPedidoId} não pertence ao pedido informado.`);
+      }
+
+      const { culturaId, dePrimeira, nome } = meta;
+      const existeFrutaDePrimeiraNaCultura = culturaId !== null && culturaPossuiPrimeira.get(culturaId) === true;
+      const herdaVinculosDaPrimeira = existeFrutaDePrimeiraNaCultura && !dePrimeira;
+
+      if (herdaVinculosDaPrimeira) {
+        if (fruta.areas && fruta.areas.some(area => area.areaPropriaId || area.areaFornecedorId)) {
+          throw new BadRequestException(`A fruta ${nome} herda as áreas da fruta de primeira da cultura e não deve possuir áreas próprias vinculadas.`);
+        }
+        if (fruta.fitas && fruta.fitas.length > 0) {
+          throw new BadRequestException(`A fruta ${nome} herda as fitas da fruta de primeira da cultura e não deve possuir fitas vinculadas.`);
+        }
+        continue;
+      }
+
       // Validar que cada fruta tem pelo menos uma área
       if (!fruta.areas || fruta.areas.length === 0) {
-        throw new BadRequestException(`Fruta ${fruta.frutaPedidoId} deve ter pelo menos uma área associada`);
+        throw new BadRequestException(`A fruta ${nome} deve ter pelo menos uma área associada`);
       }
 
       // Validar áreas e fitas
@@ -1835,6 +1947,12 @@ export class PedidosService {
 
       // ✅ NOVA LÓGICA: Atualizar apenas frutas que estão sendo colhidas
       for (const fruta of frutasSendoColhidas) {
+        const meta = frutaMetaPorId.get(fruta.frutaPedidoId);
+        const culturaIdMeta = meta?.culturaId ?? null;
+        const dePrimeiraMeta = meta?.dePrimeira ?? false;
+        const herdaVinculosDaPrimeira =
+          culturaIdMeta !== null && culturaPossuiPrimeira.get(culturaIdMeta) === true && !dePrimeiraMeta;
+
         // Atualizar FrutasPedidos
         await prisma.frutasPedidos.update({
           where: { id: fruta.frutaPedidoId },
@@ -1851,7 +1969,7 @@ export class PedidosService {
         });
 
         // Criar todas as novas áreas (substituindo completamente as antigas)
-        if (fruta.areas && fruta.areas.length > 0) {
+        if (!herdaVinculosDaPrimeira && fruta.areas && fruta.areas.length > 0) {
           for (const area of fruta.areas) {
             await prisma.frutasPedidosAreas.create({
               data: {
@@ -1866,69 +1984,62 @@ export class PedidosService {
           }
         }
 
-        // Gerenciar fitas da fruta (se informadas)
-        if (fruta.fitas && fruta.fitas.length > 0) {
-          
-          // ✅ CORREÇÃO: Buscar fitas antigas ANTES de deletar para devolver ao estoque
-          const fitasAntigas = await prisma.frutasPedidosFitas.findMany({
-            where: { frutaPedidoId: fruta.frutaPedidoId },
-            include: {
-              controleBanana: true
-            }
-          });
+        // Gerenciar fitas da fruta
+        const fitasAntigas = await prisma.frutasPedidosFitas.findMany({
+          where: { frutaPedidoId: fruta.frutaPedidoId },
+          include: {
+            controleBanana: true,
+          },
+        });
 
-          // ✅ DEVOLVER fitas antigas ao estoque ANTES de deletar
-          if (fitasAntigas.length > 0) {
-            for (const fitaAntiga of fitasAntigas) {
-              if (fitaAntiga.controleBananaId) {
-                await prisma.controleBanana.update({
-                  where: { id: fitaAntiga.controleBananaId },
-                  data: {
-                    quantidadeFitas: {
-                      increment: fitaAntiga.quantidadeFita || 0
-                    }
-                  }
-                });
-              }
+        if (fitasAntigas.length > 0) {
+          for (const fitaAntiga of fitasAntigas) {
+            if (fitaAntiga.controleBananaId) {
+              await prisma.controleBanana.update({
+                where: { id: fitaAntiga.controleBananaId },
+                data: {
+                  quantidadeFitas: {
+                    increment: fitaAntiga.quantidadeFita || 0,
+                  },
+                },
+              });
             }
           }
+        }
 
-          // Deletar todas as fitas antigas
-          await prisma.frutasPedidosFitas.deleteMany({
-            where: { frutaPedidoId: fruta.frutaPedidoId },
-          });
+        await prisma.frutasPedidosFitas.deleteMany({
+          where: { frutaPedidoId: fruta.frutaPedidoId },
+        });
 
+        if (!herdaVinculosDaPrimeira && fruta.fitas && fruta.fitas.length > 0) {
           // Processar cada fita com seus detalhes de área
           for (const fita of fruta.fitas) {
-            
             if (fita.detalhesAreas && fita.detalhesAreas.length > 0) {
-              
               // Para cada área, criar um registro específico com controleBananaId
               for (const detalhe of fita.detalhesAreas) {
-                
                 // NOVA LÓGICA: Usar controleBananaId diretamente se disponível
                 let controleBananaId = fita.controleBananaId;
-                
+
                 if (!controleBananaId) {
                   // Fallback: Buscar o controle específico desta fita nesta área
                   const controle = await prisma.controleBanana.findFirst({
                     where: {
                       fitaBananaId: detalhe.fitaBananaId,
                       areaAgricolaId: detalhe.areaId,
-                      quantidadeFitas: { gt: 0 }
+                      quantidadeFitas: { gt: 0 },
                     },
                     orderBy: {
-                      quantidadeFitas: 'desc'
-                    }
+                      quantidadeFitas: 'desc',
+                    },
                   });
-                  
+
                   if (controle) {
                     controleBananaId = controle.id;
                   }
                 }
 
                 if (controleBananaId) {
-                  const registroCriado = await prisma.frutasPedidosFitas.create({
+                  await prisma.frutasPedidosFitas.create({
                     data: {
                       frutaPedidoId: fruta.frutaPedidoId,
                       fitaBananaId: fita.fitaBananaId,
@@ -1993,6 +2104,16 @@ export class PedidosService {
 
     // Atualizar estoque das fitas utilizadas (edição = true)
     for (const fruta of updateColheitaDto.frutas) {
+      const meta = frutaMetaPorId.get(fruta.frutaPedidoId);
+      const culturaIdMeta = meta?.culturaId ?? null;
+      const dePrimeiraMeta = meta?.dePrimeira ?? false;
+      const herdaVinculosDaPrimeira =
+        culturaIdMeta !== null && culturaPossuiPrimeira.get(culturaIdMeta) === true && !dePrimeiraMeta;
+
+      if (herdaVinculosDaPrimeira) {
+        continue;
+      }
+
       if (fruta.fitas && fruta.fitas.length > 0) {
         // NOVA LÓGICA: Usar subtração por área específica
         await this.processarFitasComAreas(fruta.fitas, usuarioId);
@@ -3498,7 +3619,18 @@ export class PedidosService {
         frutasPedidos: {
           include: {
             fruta: {
-              select: { id: true, nome: true }
+              select: { 
+                id: true, 
+                nome: true,
+                dePrimeira: true,
+                culturaId: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                }
+              }
             }
           }
         },
@@ -3548,7 +3680,18 @@ export class PedidosService {
         frutasPedidos: {
           include: {
             fruta: {
-              select: { id: true, nome: true }
+              select: { 
+                id: true, 
+                nome: true,
+                dePrimeira: true,
+                culturaId: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                }
+              }
             }
           }
         },
@@ -4265,6 +4408,81 @@ export class PedidosService {
         });
       }
 
+    // 3.1. Buscar por turmas de colheita
+    if (term.length >= 2) {
+      const trimmedTerm = term.trim();
+      const prefilterTerm = trimmedTerm.substring(0, Math.min(2, trimmedTerm.length));
+
+      const turmasWhereConditions: any[] = [];
+
+      if (trimmedTerm.length >= 2) {
+        turmasWhereConditions.push({
+          nomeColhedor: {
+            contains: trimmedTerm,
+            mode: 'insensitive',
+          },
+        });
+      }
+
+      if (prefilterTerm.length >= 2) {
+        turmasWhereConditions.push({
+          nomeColhedor: {
+            contains: prefilterTerm,
+            mode: 'insensitive',
+          },
+        });
+      }
+
+      const turmasRaw = await this.prisma.turmaColheita.findMany({
+        where: turmasWhereConditions.length > 0 ? { OR: turmasWhereConditions } : undefined,
+        select: {
+          id: true,
+          nomeColhedor: true,
+          responsavelChavePix: true,
+          chavePix: true,
+          custosColheita: {
+            select: {
+              pedidoId: true,
+            },
+          },
+          _count: {
+            select: { custosColheita: true },
+          },
+        },
+        take: 20,
+        orderBy: { nomeColhedor: 'asc' },
+      });
+
+      const turmasFiltradas = turmasRaw
+        .filter((turma) => {
+          const nomeNormalizado = this.normalizeForSearch(turma.nomeColhedor);
+          return nomeNormalizado.includes(normalizedTerm);
+        })
+        .slice(0, 3);
+
+      turmasFiltradas.forEach((turma) => {
+        const pedidosUnicos = new Set(
+          (turma.custosColheita || []).map((custo) => custo.pedidoId),
+        ).size;
+
+        suggestions.push({
+          type: 'turma',
+          label: 'Turma de Colheita',
+          value: capitalizeName(turma.nomeColhedor),
+          icon: '🧑‍🌾',
+          color: '#13c2c2',
+          description: `Pedidos vinculados: ${pedidosUnicos}`,
+          metadata: {
+            id: turma.id,
+            nome: turma.nomeColhedor,
+            responsavel: turma.responsavelChavePix,
+            chavePix: turma.chavePix,
+            totalPedidos: pedidosUnicos,
+          },
+        });
+      });
+    }
+
       // 4. Buscar por placas (placaPrimaria e placaSecundaria) - buscar sempre por placas se termo >= 3 caracteres
       if (term.length >= 3) {
         const placaTerm = term.toUpperCase().trim();
@@ -4710,11 +4928,45 @@ export class PedidosService {
       }
 
       // Remover duplicatas e limitar resultados
-      const uniqueSuggestions = suggestions.filter((suggestion, index, self) =>
-        index === self.findIndex(s => s.type === suggestion.type && s.value === suggestion.value)
-      );
+      const uniqueSuggestions = suggestions.filter((suggestion, index, self) => {
+        const suggestionKey = `${suggestion.type}-${suggestion.metadata?.id ?? suggestion.value}`;
+        return (
+          index ===
+          self.findIndex((s) => {
+            const key = `${s.type}-${s.metadata?.id ?? s.value}`;
+            return key === suggestionKey;
+          })
+        );
+      });
 
-      return uniqueSuggestions.slice(0, 10); // Máximo 10 sugestões
+      const typePriority = [
+        'numero',
+        'cliente',
+        'turma',
+        'motorista',
+        'placa',
+        'vale',
+        'fornecedor',
+        'area',
+        'fruta',
+        'cultura',
+        'pesagem',
+      ];
+
+      const orderedSuggestions = uniqueSuggestions.sort((a, b) => {
+        const indexA = typePriority.indexOf(a.type);
+        const indexB = typePriority.indexOf(b.type);
+        const priorityA = indexA === -1 ? Number.MAX_SAFE_INTEGER : indexA;
+        const priorityB = indexB === -1 ? Number.MAX_SAFE_INTEGER : indexB;
+
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+
+        return a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' });
+      });
+
+      return orderedSuggestions.slice(0, 10); // Máximo 10 sugestões
 
     } catch (error) {
       console.error('Erro na busca inteligente:', error);

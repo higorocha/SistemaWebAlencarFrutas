@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusPedido } from '@prisma/client';
 
 /**
@@ -32,6 +32,7 @@ export class MobilePedidoSimplificadoDto {
     id: number;
     frutaId: number; // ID da fruta (para correspondência com mão de obra)
     nome: string;
+    dePrimeira?: boolean;
     quantidadePrevista: number;
     quantidadeReal?: number;
     quantidadeReal2?: number;
@@ -78,6 +79,15 @@ export class MobilePedidoSimplificadoDto {
     valorColheita: number;
     observacoes?: string;
   }[];
+
+  @ApiPropertyOptional({ description: 'Observações gerais do pedido', example: 'Pedido urgente' })
+  observacoes?: string;
+
+  @ApiPropertyOptional({ description: 'Placa primária do veículo', example: 'ABC1D23' })
+  placaPrimaria?: string;
+
+  @ApiPropertyOptional({ description: 'Placa secundária do veículo', example: 'XYZ4E56' })
+  placaSecundaria?: string;
 }
 
 export class MobilePedidosListResponseDto {

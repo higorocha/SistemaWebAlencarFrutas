@@ -293,6 +293,13 @@ const VisualizarPedidoModal = ({
 
   const statusConfig = getStatusConfig(pedido.status);
 
+  const frutasComVinculos =
+    pedido.frutasPedidos?.filter(
+      (frutaPedido) =>
+        (frutaPedido.areas && frutaPedido.areas.length > 0) ||
+        (frutaPedido.fitas && frutaPedido.fitas.length > 0),
+    ) || [];
+
   return (
     <Modal
       title={
@@ -523,7 +530,14 @@ const VisualizarPedidoModal = ({
         {pedido.frutasPedidos && pedido.frutasPedidos.length > 0 ? (
           <>
             {/* Subseção: Valores */}
-            <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
+            <Title
+              level={5}
+              style={{
+                color: "#059669",
+                marginBottom: "8px",
+                marginTop: "0",
+              }}
+            >
               <DollarOutlined style={{ marginRight: 8 }} />
               Valores
             </Title>
@@ -536,7 +550,7 @@ const VisualizarPedidoModal = ({
               minWidthMobile={1000}
               showScrollHint={true}
               style={{
-                marginBottom: isMobile ? "16px" : "24px"
+                marginBottom: isMobile ? "16px" : "24px",
               }}
             />
 
@@ -546,174 +560,426 @@ const VisualizarPedidoModal = ({
               Áreas e Fitas Vinculadas
             </Title>
             <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-            {pedido.frutasPedidos.map((frutaPedido, index) => (
-              <div key={frutaPedido.id} style={{ marginBottom: "20px" }}>
-                <div style={{ 
-                  backgroundColor: "#f8fafc", 
-                  border: "1px solid #e2e8f0", 
-                  borderRadius: "8px", 
-                  padding: "16px",
-                  marginBottom: "12px"
-                }}>
-                  <Text strong style={{ color: "#059669", fontSize: "16px", display: "block", marginBottom: "12px" }}>
-                    <span style={{ marginRight: 8, display: "inline-flex", alignItems: "center" }}>
-                      {getFruitIcon(frutaPedido.fruta?.nome, { width: 20, height: 20 })}
-                    </span>
-                    {capitalizeName(frutaPedido.fruta?.nome)}
-                  </Text>
-                  
-                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
-                    {/* Áreas */}
-                    <Col xs={24} sm={24} md={12}>
-                      <Text strong style={{ color: "#059669", fontSize: "0.875rem", display: "block", marginBottom: "8px" }}>
-                        <EnvironmentOutlined style={{ marginRight: 4 }} />
-                        Áreas ({frutaPedido.areas?.length || 0})
-                      </Text>
-                      {frutaPedido.areas && frutaPedido.areas.length > 0 ? (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                          {frutaPedido.areas.map((area, areaIndex) => {
-                            return (
-                            <div key={areaIndex} style={{ marginBottom: "4px" }}>
-                              <Tag
-                                color={area.areaPropria ? "green" : area.areaFornecedor ? "blue" : "orange"}
-                                style={{ marginBottom: "2px" }}
-                              >
-                                {area.areaPropria ? (
-                                  <span>
-                                    <EnvironmentOutlined style={{ marginRight: 4 }} />
-                                    {capitalizeName(area.areaPropria.nome)}
-                                    {(() => {
-                                      const qtd = area.quantidadeColhidaUnidade1 || 0;
-                                      return qtd > 0 && (
-                                        <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
-                                          ({qtd.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
-                                        </span>
-                                      );
-                                    })()}
-                                  </span>
-                                ) : area.areaFornecedor ? (
-                                  <span>
-                                    <UserOutlined style={{ marginRight: 4 }} />
-                                    {capitalizeName(area.areaFornecedor.fornecedor?.nome)} • {capitalizeName(area.areaFornecedor.nome)}
-                                    {(() => {
-                                      const qtd = area.quantidadeColhidaUnidade1 || 0;
-                                      return qtd > 0 && (
-                                        <span style={{ marginLeft: 6, fontWeight: "600", color: "#059669" }}>
-                                          ({qtd.toLocaleString('pt-BR')} {frutaPedido.unidadeMedida1})
-                                        </span>
-                                      );
-                                    })()}
-                                  </span>
-                                ) : (
-                                  <span style={{ color: "#f59e0b" }}>
-                                    <InfoCircleOutlined style={{ marginRight: 4 }} />
-                                    Área pendente de definição
-                                  </span>
-                                )}
-                              </Tag>
-                              {/* Exibir observação apenas da primeira área (todas têm a mesma observação) */}
-                              {areaIndex === 0 && area.observacoes && !area.observacoes.includes('Área a ser definida durante a colheita') && (
-                                <div style={{ 
-                                  fontSize: "11px", 
-                                  color: "#666", 
-                                  fontStyle: "italic",
-                                  marginTop: "2px",
-                                  paddingLeft: "4px"
-                                }}>
-                                  {area.observacoes}
-                                </div>
-                              )}
-                            </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <Text type="secondary" style={{ fontStyle: "italic" }}>
-                          Nenhuma área vinculada
-                        </Text>
-                      )}
-                    </Col>
 
-                    {/* Fitas */}
-                    <Col xs={24} sm={24} md={12}>
-                      <Text strong style={{ color: "#059669", fontSize: "0.875rem", display: "block", marginBottom: "8px" }}>
-                        <TagOutlined style={{ marginRight: 4 }} />
-                        Fitas ({frutaPedido.fitas?.length || 0})
-                      </Text>
-                      {frutaPedido.fitas && frutaPedido.fitas.length > 0 ? (
-                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", fontSize: "12px" }}>
-                          {frutaPedido.fitas.map((fita, fitaIndex) => (
-                            <React.Fragment key={fitaIndex}>
-                              {/* Conteúdo da fita em uma linha */}
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                {/* Cor da fita */}
-                                <div
+            {frutasComVinculos.length === 0 ? (
+              <Empty
+                description="Nenhuma fruta possui áreas ou fitas vinculadas"
+                image={
+                  <EnvironmentOutlined
+                    style={{ fontSize: 48, color: "#d9d9d9" }}
+                  />
+                }
+              />
+            ) : (
+              frutasComVinculos.map((frutaPedido) => {
+                const fitas = frutaPedido.fitas || [];
+                const totalFitas = fitas.reduce(
+                  (acc, fita) => acc + (fita.quantidadeFita || 0),
+                  0,
+                );
+                const coresMap = new Map();
+                const areasFitasSet = new Set();
+
+                fitas.forEach((fita) => {
+                  const corHex = (
+                    fita.fitaBanana?.corHex || "#52c41a"
+                  ).toUpperCase();
+                  const nomeCor =
+                    fita.fitaBanana?.nome || `Cor ${corHex}`;
+                        const areaNome = capitalizeName(
+                          fita.controleBanana?.areaAgricola?.nome ||
+                            "Área não identificada",
+                        );
+                  areasFitasSet.add(areaNome);
+
+                  if (!coresMap.has(corHex)) {
+                    coresMap.set(corHex, {
+                      corHex,
+                      nome: nomeCor,
+                      quantidade: 0,
+                      areas: new Map(),
+                    });
+                  }
+
+                  const agrupamento = coresMap.get(corHex);
+                  const quantidadeFita = fita.quantidadeFita || 0;
+                  agrupamento.quantidade += quantidadeFita;
+                  const quantidadeAreaAtual =
+                    agrupamento.areas.get(areaNome) || 0;
+                  agrupamento.areas.set(
+                    areaNome,
+                    quantidadeAreaAtual + quantidadeFita,
+                  );
+                });
+
+                const resumoFitas =
+                  totalFitas > 0
+                    ? `${totalFitas.toLocaleString(
+                        "pt-BR",
+                      )} fitas distribuídas em ${coresMap.size} ${
+                        coresMap.size === 1 ? "cor" : "cores"
+                      } em ${areasFitasSet.size} ${
+                        areasFitasSet.size === 1 ? "área" : "áreas"
+                      }`
+                    : null;
+
+                const coresOrdenadas = Array.from(coresMap.values()).sort((a, b) =>
+                  a.nome.localeCompare(b.nome, "pt-BR", {
+                    sensitivity: "base",
+                  }),
+                );
+
+                const areasFiltradas = frutaPedido.areas || [];
+
+                return (
+                  <div key={frutaPedido.id} style={{ marginBottom: "20px" }}>
+                    <div
+                      style={{
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "16px",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      <Text
+                        strong
+                        style={{
+                          color: "#059669",
+                          fontSize: "16px",
+                          display: "block",
+                          marginBottom: "12px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            marginRight: 8,
+                            display: "inline-flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          {getFruitIcon(frutaPedido.fruta?.nome, {
+                            width: 20,
+                            height: 20,
+                          })}
+                        </span>
+                        {(() => {
+                          const frutasMesmaCultura =
+                            pedido.frutasPedidos?.filter((outraFruta) => {
+                              if (!outraFruta.fruta || !frutaPedido.fruta) {
+                                return false;
+                              }
+                              return (
+                                outraFruta.fruta.culturaId ===
+                                frutaPedido.fruta.culturaId
+                              );
+                            }) || [];
+
+                          const nomesSecundarios = frutasMesmaCultura
+                            .filter(
+                              (outraFruta) =>
+                                outraFruta.frutaId !== frutaPedido.frutaId,
+                            )
+                            .map((outraFruta) =>
+                              capitalizeName(outraFruta.fruta?.nome || ""),
+                            )
+                            .filter(Boolean);
+
+                          const nomesFrutas = [
+                            capitalizeName(frutaPedido.fruta?.nome || ""),
+                            ...nomesSecundarios,
+                          ].filter(Boolean);
+
+                          return nomesFrutas.map((nome, index) => (
+                            <React.Fragment key={`${nome}-${index}`}>
+                              {index > 0 && (
+                                <span
                                   style={{
-                                    width: 10,
-                                    height: 10,
-                                    backgroundColor: fita.fitaBanana?.corHex || '#52c41a',
-                                    borderRadius: '50%',
-                                    border: '1px solid #d9d9d9',
-                                    flexShrink: 0
+                                    margin: "0 6px",
+                                    color: "#047857",
+                                    fontWeight: 500,
                                   }}
-                                />
-                                
-                                {/* Nome da fita e quantidade */}
-                                <span style={{ fontWeight: "600", color: "#333" }}>
-                                  {fita.fitaBanana?.nome || 'Fita'} • {fita.quantidadeFita || 0} und
+                                >
+                                  •
                                 </span>
-                                
-                                {/* Área de origem */}
-                                <span style={{ color: "#666" }}>
-                                  <EnvironmentOutlined style={{ fontSize: "10px", color: "#10b981", marginRight: "2px" }} />
-                                  {fita.controleBanana?.areaAgricola?.nome || 'Área não identificada'}
-                                </span>
-                                
-                                {/* Observações com tooltip se existirem */}
-                                {fita.observacoes && (
-                                  <Tooltip title={fita.observacoes} placement="top">
-                                    <span style={{ 
-                                      color: "#8b5cf6",
-                                      fontStyle: "italic",
-                                      cursor: "pointer"
-                                    }}>
-                                      📝 {fita.observacoes.length > 10 
-                                        ? `${fita.observacoes.substring(0, 10)}...` 
-                                        : fita.observacoes
-                                      }
-                                    </span>
-                                  </Tooltip>
-                                )}
-                              </div>
-                              
-                              {/* Divider vertical entre lotes de fitas */}
-                              {fitaIndex < frutaPedido.fitas.length - 1 && (
-                                <Divider type="vertical" style={{ height: "16px", margin: "0 4px" }} />
                               )}
+                              <span
+                                style={{
+                                  color: "#059669",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {nome}
+                              </span>
                             </React.Fragment>
-                          ))}
-                        </div>
-                      ) : (
-                        <Text type="secondary" style={{ fontStyle: "italic" }}>
-                          Nenhuma fita vinculada
-                        </Text>
-                      )}
-                    </Col>
-                  </Row>
-                </div>
-              </div>
-            ))}
+                          ));
+                        })()}
+                      </Text>
+
+                      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+                        {/* Áreas */}
+                        <Col xs={24} sm={24} md={12}>
+                          <Text
+                            strong
+                            style={{
+                              color: "#059669",
+                              fontSize: "0.875rem",
+                              display: "block",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            <EnvironmentOutlined style={{ marginRight: 4 }} />
+                            Áreas ({areasFiltradas.length || 0})
+                          </Text>
+                          {areasFiltradas && areasFiltradas.length > 0 ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: "8px",
+                              }}
+                            >
+                              {areasFiltradas.map((area, areaIndex) => (
+                                <div
+                                  key={areaIndex}
+                                  style={{ marginBottom: "4px" }}
+                                >
+                                  <Tag
+                                    color={
+                                      area.areaPropria
+                                        ? "green"
+                                        : area.areaFornecedor
+                                        ? "blue"
+                                        : "orange"
+                                    }
+                                    style={{ marginBottom: "2px" }}
+                                  >
+                                    {area.areaPropria ? (
+                                      <span>
+                                        <EnvironmentOutlined
+                                          style={{ marginRight: 4 }}
+                                        />
+                                        {capitalizeName(area.areaPropria.nome)}
+                                        {(() => {
+                                          const qtd =
+                                            area.quantidadeColhidaUnidade1 || 0;
+                                          return (
+                                            qtd > 0 && (
+                                              <span
+                                                style={{
+                                                  marginLeft: 6,
+                                                  fontWeight: "600",
+                                                  color: "#059669",
+                                                }}
+                                              >
+                                                (
+                                                {qtd.toLocaleString("pt-BR")}{" "}
+                                                {frutaPedido.unidadeMedida1})
+                                              </span>
+                                            )
+                                          );
+                                        })()}
+                                      </span>
+                                    ) : area.areaFornecedor ? (
+                                      <span>
+                                        <UserOutlined
+                                          style={{ marginRight: 4 }}
+                                        />
+                                        {capitalizeName(
+                                          area.areaFornecedor.fornecedor?.nome,
+                                        )}{" "}
+                                        • {capitalizeName(area.areaFornecedor.nome)}
+                                        {(() => {
+                                          const qtd =
+                                            area.quantidadeColhidaUnidade1 || 0;
+                                          return (
+                                            qtd > 0 && (
+                                              <span
+                                                style={{
+                                                  marginLeft: 6,
+                                                  fontWeight: "600",
+                                                  color: "#059669",
+                                                }}
+                                              >
+                                                (
+                                                {qtd.toLocaleString("pt-BR")}{" "}
+                                                {frutaPedido.unidadeMedida1})
+                                              </span>
+                                            )
+                                          );
+                                        })()}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: "#f59e0b" }}>
+                                        <InfoCircleOutlined
+                                          style={{ marginRight: 4 }}
+                                        />
+                                        Área pendente de definição
+                                      </span>
+                                    )}
+                                  </Tag>
+                                  {areaIndex === 0 &&
+                                    area.observacoes &&
+                                    !area.observacoes.includes(
+                                      "Área a ser definida durante a colheita",
+                                    ) && (
+                                      <div
+                                        style={{
+                                          fontSize: "11px",
+                                          color: "#666",
+                                          fontStyle: "italic",
+                                          marginTop: "2px",
+                                          paddingLeft: "4px",
+                                        }}
+                                      >
+                                        {area.observacoes}
+                                      </div>
+                                    )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <Text
+                              type="secondary"
+                              style={{ fontStyle: "italic" }}
+                            >
+                              Nenhuma área vinculada
+                            </Text>
+                          )}
+                        </Col>
+
+                        {/* Fitas */}
+                        <Col xs={24} sm={24} md={12}>
+                          <Text
+                            strong
+                            style={{
+                              color: "#059669",
+                              fontSize: "0.875rem",
+                              display: "block",
+                              marginBottom: "8px",
+                            }}
+                          >
+                        <TagOutlined style={{ marginRight: 4 }} />
+                        {resumoFitas
+                          ? `Fitas • ${resumoFitas}`
+                          : `Fitas (${fitas.length || 0})`}
+                          </Text>
+                          {fitas && fitas.length > 0 ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "8px",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "6px",
+                                }}
+                              >
+                                {coresOrdenadas.map((cor) => {
+                                  const distribuicaoPorArea = Array.from(
+                                    cor.areas.entries(),
+                                  )
+                                    .sort((a, b) =>
+                                      a[0].localeCompare(b[0], "pt-BR", {
+                                        sensitivity: "base",
+                                      }),
+                                    )
+                                    .map(([areaNome, quantidade]) => {
+                                      const quantidadeFormatada =
+                                        quantidade.toLocaleString("pt-BR");
+                                      const sufixo =
+                                        quantidade === 1 ? "fita" : "fitas";
+                                      return `${quantidadeFormatada} ${sufixo} na ${areaNome}`;
+                                    })
+                                    .join(", ");
+
+                                  return (
+                                    <div
+                                      key={cor.corHex}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "8px",
+                                        backgroundColor: "#f8fafc",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        padding: "8px 12px",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          width: 12,
+                                          height: 12,
+                                          backgroundColor: cor.corHex,
+                                          border: "1px solid #94a3b8",
+                                          borderRadius: "50%",
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          flex: 1,
+                                        }}
+                                      >
+                                        <Text
+                                          style={{
+                                            fontWeight: "600",
+                                            color: "#0f172a",
+                                          }}
+                                        >
+                                        {capitalizeName(cor.nome)}
+                                        </Text>
+                                        <Text
+                                          style={{
+                                            fontSize: "12px",
+                                            color: "#475569",
+                                          }}
+                                        >
+                                          {distribuicaoPorArea}
+                                        </Text>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <Text
+                              type="secondary"
+                              style={{ fontStyle: "italic" }}
+                            >
+                              Nenhuma fita vinculada
+                            </Text>
+                          )}
+                        </Col>
+                      </Row>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </>
         ) : (
-          <Empty 
-            description="Nenhuma fruta cadastrada" 
-            image={<AppleOutlined style={{ fontSize: 48, color: "#d9d9d9" }} />}
+          <Empty
+            description="Nenhuma fruta cadastrada"
+            image={
+              <AppleOutlined style={{ fontSize: 48, color: "#d9d9d9" }} />
+            }
           />
         )}
       </Card>
 
       {/* Seção 3: Dados de Colheita */}
-      {(pedido.dataColheita || pedido.observacoesColheita || pedido.pesagem || pedido.nomeMotorista) && (
+      {(pedido.dataColheita ||
+        pedido.observacoesColheita ||
+        pedido.pesagem ||
+        pedido.nomeMotorista) && (
         <Card
           title={
             <Space>

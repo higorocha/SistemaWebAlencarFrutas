@@ -48,6 +48,7 @@ const Frutas = () => {
     corPredominante: "",
     epocaColheita: "",
     observacoes: "",
+    dePrimeira: false,
   });
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
@@ -97,6 +98,7 @@ const Frutas = () => {
       corPredominante: "",
       epocaColheita: "",
       observacoes: "",
+      dePrimeira: false,
     });
     setEditando(false);
     setErros({});
@@ -156,6 +158,7 @@ const Frutas = () => {
         corPredominante: frutaAtual.corPredominante || null,
         epocaColheita: frutaAtual.epocaColheita || null,
         observacoes: frutaAtual.observacoes || null,
+        dePrimeira: frutaAtual.dePrimeira ?? false,
       };
       
       // Remover propriedades undefined/null para evitar problemas de validação
@@ -196,6 +199,7 @@ const Frutas = () => {
         corPredominante: "",
         epocaColheita: "",
         observacoes: "",
+        dePrimeira: false,
       });
       setEditando(editando);
       setOpenDialog(true);
@@ -220,6 +224,7 @@ const Frutas = () => {
         corPredominante: fruta.corPredominante || "",
         epocaColheita: fruta.epocaColheita || "",
         observacoes: fruta.observacoes || "",
+        dePrimeira: Boolean(fruta.dePrimeira),
       });
 
       setEditando(true);
@@ -432,6 +437,7 @@ const Frutas = () => {
           setErros={setErros}
           isSaving={isSaving}
           handleSalvarFruta={handleSalvarFruta}
+        todasFrutas={frutas}
         />
       </Suspense>
 

@@ -19,6 +19,7 @@ const AddEditFrutaDialog = ({
   setErros,
   isSaving = false,
   handleSalvarFruta,
+  todasFrutas = [],
 }) => {
   // Função customizada para verificar se há dados preenchidos no formulário de frutas
   const customHasDataChecker = (data) => {
@@ -90,6 +91,7 @@ const AddEditFrutaDialog = ({
         editando={editando}
         erros={erros}
         setErros={setErros}
+        todasFrutas={todasFrutas}
       />
 
       <div
@@ -141,6 +143,7 @@ AddEditFrutaDialog.propTypes = {
   setErros: PropTypes.func.isRequired,
   isSaving: PropTypes.bool,
   handleSalvarFruta: PropTypes.func.isRequired,
+  todasFrutas: PropTypes.array,
 };
 
 export default AddEditFrutaDialog; 

@@ -1,14 +1,26 @@
-import React, { useMemo, useState } from 'react';
-import { Card, Typography, Row, Col, Space, Tag, Tooltip, Tabs } from 'antd';
-import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Card, Typography, Row, Col, Space, Tag, Tooltip, Tabs, Button } from 'antd';
+import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined, ClockCircleOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import styled from 'styled-components';
 import useResponsive from '../../hooks/useResponsive';
 import { formatarData } from '../../utils/dateUtils';
 import { intFormatter, capitalizeName, capitalizeNameShort } from '../../utils/formatters';
 import { getFruitIcon } from '../../utils/fruitIcons';
 import './ProgramacaoColheitaGrid.css';
+import ColheitasDiaModal from './ColheitasDiaModal';
 
 const { Text, Title } = Typography;
+
+const STATUS_COLHEITAS_CONCLUIDAS = [
+  'COLHEITA_PARCIAL',
+  'COLHEITA_REALIZADA',
+  'AGUARDANDO_PRECIFICACAO',
+  'PRECIFICACAO_REALIZADA',
+  'AGUARDANDO_PAGAMENTO',
+  'PAGAMENTO_PARCIAL',
+  'PAGAMENTO_REALIZADO',
+  'PEDIDO_FINALIZADO'
+];
 
 // Styled components para as abas
 const StyledTabs = styled(Tabs)`
@@ -102,24 +114,57 @@ const PulsingBadge = styled.div`
   }
 `;
 
-const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, activeTab, onTabChange }) => {
-  const { isMobile, isTablet } = useResponsive();
+const ProgramacaoColheitaGrid = ({
+  programacaoColheita = [],
+  onColheitaClick,
+  activeTab,
+  onTabChange,
+  selectedWeek,
+  onNavigateWeek,
+  onResetWeek,
+}) => {
+  const { isMobile } = useResponsive();
+  const [modalDiaAberto, setModalDiaAberto] = useState(false);
+  const [diaSelecionado, setDiaSelecionado] = useState(null);
+
+  const handleAbrirModalDia = useCallback((dadosDia) => {
+    setDiaSelecionado(dadosDia);
+    setModalDiaAberto(true);
+  }, []);
+
+  const handleFecharModalDia = useCallback(() => {
+    setModalDiaAberto(false);
+    setDiaSelecionado(null);
+  }, []);
 
   // Função para calcular a semana atual (segunda anterior ao dia atual até domingo próximo)
-  const calcularSemanaAtual = useMemo(() => {
-    const hoje = new Date();
-    const diaSemana = hoje.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
+  const semanaReferencia = useMemo(() => {
+    if (selectedWeek?.inicio && selectedWeek?.fim) {
+      return {
+        inicio: new Date(selectedWeek.inicio.getFullYear(), selectedWeek.inicio.getMonth(), selectedWeek.inicio.getDate(), 0, 0, 0, 0),
+        fim: new Date(selectedWeek.fim.getFullYear(), selectedWeek.fim.getMonth(), selectedWeek.fim.getDate(), 23, 59, 59, 999),
+        numero: selectedWeek.numero,
+        label: selectedWeek.label,
+        isAtual: selectedWeek.isAtual,
+      };
+    }
 
-    // Calcular a segunda-feira anterior (ou o próprio dia se for segunda)
+    const hoje = new Date();
+    const diaSemana = hoje.getDay();
     const diasParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
     const segundaFeira = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasParaSegunda, 0, 0, 0, 0);
+    const domingo = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + (diaSemana === 0 ? 0 : 7 - diaSemana), 23, 59, 59, 999);
 
-    // Calcular o domingo próximo
-    const diasParaDomingo = diaSemana === 0 ? 0 : 7 - diaSemana;
-    const domingo = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasParaDomingo, 23, 59, 59, 999);
+    const format = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
 
-    return { inicio: segundaFeira, fim: domingo };
-  }, []);
+    return {
+      inicio: segundaFeira,
+      fim: domingo,
+      numero: undefined,
+      label: `${format.format(segundaFeira)} - ${format.format(domingo)}`,
+      isAtual: true,
+    };
+  }, [selectedWeek]);
 
   // Função para obter ícone da fruta (agora usando SVG)
   const getFruitIconComponent = (frutaNome) => {
@@ -206,9 +251,9 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
       const dataStr = dataColheitaNormalizada.toISOString().split('T')[0];
 
       // Verificar se está dentro da semana atual
-      if (dataColheitaNormalizada >= calcularSemanaAtual.inicio && dataColheitaNormalizada <= calcularSemanaAtual.fim) {
+      if (dataColheitaNormalizada >= semanaReferencia.inicio && dataColheitaNormalizada <= semanaReferencia.fim) {
         datasUnicasSemana.add(dataStr);
-      } else if (dataColheitaNormalizada < calcularSemanaAtual.inicio) {
+      } else if (dataColheitaNormalizada < semanaReferencia.inicio) {
         // Colheitas atrasadas (antes da semana atual)
         datasUnicasAtrasadas.add(dataStr);
       }
@@ -216,7 +261,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
 
     // Adicionar todos os dias da semana atual (segunda a domingo)
     for (let i = 0; i < 7; i++) {
-      const data = new Date(calcularSemanaAtual.inicio);
+      const data = new Date(semanaReferencia.inicio);
       data.setDate(data.getDate() + i);
       const dataStr = data.toISOString().split('T')[0];
       datasUnicasSemana.add(dataStr);
@@ -277,7 +322,7 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
       colheitasSemanaAtual: semanaAtual,
       colheitasAtrasadas: atrasadas
     };
-  }, [programacaoColheita, calcularSemanaAtual]);
+  }, [programacaoColheita, semanaReferencia]);
 
   // Obter colunas ordenadas para semana atual
   const colunasSemanaOrdenadas = useMemo(() => {
@@ -298,6 +343,10 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
     return Object.values(colheitasAtrasadas).some(coluna => coluna.totalColheitas > 0);
   }, [colheitasAtrasadas]);
 
+  const totalColheitasAtrasadas = useMemo(() => {
+    return Object.values(colheitasAtrasadas).reduce((acc, col) => acc + col.totalColheitas, 0);
+  }, [colheitasAtrasadas]);
+
   // Calcular o total de colheitas pendentes (que serão exibidas na grade)
   const totalColheitasPendentes = useMemo(() => {
     const totalSemana = Object.values(colheitasSemanaAtual).reduce((acc, col) => acc + col.totalColheitas, 0);
@@ -313,7 +362,10 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
       <div
         key={index}
         className="item-colheita"
-        onClick={() => onColheitaClick && onColheitaClick(item)}
+        onClick={(event) => {
+          event.stopPropagation();
+          onColheitaClick && onColheitaClick(item);
+        }}
         style={{
           cursor: 'pointer',
           transition: 'all 0.2s ease'
@@ -397,17 +449,52 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
     
     const statusConfig = getStatusConfig(diasRestantes);
     const dataFormatada = formatarData(colunaData.data);
-    
-    // ✅ DEBUG: Log para verificar cálculo
-    console.log('🔍 Debug Data:', {
-      dataStr,
-      dataAtual: dataAtual.toISOString(),
-      dataColuna: dataColuna.toISOString(),
-      dataColunaNormalizada: dataColunaNormalizada.toISOString(),
-      diferencaMs,
-      diasRestantes,
-      statusLabel: diasRestantes === 0 ? 'HOJE' : dataFormatada
+    const diaSemana = capitalizeName(new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(dataColunaNormalizada));
+
+    const normalizarData = (data) => new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
+
+    const colheitasConcluidas = programacaoColheita.filter(item => {
+      const quantidadeReal = item.quantidadeReal || 0;
+      const statusEhConcluido = STATUS_COLHEITAS_CONCLUIDAS.includes(item.statusPedido);
+      const possuiQuantidade = quantidadeReal > 0;
+
+      if (!statusEhConcluido && !possuiQuantidade) {
+        return false;
+      }
+
+      const dataPrevista = item.dataPrevistaColheita ? normalizarData(new Date(item.dataPrevistaColheita)) : null;
+      const dataReal = item.dataColheita ? normalizarData(new Date(item.dataColheita)) : null;
+
+      if (dataReal && dataReal.getTime() === dataColunaNormalizada.getTime()) {
+        return true;
+      }
+
+      if (!dataReal && dataPrevista && dataPrevista.getTime() === dataColunaNormalizada.getTime()) {
+        return true;
+      }
+
+      return false;
     });
+
+    const totalPendentesDia = colunaData.colheitas.length;
+    const totalConcluidasDia = colheitasConcluidas.length;
+    const totalColheitasDia = totalPendentesDia + totalConcluidasDia;
+
+    const modalPayload = {
+      data: dataColunaNormalizada,
+      dataFormatada,
+      diaSemana,
+      totalColheitas: totalColheitasDia,
+      colheitasPendentes: colunaData.colheitas,
+      colheitasConcluidas,
+      totais: {
+        pendentes: totalPendentesDia,
+        concluidas: totalConcluidasDia
+      },
+      statusConfig,
+      diasRestantes,
+      label: statusConfig.label || dataFormatada
+    };
     
     return (
       <Col
@@ -428,13 +515,24 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
             borderWidth: '2px',
             height: isMobile ? '350px' : '400px',
             minHeight: isMobile ? '350px' : '400px',
-            maxHeight: isMobile ? '350px' : '400px'
+            maxHeight: isMobile ? '350px' : '400px',
+            cursor: 'pointer',
+            transition: 'box-shadow 0.2s ease, transform 0.2s ease'
           }}
           bodyStyle={{
             padding: isMobile ? '6px' : '8px',
             height: '100%',
             display: 'flex',
             flexDirection: 'column'
+          }}
+          onClick={() => handleAbrirModalDia(modalPayload)}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.12)';
+            event.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.boxShadow = 'none';
+            event.currentTarget.style.transform = 'translateY(0)';
           }}
         >
           {/* Header da coluna */}
@@ -566,36 +664,131 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
 
   return (
     <div className="programacao-colheita-grid">
-      <div className="grid-header" style={{ marginBottom: isMobile ? '8px' : '12px' }}>
-        <Title
-          level={4}
-          style={{
-            color: '#2E7D32',
-            margin: 0,
-            fontSize: isMobile ? '0.875rem' : '1rem',
-            textAlign: 'left'
-          }}
-        >
-          📅 Programação de Colheita
-        </Title>
-        {totalColheitasPendentes > 0 && (
+      <div
+        className="grid-header"
+        style={{
+          marginBottom: isMobile ? '12px' : '16px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: isMobile ? 'flex-start' : 'center',
+          justifyContent: 'space-between',
+          gap: isMobile ? '8px' : '12px',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 4 : 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <Title
+              level={4}
+              style={{
+                color: '#2E7D32',
+                margin: 0,
+                fontSize: isMobile ? '0.875rem' : '1rem',
+                textAlign: 'left'
+              }}
+            >
+              📅 Programação de Colheita
+            </Title>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: '#34d399',
+                display: 'inline-block'
+              }}
+            />
+            <Text
+              style={{
+                fontSize: isMobile ? '0.6875rem' : '0.75rem',
+                color: '#0f766e',
+                fontWeight: 600,
+              }}
+            >
+              {(semanaReferencia.numero ? `Semana ${semanaReferencia.numero}` : 'Semana')} • {semanaReferencia.label}
+            </Text>
+          </div>
           <Text
             style={{
               fontSize: isMobile ? '0.6875rem' : '0.75rem',
-              color: '#666',
-              textAlign: 'left',
-              display: 'block',
-              marginTop: '2px'
+              color: '#047857',
+              fontWeight: 500,
+              textAlign: 'left'
             }}
           >
-            {totalColheitasPendentes} colheita{totalColheitasPendentes > 1 ? 's' : ''} programada{totalColheitasPendentes > 1 ? 's' : ''}
-            {temColheitasAtrasadas && (
-              <span style={{ color: '#dc2626', fontWeight: '600' }}>
-                {' • '}{Object.values(colheitasAtrasadas).reduce((acc, col) => acc + col.totalColheitas, 0)} atrasada{Object.values(colheitasAtrasadas).reduce((acc, col) => acc + col.totalColheitas, 0) > 1 ? 's' : ''}
-              </span>
-            )}
+            {totalColheitasPendentes > 0
+              ? (
+                <>
+                  {totalColheitasPendentes} colheita{totalColheitasPendentes > 1 ? 's' : ''} programada{totalColheitasPendentes > 1 ? 's' : ''}
+                  {totalColheitasAtrasadas > 0 && (
+                    <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                      {' • '}{totalColheitasAtrasadas} atrasada{totalColheitasAtrasadas > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </>
+              )
+              : 'Nenhuma colheita programada nesta semana'}
           </Text>
-        )}
+        </div>
+
+        <Space size={isMobile ? 4 : 6}>
+            <Button
+              icon={<LeftOutlined style={{ fontSize: isMobile ? '10px' : '12px' }} />}
+              onClick={() => onNavigateWeek && onNavigateWeek(-1)}
+              size="small"
+              style={{
+                backgroundColor: '#f8f9fa',
+                borderColor: '#dee2e6',
+                color: '#495057',
+                width: isMobile ? '24px' : '28px',
+                height: isMobile ? '24px' : '28px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            />
+            <Tooltip
+              title={
+                semanaReferencia.isAtual
+                  ? 'Você já está na semana atual'
+                  : 'Clique aqui para voltar para a semana atual'
+              }
+            >
+              <Button
+                onClick={() => onResetWeek && onResetWeek()}
+                size="small"
+                disabled={semanaReferencia.isAtual}
+                style={{
+                  backgroundColor: semanaReferencia.isAtual ? '#059669' : '#f8f9fa',
+                  borderColor: semanaReferencia.isAtual ? '#059669' : '#dee2e6',
+                  color: semanaReferencia.isAtual ? '#ffffff' : '#495057',
+                  fontWeight: '600',
+                  fontSize: isMobile ? '10px' : '11px',
+                  padding: '0 8px',
+                  height: isMobile ? '24px' : '28px',
+                  minWidth: isMobile ? '48px' : '60px',
+                }}
+              >
+                {semanaReferencia.isAtual ? 'Atual' : (semanaReferencia.numero ? `S${semanaReferencia.numero}` : 'Semana')}
+              </Button>
+            </Tooltip>
+            <Button
+              icon={<RightOutlined style={{ fontSize: isMobile ? '10px' : '12px' }} />}
+              onClick={() => onNavigateWeek && onNavigateWeek(1)}
+              size="small"
+              style={{
+                backgroundColor: '#f8f9fa',
+                borderColor: '#dee2e6',
+                color: '#495057',
+                width: isMobile ? '24px' : '28px',
+                height: isMobile ? '24px' : '28px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            />
+        </Space>
       </div>
 
       {programacaoColheita.length === 0 ? (
@@ -622,6 +815,11 @@ const ProgramacaoColheitaGrid = ({ programacaoColheita = [], onColheitaClick, ac
           items={tabItems}
         />
       )}
+      <ColheitasDiaModal
+        open={modalDiaAberto}
+        onClose={handleFecharModalDia}
+        diaSelecionado={diaSelecionado}
+      />
     </div>
   );
 };

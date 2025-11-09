@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Modal, Button, Space, message, Form, Input, Select, Row, Col, Typography, Card, Divider } from "antd";
 import PropTypes from "prop-types";
 import { 
@@ -37,8 +37,19 @@ const NovoPedidoModal = ({
 }) => {
   const { isMobile } = useResponsive();
   const [form] = Form.useForm();
+  const frutasFormValues = Form.useWatch("frutas", form) || [];
   const [isSaving, setIsSaving] = useState(false);
   const [frutas, setFrutas] = useState([]);
+
+  const frutasPorId = useMemo(() => {
+    const mapa = {};
+    (frutas || []).forEach((fruta) => {
+      if (fruta?.id) {
+        mapa[fruta.id] = fruta;
+      }
+    });
+    return mapa;
+  }, [frutas]);
 
   // Carregar frutas ativas
   useEffect(() => {
@@ -137,21 +148,43 @@ const NovoPedidoModal = ({
       const dataPrevistaProcessada = ajustarParaHoraPadrao(values.dataPrevistaColheita);
 
 
+      const culturaPrimeiraSelecionada = {};
+      (values.frutas || []).forEach((frutaPedido) => {
+        const frutaCatalogo = frutasPorId[frutaPedido.frutaId];
+        if (frutaCatalogo?.dePrimeira) {
+          culturaPrimeiraSelecionada[frutaCatalogo.culturaId] = true;
+        }
+      });
+
+      const frutasPayload = (values.frutas || []).map((fruta) => {
+        const frutaCatalogo = frutasPorId[fruta.frutaId];
+        const culturaId = frutaCatalogo?.culturaId;
+        const isDePrimeira = Boolean(frutaCatalogo?.dePrimeira);
+        const deveCriarPlaceholder =
+          isDePrimeira || !culturaPrimeiraSelecionada[culturaId];
+
+        return {
+          ...fruta,
+          quantidadePrevista:
+            typeof fruta.quantidadePrevista === "string"
+              ? parseFloat(fruta.quantidadePrevista)
+              : fruta.quantidadePrevista,
+          areas: deveCriarPlaceholder
+            ? [
+                {
+                  observacoes: "Área a ser definida durante a colheita",
+                },
+              ]
+            : [],
+          fitas: [],
+        };
+      });
+
       const formData = {
         ...values,
         dataPedido: dataPedidoProcessada,
         dataPrevistaColheita: dataPrevistaProcessada,
-        // NOVA ESTRUTURA: Criar área placeholder para satisfazer validação do backend
-        frutas: values.frutas.map(fruta => ({
-          ...fruta,
-          // Garantir que quantidadePrevista seja número
-          quantidadePrevista: typeof fruta.quantidadePrevista === 'string' ? parseFloat(fruta.quantidadePrevista) : fruta.quantidadePrevista,
-          areas: [{
-            // Área placeholder - será substituída durante a colheita
-            observacoes: 'Área a ser definida durante a colheita'
-          }],
-          fitas: [] // Array vazio de fitas
-        }))
+        frutas: frutasPayload,
       };
 
 
@@ -415,8 +448,420 @@ const NovoPedidoModal = ({
           }}
         >
           <Form.List name="frutas">
-            {(fields, { add, remove }) => (
-              <>
+            {(fields, { add, remove }) => {
+              const culturaPrimeiraIndexMap = {};
+              frutasFormValues.forEach((valor, idx) => {
+                const frutaCatalogo = valor?.frutaId ? frutasPorId[valor.frutaId] : undefined;
+                if (frutaCatalogo?.culturaId && frutaCatalogo?.dePrimeira) {
+                  culturaPrimeiraIndexMap[frutaCatalogo.culturaId] = idx;
+                }
+              });
+
+              const orderedFields = [...fields].sort((a, b) => {
+                const getInfo = (field) => {
+                  const valor = frutasFormValues?.[field.name];
+                  if (!valor?.frutaId) {
+                    return {
+                      culturaId: Number.MAX_SAFE_INTEGER,
+                      dePrimeira: false,
+                      originalIndex: field.name,
+                    };
+                  }
+                  const frutaCatalogo = frutasPorId[valor.frutaId];
+                  return {
+                    culturaId:
+                      frutaCatalogo?.culturaId ?? Number.MAX_SAFE_INTEGER,
+                    dePrimeira: Boolean(frutaCatalogo?.dePrimeira),
+                    originalIndex: field.name,
+                  };
+                };
+
+                const infoA = getInfo(a);
+                const infoB = getInfo(b);
+
+                if (infoA.culturaId !== infoB.culturaId) {
+                  return infoA.culturaId - infoB.culturaId;
+                }
+
+                if (infoA.culturaId === Number.MAX_SAFE_INTEGER) {
+                  return infoA.originalIndex - infoB.originalIndex;
+                }
+
+                if (infoA.dePrimeira !== infoB.dePrimeira) {
+                  return infoA.dePrimeira ? -1 : 1;
+                }
+
+                return infoA.originalIndex - infoB.originalIndex;
+              });
+
+              const orderedFieldsLength = orderedFields.length;
+
+              const renderFields = orderedFields.map((field, index) => {
+                const valor = frutasFormValues?.[field.name];
+                const frutaCatalogo = valor?.frutaId
+                  ? frutasPorId[valor.frutaId]
+                  : undefined;
+                const culturaId = frutaCatalogo?.culturaId;
+                const existePrimeiraNaCultura =
+                  culturaId !== undefined &&
+                  culturaPrimeiraIndexMap[culturaId] !== undefined;
+                const isDePrimeira = Boolean(frutaCatalogo?.dePrimeira);
+                const isFilha =
+                  Boolean(existePrimeiraNaCultura && !isDePrimeira);
+
+                return (
+                  <div
+                    key={field.key}
+                    style={{
+                      position: "relative",
+                      padding: isFilha ? "12px 16px 16px" : 0,
+                      marginLeft: isFilha ? 16 : 0,
+                      marginBottom: isFilha ? 12 : 0,
+                      borderLeft: isFilha ? "3px solid #059669" : "none",
+                      backgroundColor: isFilha ? "#f0fdf4" : "transparent",
+                      borderRadius: isFilha ? "8px" : 0,
+                    }}
+                  >
+                    {isFilha && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: -10,
+                          left: 12,
+                          backgroundColor: "#059669",
+                          color: "#fff",
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          boxShadow: "0 2px 6px rgba(5, 150, 105, 0.2)",
+                        }}
+                      >
+                        Vinculada à fruta de primeira
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        opacity:
+                          existePrimeiraNaCultura || isDePrimeira ? 1 : 0.95,
+                      }}
+                    >
+                      <Row
+                        gutter={[
+                          isMobile ? 8 : 16,
+                          isMobile ? 8 : 16,
+                        ]}
+                        align="baseline"
+                      >
+                        <Col xs={24} md={6}>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "frutaId"]}
+                            label={
+                              isMobile ? (
+                                <Space size="small">
+                                  <AppleOutlined style={{ color: "#059669" }} />
+                                  <span
+                                    style={{
+                                      fontWeight: "700",
+                                      color: "#059669",
+                                      fontSize: "14px",
+                                    }}
+                                  >
+                                    Fruta
+                                  </span>
+                                </Space>
+                              ) : undefined
+                            }
+                            rules={[
+                              {
+                                required: true,
+                                message: "Fruta é obrigatória",
+                              },
+                            ]}
+                          >
+                            <Select
+                              placeholder="Selecione uma fruta"
+                              showSearch
+                              optionFilterProp="children"
+                              filterOption={(input, option) =>
+                                option.children
+                                  .toLowerCase()
+                                  .includes(input.toLowerCase())
+                              }
+                              size={isMobile ? "small" : "middle"}
+                              style={{
+                                borderRadius: "6px",
+                                borderColor: "#d9d9d9",
+                                fontSize: isMobile ? "14px" : "16px",
+                              }}
+                            >
+                              {frutas.map((fruta) => (
+                                <Option key={fruta.id} value={fruta.id}>
+                                  {capitalizeName(fruta.nome)}
+                                </Option>
+                              ))}
+                            </Select>
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={4}>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "quantidadePrevista"]}
+                            label={
+                              isMobile ? (
+                                <Space size="small">
+                                  <CalculatorOutlined
+                                    style={{ color: "#059669" }}
+                                  />
+                                  <span
+                                    style={{
+                                      fontWeight: "700",
+                                      color: "#059669",
+                                      fontSize: "14px",
+                                    }}
+                                  >
+                                    Quantidade
+                                  </span>
+                                </Space>
+                              ) : undefined
+                            }
+                            rules={[
+                              {
+                                required: true,
+                                message:
+                                  "Quantidade prevista deve ser maior que 0",
+                              },
+                              {
+                                validator: (_, value) => {
+                                  const numValue =
+                                    typeof value === "string"
+                                      ? parseFloat(value)
+                                      : value;
+
+                                  if (!numValue || numValue <= 0) {
+                                    return Promise.reject(
+                                      new Error(
+                                        "Quantidade deve ser maior que zero"
+                                      )
+                                    );
+                                  }
+
+                                  return Promise.resolve();
+                                },
+                              },
+                            ]}
+                          >
+                            <MonetaryInput
+                              placeholder="Ex: 1.234,56"
+                              size={isMobile ? "small" : "large"}
+                              style={{
+                                width: "100%",
+                                borderRadius: "6px",
+                                borderColor: "#d9d9d9",
+                                fontSize: isMobile ? "14px" : "16px",
+                              }}
+                            />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "unidadeMedida1"]}
+                            label={
+                              isMobile ? (
+                                <Space size="small">
+                                  <CalculatorOutlined
+                                    style={{ color: "#059669" }}
+                                  />
+                                  <span
+                                    style={{
+                                      fontWeight: "700",
+                                      color: "#059669",
+                                      fontSize: "14px",
+                                    }}
+                                  >
+                                    Unidade Principal
+                                  </span>
+                                </Space>
+                              ) : undefined
+                            }
+                            rules={[
+                              {
+                                required: true,
+                                message:
+                                  "Unidade de medida principal é obrigatória",
+                              },
+                            ]}
+                          >
+                            <Select
+                              placeholder="Selecione a unidade"
+                              size={isMobile ? "small" : "middle"}
+                              style={{
+                                borderRadius: "6px",
+                                borderColor: "#d9d9d9",
+                                fontSize: isMobile ? "14px" : "16px",
+                              }}
+                            >
+                              {unidadesMedida.map((unidade) => (
+                                <Option key={unidade.value} value={unidade.value}>
+                                  {unidade.label}
+                                </Option>
+                              ))}
+                            </Select>
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "unidadeMedida2"]}
+                            label={
+                              isMobile ? (
+                                <Space size="small">
+                                  <CalculatorOutlined
+                                    style={{ color: "#059669" }}
+                                  />
+                                  <span
+                                    style={{
+                                      fontWeight: "700",
+                                      color: "#059669",
+                                      fontSize: "14px",
+                                    }}
+                                  >
+                                    Unidade Secundária
+                                  </span>
+                                </Space>
+                              ) : undefined
+                            }
+                          >
+                            <Select
+                              placeholder="Selecione a unidade (opcional)"
+                              allowClear
+                              size={isMobile ? "small" : "middle"}
+                              style={{
+                                borderRadius: "6px",
+                                borderColor: "#d9d9d9",
+                                fontSize: isMobile ? "14px" : "16px",
+                              }}
+                            >
+                              {unidadesMedida.map((unidade) => (
+                                <Option key={unidade.value} value={unidade.value}>
+                                  {unidade.label}
+                                </Option>
+                              ))}
+                            </Select>
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={2}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: isMobile ? "8px" : "8px",
+                              justifyContent: isMobile ? "center" : "center",
+                              flexDirection: isMobile ? "row" : "row",
+                              marginTop: isMobile ? "8px" : "0",
+                              paddingTop: isMobile ? "8px" : "0",
+                              borderTop: isMobile
+                                ? "1px solid #f0f0f0"
+                                : "none",
+                            }}
+                          >
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => {
+                                if (fields.length > 1) {
+                                  remove(field.name);
+                                }
+                              }}
+                              disabled={fields.length <= 1}
+                              size={isMobile ? "small" : "large"}
+                              style={{
+                                borderRadius: "3.125rem",
+                                height: isMobile ? "32px" : "40px",
+                                width: isMobile ? "32px" : "40px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: 0,
+                                border: "0.125rem solid #ff4d4f",
+                                color: "#ff4d4f",
+                                backgroundColor: "#ffffff",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.target.style.backgroundColor = "#fff2f0";
+                                e.target.style.transform = "scale(1.05)";
+                                e.target.style.transition = "all 0.2s ease";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.backgroundColor = "#ffffff";
+                                e.target.style.transform = "scale(1)";
+                              }}
+                            />
+
+                            {index === orderedFieldsLength - 1 && (
+                              <Button
+                                type="dashed"
+                                icon={<PlusOutlined />}
+                                onClick={() => {
+                                  add({
+                                    frutaId: undefined,
+                                    quantidadePrevista: undefined,
+                                    unidadeMedida1: undefined,
+                                    unidadeMedida2: undefined,
+                                  });
+                                }}
+                                size={isMobile ? "small" : "large"}
+                                style={{
+                                  borderRadius: "3.125rem",
+                                  borderColor: "#10b981",
+                                  color: "#10b981",
+                                  borderWidth: "0.125rem",
+                                  height: isMobile ? "2rem" : "2.5rem",
+                                  width: isMobile ? "2rem" : "2.5rem",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: 0,
+                                  backgroundColor: "#ffffff",
+                                  boxShadow:
+                                    "0 0.125rem 0.5rem rgba(16, 185, 129, 0.15)",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.target.style.backgroundColor = "#f0fdf4";
+                                  e.target.style.borderColor = "#059669";
+                                  e.target.style.color = "#059669";
+                                  e.target.style.transform = "scale(1.05)";
+                                  e.target.style.transition = "all 0.2s ease";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.target.style.backgroundColor = "#ffffff";
+                                  e.target.style.borderColor = "#10b981";
+                                  e.target.style.color = "#10b981";
+                                  e.target.style.transform = "scale(1)";
+                                }}
+                              />
+                            )}
+                          </div>
+                        </Col>
+                      </Row>
+                    </div>
+                    {index < orderedFieldsLength - 1 && (
+                      <Divider
+                        style={{ margin: isMobile ? "12px 0" : "16px 0" }}
+                      />
+                    )}
+                  </div>
+                );
+              });
+
+              return (
+                <>
                 {/* Cabeçalho das colunas - Oculto em mobile */}
                 {!isMobile && (
                 <Row gutter={[16, 16]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
@@ -452,267 +897,10 @@ const NovoPedidoModal = ({
                 </Row>
                 )}
 
-                {fields.map(({ key, name, ...restField }, index) => (
-                  <div key={key}>
-                    <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="baseline">
-                       <Col xs={24} md={6}>
-                         <Form.Item
-                           {...restField}
-                           name={[name, 'frutaId']}
-                           label={
-                             isMobile ? (
-                               <Space size="small">
-                                 <AppleOutlined style={{ color: "#059669" }} />
-                                 <span style={{ 
-                                   fontWeight: "700", 
-                                   color: "#059669",
-                                   fontSize: "14px"
-                                 }}>Fruta</span>
-                               </Space>
-                             ) : undefined
-                           }
-                           rules={[
-                             { required: true, message: "Fruta é obrigatória" },
-                           ]}
-                         >
-                          <Select
-                            placeholder="Selecione uma fruta"
-                            showSearch
-                            optionFilterProp="children"
-                            filterOption={(input, option) =>
-                              option.children.toLowerCase().includes(input.toLowerCase())
-                            }
-                            size={isMobile ? "small" : "middle"}
-                            style={{
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "14px" : "16px"
-                            }}
-                          >
-                            {frutas.map((fruta) => (
-                              <Option key={fruta.id} value={fruta.id}>
-                                {capitalizeName(fruta.nome)}
-                              </Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-
-                       <Col xs={24} md={4}>
-                         <Form.Item
-                           {...restField}
-                           name={[name, 'quantidadePrevista']}
-                           label={
-                             isMobile ? (
-                               <Space size="small">
-                                 <CalculatorOutlined style={{ color: "#059669" }} />
-                                 <span style={{ 
-                                   fontWeight: "700", 
-                                   color: "#059669",
-                                   fontSize: "14px"
-                                 }}>Quantidade</span>
-                               </Space>
-                             ) : undefined
-                           }
-                           rules={[
-                             { required: true, message: "Quantidade prevista deve ser maior que 0" },
-                             {
-                               validator: (_, value) => {
-                                 // Converter string para número se necessário
-                                 const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                                 
-                                 if (!numValue || numValue <= 0) {
-                                   return Promise.reject(new Error("Quantidade deve ser maior que zero"));
-                                 }
-                                 
-                                 return Promise.resolve();
-                               }
-                             }
-                           ]}
-                         >
-                          <MonetaryInput
-                            placeholder="Ex: 1.234,56"
-                            size={isMobile ? "small" : "large"}
-                            style={{ 
-                              width: "100%",
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "14px" : "16px"
-                            }}
-                          />
-                        </Form.Item>
-                      </Col>
-
-                       <Col xs={24} md={6}>
-                         <Form.Item
-                           {...restField}
-                           name={[name, 'unidadeMedida1']}
-                           label={
-                             isMobile ? (
-                               <Space size="small">
-                                 <CalculatorOutlined style={{ color: "#059669" }} />
-                                 <span style={{ 
-                                   fontWeight: "700", 
-                                   color: "#059669",
-                                   fontSize: "14px"
-                                 }}>Unidade Principal</span>
-                               </Space>
-                             ) : undefined
-                           }
-                           rules={[
-                             { required: true, message: "Unidade de medida principal é obrigatória" },
-                           ]}
-                         >
-                          <Select 
-                            placeholder="Selecione a unidade"
-                            size={isMobile ? "small" : "middle"}
-                            style={{
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "14px" : "16px"
-                            }}
-                          >
-                            {unidadesMedida.map((unidade) => (
-                              <Option key={unidade.value} value={unidade.value}>
-                                {unidade.label}
-                              </Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-
-                       <Col xs={24} md={6}>
-                         <Form.Item
-                           {...restField}
-                           name={[name, 'unidadeMedida2']}
-                           label={
-                             isMobile ? (
-                               <Space size="small">
-                                 <CalculatorOutlined style={{ color: "#059669" }} />
-                                 <span style={{ 
-                                   fontWeight: "700", 
-                                   color: "#059669",
-                                   fontSize: "14px"
-                                 }}>Unidade Secundária</span>
-                               </Space>
-                             ) : undefined
-                           }
-                         >
-                          <Select 
-                            placeholder="Selecione a unidade (opcional)" 
-                            allowClear
-                            size={isMobile ? "small" : "middle"}
-                            style={{
-                              borderRadius: "6px",
-                              borderColor: "#d9d9d9",
-                              fontSize: isMobile ? "14px" : "16px"
-                            }}
-                          >
-                            {unidadesMedida.map((unidade) => (
-                              <Option key={unidade.value} value={unidade.value}>
-                                {unidade.label}
-                              </Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-
-                      <Col xs={24} md={2}>
-                        <div style={{ 
-                          display: "flex", 
-                          gap: isMobile ? "8px" : "8px", 
-                          justifyContent: isMobile ? "center" : "center",
-                          flexDirection: isMobile ? "row" : "row",
-                          marginTop: isMobile ? "8px" : "0",
-                          paddingTop: isMobile ? "8px" : "0",
-                          borderTop: isMobile ? "1px solid #f0f0f0" : "none"
-                        }}>
-                          {/* Botão de remover para todas as frutas */}
-                          <Button
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => {
-                              if (fields.length > 1) {
-                                remove(name);
-                              }
-                            }}
-                            disabled={fields.length <= 1}
-                            size={isMobile ? "small" : "large"}
-                            style={{
-                              borderRadius: "3.125rem",
-                              height: isMobile ? "32px" : "40px",
-                              width: isMobile ? "32px" : "40px",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 0,
-                              border: "0.125rem solid #ff4d4f",
-                              color: "#ff4d4f",
-                              backgroundColor: "#ffffff",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.backgroundColor = "#fff2f0";
-                              e.target.style.transform = "scale(1.05)";
-                              e.target.style.transition = "all 0.2s ease";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.backgroundColor = "#ffffff";
-                              e.target.style.transform = "scale(1)";
-                            }}
-                          />
-
-                          {/* Botão de adicionar apenas na última fruta */}
-                          {index === fields.length - 1 && (
-                            <Button
-                              type="dashed"
-                              icon={<PlusOutlined />}
-                              onClick={() => {
-                                add({
-                                  frutaId: undefined,
-                                  quantidadePrevista: undefined,
-                                  unidadeMedida1: undefined,
-                                  unidadeMedida2: undefined
-                                });
-                              }}
-                              size={isMobile ? "small" : "large"}
-                              style={{
-                                borderRadius: "3.125rem",
-                                borderColor: "#10b981",
-                                color: "#10b981",
-                                borderWidth: "0.125rem",
-                                height: isMobile ? "2rem" : "2.5rem",
-                                width: isMobile ? "2rem" : "2.5rem",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                padding: 0,
-                                backgroundColor: "#ffffff",
-                                boxShadow: "0 0.125rem 0.5rem rgba(16, 185, 129, 0.15)",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.target.style.backgroundColor = "#f0fdf4";
-                                e.target.style.borderColor = "#059669";
-                                e.target.style.color = "#059669";
-                                e.target.style.transform = "scale(1.05)";
-                                e.target.style.transition = "all 0.2s ease";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.target.style.backgroundColor = "#ffffff";
-                                e.target.style.borderColor = "#10b981";
-                                e.target.style.color = "#10b981";
-                                e.target.style.transform = "scale(1)";
-                              }}
-                            />
-                          )}
-                        </div>
-                      </Col>
-                    </Row>
-                    {index < fields.length - 1 && <Divider style={{ margin: isMobile ? "12px 0" : "16px 0" }} />}
-                  </div>
-                ))}
-              </>
-            )}
+                  {renderFields}
+                </>
+              );
+            }}
           </Form.List>
         </Card>
 

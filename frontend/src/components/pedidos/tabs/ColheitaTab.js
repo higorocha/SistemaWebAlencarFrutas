@@ -1,6 +1,6 @@
 // src/components/pedidos/tabs/ColheitaTab.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button, Space, Form, Input, Select, DatePicker, Row, Col, Typography, Card, Divider, Tag, Tooltip, Modal, Alert } from "antd";
 import PropTypes from "prop-types";
 import {
@@ -251,6 +251,76 @@ const ColheitaTab = ({
   // ✅ NOVOS ESTADOS: Para validação global de fitas
   const [fitasComAreasDisponiveis, setFitasComAreasDisponiveis] = useState([]);
 
+  const frutasPedidoMeta = useMemo(() => {
+    const porFrutaPedidoId = {};
+    const culturaInfo = {};
+
+    (pedidoAtual?.frutas || []).forEach((frutaPedido) => {
+      const culturaId = frutaPedido.fruta?.cultura?.id ?? null;
+      const culturaDescricao = frutaPedido.fruta?.cultura?.descricao ?? "";
+      const dePrimeira = frutaPedido.fruta?.dePrimeira ?? false;
+      const nome = frutaPedido.fruta?.nome ?? "";
+
+      porFrutaPedidoId[frutaPedido.frutaPedidoId || frutaPedido.id] = {
+        culturaId,
+        culturaDescricao,
+        dePrimeira,
+        nome: capitalizeName(nome),
+      };
+
+      if (culturaId !== null) {
+        if (!culturaInfo[culturaId]) {
+          culturaInfo[culturaId] = {
+            hasPrimeira: false,
+            frutaPrimeiraNome: "",
+          };
+        }
+
+        if (dePrimeira) {
+          culturaInfo[culturaId].hasPrimeira = true;
+          culturaInfo[culturaId].frutaPrimeiraNome = capitalizeName(nome);
+        }
+      }
+    });
+
+    return { porFrutaPedidoId, culturaInfo };
+  }, [pedidoAtual?.frutas]);
+
+  const frutasPedidoInfo = frutasPedidoMeta.porFrutaPedidoId;
+  const culturaInfoPorId = frutasPedidoMeta.culturaInfo;
+  const obterChaveFruta = (fruta) => fruta?.frutaPedidoId ?? fruta?.id ?? null;
+
+  const frutasOrdenadas = useMemo(() => {
+    return (pedidoAtual?.frutas || []).map((fruta, index) => {
+      const chave = obterChaveFruta(fruta);
+      const meta = chave ? frutasPedidoInfo[chave] : undefined;
+      const culturaId = meta?.culturaId ?? Number.MAX_SAFE_INTEGER;
+      const dePrimeiraOrdem = meta?.dePrimeira === true ? 0 : 1;
+      const nomeCatalogo = frutas.find(f => f.id === fruta.frutaId)?.nome || meta?.nome || '';
+
+      return {
+        fruta,
+        indexOriginal: index,
+        meta,
+        culturaId,
+        dePrimeiraOrdem,
+        nomeExibicao: capitalizeName(nomeCatalogo),
+      };
+    }).sort((a, b) => {
+      if (a.culturaId !== b.culturaId) {
+        return a.culturaId - b.culturaId;
+      }
+      if (a.dePrimeiraOrdem !== b.dePrimeiraOrdem) {
+        return a.dePrimeiraOrdem - b.dePrimeiraOrdem;
+      }
+      return a.nomeExibicao.localeCompare(b.nomeExibicao);
+    });
+  }, [pedidoAtual?.frutas, frutasPedidoInfo, frutas]);
+
+  const temBananaGlobal = frutasOrdenadas.some(item =>
+    item.nomeExibicao.toLowerCase().includes('banana')
+  );
+
   // ✅ SINCRONIZAR form com pedidoAtual (bidirecional)
   useEffect(() => {
     if (pedidoAtual) {
@@ -416,14 +486,61 @@ const ColheitaTab = ({
 
   // Funções para abrir modais de vinculação
   const handleVincularAreas = (fruta, frutaIndex) => {
-    // ✅ PROCESSAR fruta para incluir dados completos (igual ao ColheitaModal.js)
+    const valoresAtuais = form.getFieldsValue();
+    const frutaAtual = valoresAtuais.frutas?.[frutaIndex] || pedidoAtual?.frutas?.[frutaIndex] || fruta;
+    const chaveFruta = obterChaveFruta(frutaAtual) ?? obterChaveFruta(fruta);
+    const frutaMeta = chaveFruta ? frutasPedidoInfo[chaveFruta] : undefined;
+    const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+      ? culturaInfoPorId[frutaMeta.culturaId]
+      : undefined;
+    const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+
+    const frutasDisponiveis = valoresAtuais.frutas || pedidoAtual?.frutas || [];
+    const frutasDoGrupo = frutasDisponiveis
+      .map((frutaItem) => {
+        const chaveItem = obterChaveFruta(frutaItem);
+        if (!chaveItem) {
+          return null;
+        }
+        const metaItem = frutasPedidoInfo[chaveItem];
+        if (!metaItem || metaItem.culturaId !== frutaMeta?.culturaId) {
+          return null;
+        }
+
+        return {
+          frutaPedidoId: chaveItem,
+          quantidadeReal: frutaItem.quantidadeReal,
+          quantidadeReal2: frutaItem.quantidadeReal2,
+          unidadeMedida1: frutaItem.unidadeMedida1,
+          unidadeMedida2: frutaItem.unidadeMedida2,
+          dePrimeira: metaItem.dePrimeira ?? false,
+          nome: capitalizeName(frutaItem.frutaNome || frutaItem.fruta?.nome || metaItem?.nome || ''),
+        };
+      })
+      .filter(Boolean);
+
+    if (herdaVinculosDaPrimeira) {
+      const frutaPrimeiraNome = culturaInfo?.frutaPrimeiraNome || "fruta de primeira";
+      showNotification(
+        "warning",
+        "Vinculação bloqueada",
+        `As áreas de "${frutaMeta?.nome || frutaAtual?.frutaNome || 'esta fruta'}" são herdadas da ${frutaPrimeiraNome} desta cultura.`
+      );
+      return;
+    }
+
+    const frutaCatalogo = frutas.find(f => f.id === fruta.frutaId) || frutaAtual.fruta || null;
+
     const frutaProcessada = {
-      ...fruta,
+      ...frutaAtual,
       index: frutaIndex,
-      // ✅ ADICIONAR: Nome da fruta para VincularAreasModal
-      frutaNome: capitalizeName(frutas.find(f => f.id === fruta.frutaId)?.nome || ''),
-      // ✅ ADICIONAR: Objeto fruta completo (com cultura) para filtragem por cultura
-      fruta: frutas.find(f => f.id === fruta.frutaId) || null
+      frutaNome: capitalizeName(frutaCatalogo?.nome || frutaMeta?.nome || ''),
+      fruta: frutaCatalogo,
+      dePrimeira: frutaMeta?.dePrimeira ?? false,
+      culturaId: frutaMeta?.culturaId ?? null,
+      culturaDescricao: frutaMeta?.culturaDescricao ?? '',
+      herdaVinculos: false,
+      frutasDoGrupo,
     };
     
     setFrutaSelecionada(frutaProcessada);
@@ -463,35 +580,53 @@ const ColheitaTab = ({
   };
 
   const handleVincularFitas = (fruta, frutaIndex) => {
-    // ✅ BUSCAR dados originais IMUTÁVEIS do banco para esta fruta
+    const valoresAtuais = form.getFieldsValue();
+    const frutaAtual = valoresAtuais.frutas?.[frutaIndex] || pedidoAtual?.frutas?.[frutaIndex] || fruta;
+    const chaveFruta = obterChaveFruta(frutaAtual) ?? obterChaveFruta(fruta);
+    const frutaMeta = chaveFruta ? frutasPedidoInfo[chaveFruta] : undefined;
+    const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+      ? culturaInfoPorId[frutaMeta.culturaId]
+      : undefined;
+    const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+
+    if (herdaVinculosDaPrimeira) {
+      const frutaPrimeiraNome = culturaInfo?.frutaPrimeiraNome || "fruta de primeira";
+      showNotification(
+        "warning",
+        "Vinculação bloqueada",
+        `As fitas de "${frutaMeta?.nome || frutaAtual?.frutaNome || 'esta fruta'}" são herdadas da ${frutaPrimeiraNome} desta cultura.`
+      );
+      return;
+    }
+
+    if (!hasLinkedAreas(frutaAtual, false)) {
+      showNotification("warning", "Áreas necessárias", "Vincule áreas antes de gerenciar as fitas desta fruta.");
+      return;
+    }
+
     const frutaOriginal = dadosOriginaisBanco?.frutas?.find(f => f.frutaId === fruta.frutaId) || null;
-
-    // ✅ NOVO: Calcular estoque consumido por outras frutas
     const estoqueConsumido = calcularEstoqueConsumidoPorOutrasFrutas(frutaIndex);
-
-    // ✅ NOVO: Pegar todas as frutas do pedido para validação global
     const todasFrutas = pedidoAtual.frutas || [];
+    const frutaCatalogo = frutas.find(f => f.id === fruta.frutaId) || frutaAtual.fruta || null;
 
-    // ✅ PROCESSAR fitas para incluir detalhesAreas (igual ao ColheitaModal.js)
     const frutaProcessada = {
-      ...fruta,
+      ...frutaAtual,
       index: frutaIndex,
-      // ✅ ADICIONAR: Nome da fruta para VincularFitasModal
-      frutaNome: capitalizeName(frutas.find(f => f.id === fruta.frutaId)?.nome || ''),
-      // Processar fitas ATUAIS para o VincularFitasModal
-      fitas: fruta.fitas?.length > 0 ? fruta.fitas.map(fita => ({
+      frutaNome: capitalizeName(frutaCatalogo?.nome || frutaMeta?.nome || ''),
+      fitas: frutaAtual.fitas?.length > 0 ? frutaAtual.fitas.map(fita => ({
         id: fita.id,
         fitaBananaId: fita.fitaBananaId,
         quantidadeFita: fita.quantidadeFita || undefined,
         observacoes: fita.observacoes || '',
-        // ✅ MANTER detalhesAreas para reconstrução no VincularFitasModal
         detalhesAreas: fita.detalhesAreas || []
       })) : [],
-      // ✅ NOVO: Incluir dados originais IMUTÁVEIS do banco para validações
       fitasOriginaisBanco: frutaOriginal?.fitas || [],
-      // ✅ NOVO: Adicionar dados para controle de estoque virtual
       estoqueConsumidoPorOutrasFrutas: estoqueConsumido,
-      todasFrutasPedido: todasFrutas
+      todasFrutasPedido: todasFrutas,
+      dePrimeira: frutaMeta?.dePrimeira ?? false,
+      culturaId: frutaMeta?.culturaId ?? null,
+      culturaDescricao: frutaMeta?.culturaDescricao ?? '',
+      herdaVinculos: false,
     };
 
     setFrutaSelecionada(frutaProcessada);
@@ -652,7 +787,10 @@ const ColheitaTab = ({
   };
 
   // Verificar se fruta tem áreas vinculadas (não placeholders)
-  const hasLinkedAreas = (fruta) => {
+  const hasLinkedAreas = (fruta, herdaDaPrimeira = false) => {
+    if (herdaDaPrimeira) {
+      return true;
+    }
     return fruta?.areas && fruta.areas.some(area => 
       area.areaPropriaId || area.areaFornecedorId
     );
@@ -702,91 +840,127 @@ const ColheitaTab = ({
     });
   };
 
-  // ✅ NOVA FUNÇÃO: Validar inconsistências entre quantidades informadas e áreas
-  const validarInconsistenciasQuantidades = (frutas) => {
+  const normalizarNumero = (valor) => {
+    if (valor === null || valor === undefined || valor === '') {
+      return 0;
+    }
+
+    if (typeof valor === 'number') {
+      return Number.isFinite(valor) ? valor : 0;
+    }
+
+    if (typeof valor === 'string') {
+      const parsed = parseFloat(valor.replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
+  };
+
+  // ✅ NOVA FUNÇÃO: Validar inconsistências entre quantidades informadas e áreas (considerando agrupamentos por cultura)
+  const validarInconsistenciasQuantidades = (listaFrutas) => {
     const inconsistencias = [];
+    const gruposPorCultura = {};
 
-    // ✅ HELPER: Converter Decimal do Prisma para número
-    const converterDecimalParaNumero = (valor) => {
-      if (!valor) return 0;
+    listaFrutas.forEach((fruta, index) => {
+      const chaveFruta = obterChaveFruta(fruta);
+      const frutaMeta = chaveFruta ? frutasPedidoInfo[chaveFruta] : undefined;
+      const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+        ? culturaInfoPorId[frutaMeta.culturaId]
+        : undefined;
+      const hasPrimeiraNaCultura = !!culturaInfo?.hasPrimeira;
+      const herdaVinculosDaPrimeira = hasPrimeiraNaCultura && frutaMeta && !frutaMeta.dePrimeira;
+      const nomeFruta = capitalizeName(fruta.frutaNome || fruta.fruta?.nome || (frutas.find(f => f.id === fruta.frutaId)?.nome) || `Fruta ${index + 1}`);
 
-      // Se for número, retornar direto
-      if (typeof valor === 'number') {
-        return valor;
-      }
+      const quantidadeReal = normalizarNumero(fruta.quantidadeReal);
+      const quantidadeReal2 = normalizarNumero(fruta.quantidadeReal2);
 
-      // Se for string, converter
-      if (typeof valor === 'string') {
-        return parseFloat(valor) || 0;
-      }
+      if (hasPrimeiraNaCultura) {
+        const grupoKey = `cultura-${frutaMeta.culturaId}`;
+        if (!gruposPorCultura[grupoKey]) {
+          gruposPorCultura[grupoKey] = {
+            nomeGrupo: culturaInfo?.frutaPrimeiraNome || nomeFruta,
+            unidadeMedida1: fruta.unidadeMedida1,
+            unidadeMedida2: fruta.unidadeMedida2,
+            quantidadeReal: 0,
+            quantidadeReal2: 0,
+            somaUnidade1: 0,
+            somaUnidade2: 0,
+          };
+        }
 
-      // Se for objeto Decimal do Prisma (tem propriedades s, e, d)
-      if (typeof valor === 'object' && 'd' in valor) {
-        try {
-          // Tentar usar toNumber() se existir
-          if (typeof valor.toNumber === 'function') {
-            return valor.toNumber();
-          }
+        const grupo = gruposPorCultura[grupoKey];
+        grupo.quantidadeReal += quantidadeReal;
+        grupo.quantidadeReal2 += quantidadeReal2;
 
-          // Construir o número manualmente a partir de s, e, d
-          // s = sinal (1 = positivo, -1 = negativo)
-          // e = expoente
-          // d = array de dígitos
-          const digitos = valor.d.join('');
-          const numero = parseFloat(digitos) * Math.pow(10, valor.e - digitos.length + 1) * valor.s;
+        if (!grupo.unidadeMedida1) {
+          grupo.unidadeMedida1 = fruta.unidadeMedida1;
+        }
+        if (!grupo.unidadeMedida2 && fruta.unidadeMedida2) {
+          grupo.unidadeMedida2 = fruta.unidadeMedida2;
+        }
 
-          console.log('✅ Decimal convertido:', {
-            original: valor,
-            digitos,
-            expoente: valor.e,
-            sinal: valor.s,
-            resultado: numero
+        if (!herdaVinculosDaPrimeira) {
+          const areasReais = fruta.areas?.filter(area =>
+            area.areaPropriaId || area.areaFornecedorId
+          ) || [];
+
+          const somaUnidade1 = areasReais.reduce((sum, area) =>
+            sum + (Number(area.quantidadeColhidaUnidade1) || 0), 0);
+
+          const somaUnidade2 = areasReais.reduce((sum, area) =>
+            sum + (Number(area.quantidadeColhidaUnidade2) || 0), 0);
+
+          grupo.somaUnidade1 += somaUnidade1;
+          grupo.somaUnidade2 += somaUnidade2;
+        }
+      } else {
+        const areasReais = fruta.areas?.filter(area =>
+          area.areaPropriaId || area.areaFornecedorId
+        ) || [];
+
+        const somaUnidade1 = areasReais.reduce((sum, area) =>
+          sum + (Number(area.quantidadeColhidaUnidade1) || 0), 0);
+
+        const somaUnidade2 = areasReais.reduce((sum, area) =>
+          sum + (Number(area.quantidadeColhidaUnidade2) || 0), 0);
+
+        const temInconsistenciaUnd1 = Math.abs(quantidadeReal - somaUnidade1) > 0.01;
+        const temInconsistenciaUnd2 = fruta.unidadeMedida2 && Math.abs(quantidadeReal2 - somaUnidade2) > 0.01;
+
+        if (temInconsistenciaUnd1 || temInconsistenciaUnd2) {
+          inconsistencias.push({
+            nomeFruta,
+            unidadeMedida1: fruta.unidadeMedida1,
+            unidadeMedida2: fruta.unidadeMedida2,
+            quantidadeReal,
+            quantidadeReal2,
+            somaUnidade1,
+            somaUnidade2,
+            temInconsistenciaUnd1,
+            temInconsistenciaUnd2,
+            isAgrupamento: false,
           });
-
-          return numero;
-        } catch (error) {
-          console.error('❌ Erro ao converter Decimal:', error, valor);
-          return 0;
         }
       }
+    });
 
-      // Fallback
-      return 0;
-    };
-
-    frutas.forEach((fruta, index) => {
-      const nomeFruta = fruta.frutaNome || frutas.find(f => f.id === fruta.frutaId)?.nome || `Fruta ${index + 1}`;
-
-      // Obter quantidades informadas no pedido
-      const quantidadeReal = converterDecimalParaNumero(fruta.quantidadeReal);
-      const quantidadeReal2 = converterDecimalParaNumero(fruta.quantidadeReal2);
-
-      // Calcular soma das quantidades das áreas
-      const areasReais = fruta.areas?.filter(area =>
-        area.areaPropriaId || area.areaFornecedorId
-      ) || [];
-
-      const somaUnidade1 = areasReais.reduce((sum, area) =>
-        sum + converterDecimalParaNumero(area.quantidadeColhidaUnidade1), 0);
-
-      const somaUnidade2 = areasReais.reduce((sum, area) =>
-        sum + converterDecimalParaNumero(area.quantidadeColhidaUnidade2), 0);
-
-      // Verificar inconsistências
-      const temInconsistenciaUnd1 = Math.abs(quantidadeReal - somaUnidade1) > 0.01;
-      const temInconsistenciaUnd2 = fruta.unidadeMedida2 && Math.abs(quantidadeReal2 - somaUnidade2) > 0.01;
+    Object.values(gruposPorCultura).forEach((grupo) => {
+      const temInconsistenciaUnd1 = Math.abs((grupo.quantidadeReal || 0) - (grupo.somaUnidade1 || 0)) > 0.01;
+      const temInconsistenciaUnd2 = grupo.unidadeMedida2 && Math.abs((grupo.quantidadeReal2 || 0) - (grupo.somaUnidade2 || 0)) > 0.01;
 
       if (temInconsistenciaUnd1 || temInconsistenciaUnd2) {
         inconsistencias.push({
-          nomeFruta,
-          unidadeMedida1: fruta.unidadeMedida1,
-          unidadeMedida2: fruta.unidadeMedida2,
-          quantidadeReal,
-          quantidadeReal2,
-          somaUnidade1,
-          somaUnidade2,
+          nomeFruta: grupo.nomeGrupo,
+          unidadeMedida1: grupo.unidadeMedida1,
+          unidadeMedida2: grupo.unidadeMedida2,
+          quantidadeReal: grupo.quantidadeReal,
+          quantidadeReal2: grupo.quantidadeReal2,
+          somaUnidade1: grupo.somaUnidade1,
+          somaUnidade2: grupo.somaUnidade2,
           temInconsistenciaUnd1,
-          temInconsistenciaUnd2
+          temInconsistenciaUnd2,
+          isAgrupamento: true,
         });
       }
     });
@@ -855,6 +1029,18 @@ const ColheitaTab = ({
             quantidadeColhidaUnidade1: converterValor(area.quantidadeColhidaUnidade1),
             quantidadeColhidaUnidade2: converterValor(area.quantidadeColhidaUnidade2)
           }));
+        }
+
+        const chaveFruta = obterChaveFruta(fruta);
+        const metaFruta = chaveFruta ? frutasPedidoInfo[chaveFruta] : undefined;
+        const culturaInfo = metaFruta?.culturaId !== null && metaFruta?.culturaId !== undefined
+          ? culturaInfoPorId[metaFruta.culturaId]
+          : undefined;
+        const herdaVinculosDaPrimeira = !!(metaFruta && culturaInfo?.hasPrimeira && !metaFruta.dePrimeira);
+
+        if (herdaVinculosDaPrimeira) {
+          frutaNormalizada.areas = [];
+          frutaNormalizada.fitas = [];
         }
 
         return frutaNormalizada;
@@ -952,6 +1138,10 @@ const ColheitaTab = ({
   // Função para salvar áreas vinculadas
   const handleSalvarAreas = (areas) => {
     if (!frutaSelecionada) return;
+    if (frutaSelecionada?.herdaVinculos) {
+      showNotification("warning", "Ação não permitida", "Esta fruta herda as áreas da fruta de primeira da cultura. Ajuste as áreas diretamente na fruta de primeira.");
+      return;
+    }
     
     // ✅ SINCRONIZAÇÃO: Calcular somas das quantidades das áreas
     const somaUnidade1 = areas?.reduce((sum, area) => 
@@ -962,6 +1152,7 @@ const ColheitaTab = ({
     
     // Atualizar formulário com novas áreas e quantidades sincronizadas
     const frutasAtuais = pedidoAtual.frutas;
+    let deveAtualizarQuantidades = true;
     const frutasAtualizadas = frutasAtuais.map((fruta, index) => {
       if (index === frutaSelecionada.index) {
         // Se não há áreas selecionadas, criar área placeholder
@@ -975,8 +1166,29 @@ const ColheitaTab = ({
             }]
           };
         }
-        
-        // Se há áreas selecionadas, usar apenas elas e sincronizar quantidades
+
+        const chaveFruta = obterChaveFruta(fruta);
+        const frutaMeta = chaveFruta ? frutasPedidoInfo[chaveFruta] : undefined;
+        const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+          ? culturaInfoPorId[frutaMeta.culturaId]
+          : undefined;
+        const possuiSegundas = frutasAtuais.some((item, idxItem) => {
+          if (idxItem === index) {
+            return false;
+          }
+          const chaveItem = obterChaveFruta(item);
+          const metaItem = chaveItem ? frutasPedidoInfo[chaveItem] : undefined;
+          return metaItem && metaItem.culturaId === frutaMeta?.culturaId && !metaItem.dePrimeira;
+        });
+        const estaAgrupado = frutaMeta?.dePrimeira && possuiSegundas;
+
+        const quantidadeRealAtualizada = estaAgrupado ? fruta.quantidadeReal : somaUnidade1;
+        const quantidadeReal2Atualizada = estaAgrupado ? fruta.quantidadeReal2 : (somaUnidade2 > 0 ? somaUnidade2 : null);
+
+        if (estaAgrupado) {
+          deveAtualizarQuantidades = false;
+        }
+
         return {
           ...fruta,
           areas: areas.map(area => ({
@@ -985,22 +1197,28 @@ const ColheitaTab = ({
             areaFornecedorId: area.areaFornecedorId || undefined,
             observacoes: area.observacoes || ''
           })),
-          // ✅ SINCRONIZAR quantidades com as somas das áreas
-          // Se somaUnidade2 for 0, enviar null para evitar erro de validação @IsPositive no backend
-          quantidadeReal: somaUnidade1,
-          quantidadeReal2: somaUnidade2 > 0 ? somaUnidade2 : null
+          quantidadeReal: quantidadeRealAtualizada,
+          quantidadeReal2: quantidadeReal2Atualizada
         };
       }
       return fruta;
     });
 
     setPedidoAtual(prev => ({ ...prev, frutas: frutasAtualizadas }));
-    showNotification("success", "Sucesso", "Áreas vinculadas e quantidades sincronizadas com sucesso!");
+    if (!deveAtualizarQuantidades) {
+      showNotification("success", "Sucesso", "Áreas vinculadas com sucesso!" );
+      return;
+    }
+    showNotification("success", "Sucesso", "Áreas vinculadas e quantidades sincronizadas com sucesso!" );
   };
 
   // Função para salvar fitas vinculadas
   const handleSalvarFitas = (fitas) => {
     if (!frutaSelecionada) return;
+    if (frutaSelecionada?.herdaVinculos) {
+      showNotification("warning", "Ação não permitida", "Esta fruta herda as fitas da fruta de primeira da cultura. Ajuste as fitas diretamente na fruta de primeira.");
+      return;
+    }
     
     // Atualizar formulário com novas fitas
     const frutasAtuais = pedidoAtual.frutas;
@@ -1139,44 +1357,39 @@ const ColheitaTab = ({
         {/* Cabeçalho das colunas */}
         {(() => {
           // Verificar se há pelo menos uma fruta banana no pedido
-          const temBanana = pedidoAtual.frutas?.some(fruta => {
-            const frutaNome = frutas.find(f => f.id === fruta.frutaId)?.nome || '';
-            return frutaNome.toLowerCase().includes('banana');
-          });
-          
           return (
             <Row gutter={[8, 8]} style={{ marginBottom: 16, padding: "8px 0", borderBottom: "2px solid #e8e8e8" }}>
-              <Col xs={24} md={temBanana ? 5 : 6}>
+              <Col xs={24} md={temBananaGlobal ? 5 : 6}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <AppleOutlined style={{ marginRight: 8 }} />
                   Fruta
                 </span>
               </Col>
-              <Col xs={24} md={temBanana ? 3 : 4}>
+              <Col xs={24} md={temBananaGlobal ? 3 : 4}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <CalculatorOutlined style={{ marginRight: 8 }} />
                   Prevista
                 </span>
               </Col>
-              <Col xs={24} md={temBanana ? 4 : 5}>
+              <Col xs={24} md={temBananaGlobal ? 4 : 5}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <CalculatorOutlined style={{ marginRight: 8 }} />
                   Colhida
                 </span>
               </Col>
-              <Col xs={24} md={temBanana ? 4 : 5}>
+              <Col xs={24} md={temBananaGlobal ? 4 : 5}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <CalculatorOutlined style={{ marginRight: 8 }} />
                   Colhida 2
                 </span>
               </Col>
-              <Col xs={24} md={temBanana ? 5 : 4}>
+              <Col xs={24} md={temBananaGlobal ? 5 : 4}>
                 <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                   <EnvironmentOutlined style={{ marginRight: 8 }} />
                   Áreas
                 </span>
               </Col>
-              {temBanana && (
+              {temBananaGlobal && (
                 <Col xs={24} md={3}>
                   <span style={{ color: "#059669", fontSize: "14px", fontWeight: "700" }}>
                     <TagOutlined style={{ marginRight: 8 }} />
@@ -1188,18 +1401,29 @@ const ColheitaTab = ({
           );
         })()}
 
-        {pedidoAtual.frutas.map((fruta, index) => {
-          const frutaNome = frutas.find(f => f.id === fruta.frutaId)?.nome || '';
-          const isFrutaBanana = frutaNome.toLowerCase().includes('banana');
-          
-          // Verificar se há pelo menos uma fruta banana no pedido
-          const temBanana = pedidoAtual.frutas?.some(frutaCheck => {
-            const frutaNomeCheck = frutas.find(f => f.id === frutaCheck.frutaId)?.nome || '';
-            return frutaNomeCheck.toLowerCase().includes('banana');
-          });
-          
+        {frutasOrdenadas.map(({ fruta, indexOriginal, meta, nomeExibicao }, ordemIndex) => {
+          const culturaInfo = meta?.culturaId !== null && meta?.culturaId !== undefined
+            ? culturaInfoPorId[meta.culturaId]
+            : undefined;
+          const herdaVinculosDaPrimeira = !!(meta && culturaInfo?.hasPrimeira && !meta.dePrimeira);
+          const isFrutaBanana = nomeExibicao.toLowerCase().includes('banana');
+
+          const wrapperStyle = herdaVinculosDaPrimeira
+            ? {
+                position: 'relative',
+                marginLeft: isMobile ? 16 : 24,
+                padding: isMobile ? 12 : 16,
+                borderLeft: '3px solid #059669',
+                backgroundColor: '#f0fdf4',
+                borderRadius: 8,
+                marginBottom: isMobile ? 12 : 16,
+              }
+            : {
+                marginBottom: isMobile ? 12 : 16,
+              };
+
           return (
-          <div key={index}>
+          <div key={indexOriginal} style={{ marginBottom: isMobile ? 12 : 16 }}>
             {/* 🆕 ALERTA: Nova fruta adicionada durante edição */}
             {!fruta.frutaPedidoId && (
               <Alert
@@ -1213,24 +1437,34 @@ const ColheitaTab = ({
                 style={{ marginBottom: 16 }}
               />
             )}
+            <div style={wrapperStyle}>
             <Row gutter={[8, 8]} align="baseline">
               {/* Nome da Fruta */}
-              <Col xs={24} md={temBanana ? 5 : 6}>
+              <Col xs={24} md={temBananaGlobal ? 5 : 6}>
                 <Form.Item>
-                  <Input
-                    disabled
-                    value={capitalizeName(frutas.find(f => f.id === fruta.frutaId)?.nome || '')}
+                  <div
                     style={{
-                      borderRadius: "6px",
-                      borderColor: "#d9d9d9",
-                      backgroundColor: "#f5f5f5",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: isMobile ? "flex-start" : "center",
+                      gap: isMobile ? 6 : 8,
                     }}
-                  />
+                  >
+                    <Input
+                      disabled
+                      value={capitalizeName(frutas.find(f => f.id === fruta.frutaId)?.nome || '')}
+                      style={{
+                        borderRadius: "6px",
+                        borderColor: "#d9d9d9",
+                        backgroundColor: "#f5f5f5",
+                      }}
+                    />
+                  </div>
                 </Form.Item>
               </Col>
 
               {/* Quantidade Prevista */}
-              <Col xs={24} md={temBanana ? 3 : 4}>
+              <Col xs={24} md={temBananaGlobal ? 3 : 4}>
                 <Form.Item>
                   <Input
                     disabled
@@ -1245,7 +1479,7 @@ const ColheitaTab = ({
               </Col>
 
               {/* Quantidade Real */}
-              <Col xs={24} md={temBanana ? 4 : 5}>
+              <Col xs={24} md={temBananaGlobal ? 4 : 5}>
                 <Form.Item
                     rules={[
                       { required: true },
@@ -1257,14 +1491,14 @@ const ColheitaTab = ({
                     addonAfter={fruta.unidadeMedida1 || ''}
                     size="large"
                     value={fruta.quantidadeReal}
-                    onChange={(value) => handleFrutaChange(index, 'quantidadeReal', value)}
+                    onChange={(value) => handleFrutaChange(indexOriginal, 'quantidadeReal', value)}
                     disabled={!canEditTab("2")}
                   />
                 </Form.Item>
               </Col>
 
               {/* Quantidade Real 2 */}
-                <Col xs={24} md={temBanana ? 4 : 5}>
+                <Col xs={24} md={temBananaGlobal ? 4 : 5}>
                   <Form.Item
                 >
                   <MonetaryInput
@@ -1274,22 +1508,25 @@ const ColheitaTab = ({
                     className={!fruta.unidadeMedida2 ? 'custom-disabled-visual' : ''}
                     size="large"
                     value={fruta.quantidadeReal2}
-                    onChange={(value) => handleFrutaChange(index, 'quantidadeReal2', value)}
+                    onChange={(value) => handleFrutaChange(indexOriginal, 'quantidadeReal2', value)}
                   />
                 </Form.Item>
               </Col>
 
               {/* Coluna de Áreas */}
-              <Col xs={24} md={temBanana ? 5 : 4}>
+              <Col xs={24} md={temBananaGlobal ? 5 : 4}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  {hasLinkedAreas(fruta) ? (
+                  {herdaVinculosDaPrimeira ? (
+                    <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '13px' }}>
+                      Áreas serão vinculadas à fruta de primeira.
+                    </Text>
+                  ) : hasLinkedAreas(fruta, herdaVinculosDaPrimeira) ? (
                     <>
-                      {/* Botão com apenas ícone */}
                       <Tooltip title="Gerenciar áreas">
                         <FormButton
                           icon={<LinkOutlined />}
-                          onClick={() => handleVincularAreas(fruta, index)}
-                          style={{ 
+                          onClick={() => handleVincularAreas(fruta, indexOriginal)}
+                          style={{
                             minWidth: '32px',
                             width: '32px',
                             padding: '0'
@@ -1297,14 +1534,13 @@ const ColheitaTab = ({
                           disabled={!canEditTab("2")}
                         />
                       </Tooltip>
-                      
-                      {/* Badges das áreas */}
+
                       {getLinkedAreasNames(fruta).slice(0, 2).map((area, idx) => (
-                        <Tag 
-                          key={idx} 
-                          size="small" 
+                        <Tag
+                          key={idx}
+                          size="small"
                           color={area.tipo === 'propria' ? 'green' : 'blue'}
-                          style={{ 
+                          style={{
                             fontSize: '11px',
                             maxWidth: '70px',
                             overflow: 'hidden',
@@ -1315,8 +1551,7 @@ const ColheitaTab = ({
                           {area.nome}
                         </Tag>
                       ))}
-                      
-                      {/* Badge "+X" se houver mais áreas */}
+
                       {getLinkedAreasNames(fruta).length > 2 && (
                         <Tag size="small" color="blue" style={{ fontSize: '11px' }}>
                           +{getLinkedAreasNames(fruta).length - 2}
@@ -1326,13 +1561,14 @@ const ColheitaTab = ({
                   ) : (
                     <FormButton
                       icon={<LinkOutlined />}
-                      onClick={() => handleVincularAreas(fruta, index)}
-                      style={{ 
-                        minWidth: '110px'
+                      onClick={() => handleVincularAreas(fruta, indexOriginal)}
+                      style={{
+                        minWidth: '120px',
+                        width: '120px'
                       }}
                       disabled={!canEditTab("2")}
                     >
-                      Vincular Áreas
+                      {canEditTab("2") ? 'Vincular Áreas' : 'Visualizar Áreas'}
                     </FormButton>
                   )}
                 </div>
@@ -1342,14 +1578,17 @@ const ColheitaTab = ({
               {isFrutaBanana && (
                 <Col xs={24} md={3}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    {hasLinkedFitas(fruta) ? (
+                    {herdaVinculosDaPrimeira ? (
+                      <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '13px' }}>
+                        Fitas serão vinculadas à fruta de primeira.
+                      </Text>
+                    ) : hasLinkedFitas(fruta) ? (
                       <>
-                        {/* Botão com apenas ícone */}
                         <Tooltip title="Gerenciar fitas">
                           <FormButton
                             icon={<LinkOutlined />}
-                            onClick={() => handleVincularFitas(fruta, index)}
-                            style={{ 
+                            onClick={() => handleVincularFitas(fruta, indexOriginal)}
+                            style={{
                               minWidth: '32px',
                               width: '32px',
                               padding: '0'
@@ -1357,18 +1596,17 @@ const ColheitaTab = ({
                             disabled={!canEditTab("2")}
                           />
                         </Tooltip>
-                        
-                        {/* Badges das fitas */}
+
                         {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
-                          <Tag 
-                            key={idx} 
-                            size="small" 
-                            style={{ 
+                          <Tag
+                            key={idx}
+                            size="small"
+                            style={{
                               fontSize: '11px',
                               backgroundColor: fita.cor + '20',
                               borderColor: fita.cor,
                               color: '#333',
-                              maxWidth: '50px',
+                              maxWidth: '60px',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap'
@@ -1377,8 +1615,7 @@ const ColheitaTab = ({
                             {fita.nome}
                           </Tag>
                         ))}
-                        
-                        {/* Badge "+X" se houver mais fitas */}
+
                         {getLinkedFitasNames(fruta).length > 1 && (
                           <Tag size="small" color="purple" style={{ fontSize: '11px' }}>
                             +{getLinkedFitasNames(fruta).length - 1}
@@ -1388,24 +1625,27 @@ const ColheitaTab = ({
                     ) : (
                       <FormButton
                         icon={<LinkOutlined />}
-                        onClick={() => handleVincularFitas(fruta, index)}
-                        style={{ 
-                          minWidth: '100px'
+                        onClick={() => handleVincularFitas(fruta, indexOriginal)}
+                        style={{
+                          minWidth: '120px',
+                          width: '120px'
                         }}
                         disabled={!canEditTab("2")}
                       >
-                        Vincular Fitas
+                        {canEditTab("2") ? 'Vincular Fitas' : 'Visualizar Fitas'}
                       </FormButton>
                     )}
                   </div>
                 </Col>
               )}
             </Row>
+            </div>
 
-            {index < pedidoAtual.frutas.length - 1 && <Divider style={{ margin: "8px 0" }} />}
+            {ordemIndex < frutasOrdenadas.length - 1 && <Divider style={{ margin: "8px 0" }} />}
           </div>
           );
         })}
+        {temBananaGlobal && <Divider style={{ margin: "16px 0" }} />}
       </Card>
 
       {/* Informações de Frete */}

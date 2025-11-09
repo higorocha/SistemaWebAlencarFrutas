@@ -41,10 +41,12 @@ export class FrutaPedidoResponseDto {
   @ApiProperty({ description: 'ID da fruta' })
   frutaId: number;
 
-  @ApiProperty({ description: 'Nome da fruta' })
+  @ApiProperty({ description: 'Dados da fruta do pedido (nome, cultura, classificação)' })
   fruta: {
     id: number;
     nome: string;
+    dePrimeira: boolean;
+    culturaId: number;
     cultura: {
       id: number;
       descricao: string;

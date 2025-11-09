@@ -192,6 +192,9 @@ const SearchInputInteligente = ({
     if (suggestion.type === 'cultura') {
       return getFruitIcon(suggestion.value, { width: 16, height: 16 });
     }
+    if (suggestion.type === 'turma') {
+      return '🧑‍🌾';
+    }
 
     return suggestion.icon;
   };
@@ -222,6 +225,14 @@ const SearchInputInteligente = ({
       }
 
       return description;
+    }
+
+    if (suggestion.type === 'turma') {
+      const total = suggestion.metadata?.totalPedidos ?? suggestion.metadata?.quantidadePedidos;
+      if (typeof total === 'number') {
+        return `Pedidos vinculados: ${total}`;
+      }
+      return suggestion.description || 'Pedidos vinculados';
     }
 
     return suggestion.description;
@@ -539,7 +550,7 @@ const SearchInputInteligente = ({
                 <TypeText>{suggestion.label}</TypeText>
               </SuggestionHeader>
             <SuggestionText>{
-              ['cliente', 'fruta', 'cultura', 'area', 'motorista', 'fornecedor'].includes(suggestion.type)
+              ['cliente', 'fruta', 'cultura', 'area', 'motorista', 'fornecedor', 'turma'].includes(suggestion.type)
                 ? capitalizeName(suggestion.value)
                 : suggestion.value
             }</SuggestionText>

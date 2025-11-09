@@ -31,7 +31,7 @@ import {
   NumberOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
-import { formatarValorMonetario } from "../../utils/formatters";
+import { formatarValorMonetario, capitalizeName } from "../../utils/formatters";
 import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs";
 import axiosInstance from "../../api/axiosConfig";
 import useResponsive from "../../hooks/useResponsive";
@@ -70,7 +70,7 @@ const PrecificacaoModal = ({
       const frutasForm = pedido.frutasPedidos?.map(fruta => {
         return {
           frutaPedidoId: fruta.id,
-          frutaNome: fruta.fruta?.nome,
+          frutaNome: capitalizeName(fruta.fruta?.nome || ''),
           quantidadePrevista: fruta.quantidadePrevista || 0,
           quantidadeReal: fruta.quantidadeReal || 0,
           quantidadeReal2: fruta.quantidadeReal2 || 0,
@@ -357,7 +357,7 @@ const PrecificacaoModal = ({
               <Col xs={24} sm={12} md={6}>
                 <Text strong>Cliente:</Text>
                 <br />
-                <Text>{pedido.cliente?.nome}</Text>
+                <Text>{capitalizeName(pedido.cliente?.nome || '-')}</Text>
               </Col>
               <Col xs={24} sm={12} md={6}>
                 <Text strong>Data Colheita:</Text>
@@ -475,10 +475,10 @@ const PrecificacaoModal = ({
                               </Space>
                             ) : undefined}
                           >
-                            <Tooltip title={fruta?.frutaNome || ''} placement="top">
+                            <Tooltip title={capitalizeName(fruta?.frutaNome || '')} placement="top">
                               <Input
                                 disabled
-                                value={fruta?.frutaNome || ''}
+                                value={capitalizeName(fruta?.frutaNome || '')}
                                 style={{
                                   borderRadius: "0.375rem",
                                   fontSize: isMobile ? "0.875rem" : undefined

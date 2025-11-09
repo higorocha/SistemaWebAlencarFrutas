@@ -1,6 +1,6 @@
 // src/components/pedidos/ColheitaModal.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Modal, Button, Space, message, Form, Input, Select, DatePicker, InputNumber, Row, Col, Typography, Card, Divider, Tag, Tooltip } from "antd";
 import PropTypes from "prop-types";
 import useResponsive from "../../hooks/useResponsive";
@@ -272,6 +272,44 @@ const ColheitaModal = ({
     return map;
   }, [areasFornecedores]);
 
+  const frutasPedidoMeta = useMemo(() => {
+    const porFrutaPedidoId = {};
+    const culturaInfo = {};
+
+    (pedido?.frutasPedidos || []).forEach((frutaPedido) => {
+      const culturaId = frutaPedido.fruta?.cultura?.id ?? null;
+      const culturaDescricao = frutaPedido.fruta?.cultura?.descricao ?? "";
+      const dePrimeira = frutaPedido.fruta?.dePrimeira ?? false;
+      const nome = frutaPedido.fruta?.nome ?? "";
+
+      porFrutaPedidoId[frutaPedido.id] = {
+        culturaId,
+        culturaDescricao,
+        dePrimeira,
+        nome: capitalizeName(nome),
+      };
+
+      if (culturaId !== null) {
+        if (!culturaInfo[culturaId]) {
+          culturaInfo[culturaId] = {
+            hasPrimeira: false,
+            frutaPrimeiraNome: "",
+          };
+        }
+
+        if (dePrimeira) {
+          culturaInfo[culturaId].hasPrimeira = true;
+          culturaInfo[culturaId].frutaPrimeiraNome = capitalizeName(nome);
+        }
+      }
+    });
+
+    return { porFrutaPedidoId, culturaInfo };
+  }, [pedido?.frutasPedidos]);
+
+  const frutasPedidoInfo = frutasPedidoMeta.porFrutaPedidoId;
+  const culturaInfoPorId = frutasPedidoMeta.culturaInfo;
+
   // Carregar áreas próprias, de fornecedores e fitas de banana
   useEffect(() => {
     const fetchDados = async () => {
@@ -406,15 +444,54 @@ const ColheitaModal = ({
     // ✅ CORREÇÃO: Pegar valores atuais do formulário para passar para o modal
     const valoresAtuais = form.getFieldsValue();
     const frutaAtual = valoresAtuais.frutas?.[frutaIndex];
-    
+    const frutaMeta = frutaAtual?.frutaPedidoId ? frutasPedidoInfo[frutaAtual.frutaPedidoId] : undefined;
+    const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+      ? culturaInfoPorId[frutaMeta.culturaId]
+      : undefined;
+    const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+
+    const frutasAtuais = valoresAtuais.frutas || [];
+    const frutasDoGrupo = frutasAtuais
+      .map((frutaItem) => {
+        const metaItem = frutaItem?.frutaPedidoId ? frutasPedidoInfo[frutaItem.frutaPedidoId] : undefined;
+        if (!metaItem || metaItem.culturaId !== frutaMeta?.culturaId) {
+          return null;
+        }
+
+        return {
+          frutaPedidoId: frutaItem.frutaPedidoId,
+          quantidadeReal: frutaItem.quantidadeReal,
+          quantidadeReal2: frutaItem.quantidadeReal2,
+          unidadeMedida1: frutaItem.unidadeMedida1,
+          unidadeMedida2: frutaItem.unidadeMedida2,
+          dePrimeira: metaItem.dePrimeira ?? false,
+          nome: capitalizeName(frutaItem.frutaNome || frutaItem.fruta?.nome || metaItem?.nome || ""),
+        };
+      })
+      .filter(Boolean);
+
+    if (herdaVinculosDaPrimeira) {
+      const frutaPrimeiraNome = culturaInfo?.frutaPrimeiraNome || "fruta de primeira";
+      warning(
+        "Vinculação bloqueada",
+        `As áreas de "${frutaMeta?.nome || frutaAtual?.frutaNome || "esta fruta"}" são herdadas da ${frutaPrimeiraNome} desta cultura. Ajuste as áreas diretamente na fruta de primeira.`,
+      );
+      return;
+    }
+
     const frutaCompleta = {
-      ...fruta,
+      ...frutaAtual,
       index: frutaIndex,
       // ✅ Incluir valores atuais do formulário
       quantidadeReal: frutaAtual?.quantidadeReal,
       quantidadeReal2: frutaAtual?.quantidadeReal2,
       unidadeMedida1: fruta.unidadeMedida1,
-      unidadeMedida2: fruta.unidadeMedida2
+      unidadeMedida2: fruta.unidadeMedida2,
+      dePrimeira: frutaMeta?.dePrimeira ?? false,
+      culturaId: frutaMeta?.culturaId ?? null,
+      culturaDescricao: frutaMeta?.culturaDescricao ?? "",
+      herdaVinculos: herdaVinculosDaPrimeira,
+      frutasDoGrupo,
     };
     
     
@@ -454,8 +531,25 @@ const ColheitaModal = ({
   };
 
   const handleVincularFitas = (fruta, frutaIndex) => {
+    const valoresAtuais = form.getFieldsValue();
+    const frutaAtual = valoresAtuais.frutas?.[frutaIndex];
+    const frutaMeta = frutaAtual?.frutaPedidoId ? frutasPedidoInfo[frutaAtual.frutaPedidoId] : undefined;
+    const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+      ? culturaInfoPorId[frutaMeta.culturaId]
+      : undefined;
+    const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+
+    if (herdaVinculosDaPrimeira) {
+      const frutaPrimeiraNome = culturaInfo?.frutaPrimeiraNome || "fruta de primeira";
+      warning(
+        "Vinculação bloqueada",
+        `As fitas de "${frutaMeta?.nome || frutaAtual?.frutaNome || "esta fruta"}" são herdadas da ${frutaPrimeiraNome} desta cultura. Vincule fitas diretamente na fruta de primeira.`,
+      );
+      return;
+    }
+
     // Verificar se a fruta tem áreas vinculadas antes de abrir o modal
-    if (!hasLinkedAreas(fruta)) {
+    if (!hasLinkedAreas(frutaAtual, herdaVinculosDaPrimeira)) {
       warning("Áreas Necessárias", "Você deve vincular áreas à fruta antes de vincular fitas. As fitas são específicas para cada área.");
       return;
     }
@@ -464,12 +558,15 @@ const ColheitaModal = ({
     const estoqueConsumido = calcularEstoqueConsumidoPorOutrasFrutas(frutaIndex);
 
     // ✅ NOVO: Pegar todas as frutas do formulário para validação global
-    const valoresAtuais = form.getFieldsValue();
     const todasFrutas = valoresAtuais.frutas || [];
 
     setFrutaSelecionada({
-      ...fruta,
+      ...frutaAtual,
       index: frutaIndex,
+      dePrimeira: frutaMeta?.dePrimeira ?? false,
+      culturaId: frutaMeta?.culturaId ?? null,
+      culturaDescricao: frutaMeta?.culturaDescricao ?? "",
+      herdaVinculos: false,
       // ✅ NOVO: Adicionar dados para controle de estoque virtual
       estoqueConsumidoPorOutrasFrutas: estoqueConsumido,
       todasFrutasPedido: todasFrutas,
@@ -487,7 +584,10 @@ const ColheitaModal = ({
   };
 
   // Verificar se fruta tem áreas vinculadas (não placeholders)
-  const hasLinkedAreas = (fruta) => {
+  const hasLinkedAreas = (fruta, herdaDaPrimeira = false) => {
+    if (herdaDaPrimeira) {
+      return true;
+    }
     return fruta?.areas && fruta.areas.some(area => 
       area.areaPropriaId || area.areaFornecedorId
     );
@@ -523,48 +623,126 @@ const ColheitaModal = ({
     });
   };
 
-  // ✅ NOVA FUNÇÃO: Validar inconsistências entre quantidades informadas e áreas
+  const normalizarNumero = (valor) => {
+    if (valor === null || valor === undefined || valor === '') {
+      return 0;
+    }
+
+    if (typeof valor === 'number') {
+      return Number.isFinite(valor) ? valor : 0;
+    }
+
+    if (typeof valor === 'string') {
+      const parsed = parseFloat(valor.replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
+  };
+
+  // ✅ NOVA FUNÇÃO: Validar inconsistências entre quantidades informadas e áreas considerando agrupamentos por cultura
   const validarInconsistenciasQuantidades = (frutas) => {
     const inconsistencias = [];
+    const gruposPorCultura = {};
 
     frutas.forEach((fruta, index) => {
+      const frutaMeta = fruta?.frutaPedidoId ? frutasPedidoInfo[fruta.frutaPedidoId] : undefined;
+      const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+        ? culturaInfoPorId[frutaMeta.culturaId]
+        : undefined;
+      const hasPrimeiraNaCultura = !!culturaInfo?.hasPrimeira;
+      const herdaVinculosDaPrimeira = hasPrimeiraNaCultura && frutaMeta && !frutaMeta.dePrimeira;
       const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${index + 1}`;
 
-      // Obter quantidades informadas no formulário
-      const quantidadeReal = typeof fruta.quantidadeReal === 'string'
-        ? parseFloat(fruta.quantidadeReal) || 0
-        : (fruta.quantidadeReal || 0);
+      const quantidadeReal = normalizarNumero(fruta.quantidadeReal);
+      const quantidadeReal2 = normalizarNumero(fruta.quantidadeReal2);
 
-      const quantidadeReal2 = typeof fruta.quantidadeReal2 === 'string'
-        ? parseFloat(fruta.quantidadeReal2) || 0
-        : (fruta.quantidadeReal2 || 0);
+      if (hasPrimeiraNaCultura) {
+        const grupoKey = `cultura-${frutaMeta.culturaId}`;
+        if (!gruposPorCultura[grupoKey]) {
+          gruposPorCultura[grupoKey] = {
+            nomeGrupo: culturaInfo?.frutaPrimeiraNome || nomeFruta,
+            unidadeMedida1: fruta.unidadeMedida1,
+            unidadeMedida2: fruta.unidadeMedida2,
+            quantidadeReal: 0,
+            quantidadeReal2: 0,
+            somaUnidade1: 0,
+            somaUnidade2: 0,
+          };
+        }
 
-      // Calcular soma das quantidades das áreas
-      const areasReais = fruta.areas?.filter(area =>
-        area.areaPropriaId || area.areaFornecedorId
-      ) || [];
+        const grupo = gruposPorCultura[grupoKey];
+        grupo.quantidadeReal += quantidadeReal;
+        grupo.quantidadeReal2 += quantidadeReal2;
 
-      const somaUnidade1 = areasReais.reduce((sum, area) =>
-        sum + (Number(area.quantidadeColhidaUnidade1) || 0), 0);
+        if (!grupo.unidadeMedida1) {
+          grupo.unidadeMedida1 = fruta.unidadeMedida1;
+        }
+        if (!grupo.unidadeMedida2 && fruta.unidadeMedida2) {
+          grupo.unidadeMedida2 = fruta.unidadeMedida2;
+        }
 
-      const somaUnidade2 = areasReais.reduce((sum, area) =>
-        sum + (Number(area.quantidadeColhidaUnidade2) || 0), 0);
+        if (!herdaVinculosDaPrimeira) {
+          const areasReais = fruta.areas?.filter(area =>
+            area.areaPropriaId || area.areaFornecedorId
+          ) || [];
 
-      // Verificar inconsistências
-      const temInconsistenciaUnd1 = Math.abs(quantidadeReal - somaUnidade1) > 0.01;
-      const temInconsistenciaUnd2 = fruta.unidadeMedida2 && Math.abs(quantidadeReal2 - somaUnidade2) > 0.01;
+          const somaUnidade1 = areasReais.reduce((sum, area) =>
+            sum + (Number(area.quantidadeColhidaUnidade1) || 0), 0);
+
+          const somaUnidade2 = areasReais.reduce((sum, area) =>
+            sum + (Number(area.quantidadeColhidaUnidade2) || 0), 0);
+
+          grupo.somaUnidade1 += somaUnidade1;
+          grupo.somaUnidade2 += somaUnidade2;
+        }
+      } else {
+        const areasReais = fruta.areas?.filter(area =>
+          area.areaPropriaId || area.areaFornecedorId
+        ) || [];
+
+        const somaUnidade1 = areasReais.reduce((sum, area) =>
+          sum + (Number(area.quantidadeColhidaUnidade1) || 0), 0);
+
+        const somaUnidade2 = areasReais.reduce((sum, area) =>
+          sum + (Number(area.quantidadeColhidaUnidade2) || 0), 0);
+
+        const temInconsistenciaUnd1 = Math.abs(quantidadeReal - somaUnidade1) > 0.01;
+        const temInconsistenciaUnd2 = fruta.unidadeMedida2 && Math.abs(quantidadeReal2 - somaUnidade2) > 0.01;
+
+        if (temInconsistenciaUnd1 || temInconsistenciaUnd2) {
+          inconsistencias.push({
+            nomeFruta,
+            unidadeMedida1: fruta.unidadeMedida1,
+            unidadeMedida2: fruta.unidadeMedida2,
+            quantidadeReal,
+            quantidadeReal2,
+            somaUnidade1,
+            somaUnidade2,
+            temInconsistenciaUnd1,
+            temInconsistenciaUnd2,
+            isAgrupamento: false,
+          });
+        }
+      }
+    });
+
+    Object.values(gruposPorCultura).forEach((grupo) => {
+      const temInconsistenciaUnd1 = Math.abs((grupo.quantidadeReal || 0) - (grupo.somaUnidade1 || 0)) > 0.01;
+      const temInconsistenciaUnd2 = grupo.unidadeMedida2 && Math.abs((grupo.quantidadeReal2 || 0) - (grupo.somaUnidade2 || 0)) > 0.01;
 
       if (temInconsistenciaUnd1 || temInconsistenciaUnd2) {
         inconsistencias.push({
-          nomeFruta,
-          unidadeMedida1: fruta.unidadeMedida1,
-          unidadeMedida2: fruta.unidadeMedida2,
-          quantidadeReal,
-          quantidadeReal2,
-          somaUnidade1,
-          somaUnidade2,
+          nomeFruta: grupo.nomeGrupo,
+          unidadeMedida1: grupo.unidadeMedida1,
+          unidadeMedida2: grupo.unidadeMedida2,
+          quantidadeReal: grupo.quantidadeReal,
+          quantidadeReal2: grupo.quantidadeReal2,
+          somaUnidade1: grupo.somaUnidade1,
+          somaUnidade2: grupo.somaUnidade2,
           temInconsistenciaUnd1,
-          temInconsistenciaUnd2
+          temInconsistenciaUnd2,
+          isAgrupamento: true,
         });
       }
     });
@@ -601,6 +779,13 @@ const ColheitaModal = ({
   // Função para salvar áreas vinculadas
   const handleSalvarAreas = (areas) => {
     if (!frutaSelecionada) return;
+    if (frutaSelecionada?.herdaVinculos) {
+      warning(
+        "Ação não permitida",
+        "Esta fruta herda as áreas da fruta de primeira da cultura. Ajuste as áreas diretamente na fruta de primeira.",
+      );
+      return;
+    }
     
     // ✅ NOVA FUNCIONALIDADE: Calcular soma das quantidades por área
     const somaUnidade1 = areas?.reduce((sum, area) => 
@@ -625,9 +810,30 @@ const ColheitaModal = ({
     
     // Atualizar formulário com novas áreas
     const frutasAtuais = form.getFieldValue('frutas') || [];
+    let deveAtualizarQuantidades = true;
     const frutasAtualizadas = frutasAtuais.map((fruta, index) => {
       if (index === indexToUpdate) {
-        // Se não há áreas selecionadas, criar área placeholder
+        const frutaMeta = fruta?.frutaPedidoId ? frutasPedidoInfo[fruta.frutaPedidoId] : undefined;
+        const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+          ? culturaInfoPorId[frutaMeta.culturaId]
+          : undefined;
+        const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+
+        const possuiSegundas = frutasAtuais.some((item, idxItem) => {
+          if (idxItem === index) {
+            return false;
+          }
+          const metaItem = item?.frutaPedidoId ? frutasPedidoInfo[item.frutaPedidoId] : undefined;
+          return metaItem && metaItem.culturaId === frutaMeta?.culturaId && !metaItem.dePrimeira;
+        });
+        const estaAgrupado = frutaMeta?.dePrimeira && possuiSegundas;
+
+        if (herdaVinculosDaPrimeira) {
+          return {
+            ...fruta,
+            areas: [],
+          };
+        }
         if (!areas || areas.length === 0) {
           return {
             ...fruta,
@@ -638,8 +844,10 @@ const ColheitaModal = ({
             }]
           };
         }
-        
-        // Se há áreas selecionadas, usar apenas elas
+
+        const quantidadeRealAtualizada = estaAgrupado ? fruta.quantidadeReal : somaUnidade1;
+        const quantidadeReal2Atualizada = estaAgrupado ? fruta.quantidadeReal2 : (somaUnidade2 > 0 ? somaUnidade2 : null);
+
         const frutaAtualizada = {
           ...fruta,
           areas: areas.map(area => ({
@@ -648,11 +856,13 @@ const ColheitaModal = ({
             areaFornecedorId: area.areaFornecedorId || undefined,
             observacoes: area.observacoes || ''
           })),
-          // ✅ SEMPRE SETAR A SOMA
-          // Se somaUnidade2 for 0, enviar null para evitar erro de validação @IsPositive no backend
-          quantidadeReal: somaUnidade1,
-          quantidadeReal2: somaUnidade2 > 0 ? somaUnidade2 : null
+          quantidadeReal: quantidadeRealAtualizada,
+          quantidadeReal2: quantidadeReal2Atualizada
         };
+
+        if (estaAgrupado) {
+          deveAtualizarQuantidades = false;
+        }
 
         return frutaAtualizada;
       }
@@ -661,13 +871,13 @@ const ColheitaModal = ({
 
     form.setFieldsValue({ frutas: frutasAtualizadas });
 
-    // ✅ APLICAR SINCRONIZAÇÃO nos campos do formulário
-    // Se somaUnidade2 for 0, enviar null para evitar erro de validação @IsPositive no backend
-    const updates = {};
-    updates[['frutas', indexToUpdate, 'quantidadeReal']] = somaUnidade1;
-    updates[['frutas', indexToUpdate, 'quantidadeReal2']] = somaUnidade2 > 0 ? somaUnidade2 : null;
-    form.setFieldsValue(updates);
-    
+    if (deveAtualizarQuantidades) {
+      const updates = {};
+      updates[['frutas', indexToUpdate, 'quantidadeReal']] = somaUnidade1;
+      updates[['frutas', indexToUpdate, 'quantidadeReal2']] = somaUnidade2 > 0 ? somaUnidade2 : null;
+      form.setFieldsValue(updates);
+    }
+
     success("Sucesso", "Áreas vinculadas e quantidades sincronizadas com sucesso!");
   };
 
@@ -675,6 +885,13 @@ const ColheitaModal = ({
   // Função para salvar fitas vinculadas
   const handleSalvarFitas = (fitas) => {
     if (!frutaSelecionada) return;
+    if (frutaSelecionada?.herdaVinculos) {
+      warning(
+        "Ação não permitida",
+        "Esta fruta herda as fitas da fruta de primeira da cultura. Ajuste as fitas diretamente na fruta de primeira.",
+      );
+      return;
+    }
     
     // Atualizar formulário com novas fitas
     const frutasAtuais = form.getFieldValue('frutas') || [];
@@ -768,27 +985,43 @@ const ColheitaModal = ({
       const formData = {
         dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
         observacoesColheita: values.observacoesColheita,
-        frutas: frutasSendoColhidas.map(fruta => ({
-          frutaPedidoId: fruta.frutaPedidoId,
-          // ✅ CORREÇÃO: Remover frutaId, unidadeMedida1, unidadeMedida2 (não aceitos pelo DTO)
-          quantidadeReal: typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal,
-          quantidadeReal2: typeof fruta.quantidadeReal2 === 'string' ? parseFloat(fruta.quantidadeReal2) : fruta.quantidadeReal2,
-          areas: fruta.areas?.filter(area => area.areaPropriaId || area.areaFornecedorId).map(area => ({
-            id: area.id,
-            areaPropriaId: area.areaPropriaId || undefined,
-            areaFornecedorId: area.areaFornecedorId || undefined,
-            observacoes: area.observacoes || '',
-            quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
-            quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
-          })) || [],
-          fitas: fruta.fitas?.filter(fita => fita.fitaBananaId).map(fita => ({
-            id: fita.id,
-            fitaBananaId: fita.fitaBananaId,
-            quantidadeFita: fita.quantidadeFita || undefined,
-            observacoes: fita.observacoes || '',
-            detalhesAreas: fita.detalhesAreas || []
-          })) || []
-        })),
+        frutas: frutasSendoColhidas.map(fruta => {
+          const frutaMeta = fruta?.frutaPedidoId ? frutasPedidoInfo[fruta.frutaPedidoId] : undefined;
+          const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+            ? culturaInfoPorId[frutaMeta.culturaId]
+            : undefined;
+          const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+
+          const areasProcessadas = herdaVinculosDaPrimeira
+            ? []
+            : (fruta.areas?.filter(area => area.areaPropriaId || area.areaFornecedorId).map(area => ({
+                id: area.id,
+                areaPropriaId: area.areaPropriaId || undefined,
+                areaFornecedorId: area.areaFornecedorId || undefined,
+                observacoes: area.observacoes || '',
+                quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+                quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
+              })) || []);
+
+          const fitasProcessadas = herdaVinculosDaPrimeira
+            ? []
+            : (fruta.fitas?.filter(fita => fita.fitaBananaId).map(fita => ({
+                id: fita.id,
+                fitaBananaId: fita.fitaBananaId,
+                quantidadeFita: fita.quantidadeFita || undefined,
+                observacoes: fita.observacoes || '',
+                detalhesAreas: fita.detalhesAreas || []
+              })) || []);
+
+          return {
+            frutaPedidoId: fruta.frutaPedidoId,
+            // ✅ CORREÇÃO: Remover frutaId, unidadeMedida1, unidadeMedida2 (não aceitos pelo DTO)
+            quantidadeReal: typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal,
+            quantidadeReal2: typeof fruta.quantidadeReal2 === 'string' ? parseFloat(fruta.quantidadeReal2) : fruta.quantidadeReal2,
+            areas: areasProcessadas,
+            fitas: fitasProcessadas,
+          };
+        }),
         pesagem: values.pesagem ? String(values.pesagem) : values.pesagem,
         placaPrimaria: values.placaPrimaria,
         placaSecundaria: values.placaSecundaria,
@@ -962,6 +1195,29 @@ const ColheitaModal = ({
       // ✅ NOVA VALIDAÇÃO: Validar apenas as frutas que estão sendo colhidas
       for (let i = 0; i < frutasSendoColhidas.length; i++) {
         const fruta = frutasSendoColhidas[i];
+        const frutaMeta = fruta?.frutaPedidoId ? frutasPedidoInfo[fruta.frutaPedidoId] : undefined;
+        const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+          ? culturaInfoPorId[frutaMeta.culturaId]
+          : undefined;
+        const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+        const nomeFruta = frutaMeta?.nome || fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
+
+        if (herdaVinculosDaPrimeira) {
+          const possuiAreasProprias = fruta.areas?.some(area => area.areaPropriaId || area.areaFornecedorId);
+          const possuiFitas = fruta.fitas && fruta.fitas.length > 0;
+
+          if (possuiAreasProprias) {
+            error("Erro", `A fruta "${nomeFruta}" herda as áreas da fruta de primeira da cultura e não deve possuir áreas próprias vinculadas.`);
+            return;
+          }
+
+          if (possuiFitas) {
+            error("Erro", `A fruta "${nomeFruta}" herda as fitas da fruta de primeira da cultura e não deve possuir fitas vinculadas.`);
+            return;
+          }
+
+          continue;
+        }
 
         // NOVA VALIDAÇÃO: Verificar se pelo menos uma área REAL foi selecionada (não placeholder)
         const areasReais = fruta.areas?.filter(area =>
@@ -969,7 +1225,6 @@ const ColheitaModal = ({
         ) || [];
 
         if (areasReais.length === 0) {
-          const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
           error("Erro", `Adicione pelo menos uma área de origem para "${nomeFruta}"`);
           return;
         }
@@ -981,20 +1236,18 @@ const ColheitaModal = ({
           const hasAreaFornecedor = area.areaFornecedorId !== undefined && area.areaFornecedorId !== null;
 
           if (!hasAreaPropria && !hasAreaFornecedor) {
-            const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
             error("Erro", `Fruta "${nomeFruta}", área ${j + 1}: Selecione uma área válida`);
             return;
           }
 
           if (hasAreaPropria && hasAreaFornecedor) {
-            const nomeFruta = fruta.frutaNome || fruta.fruta?.nome || `Fruta ${i + 1}`;
             error("Erro", `Fruta "${nomeFruta}", área ${j + 1}: Não é possível selecionar área própria e de fornecedor simultaneamente`);
             return;
           }
         }
 
         // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
-        const frutaNome = fruta.frutaNome || fruta.fruta?.nome || '';
+        const frutaNome = frutaMeta?.nome || fruta.frutaNome || fruta.fruta?.nome || '';
         const isFrutaBanana = frutaNome.toLowerCase().includes('banana');
 
         if (isFrutaBanana) {
@@ -1085,34 +1338,48 @@ const ColheitaModal = ({
       const formData = {
         dataColheita: values.dataColheita.startOf('day').add(12, 'hours').toISOString(),
         observacoesColheita: values.observacoesColheita,
-        frutas: frutasParaEnviar.map(fruta => ({
-          frutaPedidoId: fruta.frutaPedidoId,
-          // Garantir que quantidades sejam números
-          quantidadeReal: typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal,
-          quantidadeReal2: typeof fruta.quantidadeReal2 === 'string' ? parseFloat(fruta.quantidadeReal2) : fruta.quantidadeReal2,
-          // NOVA ESTRUTURA: Arrays de áreas e fitas
-          // IMPORTANTE: Filtrar apenas áreas reais (com IDs), removendo placeholders
-          areas: fruta.areas?.filter(area =>
-            area.areaPropriaId || area.areaFornecedorId
-          ).map(area => ({
-            id: area.id,
-            areaPropriaId: area.areaPropriaId || undefined,
-            areaFornecedorId: area.areaFornecedorId || undefined,
-            observacoes: area.observacoes || '',
-            quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
-            quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
-          })) || [],
-          fitas: fruta.fitas?.filter(fita =>
-            fita.fitaBananaId
-          ).map(fita => ({
-            id: fita.id,
-            fitaBananaId: fita.fitaBananaId,
-            quantidadeFita: fita.quantidadeFita || undefined,
-            observacoes: fita.observacoes || '',
-            // ✅ MANTER detalhesAreas para o backend processar
-            detalhesAreas: fita.detalhesAreas || []
-          })) || []
-        })),
+        frutas: frutasParaEnviar.map(fruta => {
+          const frutaMeta = fruta?.frutaPedidoId ? frutasPedidoInfo[fruta.frutaPedidoId] : undefined;
+          const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+            ? culturaInfoPorId[frutaMeta.culturaId]
+            : undefined;
+          const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+
+          const areasProcessadas = herdaVinculosDaPrimeira
+            ? []
+            : (fruta.areas?.filter(area =>
+                area.areaPropriaId || area.areaFornecedorId
+              ).map(area => ({
+                id: area.id,
+                areaPropriaId: area.areaPropriaId || undefined,
+                areaFornecedorId: area.areaFornecedorId || undefined,
+                observacoes: area.observacoes || '',
+                quantidadeColhidaUnidade1: area.quantidadeColhidaUnidade1 || null,
+                quantidadeColhidaUnidade2: area.quantidadeColhidaUnidade2 || null
+              })) || []);
+
+          const fitasProcessadas = herdaVinculosDaPrimeira
+            ? []
+            : (fruta.fitas?.filter(fita =>
+                fita.fitaBananaId
+              ).map(fita => ({
+                id: fita.id,
+                fitaBananaId: fita.fitaBananaId,
+                quantidadeFita: fita.quantidadeFita || undefined,
+                observacoes: fita.observacoes || '',
+                // ✅ MANTER detalhesAreas para o backend processar
+                detalhesAreas: fita.detalhesAreas || []
+              })) || []);
+
+          return {
+            frutaPedidoId: fruta.frutaPedidoId,
+            // Garantir que quantidades sejam números
+            quantidadeReal: typeof fruta.quantidadeReal === 'string' ? parseFloat(fruta.quantidadeReal) : fruta.quantidadeReal,
+            quantidadeReal2: typeof fruta.quantidadeReal2 === 'string' ? parseFloat(fruta.quantidadeReal2) : fruta.quantidadeReal2,
+            areas: areasProcessadas,
+            fitas: fitasProcessadas,
+          };
+        }),
         // Campos de frete
         pesagem: values.pesagem ? String(values.pesagem) : values.pesagem, // Converte para string conforme schema
         placaPrimaria: values.placaPrimaria,
@@ -1367,325 +1634,294 @@ const ColheitaModal = ({
           }}
         >
           <Form.List name="frutas">
-            {(fields) => (
-              <>
-                                 {/* Cabeçalho das colunas */}
-                 {(() => {
-                   // Verificar se há pelo menos uma fruta banana no pedido
-                   const temBanana = fields.some((_, index) => {
-                     const fruta = form.getFieldValue('frutas')?.[index];
-                     return (fruta?.frutaNome || fruta?.fruta?.nome || '').toLowerCase().includes('banana');
-                   });
-                   
-                   return (
-                     !isMobile && (
-                       <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
-                         <Col xs={24} md={temBanana ? 5 : 6}>
-                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                             <AppleOutlined style={{ marginRight: "0.5rem" }} />
-                             Fruta
-                           </span>
-                         </Col>
-                         <Col xs={24} md={temBanana ? 3 : 4}>
-                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                             <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
-                             Prevista
-                           </span>
-                         </Col>
-                         <Col xs={24} md={temBanana ? 4 : 5}>
-                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                             <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
-                             Colhida
-                           </span>
-                         </Col>
-                         <Col xs={24} md={temBanana ? 4 : 5}>
-                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                             <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
-                             Colhida 2
-                           </span>
-                         </Col>
-                         <Col xs={24} md={temBanana ? 4 : 4}>
-                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                             <EnvironmentOutlined style={{ marginRight: "0.5rem" }} />
-                             Áreas
-                           </span>
-                         </Col>
-                         {temBanana && (
-                           <Col xs={24} md={4}>
-                             <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
-                               <TagOutlined style={{ marginRight: "0.5rem" }} />
-                               Fitas
-                             </span>
-                           </Col>
-                         )}
-                       </Row>
-                     )
-                   );
-                 })()}
+            {(fields) => {
+              const frutasForm = form.getFieldValue('frutas') || [];
+              const sortedFields = [...fields].sort((fieldA, fieldB) => {
+                const frutaA = frutasForm?.[fieldA.name];
+                const frutaB = frutasForm?.[fieldB.name];
+                const metaA = frutaA?.frutaPedidoId ? frutasPedidoInfo[frutaA.frutaPedidoId] : undefined;
+                const metaB = frutaB?.frutaPedidoId ? frutasPedidoInfo[frutaB.frutaPedidoId] : undefined;
+                const culturaIdA = metaA?.culturaId ?? Number.MAX_SAFE_INTEGER;
+                const culturaIdB = metaB?.culturaId ?? Number.MAX_SAFE_INTEGER;
 
-                {fields.map(({ key, name, ...restField }, index) => {
-                  const fruta = form.getFieldValue('frutas')?.[index];
-                  const isFrutaBanana = (fruta?.frutaNome || fruta?.fruta?.nome || '').toLowerCase().includes('banana');
-                  
-                  // Verificar se há pelo menos uma fruta banana no pedido
-                  const temBanana = fields.some((_, idx) => {
-                    const frutaCheck = form.getFieldValue('frutas')?.[idx];
-                    return (frutaCheck?.frutaNome || frutaCheck?.fruta?.nome || '').toLowerCase().includes('banana');
-                  });
-                  
-                  return (
-                    <div key={key}>
-                      {isMobile && index > 0 && (
-                        <div style={{ 
-                          display: "flex", 
-                          alignItems: "center", 
-                          marginBottom: isMobile ? "12px" : "16px",
-                          padding: "8px 0"
-                        }}>
+                if (culturaIdA !== culturaIdB) {
+                  return culturaIdA - culturaIdB;
+                }
+
+                const dePrimeiraA = metaA?.dePrimeira === true ? 0 : 1;
+                const dePrimeiraB = metaB?.dePrimeira === true ? 0 : 1;
+                if (dePrimeiraA !== dePrimeiraB) {
+                  return dePrimeiraA - dePrimeiraB;
+                }
+
+                const nomeA = metaA?.nome || frutaA?.frutaNome || frutaA?.fruta?.nome || '';
+                const nomeB = metaB?.nome || frutaB?.frutaNome || frutaB?.fruta?.nome || '';
+                return nomeA.localeCompare(nomeB);
+              });
+
+              const temBanana = sortedFields.some(({ name }) => {
+                const fruta = frutasForm?.[name];
+                return (fruta?.frutaNome || fruta?.fruta?.nome || '').toLowerCase().includes('banana');
+              });
+
+              return (
+                <>
+                  {/* Cabeçalho das colunas */}
+                  {!isMobile && (
+                    <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
+                       <Col xs={24} md={temBanana ? 5 : 6}>
+                         <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                           <AppleOutlined style={{ marginRight: "0.5rem" }} />
+                           Fruta
+                         </span>
+                       </Col>
+                       <Col xs={24} md={temBanana ? 3 : 4}>
+                         <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                           <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                           Prevista
+                         </span>
+                       </Col>
+                       <Col xs={24} md={temBanana ? 4 : 5}>
+                         <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                           <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                           Colhida
+                         </span>
+                       </Col>
+                       <Col xs={24} md={temBanana ? 4 : 5}>
+                         <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                           <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                           Colhida 2
+                         </span>
+                       </Col>
+                       <Col xs={24} md={temBanana ? 4 : 4}>
+                         <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                           <EnvironmentOutlined style={{ marginRight: "0.5rem" }} />
+                           Áreas
+                         </span>
+                       </Col>
+                       {temBanana && (
+                         <Col xs={24} md={4}>
+                           <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                             <TagOutlined style={{ marginRight: "0.5rem" }} />
+                             Fitas
+                           </span>
+                         </Col>
+                       )}
+                    </Row>
+                  )}
+
+                  {sortedFields.map(({ key, name, ...restField }, orderIndex) => {
+                    const fieldIndex = name;
+                    const fruta = frutasForm?.[fieldIndex] || {};
+                    const frutaMeta = fruta?.frutaPedidoId ? frutasPedidoInfo[fruta.frutaPedidoId] : undefined;
+                    const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
+                      ? culturaInfoPorId[frutaMeta.culturaId]
+                      : undefined;
+                    const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+                    const frutaNomeFormatado = capitalizeName(fruta?.frutaNome || fruta?.fruta?.nome || '');
+                    const isFrutaBanana = frutaNomeFormatado.toLowerCase().includes('banana');
+
+                    const wrapperStyle = herdaVinculosDaPrimeira
+                      ? {
+                          position: 'relative',
+                          marginLeft: isMobile ? 16 : 24,
+                          padding: isMobile ? 12 : 16,
+                          borderLeft: '3px solid #059669',
+                          backgroundColor: '#f0fdf4',
+                          borderRadius: 8,
+                          marginBottom: isMobile ? 12 : 16,
+                        }
+                      : {
+                          marginBottom: isMobile ? 12 : 16,
+                        };
+
+                    return (
+                      <div key={key} style={{ marginBottom: isMobile ? 12 : 16 }}>
+                        {isMobile && orderIndex > 0 && (
                           <div style={{
-                            flex: 1,
-                            height: "1px",
-                            backgroundColor: "#e8e8e8"
-                          }} />
-                          <div style={{
-                            margin: "0 12px",
-                            padding: "4px 12px",
-                            backgroundColor: "#f0f9ff",
-                            borderRadius: "12px",
-                            border: "1px solid #bae6fd"
+                            display: "flex",
+                            alignItems: "center",
+                            marginBottom: isMobile ? "12px" : "16px",
+                            padding: "8px 0"
                           }}>
-                            <Text style={{ 
-                              color: "#059669", 
-                              fontSize: "12px", 
-                              fontWeight: "600" 
+                            <div style={{
+                              flex: 1,
+                              height: "1px",
+                              backgroundColor: "#e8e8e8"
+                            }} />
+                            <div style={{
+                              margin: "0 12px",
+                              padding: "4px 12px",
+                              backgroundColor: "#f0f9ff",
+                              borderRadius: "12px",
+                              border: "1px solid #bae6fd"
                             }}>
-                              Fruta {index + 1}
-                            </Text>
+                              <Text style={{
+                                color: "#059669",
+                                fontSize: "12px",
+                                fontWeight: "600"
+                              }}>
+                                Fruta {orderIndex + 1}
+                              </Text>
+                            </div>
+                            <div style={{
+                              flex: 1,
+                              height: "1px",
+                              backgroundColor: "#e8e8e8"
+                            }} />
                           </div>
-                          <div style={{
-                            flex: 1,
-                            height: "1px",
-                            backgroundColor: "#e8e8e8"
-                          }} />
-                        </div>
-                      )}
-                      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="baseline">
-                                                 {/* Nome da Fruta */}
-                         <Col xs={24} md={temBanana ? 5 : 6}>
-                          <Form.Item
-                            {...restField}
-                            name={[name, 'frutaNome']}
-                            label={isMobile ? (
-                              <Space size="small">
-                                <AppleOutlined style={{ color: "#059669" }} />
-                                <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Fruta</span>
-                              </Space>
-                            ) : undefined}
-                          >
-                            <Input
-                              disabled
-                              size={isMobile ? "small" : "middle"}
-                              value={capitalizeName(fruta?.frutaNome || fruta?.fruta?.nome || '')}
-                              style={{
-                                borderRadius: "6px",
-                                borderColor: "#d9d9d9",
-                                backgroundColor: "#f5f5f5",
-                                fontSize: isMobile ? "0.875rem" : "1rem"
-                              }}
-                            />
-                          </Form.Item>
-                        </Col>
-
-                                                 {/* Quantidade Prevista */}
-                         <Col xs={24} md={temBanana ? 3 : 4}>
-                           <Form.Item
-                             {...restField}
-                             label={isMobile ? (
-                               <Space size="small">
-                                 <CalculatorOutlined style={{ color: "#059669" }} />
-                                 <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Prevista</span>
-                               </Space>
-                             ) : undefined}
-                           >
-                             <Input
-                               disabled
-                               size={isMobile ? "small" : "middle"}
-                               value={`${fruta?.quantidadePrevista || ''} ${fruta?.unidadeMedida1 || ''}`.trim()}
-                               style={{
-                                 borderRadius: "6px",
-                                 borderColor: "#d9d9d9",
-                                 backgroundColor: "#f5f5f5",
-                                 fontSize: isMobile ? "0.875rem" : "1rem"
-                               }}
-                             />
-                           </Form.Item>
-                         </Col>
-
-                                                {/* Quantidade Real */}
-                         <Col xs={24} md={temBanana ? 4 : 5}>
-                                                       <Form.Item
-                              {...restField}
-                              name={[name, 'quantidadeReal']}
-                              label={isMobile ? (
-                                <Space size="small">
-                                  <CalculatorOutlined style={{ color: "#059669" }} />
-                                  <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Colhida</span>
-                                </Space>
-                              ) : undefined}
-                              rules={[
-                                
-                                {
-                                  validator: (_, value) => {
-                                   // Se não tem valor, é válido (campo opcional para colheita parcial)
-                                   if (!value) return Promise.resolve();
-
-
-                                   const numValue = typeof value === 'string' ? parseFloat(value) : value;
-
-                                   if (numValue && numValue <= 0) {
-                                      return Promise.reject(new Error("Quantidade deve ser maior que zero"));
-                                    }
-                                    
-                                    return Promise.resolve();
-                                  }
-                                }
-                              ]}
-                            >
-                             <MonetaryInput
-                               placeholder="Ex: 985,50"
-                               addonAfter={fruta?.unidadeMedida1 || ''}
-                               size={isMobile ? "small" : "large"}
-                               style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
-                             />
-                          </Form.Item>
-                        </Col>
-
-                                                 {/* Quantidade Real 2 */}
-                         <Col xs={24} md={temBanana ? 4 : 5}>
-                                                       <Form.Item
-                              {...restField}
-                              name={[name, 'quantidadeReal2']}
-                              label={isMobile ? (
-                                <Space size="small">
-                                  <CalculatorOutlined style={{ color: "#059669" }} />
-                                  <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Colhida 2</span>
-                                </Space>
-                              ) : undefined}
-                              rules={[
-                                {
-                                  validator: (_, value) => {
-                                    // Se não tem valor, é válido (campo opcional)
-                                    if (!value) return Promise.resolve();
-                                    
-                                    // Converter string para número se necessário
-                                    const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                                    
-                                    if (numValue && numValue <= 0) {
-                                      return Promise.reject(new Error("Quantidade deve ser maior que zero"));
-                                    }
-                                    
-                                    return Promise.resolve();
-                                  }
-                                }
-                              ]}
-                            >
-                             <MonetaryInput
-                                placeholder={!fruta?.unidadeMedida2 ? "-" : "Ex: 50,00"}
-                                addonAfter={fruta?.unidadeMedida2 || ''}
-                                disabled={!fruta?.unidadeMedida2}
-                                className={!fruta?.unidadeMedida2 ? 'custom-disabled-visual' : ''}
-                                size={isMobile ? "small" : "large"}
-                                style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
-                              />
-                           </Form.Item>
-                         </Col>
-
-                        {/* Coluna de Áreas */}
-                        <Col xs={24} md={temBanana ? 4 : 4}>
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '8px', 
-                            flexWrap: 'wrap',
-                            justifyContent: isMobile ? 'center' : 'flex-start'
-                          }}>
-                            {hasLinkedAreas(fruta) ? (
-                              <>
-                                  {/* Botão com apenas ícone */}
-                                  <Tooltip title="Gerenciar áreas">
-                                    <FormButton
-                                      icon={<LinkOutlined />}
-                                      onClick={() => handleVincularAreas(fruta, index)}
-                                      size={isMobile ? "small" : "middle"}
-                                      style={{ 
-                                        minWidth: isMobile ? '28px' : '32px',
-                                        width: isMobile ? '28px' : '32px',
-                                        height: isMobile ? '28px' : '32px',
-                                        padding: '0'
-                                      }}
-                                    />
-                                  </Tooltip>
-                                
-                                {/* Badges das áreas */}
-                                {getLinkedAreasNames(fruta).slice(0, isMobile ? 1 : 2).map((area, idx) => (
-                                  <Tag 
-                                    key={idx} 
-                                    size="small" 
-                                    color={area.tipo === 'propria' ? 'green' : 'blue'}
-                                    style={{ 
-                                      fontSize: isMobile ? '10px' : '11px',
-                                      maxWidth: isMobile ? '60px' : '80px',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                  >
-                                    {area.nome}
-                                  </Tag>
-                                ))}
-                                
-                                {/* Badge "+X" se houver mais áreas */}
-                                {getLinkedAreasNames(fruta).length > (isMobile ? 1 : 2) && (
-                                  <Tag size="small" color="blue" style={{ fontSize: isMobile ? '10px' : '11px' }}>
-                                    +{getLinkedAreasNames(fruta).length - (isMobile ? 1 : 2)}
-                                  </Tag>
-                                )}
-                              </>
-                            ) : (
-                              <FormButton
-                                icon={<LinkOutlined />}
-                                onClick={() => handleVincularAreas(fruta, index)}
-                                size={isMobile ? "small" : "middle"}
-                                style={{ 
-                                  minWidth: isMobile ? '120px' : '130px',
-                                  width: isMobile ? '120px' : 'auto'
-                                }}
+                        )}
+                        <div style={wrapperStyle}>
+                          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="baseline">
+                            {/* Nome da Fruta */}
+                            <Col xs={24} md={temBanana ? 5 : 6}>
+                              <Form.Item
+                                {...restField}
+                                name={[name, 'frutaNome']}
+                                label={isMobile ? (
+                                  <Space size="small">
+                                    <AppleOutlined style={{ color: "#059669" }} />
+                                    <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Fruta</span>
+                                  </Space>
+                                ) : undefined}
                               >
-                                {isMobile ? 'Vincular Áreas' : 'Vincular Áreas'}
-                              </FormButton>
-                            )}
-                          </div>
-                        </Col>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    alignItems: isMobile ? "flex-start" : "center",
+                                    gap: isMobile ? 6 : 8,
+                                  }}
+                                >
+                                  <Input
+                                    disabled
+                                    size={isMobile ? "small" : "middle"}
+                                    value={frutaNomeFormatado}
+                                    style={{
+                                      borderRadius: "6px",
+                                      borderColor: "#d9d9d9",
+                                      backgroundColor: "#f5f5f5",
+                                      fontSize: isMobile ? "0.875rem" : "1rem"
+                                    }}
+                                  />
+                                </div>
+                              </Form.Item>
+                            </Col>
 
-                        {/* Coluna de Fitas - Só aparece para bananas */}
-                        {isFrutaBanana && (
-                          <Col xs={24} md={4}>
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '8px', 
-                              flexWrap: 'wrap',
-                              justifyContent: isMobile ? 'center' : 'flex-start'
-                            }}>
-                              {hasLinkedFitas(fruta) ? (
-                                <>
-                                    {/* Botão com apenas ícone */}
-                                    <Tooltip title="Gerenciar fitas">
+                            {/* Quantidade Prevista */}
+                            <Col xs={24} md={temBanana ? 3 : 4}>
+                              <Form.Item
+                                {...restField}
+                                label={isMobile ? (
+                                  <Space size="small">
+                                    <CalculatorOutlined style={{ color: "#059669" }} />
+                                    <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Prevista</span>
+                                  </Space>
+                                ) : undefined}
+                              >
+                                <Input
+                                  disabled
+                                  size={isMobile ? "small" : "middle"}
+                                  value={`${fruta?.quantidadePrevista || ''} ${fruta?.unidadeMedida1 || ''}`.trim()}
+                                  style={{
+                                    borderRadius: "6px",
+                                    borderColor: "#d9d9d9",
+                                    backgroundColor: "#f5f5f5",
+                                    fontSize: isMobile ? "0.875rem" : "1rem"
+                                  }}
+                                />
+                              </Form.Item>
+                            </Col>
+
+                            {/* Quantidade Real */}
+                            <Col xs={24} md={temBanana ? 4 : 5}>
+                              <Form.Item
+                                {...restField}
+                                name={[name, 'quantidadeReal']}
+                                label={isMobile ? (
+                                  <Space size="small">
+                                    <CalculatorOutlined style={{ color: "#059669" }} />
+                                    <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Colhida</span>
+                                  </Space>
+                                ) : undefined}
+                                rules={[
+                                  {
+                                    validator: (_, value) => {
+                                      if (!value) return Promise.resolve();
+                                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                      if (numValue && numValue <= 0) {
+                                        return Promise.reject(new Error("Quantidade deve ser maior que zero"));
+                                      }
+                                      return Promise.resolve();
+                                    }
+                                  }
+                                ]}
+                              >
+                                <MonetaryInput
+                                  placeholder="Ex: 985,50"
+                                  addonAfter={fruta?.unidadeMedida1 || ''}
+                                  size={isMobile ? "small" : "large"}
+                                  style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
+                                />
+                              </Form.Item>
+                            </Col>
+
+                            {/* Quantidade Real 2 */}
+                            <Col xs={24} md={temBanana ? 4 : 5}>
+                              <Form.Item
+                                {...restField}
+                                name={[name, 'quantidadeReal2']}
+                                label={isMobile ? (
+                                  <Space size="small">
+                                    <CalculatorOutlined style={{ color: "#059669" }} />
+                                    <span style={{ fontWeight: "700", color: "#059669", fontSize: "14px" }}>Colhida 2</span>
+                                  </Space>
+                                ) : undefined}
+                                rules={[
+                                  {
+                                    validator: (_, value) => {
+                                      if (!value) return Promise.resolve();
+                                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                      if (numValue && numValue <= 0) {
+                                        return Promise.reject(new Error("Quantidade deve ser maior que zero"));
+                                      }
+                                      return Promise.resolve();
+                                    }
+                                  }
+                                ]}
+                              >
+                                <MonetaryInput
+                                  placeholder={!fruta?.unidadeMedida2 ? "-" : "Ex: 50,00"}
+                                  addonAfter={fruta?.unidadeMedida2 || ''}
+                                  disabled={!fruta?.unidadeMedida2}
+                                  className={!fruta?.unidadeMedida2 ? 'custom-disabled-visual' : ''}
+                                  size={isMobile ? "small" : "large"}
+                                  style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}
+                                />
+                              </Form.Item>
+                            </Col>
+
+                            {/* Coluna de Áreas */}
+                            <Col xs={24} md={temBanana ? 4 : 4}>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                flexWrap: 'wrap',
+                                justifyContent: isMobile ? 'center' : 'flex-start'
+                              }}>
+                                {herdaVinculosDaPrimeira ? (
+                                  <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '13px' }}>
+                                    Áreas serão vinculadas à fruta de primeira.
+                                  </Text>
+                                ) : hasLinkedAreas(fruta, herdaVinculosDaPrimeira) ? (
+                                  <>
+                                    <Tooltip title="Gerenciar áreas">
                                       <FormButton
                                         icon={<LinkOutlined />}
-                                        onClick={() => handleVincularFitas(fruta, index)}
+                                        onClick={() => handleVincularAreas(fruta, fieldIndex)}
                                         size={isMobile ? "small" : "middle"}
-                                        style={{ 
+                                        style={{
                                           minWidth: isMobile ? '28px' : '32px',
                                           width: isMobile ? '28px' : '32px',
                                           height: isMobile ? '28px' : '32px',
@@ -1693,56 +1929,121 @@ const ColheitaModal = ({
                                         }}
                                       />
                                     </Tooltip>
-                                  
-                                  {/* Badges das fitas */}
-                                  {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
-                                    <Tag 
-                                      key={idx} 
-                                      size="small" 
-                                      style={{ 
-                                        fontSize: isMobile ? '10px' : '11px',
-                                        backgroundColor: fita.cor + '20',
-                                        borderColor: fita.cor,
-                                        color: '#333',
-                                        maxWidth: isMobile ? '50px' : '60px',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
+                                    {getLinkedAreasNames(fruta).slice(0, isMobile ? 1 : 2).map((area, idx) => (
+                                      <Tag
+                                        key={idx}
+                                        size="small"
+                                        color={area.tipo === 'propria' ? 'green' : 'blue'}
+                                        style={{
+                                          fontSize: isMobile ? '10px' : '11px',
+                                          maxWidth: isMobile ? '60px' : '80px',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap'
+                                        }}
+                                      >
+                                        {area.nome}
+                                      </Tag>
+                                    ))}
+                                    {getLinkedAreasNames(fruta).length > (isMobile ? 1 : 2) && (
+                                      <Tag size="small" color="blue" style={{ fontSize: isMobile ? '10px' : '11px' }}>
+                                        +{getLinkedAreasNames(fruta).length - (isMobile ? 1 : 2)}
+                                      </Tag>
+                                    )}
+                                  </>
+                                ) : (
+                                  <FormButton
+                                    icon={<LinkOutlined />}
+                                    onClick={() => handleVincularAreas(fruta, fieldIndex)}
+                                    size={isMobile ? "small" : "middle"}
+                                    style={{
+                                      minWidth: isMobile ? '120px' : '130px',
+                                      width: isMobile ? '120px' : 'auto'
+                                    }}
+                                  >
+                                    {isMobile ? 'Vincular Áreas' : 'Vincular Áreas'}
+                                  </FormButton>
+                                )}
+                              </div>
+                            </Col>
+
+                            {/* Coluna de Fitas - Só aparece para bananas */}
+                            {isFrutaBanana && (
+                              <Col xs={24} md={4}>
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  flexWrap: 'wrap',
+                                  justifyContent: isMobile ? 'center' : 'flex-start'
+                                }}>
+                                  {herdaVinculosDaPrimeira ? (
+                                    <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '13px' }}>
+                                      Fitas serão vinculadas à fruta de primeira.
+                                    </Text>
+                                  ) : hasLinkedFitas(fruta) ? (
+                                    <>
+                                      <Tooltip title="Gerenciar fitas">
+                                        <FormButton
+                                          icon={<LinkOutlined />}
+                                          onClick={() => handleVincularFitas(fruta, fieldIndex)}
+                                          size={isMobile ? "small" : "middle"}
+                                          style={{
+                                            minWidth: isMobile ? '28px' : '32px',
+                                            width: isMobile ? '28px' : '32px',
+                                            height: isMobile ? '28px' : '32px',
+                                            padding: '0'
+                                          }}
+                                        />
+                                      </Tooltip>
+                                      {getLinkedFitasNames(fruta).slice(0, 1).map((fita, idx) => (
+                                        <Tag
+                                          key={idx}
+                                          size="small"
+                                          style={{
+                                            fontSize: isMobile ? '10px' : '11px',
+                                            backgroundColor: fita.cor + '20',
+                                            borderColor: fita.cor,
+                                            color: '#333',
+                                            maxWidth: isMobile ? '50px' : '60px',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
+                                          }}
+                                        >
+                                          {fita.nome}
+                                        </Tag>
+                                      ))}
+                                      {getLinkedFitasNames(fruta).length > 1 && (
+                                        <Tag size="small" color="purple" style={{ fontSize: isMobile ? '10px' : '11px' }}>
+                                          +{getLinkedFitasNames(fruta).length - 1}
+                                        </Tag>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <FormButton
+                                      icon={<LinkOutlined />}
+                                      onClick={() => handleVincularFitas(fruta, fieldIndex)}
+                                      size={isMobile ? "small" : "middle"}
+                                      style={{
+                                        minWidth: isMobile ? '120px' : '120px',
+                                        width: isMobile ? '120px' : 'auto'
                                       }}
                                     >
-                                      {fita.nome}
-                                    </Tag>
-                                  ))}
-                                  
-                                  {/* Badge "+X" se houver mais fitas */}
-                                  {getLinkedFitasNames(fruta).length > 1 && (
-                                    <Tag size="small" color="purple" style={{ fontSize: isMobile ? '10px' : '11px' }}>
-                                      +{getLinkedFitasNames(fruta).length - 1}
-                                    </Tag>
+                                      {isMobile ? 'Vincular Fitas' : 'Vincular Fitas'}
+                                    </FormButton>
                                   )}
-                                </>
-                              ) : (
-                                <FormButton
-                                  icon={<LinkOutlined />}
-                                  onClick={() => handleVincularFitas(fruta, index)}
-                                  size={isMobile ? "small" : "middle"}
-                                  style={{ 
-                                    minWidth: isMobile ? '120px' : '120px',
-                                    width: isMobile ? '120px' : 'auto'
-                                  }}
-                                >
-                                  {isMobile ? 'Vincular Fitas' : 'Vincular Fitas'}
-                                </FormButton>
-                              )}
-                            </div>
-                          </Col>
-                        )}
-                      </Row>
-                    </div>
-                  );
-                })}
-              </>
-            )}
+                                </div>
+                              </Col>
+                            )}
+                          </Row>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            }}
           </Form.List>
         </Card>
 

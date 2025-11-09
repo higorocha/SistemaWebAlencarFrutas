@@ -17,7 +17,7 @@ import {
   NumberOutlined
 } from "@ant-design/icons";
 import { MonetaryInput, MaskedDatePicker } from "../../../components/common/inputs";
-import { formatarValorMonetario } from "../../../utils/formatters";
+import { formatarValorMonetario, capitalizeName } from "../../../utils/formatters";
 import { FormButton } from "../../common/buttons";
 import axiosInstance from "../../../api/axiosConfig";
 import moment from "moment";
@@ -294,6 +294,9 @@ const PrecificacaoTab = ({
         </Row>
 
         {pedidoAtual.frutas.map((fruta, index) => {
+          const frutaCatalogo = frutas.find(f => f.id === fruta.frutaId);
+          const frutaNome = capitalizeName(frutaCatalogo?.nome || '');
+
           return (
             <div key={index}>
               {/* 🆕 ALERTA: Nova fruta adicionada durante edição */}
@@ -309,10 +312,10 @@ const PrecificacaoTab = ({
               <Row gutter={[16, 16]} align="baseline">
                 {/* Nome da Fruta */}
                 <Col xs={24} md={7}>
-                  <Tooltip title={frutas.find(f => f.id === fruta.frutaId)?.nome || ''} placement="top">
+                  <Tooltip title={frutaNome} placement="top">
                     <Input
                       disabled
-                      value={frutas.find(f => f.id === fruta.frutaId)?.nome || ''}
+                      value={frutaNome}
                       style={{
                         borderRadius: "6px",
                         fontSize: "13px"

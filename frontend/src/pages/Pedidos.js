@@ -13,6 +13,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   CalendarOutlined,
+  ReloadOutlined,
 } from "@ant-design/icons";
 // Importar ícones do Iconify
 import { Icon } from "@iconify/react";
@@ -92,19 +93,35 @@ const Pedidos = () => {
     }
   }, []);
 
-  // ✅ FUNÇÃO AUXILIAR: Criar objeto de filtros a partir de appliedFilters
-  const createFiltersObject = useCallback(() => {
-    const filters = {};
-    appliedFilters.forEach(filter => {
-      if (filter.type && filter.value) {
-        filters[filter.type] = filter.value;
+  // ✅ FUNÇÃO AUXILIAR: Criar payload de filtros preservando todos os valores
+  const buildFiltersPayload = useCallback(() => {
+    const filters = [];
+
+    appliedFilters.forEach((filter) => {
+      if (!filter || !filter.type || filter.value === undefined || filter.value === null) {
+        return;
       }
+
+      const normalizedValue =
+        typeof filter.value === "string"
+          ? filter.value.trim()
+          : filter.value?.toString()?.trim();
+
+      if (!normalizedValue) {
+        return;
+      }
+
+      filters.push({
+        type: filter.type,
+        value: normalizedValue,
+      });
     });
+
     return filters;
   }, [appliedFilters]);
 
   // ✅ FUNÇÃO ATUALIZADA: Buscar pedidos com suporte a filtros aninhados
-  const fetchPedidos = useCallback(async (page = 1, limit = 20, filters = {}, statuses = [], dataInicio = null, dataFim = null, tipoData = 'criacao') => {
+  const fetchPedidos = useCallback(async (page = 1, limit = 20, filters = [], statuses = [], dataInicio = null, dataFim = null, tipoData = 'criacao') => {
     try {
       setCentralizedLoading(true);
       setLoadingMessage("Carregando pedidos...");
@@ -124,10 +141,10 @@ const Pedidos = () => {
       if (tipoData) params.append('tipoData', tipoData); // 'criacao' ou 'colheita'
 
       // ✅ ENVIAR FILTROS ANINHADOS PARA O BACKEND
-      if (Object.keys(filters).length > 0) {
-        Object.entries(filters).forEach(([type, value]) => {
-          if (value && value.trim()) {
-            params.append('filters', `${type}:${encodeURIComponent(value.trim())}`);
+      if (filters && filters.length > 0) {
+        filters.forEach(({ type, value }) => {
+          if (type && value) {
+            params.append('filters', `${type}:${encodeURIComponent(value)}`);
           }
         });
       }
@@ -172,7 +189,7 @@ const Pedidos = () => {
   useEffect(() => {
     fetchClientes();
     // Carregar todos os pedidos na inicialização (sem filtros)
-    fetchPedidos(1, pageSize, {}, [], null, null, 'criacao');
+    fetchPedidos(1, pageSize, [], [], null, null, 'criacao');
   }, [fetchClientes, fetchPedidos, pageSize]);
 
   // Função para calcular datas dos períodos rápidos
@@ -210,6 +227,46 @@ const Pedidos = () => {
     return [dataInicio, dataFim];
   }, []);
 
+  const getCurrentDateFilterParams = useCallback(() => {
+    let dataInicio = null;
+    let dataFim = null;
+    let tipoDataParaEnviar = dateFilterType;
+
+    if (dataPrevistaFiltroTabela) {
+      const dataMoment = moment(dataPrevistaFiltroTabela, 'YYYY-MM-DD');
+      dataInicio = dataMoment.clone().startOf('day').toISOString();
+      dataFim = dataMoment.clone().endOf('day').toISOString();
+      tipoDataParaEnviar = 'colheita';
+    } else if (quickDateFilter) {
+      const calculatedDates = calculateQuickDateRange(quickDateFilter);
+      if (calculatedDates) {
+        dataInicio = calculatedDates[0].toISOString();
+        dataFim = calculatedDates[1].toISOString();
+      }
+    } else if (dateRange && dateRange.length === 2) {
+      dataInicio = dateRange[0].toISOString();
+      dataFim = dateRange[1].toISOString();
+    }
+
+    if (!dataPrevistaFiltroTabela && !(dataInicio && dataFim)) {
+      tipoDataParaEnviar = 'criacao';
+    }
+
+    return { dataInicio, dataFim, tipoData: tipoDataParaEnviar };
+  }, [dateFilterType, dataPrevistaFiltroTabela, quickDateFilter, dateRange, calculateQuickDateRange]);
+
+  const handleRefreshPedidos = useCallback(() => {
+    const { dataInicio, dataFim, tipoData } = getCurrentDateFilterParams();
+    fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
+  }, [
+    fetchPedidos,
+    currentPage,
+    pageSize,
+    buildFiltersPayload,
+    statusFilters,
+    getCurrentDateFilterParams,
+  ]);
+
   // ✅ Helper centralizado: retorna datas e tipo de data atualmente ativos
   const getActiveDateParams = useCallback(() => {
     let dataInicio = null;
@@ -237,76 +294,16 @@ const Pedidos = () => {
 
   // ✅ NOVA LÓGICA: Processar todos os filtros aninhados corretamente
   useEffect(() => {
-    let dataInicio = null;
-    let dataFim = null;
-    let tipoDataParaEnviar = dateFilterType;
-
-    if (dataPrevistaFiltroTabela) {
-      const dataMoment = moment(dataPrevistaFiltroTabela, 'YYYY-MM-DD');
-      dataInicio = dataMoment.clone().startOf('day').toISOString();
-      dataFim = dataMoment.clone().endOf('day').toISOString();
-      tipoDataParaEnviar = 'colheita';
-    } else if (quickDateFilter) {
-      const calculatedDates = calculateQuickDateRange(quickDateFilter);
-      if (calculatedDates) {
-        dataInicio = calculatedDates[0].toISOString();
-        dataFim = calculatedDates[1].toISOString();
-      }
-    } else if (dateRange && dateRange.length === 2) {
-      dataInicio = dateRange[0].toISOString();
-      dataFim = dateRange[1].toISOString();
-    }
-
-    if (!dataPrevistaFiltroTabela && !(dataInicio && dataFim)) {
-      tipoDataParaEnviar = 'criacao';
-    }
-
-    fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoDataParaEnviar);
-    
+    const { dataInicio, dataFim, tipoData } = getCurrentDateFilterParams();
+    fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
   }, [
     fetchPedidos,
     currentPage,
     pageSize,
-    createFiltersObject,
+    buildFiltersPayload,
     statusFilters,
-    dateRange,
-    quickDateFilter,
-    calculateQuickDateRange,
-    dataPrevistaFiltroTabela,
-    dateFilterType,
+    getCurrentDateFilterParams,
   ]);
-
-  // ✅ Efeito separado para reaplicar filtros quando mudar o tipo de data (se houver filtros ativos)
-  useEffect(() => {
-    const temFiltroDeData = dataPrevistaFiltroTabela || quickDateFilter || (dateRange && dateRange.length === 2);
-    
-    if (temFiltroDeData) {
-      let dataInicio = null;
-      let dataFim = null;
-      let tipoDataAtual = dateFilterType;
-
-      if (dataPrevistaFiltroTabela) {
-        const dataMoment = moment(dataPrevistaFiltroTabela, 'YYYY-MM-DD');
-        dataInicio = dataMoment.clone().startOf('day').toISOString();
-        dataFim = dataMoment.clone().endOf('day').toISOString();
-        tipoDataAtual = 'colheita';
-      } else if (quickDateFilter) {
-        const calculatedDates = calculateQuickDateRange(quickDateFilter);
-        if (calculatedDates) {
-          dataInicio = calculatedDates[0].toISOString();
-          dataFim = calculatedDates[1].toISOString();
-        }
-      } else if (dateRange && dateRange.length === 2) {
-        dataInicio = dateRange[0].toISOString();
-        dataFim = dateRange[1].toISOString();
-      }
-
-      if (dataInicio && dataFim) {
-        fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoDataAtual);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFilterType, dataPrevistaFiltroTabela]); // Só monitora mudanças no tipo e filtro de data prevista
 
   // Funções de manipulação de filtros
   const handleSearch = useCallback((value) => {
@@ -340,6 +337,9 @@ const Pedidos = () => {
     if (suggestion.type === 'cultura') {
       return getFruitIcon(suggestion.value, { width: 14, height: 14, style: { marginRight: '2px' } });
     }
+    if (suggestion.type === 'turma') {
+      return '🧑‍🌾';
+    }
     return suggestion.icon;
   }, []);
 
@@ -369,12 +369,15 @@ const Pedidos = () => {
       } else if (suggestion.type === 'numero') {
         // Para número de pedido, usar o número mesmo (não o ID)
         processedSuggestion.value = suggestion.value;
+      } else if (suggestion.type === 'turma') {
+        processedSuggestion.value = suggestion.metadata.id.toString();
+        processedSuggestion.displayValue = capitalizeName(suggestion.metadata.nome || suggestion.value);
       }
     }
 
     // Tratar tipos que não usam metadata.id mas devem capitalizar para exibição
     if (!suggestion.metadata?.id) {
-      if (['cliente', 'fruta', 'cultura', 'area', 'motorista', 'fornecedor'].includes(suggestion.type)) {
+      if (['cliente', 'fruta', 'cultura', 'area', 'motorista', 'fornecedor', 'turma'].includes(suggestion.type)) {
         processedSuggestion.displayValue = capitalizeName(processedSuggestion.displayValue || suggestion.value);
       }
     }
@@ -646,7 +649,7 @@ const Pedidos = () => {
       handleCloseModal();
       // ✅ Recarregar respeitando TODOS os filtros ativos (inclui datas)
       const { dataInicio, dataFim, tipoData } = getActiveDateParams();
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoData);
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
       
     } catch (error) {
       console.error("Erro ao salvar pedido:", error);
@@ -656,7 +659,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateFilterType, handleCloseModal]);
+  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, dateFilterType, handleCloseModal]);
 
   // Função para atualizar colheita
   const handleSaveColheita = useCallback(async (colheitaData) => {
@@ -685,7 +688,7 @@ const Pedidos = () => {
       
       // Recarregar lista DEPOIS de salvar tudo (colheita + mão de obra), respeitando filtros
       const { dataInicio, dataFim, tipoData } = getActiveDateParams();
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoData);
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
 
       showNotification("success", "Sucesso", "Colheita registrada com sucesso!");
       setColheitaModalOpen(false);
@@ -696,7 +699,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateFilterType]);
+  }, [fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, dateFilterType]);
 
   // Função para atualizar precificação
   const handleSavePrecificacao = useCallback(async (precificacaoData) => {
@@ -714,7 +717,7 @@ const Pedidos = () => {
       setLoadingMessage("Atualizando lista de pedidos...");
       // ✅ Respeitar filtros ativos no recarregamento
       const { dataInicio, dataFim, tipoData } = getActiveDateParams();
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoData);
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
 
     } catch (error) {
       console.error("Erro ao definir precificação:", error);
@@ -724,7 +727,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateFilterType]);
+  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, dateFilterType]);
 
   // Função para criar novo pagamento
   const handleNovoPagamento = useCallback(async (pagamentoData) => {
@@ -747,7 +750,7 @@ const Pedidos = () => {
       setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos respeitando filtros ativos
       const { dataInicio, dataFim, tipoData } = getActiveDateParams();
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoData);
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -764,7 +767,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, pedidoSelecionado]);
+  }, [fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, pedidoSelecionado]);
 
   // Função para remover pagamento
   const handleRemoverPagamento = useCallback(async (pagamentoId) => {
@@ -779,7 +782,7 @@ const Pedidos = () => {
       setLoadingMessage("Atualizando lista de pedidos...");
       // Atualizar lista de pedidos respeitando filtros ativos
       const { dataInicio, dataFim, tipoData } = getActiveDateParams();
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoData);
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -796,7 +799,7 @@ const Pedidos = () => {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, pedidoSelecionado]);
+  }, [fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, pedidoSelecionado]);
 
   // Função para quando ajustes financeiros são salvos (frete, ICMS, desconto, avaria)
   const handleAjustesSalvos = useCallback(async () => {
@@ -806,7 +809,7 @@ const Pedidos = () => {
 
       // Atualizar lista de pedidos respeitando filtros ativos
       const { dataInicio, dataFim, tipoData } = getActiveDateParams();
-      await fetchPedidos(currentPage, pageSize, createFiltersObject(), statusFilters, dataInicio, dataFim, tipoData);
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
 
       // Atualizar pedido selecionado com os dados mais recentes
       if (pedidoSelecionado) {
@@ -819,7 +822,7 @@ const Pedidos = () => {
     } finally {
       setCentralizedLoading(false);
     }
-  }, [fetchPedidos, currentPage, pageSize, createFiltersObject, statusFilters, dateFilterType, pedidoSelecionado]);
+  }, [fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, dateFilterType, pedidoSelecionado]);
 
   return (
     <Box 
@@ -833,7 +836,16 @@ const Pedidos = () => {
       }}
     >
       {/* Header com título */}
-      <Box sx={{ mb: 3 }}>
+      <Box
+        sx={{
+          mb: 3,
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
+          justifyContent: 'space-between',
+          gap: isMobile ? 2 : 0,
+        }}
+      >
         <div style={{ textAlign: 'left' }}>
           <Title
             level={isMobile ? 3 : 2} /* ✅ level={3} no mobile para evitar quebra de linha */
@@ -868,6 +880,28 @@ const Pedidos = () => {
             Gerencie o fluxo completo dos pedidos: criação, colheita, precificação e pagamento
           </Text>
         </div>
+
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={handleRefreshPedidos}
+          loading={loading}
+          size={isMobile ? "small" : "middle"}
+          style={{
+            backgroundColor: '#f6ffed',
+            borderColor: '#b7eb8f',
+            color: '#52c41a',
+            fontWeight: '500',
+            borderRadius: '8px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            borderWidth: '2px',
+            height: isMobile ? '32px' : '40px',
+            padding: isMobile ? '0 12px' : '0 16px',
+            fontSize: '0.875rem',
+            alignSelf: isMobile ? 'flex-start' : 'center',
+          }}
+        >
+          Atualizar
+        </Button>
       </Box>
 
              {/* Seção de Filtros Reorganizada */}

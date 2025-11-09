@@ -115,8 +115,8 @@ export class FrutaPedidoDto {
   @IsEnum(['KG', 'TON', 'CX', 'UND', 'ML', 'LT'])
   unidadeMedida2?: UnidadeMedida;
 
-  @ApiProperty({
-    description: 'Array de áreas para esta fruta (mínimo 1)',
+  @ApiPropertyOptional({
+    description: 'Array de áreas para esta fruta (mínimo 1 quando aplicável)',
     type: [FrutaAreaDto],
     example: [
       {
@@ -129,11 +129,11 @@ export class FrutaPedidoDto {
       }
     ],
   })
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => FrutaAreaDto)
-  @IsNotEmpty()
-  areas: FrutaAreaDto[];
+  areas?: FrutaAreaDto[];
 
   @ApiPropertyOptional({
     description: 'Array de fitas para esta fruta (apenas para bananas)',

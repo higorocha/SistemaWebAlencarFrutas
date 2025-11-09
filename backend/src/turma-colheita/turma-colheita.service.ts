@@ -858,6 +858,7 @@ export class TurmaColheitaService {
           select: {
             id: true,
             numeroPedido: true,
+            placaPrimaria: true,
             cliente: {
               select: {
                 id: true,
@@ -899,6 +900,7 @@ export class TurmaColheitaService {
       id: custo.id,
       pedidoId: custo.pedidoId,
       pedidoNumero: custo.pedido.numeroPedido,
+      placaPrimaria: custo.pedido.placaPrimaria ?? undefined,
       cliente: {
         id: custo.pedido.cliente.id,
         nome: custo.pedido.cliente.razaoSocial || custo.pedido.cliente.nome,

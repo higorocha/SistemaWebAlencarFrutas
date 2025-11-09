@@ -1,6 +1,6 @@
 // src/components/dashboard/PagamentosPendentesModal.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import PropTypes from "prop-types";
 import {
   Modal,
@@ -8,7 +8,6 @@ import {
   Row,
   Col,
   Statistic,
-  Table,
   Tag,
   Space,
   Button,
@@ -20,7 +19,9 @@ import {
   Divider,
   Tooltip,
   Empty,
-  Select
+  Select,
+  DatePicker,
+  Form
 } from "antd";
 import {
   DollarOutlined,
@@ -32,7 +33,10 @@ import {
   UserOutlined,
   CreditCardOutlined,
   InfoCircleOutlined,
-  MessageOutlined
+  MessageOutlined,
+  SearchOutlined,
+  FilterOutlined,
+  ReloadOutlined
 } from "@ant-design/icons";
 import styled from "styled-components";
 import axiosInstance from "../../api/axiosConfig";
@@ -43,12 +47,15 @@ import ResponsiveTable from "../common/ResponsiveTable";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import { getFruitIcon } from "../../utils/fruitIcons";
 import { MaskedDatePicker } from "../common/inputs";
+import { SecondaryButton } from "../common/buttons";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import moment from "moment";
+import { Box } from "@mui/material";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 // Styled components seguindo padrão do sistema - removido, usando ResponsiveTable
 
@@ -133,6 +140,8 @@ const PagamentosPendentesModal = ({
   const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState(false);
   const [dataPagamentoSelecionada, setDataPagamentoSelecionada] = useState(null);
   const [formaPagamentoSelecionada, setFormaPagamentoSelecionada] = useState(null);
+  const [filtroBusca, setFiltroBusca] = useState('');
+  const [filtroDataColheita, setFiltroDataColheita] = useState(null);
 
   useEffect(() => {
     if (open && turmaId) {
@@ -152,6 +161,8 @@ const PagamentosPendentesModal = ({
       setModalConfirmacaoAberto(false);
       setDataPagamentoSelecionada(null);
       setFormaPagamentoSelecionada(null);
+      setFiltroBusca('');
+      setFiltroDataColheita(null);
     }
   }, [open]);
 
@@ -199,28 +210,94 @@ const PagamentosPendentesModal = ({
     if (!dados) return 0;
     return dados.colheitas
       .filter(c => colheitasSelecionadas.includes(c.id) && c.status !== 'PAGO')
-      .reduce((acc, c) => acc + c.valorColheita, 0);
+      .reduce((acc, c) => acc + (c.valorColheita || 0), 0);
   };
 
-  // Função para calcular total colhido agrupado por unidade de medida
-  const calcularTotalColhido = () => {
+  const colheitasFiltradas = useMemo(() => {
     if (!dados) return [];
-    
-    const totaisPorUnidade = {};
-    
-    dados.colheitas.forEach(colheita => {
+
+    let lista = [...dados.colheitas];
+
+    if (filtroBusca.trim()) {
+      const termo = filtroBusca.trim().toLowerCase();
+      lista = lista.filter(colheita => {
+        const nomeCliente = (colheita.cliente?.nome || '').toLowerCase();
+        const numeroPedido = (colheita.pedidoNumero || '').toLowerCase();
+        const placa = (colheita.placaPrimaria || '').toLowerCase();
+
+        return (
+          nomeCliente.includes(termo) ||
+          numeroPedido.includes(termo) ||
+          placa.includes(termo)
+        );
+      });
+    }
+
+    if (filtroDataColheita && filtroDataColheita.length === 2 && filtroDataColheita[0] && filtroDataColheita[1]) {
+      const [inicio, fim] = filtroDataColheita;
+      lista = lista.filter(colheita => {
+        if (!colheita.dataColheita) return false;
+        const data = moment(colheita.dataColheita);
+        return data.isSameOrAfter(inicio, 'day') && data.isSameOrBefore(fim, 'day');
+      });
+    }
+
+    return lista;
+  }, [dados, filtroBusca, filtroDataColheita]);
+
+  // Função para calcular total colhido agrupado por unidade de medida
+  const totaisColhidos = useMemo(() => {
+    if (!dados) return [];
+
+    const colheitasBase = colheitasSelecionadas.length > 0
+      ? dados.colheitas.filter(colheita =>
+          colheitasSelecionadas.includes(colheita.id) && colheita.status !== 'PAGO'
+        )
+      : colheitasFiltradas.filter(colheita => colheita.status !== 'PAGO');
+
+    const totaisPorUnidade = colheitasBase.reduce((acc, colheita) => {
       const unidade = colheita.unidadeMedida || 'un';
-      if (!totaisPorUnidade[unidade]) {
-        totaisPorUnidade[unidade] = 0;
+      const quantidade = colheita.quantidadeColhida || 0;
+
+      if (!acc[unidade]) {
+        acc[unidade] = 0;
       }
-      totaisPorUnidade[unidade] += colheita.quantidadeColhida || 0;
-    });
-    
+
+      acc[unidade] += quantidade;
+      return acc;
+    }, {});
+
     return Object.entries(totaisPorUnidade).map(([unidade, total]) => ({
       unidade,
       total
     }));
+  }, [dados, colheitasSelecionadas, colheitasFiltradas]);
+
+  const limparFiltros = () => {
+    setFiltroBusca('');
+    setFiltroDataColheita(null);
   };
+
+  const filtrosAtivos = useMemo(() => (
+    Boolean(
+      filtroBusca.trim() ||
+      (filtroDataColheita && filtroDataColheita.length === 2 && filtroDataColheita[0] && filtroDataColheita[1])
+    )
+  ), [filtroBusca, filtroDataColheita]);
+
+  const totalAPagar = useMemo(() => {
+    if (!dados) return 0;
+
+    if (colheitasSelecionadas.length > 0) {
+      return dados.colheitas
+        .filter(c => colheitasSelecionadas.includes(c.id) && c.status !== 'PAGO')
+        .reduce((acc, c) => acc + (c.valorColheita || 0), 0);
+    }
+
+    return colheitasFiltradas
+      .filter(colheita => colheita.status !== 'PAGO')
+      .reduce((acc, colheita) => acc + (colheita.valorColheita || 0), 0);
+  }, [dados, colheitasSelecionadas, colheitasFiltradas]);
 
 
 
@@ -428,6 +505,15 @@ const PagamentosPendentesModal = ({
       render: (nome) => capitalizeNameShort(nome || ''),
     },
     {
+      title: 'Placa',
+      dataIndex: 'placaPrimaria',
+      key: 'placaPrimaria',
+      width: 140,
+      render: (placa) => (
+        placa ? placa.toUpperCase() : '-'
+      ),
+    },
+    {
       title: 'Fruta',
       dataIndex: ['fruta', 'nome'],
       key: 'fruta',
@@ -459,26 +545,6 @@ const PagamentosPendentesModal = ({
           {formatCurrency(valor)}
         </Text>
       ),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (status, record) => {
-        if (status === 'PAGO') {
-          return (
-            <Tag color="success" style={{ fontWeight: '600', borderRadius: '12px' }}>
-              ✓ PAGO
-            </Tag>
-          );
-        }
-        return (
-          <Tag color="warning" style={{ fontWeight: '600', borderRadius: '12px' }}>
-            ⏳ PENDENTE
-          </Tag>
-        );
-      },
     },
     {
       title: 'Data Colheita',
@@ -756,6 +822,74 @@ const PagamentosPendentesModal = ({
             )}
           </Card>
 
+          {/* Busca e Filtros */}
+          <Card
+            title={
+              <Space>
+                <FilterOutlined style={{ color: "#ffffff" }} />
+                <span style={{
+                  color: "#ffffff",
+                  fontWeight: "600",
+                  fontSize: isMobile ? "14px" : "16px"
+                }}>
+                  {isMobile ? "Buscar" : "Busca e Filtros"}
+                </span>
+              </Space>
+            }
+            style={{
+              marginBottom: isMobile ? 12 : 16,
+              border: "1px solid #e8e8e8",
+              borderRadius: "8px",
+              backgroundColor: "#f9f9f9",
+            }}
+            styles={{
+              header: {
+                backgroundColor: "#059669",
+                borderBottom: "2px solid #047857",
+                color: "#ffffff",
+                borderRadius: "8px 8px 0 0",
+                padding: isMobile ? "6px 12px" : "8px 16px"
+              },
+              body: { padding: isMobile ? "12px" : "16px" }
+            }}
+          >
+            <Row gutter={[isMobile ? 8 : 16, 16]} wrap={isMobile}>
+            <Col xs={24} sm={24} md={15}>
+              <Input
+                value={filtroBusca}
+                onChange={(e) => setFiltroBusca(e.target.value)}
+                placeholder="Buscar por cliente, pedido ou placa"
+                allowClear
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <RangePicker
+                value={filtroDataColheita}
+                onChange={(value) => setFiltroDataColheita(value)}
+                allowClear
+                format="DD/MM/YYYY"
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+                disabledDate={(current) => current && current > moment().endOf('day')}
+                placeholder={['Data Início', 'Data Fim']}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={3}>
+              <SecondaryButton
+                icon={<FilterOutlined />}
+                onClick={limparFiltros}
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+                disabled={!filtrosAtivos}
+              >
+                Limpar
+              </SecondaryButton>
+            </Col>
+          </Row>
+          </Card>
+
           {/* Tabela de Colheitas */}
           <Card
             title={
@@ -788,11 +922,11 @@ const PagamentosPendentesModal = ({
             }}
           >
 
-            {dados.colheitas.length > 0 ? (
+            {colheitasFiltradas.length > 0 ? (
               <>
                 <ResponsiveTable
                   columns={colunas}
-                  dataSource={dados.colheitas}
+                  dataSource={colheitasFiltradas}
                   rowKey="id"
                   minWidthMobile={1200}
                   showScrollHint={true}
@@ -827,7 +961,7 @@ const PagamentosPendentesModal = ({
                             ? (colheitasSelecionadas.length > 0 ? "Selecionados" : "Total")
                             : (colheitasSelecionadas.length > 0 ? "Itens Selecionados" : "Total de Itens")
                         }
-                        value={colheitasSelecionadas.length > 0 ? colheitasSelecionadas.length : dados.colheitas.length}
+                        value={colheitasSelecionadas.length > 0 ? colheitasSelecionadas.length : colheitasFiltradas.length}
                         prefix={<CheckCircleOutlined />}
                         valueStyle={{
                           color: '#52c41a',
@@ -838,7 +972,7 @@ const PagamentosPendentesModal = ({
                     <Col xs={12} md={6}>
                       <Statistic
                         title={isMobile ? "Colhido" : "Total Colhido"}
-                        value={calcularTotalColhido().map(item => `${item.total.toLocaleString('pt-BR')} ${item.unidade}`).join(', ')}
+                      value={totaisColhidos.map(item => `${item.total.toLocaleString('pt-BR')} ${item.unidade}`).join(', ')}
                         prefix={<AppleOutlined />}
                         valueStyle={{
                           color: '#0ea5e9',
@@ -850,7 +984,7 @@ const PagamentosPendentesModal = ({
                             color: '#0ea5e9',
                             fontWeight: '600'
                           }}>
-                            {calcularTotalColhido().map((item, index) => (
+                          {totaisColhidos.map((item, index) => (
                               <span key={index} style={{ marginRight: '8px' }}>
                                 <span style={{ fontSize: isMobile ? '1rem' : '1.5rem' }}>
                                   {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -864,7 +998,7 @@ const PagamentosPendentesModal = ({
                                 }}>
                                   {item.unidade}
                                 </span>
-                                {index < calcularTotalColhido().length - 1 && !isMobile && (
+                              {index < totaisColhidos.length - 1 && !isMobile && (
                                   <span style={{ 
                                     color: '#000000',
                                     margin: '0 15px',
@@ -886,7 +1020,7 @@ const PagamentosPendentesModal = ({
                     <Col xs={12} md={6}>
                       <Statistic
                         title={isMobile ? "A Pagar" : "Total a Pagar"}
-                        value={colheitasSelecionadas.length > 0 ? calcularTotalSelecionado() : dados.resumo.totalPendente}
+                        value={totalAPagar}
                         prefix={<DollarOutlined />}
                         formatter={value => formatCurrency(value)}
                         valueStyle={{
@@ -949,7 +1083,7 @@ const PagamentosPendentesModal = ({
             ) : (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Nenhuma colheita pendente"
+                description={filtrosAtivos ? "Nenhuma colheita encontrada com os filtros aplicados" : "Nenhuma colheita pendente"}
                 style={{ padding: '40px' }}
               />
             )}

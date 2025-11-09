@@ -186,6 +186,7 @@ As cores das categorias de área estão centralizadas no `theme.js` e devem ser 
 
 ### 🍎 **Catálogo de Frutas**
 - **Vinculação com Culturas**: Frutas obrigatoriamente vinculadas a culturas (substitui categorias)
+- **Classificação `dePrimeira`**: Flag exclusiva por cultura que define qual fruta recebe vinculação de áreas/fitas por padrão; gerenciada diretamente no cadastro com bloqueio automático quando já existe uma fruta de primeira para a mesma cultura
 - **Unidades Duplas**: Suporte a duas unidades por fruta
 - **Integração**: Direto com sistema de pedidos e controle de áreas
 - **Filtragem Inteligente**: Áreas de fornecedores filtradas pela cultura da fruta
@@ -1436,6 +1437,7 @@ const fasesColheita = {
 
 ### **1. Sistema de Pedidos Avançado**
 - **10 Fases Sequenciais** com validações específicas
+- **Lógica de Frutas de Primeira/Segunda**: Durante a criação de pedidos, apenas frutas marcadas como `dePrimeira` (ou únicas da cultura) recebem placeholders de áreas/fitas; frutas de segunda permanecem sem vínculos até a colheita quando a fruta de primeira estiver presente
 - **Thread-Safety** na geração de números únicos
 - **Múltiplas Áreas** (próprias + fornecedores) por fruta
 - **Dupla Unidade** de medida com precificação flexível + quantidade específica para relatórios

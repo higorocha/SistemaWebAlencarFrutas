@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsInt, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsInt, IsNotEmpty, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -81,4 +81,14 @@ export class CreateFrutaDto {
   @IsOptional()
   @IsString()
   observacoes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Indica se a fruta é a principal (de primeira) da cultura',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  dePrimeira?: boolean;
 } 

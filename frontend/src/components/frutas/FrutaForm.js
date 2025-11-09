@@ -1,7 +1,8 @@
 // src/components/frutas/FrutaForm.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import PropTypes from "prop-types";
+import styled from "styled-components";
 import {
   Form,
   Input,
@@ -13,6 +14,8 @@ import {
   Space,
   Tag,
   Spin,
+  Switch,
+  Tooltip,
 } from "antd";
 import {
   TagOutlined,
@@ -21,11 +24,44 @@ import {
   FileTextOutlined,
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
+import { capitalizeName } from "../../utils/formatters";
 import { showNotification } from "../../config/notificationConfig";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+
+const ClassificationSwitchWrapper = styled.div`
+  width: 100%;
+  border: 2px solid #e8f5e8;
+  border-radius: 12px;
+  padding: 12px 16px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+
+  &:hover {
+    border-color: #10b981;
+    box-shadow: 0 4px 16px rgba(5, 150, 105, 0.1);
+  }
+
+  .ant-switch {
+    transform: scale(1.12);
+  }
+`;
+
+const ClassificationSwitch = styled(Switch)`
+  &.ant-switch-checked {
+    background-color: #059669 !important;
+  }
+
+  &:not(.ant-switch-disabled).ant-switch-checked:hover {
+    background-color: #047857 !important;
+  }
+`;
 
 const FrutaForm = ({
   frutaAtual,
@@ -33,6 +69,7 @@ const FrutaForm = ({
   editando,
   erros,
   setErros,
+  todasFrutas = [],
 }) => {
   const [culturas, setCulturas] = useState([]);
   const [loadingCulturas, setLoadingCulturas] = useState(false);
@@ -79,6 +116,24 @@ const FrutaForm = ({
       }));
     }
   };
+
+  const frutaSelecionadaId = frutaAtual?.id;
+  const culturaSelecionada = frutaAtual?.culturaId;
+
+  const outraFrutaDePrimeira = useMemo(() => {
+    if (!culturaSelecionada) return undefined;
+
+    return todasFrutas?.find(
+      (fruta) =>
+        fruta.culturaId === culturaSelecionada &&
+        fruta.dePrimeira === true &&
+        fruta.id !== frutaSelecionadaId
+    );
+  }, [todasFrutas, culturaSelecionada, frutaSelecionadaId]);
+
+  const classificacaoBloqueada = Boolean(
+    outraFrutaDePrimeira && !frutaAtual.dePrimeira
+  );
 
   return (
     <div>
@@ -192,7 +247,7 @@ const FrutaForm = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={12}>
+            <Col xs={24} md={7}>
               <Form.Item
                 label={
                   <Space>
@@ -222,6 +277,55 @@ const FrutaForm = ({
                     </Space>
                   </Option>
                 </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={5}>
+              <Form.Item
+                label={
+                  <Space>
+                    <Tooltip title='Marque como "de primeira" quando esta fruta for a principal da cultura.'>
+                      <InfoCircleOutlined style={{ color: "#059669" }} />
+                    </Tooltip>
+                    <span style={{ fontWeight: "700", color: "#333" }}>
+                      Classificação
+                    </span>
+                  </Space>
+                }
+                help={
+                  classificacaoBloqueada
+                    ? `Já existe uma fruta de primeira nesta cultura: ${capitalizeName(
+                        outraFrutaDePrimeira?.nome || ""
+                      )}.`
+                    : undefined
+                }
+              >
+                <ClassificationSwitchWrapper>
+                  {classificacaoBloqueada ? (
+                    <Tooltip
+                      title={`Já existe uma fruta de primeira nesta cultura: ${capitalizeName(
+                        outraFrutaDePrimeira?.nome || ""
+                      )}.`}
+                    >
+                      <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
+                        <ClassificationSwitch
+                          checked={Boolean(frutaAtual.dePrimeira)}
+                          onChange={(value) => handleChange("dePrimeira", value)}
+                          disabled
+                          checkedChildren="Primeira"
+                          unCheckedChildren="Segunda"
+                        />
+                      </div>
+                    </Tooltip>
+                  ) : (
+                    <ClassificationSwitch
+                      checked={Boolean(frutaAtual.dePrimeira)}
+                      onChange={(value) => handleChange("dePrimeira", value)}
+                      checkedChildren="Primeira"
+                      unCheckedChildren="Segunda"
+                    />
+                  )}
+                </ClassificationSwitchWrapper>
               </Form.Item>
             </Col>
           </Row>
@@ -410,6 +514,11 @@ FrutaForm.propTypes = {
   editando: PropTypes.bool.isRequired,
   erros: PropTypes.object.isRequired,
   setErros: PropTypes.func.isRequired,
+  todasFrutas: PropTypes.array,
+};
+
+FrutaForm.defaultProps = {
+  todasFrutas: [],
 };
 
 export default FrutaForm; 

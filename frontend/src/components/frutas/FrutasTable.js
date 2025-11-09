@@ -63,6 +63,26 @@ const formatarStatus = (status) => {
   );
 };
 
+const formatarClassificacao = (dePrimeira) => {
+  const config = dePrimeira
+    ? { texto: "De primeira", cor: "#389e0d" }
+    : { texto: "De segunda", cor: "#faad14" };
+
+  return (
+    <Tag
+      color={config.cor}
+      style={{
+        borderRadius: "4px",
+        fontWeight: "500",
+        fontSize: "12px",
+        border: "none",
+      }}
+    >
+      {config.texto}
+    </Tag>
+  );
+};
+
 const FrutasTable = ({
   frutas,
   loading,
@@ -125,6 +145,17 @@ const FrutasTable = ({
         const culturaB = b.cultura?.descricao || "";
         return culturaA.localeCompare(culturaB);
       },
+    },
+    {
+      title: "Classificação",
+      dataIndex: "dePrimeira",
+      key: "classificacao",
+      render: (dePrimeira) => formatarClassificacao(dePrimeira),
+      filters: [
+        { text: "De primeira", value: true },
+        { text: "De segunda", value: false },
+      ],
+      onFilter: (value, record) => record.dePrimeira === value,
     },
     {
       title: "Status",

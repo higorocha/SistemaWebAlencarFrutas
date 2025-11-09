@@ -27,7 +27,7 @@ const FruitCard = styled.div`
   }
 `;
 
-const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab }) => {
+const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab, selectedWeek }) => {
   const { isMobile } = useResponsive();
 
   // Agrupar frutas por status (Pendente, Colhido e Atrasado)
@@ -36,8 +36,13 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab }) => 
     const colhidas = {};
     const atrasadas = {};
 
-    // ✅ Função para calcular a semana atual COMPLETA (segunda-feira até domingo)
-    const calcularSemanaAtual = () => {
+    const getWeekRange = () => {
+      if (selectedWeek?.inicio && selectedWeek?.fim) {
+        const inicio = new Date(selectedWeek.inicio.getFullYear(), selectedWeek.inicio.getMonth(), selectedWeek.inicio.getDate(), 0, 0, 0, 0);
+        const fim = new Date(selectedWeek.fim.getFullYear(), selectedWeek.fim.getMonth(), selectedWeek.fim.getDate(), 23, 59, 59, 999);
+        return { inicio, fim };
+      }
+
       const hoje = new Date();
       const diaSemana = hoje.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
 
@@ -45,14 +50,13 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab }) => 
       const diasParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
       const segundaFeira = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasParaSegunda, 0, 0, 0, 0);
 
-      // ✅ Calcular o domingo próximo
       const diasParaDomingo = diaSemana === 0 ? 0 : 7 - diaSemana;
       const domingo = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diasParaDomingo, 23, 59, 59, 999);
 
       return { inicio: segundaFeira, fim: domingo };
     };
 
-    const semana = calcularSemanaAtual();
+    const semana = getWeekRange();
 
     // Status que consideram frutas pendentes
     const statusPendentes = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL'];
@@ -125,7 +129,7 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab }) => 
       frutasColhidas: Object.values(colhidas).sort((a, b) => b.quantidade - a.quantidade),
       frutasAtrasadas: Object.values(atrasadas).sort((a, b) => b.quantidade - a.quantidade),
     };
-  }, [programacaoColheita]);
+  }, [programacaoColheita, selectedWeek]);
 
   // Renderizar card de fruta
   const renderFruitCard = (fruta, isPendente = true) => {

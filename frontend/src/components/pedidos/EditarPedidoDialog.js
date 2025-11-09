@@ -152,7 +152,8 @@ const EditarPedidoDialog = ({
       
       // Preparar dados das frutas para o formulário com nova estrutura de múltiplas áreas/fitas
       const frutasForm = pedido.frutasPedidos?.map(fruta => {
-        
+        const dePrimeira = fruta.fruta?.dePrimeira ?? false;
+        const culturaId = fruta.fruta?.cultura?.id ?? null;
         return {
         frutaPedidoId: fruta.id,
         frutaId: fruta.frutaId,
@@ -161,6 +162,8 @@ const EditarPedidoDialog = ({
         quantidadePrevista: fruta.quantidadePrevista,
         unidadeMedida1: fruta.unidadeMedida1,
         unidadeMedida2: fruta.unidadeMedida2,
+        dePrimeira,
+        culturaId,
         // Dados de colheita
         quantidadeReal: fruta.quantidadeReal || null,
         quantidadeReal2: fruta.quantidadeReal2 || null,
@@ -669,27 +672,45 @@ const EditarPedidoDialog = ({
 
       // ✅ NOVA LÓGICA: Validar apenas frutas que estão sendo colhidas (colheita parcial)
       if (pedidoAtual.frutas) {
-        // Identificar frutas que estão sendo colhidas
         const frutasSendoColhidas = pedidoAtual.frutas.filter(fruta =>
           fruta.quantidadeReal && fruta.quantidadeReal > 0
         );
 
-        // Validar que pelo menos UMA fruta está sendo colhida
+        const infoCultura = {};
+        pedidoAtual.frutas.forEach((fruta) => {
+          const culturaId = fruta.culturaId ?? fruta.fruta?.cultura?.id ?? null;
+          if (culturaId === null) {
+            return;
+          }
+          if (!infoCultura[culturaId]) {
+            infoCultura[culturaId] = {
+              hasPrimeira: false,
+              possuiSegundas: false,
+            };
+          }
+          if (fruta.dePrimeira) {
+            infoCultura[culturaId].hasPrimeira = true;
+          } else {
+            infoCultura[culturaId].possuiSegundas = true;
+          }
+        });
+
         if (frutasSendoColhidas.length === 0) {
           novosErros.colheita_geral = "Informe a quantidade colhida de pelo menos uma fruta";
         }
 
-        // Validar apenas as frutas que estão sendo colhidas
         for (let i = 0; i < pedidoAtual.frutas.length; i++) {
           const fruta = pedidoAtual.frutas[i];
           const nomeFruta = frutas.find(f => f.id === fruta.frutaId)?.nome || `Fruta ${i + 1}`;
 
-          // Se a fruta está sendo colhida (tem quantidade real)
           if (fruta.quantidadeReal && fruta.quantidadeReal > 0) {
-            // NOVA VALIDAÇÃO: Verificar se fruta é banana e tem fitas vinculadas
+            const culturaId = fruta.culturaId ?? fruta.fruta?.cultura?.id ?? null;
+            const culturaMeta = culturaId !== null ? infoCultura[culturaId] : undefined;
+            const herdaDaPrimeira = culturaMeta?.hasPrimeira && culturaMeta?.possuiSegundas && !fruta.dePrimeira;
+
             const isFrutaBanana = nomeFruta.toLowerCase().includes('banana');
 
-            if (isFrutaBanana) {
+            if (!herdaDaPrimeira && isFrutaBanana) {
               const fitasVinculadas = fruta.fitas?.filter(fita =>
                 fita.fitaBananaId && fita.quantidadeFita && fita.quantidadeFita > 0
               ) || [];
@@ -699,13 +720,14 @@ const EditarPedidoDialog = ({
               }
             }
 
-            // Validar se tem áreas vinculadas
-            const areasReais = fruta.areas?.filter(area =>
-              area.areaPropriaId || area.areaFornecedorId
-            ) || [];
+            if (!herdaDaPrimeira) {
+              const areasReais = fruta.areas?.filter(area =>
+                area.areaPropriaId || area.areaFornecedorId
+              ) || [];
 
-            if (areasReais.length === 0) {
-              novosErros[`colheita_fruta_${i}_areas`] = `Adicione pelo menos uma área de origem para "${nomeFruta}"`;
+              if (areasReais.length === 0) {
+                novosErros[`colheita_fruta_${i}_areas`] = `Adicione pelo menos uma área de origem para "${nomeFruta}"`;
+              }
             }
           }
         }
