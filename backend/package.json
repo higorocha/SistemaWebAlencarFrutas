@@ -15,7 +15,7 @@
     "seed": "node prisma/seed.js",
     "build:prod": "npx nest build",
     "prisma:deploy": "prisma migrate deploy",
-    "render:start": "npm run prisma:deploy && npm run build:prod && npm run start:prod",
+    "render:start": "npm run prisma:deploy && npm run start:prod",
     "build:first-deploy": "npx nest build && npx prisma migrate deploy && npm run seed",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
