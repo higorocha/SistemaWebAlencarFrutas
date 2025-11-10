@@ -11,7 +11,7 @@
     "start": "npx nest start",
     "start:dev": "npx nest start --watch",
     "start:debug": "npx nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/main.js || node dist/src/main.js",
     "seed": "node prisma/seed.js",
     "build:prod": "npx nest build",
     "prisma:deploy": "prisma migrate deploy",
