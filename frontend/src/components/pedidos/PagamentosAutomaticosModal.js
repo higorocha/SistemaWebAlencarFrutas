@@ -39,6 +39,8 @@ const STATUS_VINCULACAO = [
   "PEDIDO_FINALIZADO",
 ];
 
+const STATUS_PEDIDOS_FINALIZADOS = ["PAGAMENTO_REALIZADO", "PEDIDO_FINALIZADO"];
+
 const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
@@ -558,24 +560,42 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
         .add(12, 'hours')
         .format('YYYY-MM-DD HH:mm:ss');
 
-      // Criar um pagamento para cada pedido selecionado
+      const pedidosSomenteVinculo = [];
+
+      // Criar um pagamento para cada pedido selecionado que não esteja finalizado
       for (const item of itensSelecionados) {
         const pedidoReferencia = item.pedido;
-        const pagamentoData = {
-          pedidoId: item.pedidoId,
-          dataPagamento: dataPagamentoBase,
-          valorRecebido: item.valorVinculado,
-          metodoPagamento,
-          contaDestino: 'ALENCAR',
-          observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
-        };
+        const statusPedido = (pedidoReferencia?.status || '').toUpperCase();
+        const deveCriarPagamento = !STATUS_PEDIDOS_FINALIZADOS.includes(statusPedido);
 
-        await axiosInstance.post('/api/pedidos/pagamentos', pagamentoData);
+        if (deveCriarPagamento) {
+          const pagamentoData = {
+            pedidoId: item.pedidoId,
+            dataPagamento: dataPagamentoBase,
+            valorRecebido: item.valorVinculado,
+            metodoPagamento,
+            contaDestino: 'ALENCAR',
+            observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
+          };
 
+          await axiosInstance.post('/api/pedidos/pagamentos', pagamentoData);
+
+          showNotification(
+            'success',
+            'Pagamento vinculado',
+            `Pagamento de ${formatCurrency(item.valorVinculado)} vinculado ao pedido ${pedidoReferencia?.numeroPedido || item.pedidoId}`
+          );
+        } else {
+          pedidosSomenteVinculo.push(`#${pedidoReferencia?.numeroPedido || item.pedidoId}`);
+        }
+      }
+
+      if (pedidosSomenteVinculo.length > 0) {
+        const descricao = pedidosSomenteVinculo.join(', ');
         showNotification(
-          'success',
-          'Pagamento vinculado',
-          `Pagamento de ${formatCurrency(item.valorVinculado)} vinculado ao pedido ${pedidoReferencia?.numeroPedido || item.pedidoId}`
+          'info',
+          'Vínculo registrado',
+          `Os pedidos ${descricao} já estão quitados; registramos apenas o vínculo ao lançamento.`
         );
       }
 

@@ -66,6 +66,33 @@ const EditarPedidoDialog = ({
   });
   const [loadingData, setLoadingData] = useState(false);
 
+  const parseDecimalValue = (valor) => {
+    if (valor === null || valor === undefined || valor === '') {
+      return undefined;
+    }
+
+    if (typeof valor === 'number') {
+      return Number.isFinite(valor) ? valor : undefined;
+    }
+
+    if (typeof valor === 'string') {
+      const sanitized = valor.replace(/\./g, '').replace(',', '.');
+      const parsed = parseFloat(sanitized);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+
+    return undefined;
+  };
+
+  const normalizarListaMaoObra = (lista = []) => {
+    return lista.map(item => ({
+      ...item,
+      quantidadeColhida: parseDecimalValue(item?.quantidadeColhida),
+      valorColheita: parseDecimalValue(item?.valorColheita),
+      valorUnitario: parseDecimalValue(item?.valorUnitario),
+    }));
+  };
+
   // Helper para garantir número
   const toNumber = (value) => {
     if (value === null || value === undefined || value === '') return 0;
@@ -944,20 +971,23 @@ const EditarPedidoDialog = ({
 
       // ✅ NOVO: Processar mão de obra (custos de colheita) se a aba 2 estiver disponível
       // ✅ CRÍTICO: Usar maoObraAtualizada se fornecida (dados diretos do ColheitaTab), senão usar pedidoAtual.maoObra
-      const maoObraParaProcessar = maoObraAtualizada || pedidoAtual.maoObra;
+      const maoObraFonte = maoObraAtualizada || pedidoAtual.maoObra;
+      const maoObraPadronizada = normalizarListaMaoObra(maoObraFonte || []);
       
-      if (canEditTab("2") && maoObraParaProcessar && maoObraParaProcessar.length > 0) {
+      if (canEditTab("2") && maoObraPadronizada && maoObraPadronizada.length > 0) {
         console.log('🔍 [EditarPedidoDialog] maoObraParaProcessar (usando dados diretos do ColheitaTab?):', 
           maoObraAtualizada ? 'SIM' : 'NÃO (lendo de pedidoAtual)',
-          JSON.stringify(maoObraParaProcessar, null, 2)
+          JSON.stringify(maoObraPadronizada, null, 2)
         );
         
         // Filtrar apenas itens válidos com dados obrigatórios preenchidos
-        const maoObraValida = maoObraParaProcessar.filter(item =>
+        const maoObraValida = maoObraPadronizada.filter(item =>
           item.turmaColheitaId &&
           item.frutaId &&
           item.quantidadeColhida &&
-          item.quantidadeColhida > 0
+          item.quantidadeColhida > 0 &&
+          item.valorColheita &&
+          item.valorColheita > 0
         );
 
         // Só incluir maoObra no formData se houver itens válidos
@@ -985,8 +1015,8 @@ const EditarPedidoDialog = ({
               turmaColheitaId: item.turmaColheitaId,
               frutaId: item.frutaId,
               quantidadeColhida: item.quantidadeColhida,
-              unidadeMedida: unidadeMedida,
-              valorColheita: item.valorColheita || 0,
+              unidadeMedida,
+              valorColheita: item.valorColheita,
               observacoes: item.observacoes || undefined,
               dataColheita: pedidoAtual.dataColheita
                 ? moment(pedidoAtual.dataColheita).startOf('day').add(12, 'hours').toISOString()

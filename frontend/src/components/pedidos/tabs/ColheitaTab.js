@@ -251,6 +251,33 @@ const ColheitaTab = ({
   // ✅ NOVOS ESTADOS: Para validação global de fitas
   const [fitasComAreasDisponiveis, setFitasComAreasDisponiveis] = useState([]);
 
+  const parseDecimalValue = (valor) => {
+    if (valor === null || valor === undefined || valor === '') {
+      return undefined;
+    }
+
+    if (typeof valor === 'number') {
+      return Number.isFinite(valor) ? valor : undefined;
+    }
+
+    if (typeof valor === 'string') {
+      const sanitized = valor.replace(/\./g, '').replace(',', '.');
+      const parsed = parseFloat(sanitized);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+
+    return undefined;
+  };
+
+  const normalizarListaMaoObra = (lista = []) => {
+    return lista.map(item => ({
+      ...item,
+      quantidadeColhida: parseDecimalValue(item?.quantidadeColhida),
+      valorColheita: parseDecimalValue(item?.valorColheita),
+      valorUnitario: parseDecimalValue(item?.valorUnitario),
+    }));
+  };
+
   const frutasPedidoMeta = useMemo(() => {
     const porFrutaPedidoId = {};
     const culturaInfo = {};
@@ -665,11 +692,7 @@ const ColheitaTab = ({
       if (i === index) {
         let processedValue = value;
         if (['quantidadeColhida', 'valorColheita', 'valorUnitario'].includes(field)) {
-          if (value === null || value === '' || value === undefined) {
-            processedValue = undefined;
-          } else {
-            processedValue = Number(value);
-          }
+          processedValue = parseDecimalValue(value);
         }
         return { ...item, [field]: processedValue };
       }
@@ -1060,9 +1083,12 @@ const ColheitaTab = ({
 
       // ✅ Sincronizar dados do form com pedidoAtual antes de normalizar
       const formValues = form.getFieldsValue();
-      if (formValues.maoObra && Array.isArray(formValues.maoObra)) {
+      const maoObraPadronizada = normalizarListaMaoObra(formValues.maoObra || []);
+      let maoObraComUnidade = maoObraPadronizada;
+
+      if (maoObraPadronizada.length > 0) {
         // Processar mão de obra do form e atualizar unidadeMedida baseada no toggle
-        const maoObraComUnidade = formValues.maoObra.map(item => {
+        maoObraComUnidade = maoObraPadronizada.map(item => {
           if (!item.frutaId) return item;
           
           const frutaSelecionada = pedidoAtual.frutas?.find(f => f.frutaId === item.frutaId);
@@ -1085,7 +1111,7 @@ const ColheitaTab = ({
       }
 
       // ✅ NORMALIZAR dados antes de validar e salvar
-      const pedidoComMaoObraAtualizada = { ...pedidoAtual, maoObra: formValues.maoObra || pedidoAtual.maoObra };
+      const pedidoComMaoObraAtualizada = { ...pedidoAtual, maoObra: maoObraComUnidade };
       const pedidoNormalizado = normalizarDadosParaBackend(pedidoComMaoObraAtualizada);
 
       // ✅ VALIDAÇÃO GLOBAL de fitas antes de salvar
@@ -1909,8 +1935,11 @@ const ColheitaTab = ({
             type="primary"
             icon={<SaveOutlined />}
             onClick={() => {
+              const formValues = form.getFieldsValue();
+              const maoObraPadronizada = normalizarListaMaoObra(formValues.maoObra || []);
+
               // ✅ NOVA VALIDAÇÃO: Validar mão de obra antes de salvar
-              const maoObraValida = pedidoAtual.maoObra?.filter(item => {
+              const maoObraValida = maoObraPadronizada.filter(item => {
                 // Verificar se pelo menos um campo não-obrigatório foi preenchido (exceto observações)
                 const temAlgumCampo = item.turmaColheitaId ||
                                       item.frutaId ||
@@ -1969,6 +1998,10 @@ const ColheitaTab = ({
                   showNotification("error", "Erro", `Mão de obra ${i + 1}: Valor deve ser maior que zero`);
                   return;
                 }
+                if (item.valorColheita === undefined || item.valorColheita === null) {
+                  showNotification("error", "Erro", `Mão de obra ${i + 1}: Informe o valor da colheita`);
+                  return;
+                }
               }
 
               // ✅ VALIDAÇÃO DE INCONSISTÊNCIAS: Comparar quantidades informadas com soma das áreas
@@ -1982,7 +2015,11 @@ const ColheitaTab = ({
               }
 
               // ✅ NORMALIZAR dados antes de validar e salvar
-              const pedidoNormalizado = normalizarDadosParaBackend(pedidoAtual);
+              const pedidoComMaoObraNormalizada = {
+                ...pedidoAtual,
+                maoObra: maoObraPadronizada
+              };
+              const pedidoNormalizado = normalizarDadosParaBackend(pedidoComMaoObraNormalizada);
 
               // ✅ VALIDAÇÃO GLOBAL de fitas antes de salvar
               try {
@@ -2000,13 +2037,29 @@ const ColheitaTab = ({
                   return;
                 }
 
-                // ✅ SIMPLIFICADO: Ler dados do FORM (não do pedidoAtual) e passar diretamente
-                const formValues = form.getFieldsValue();
-                
-                // ✅ Usar unidadeMedida DIRETO do form (já está atualizado pelo MaoObraRow quando toggle muda)
-                const maoObraAtualizada = formValues.maoObra && Array.isArray(formValues.maoObra)
-                  ? formValues.maoObra.filter(item => item.unidadeMedida && ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'].includes(item.unidadeMedida))
-                  : (pedidoNormalizado.maoObra || []);
+              const maoObraAtualizada = maoObraPadronizada
+                .filter(item =>
+                  item.quantidadeColhida && item.quantidadeColhida > 0 &&
+                  item.valorColheita && item.valorColheita > 0
+                )
+                .map(item => {
+                  let unidadeMedida = item.unidadeMedida;
+                  if (!unidadeMedida || !['KG', 'CX', 'TON', 'UND', 'ML', 'LT'].includes(unidadeMedida)) {
+                    const frutaSelecionada = pedidoAtual.frutas?.find(f => f.frutaId === item.frutaId);
+                    const usarUnidadeSecundaria = item.usarUnidadeSecundaria === true;
+                    const unidadeBase = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
+                      ? frutaSelecionada.unidadeMedida2
+                      : (frutaSelecionada?.unidadeMedida1 || 'KG');
+                    const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+                    const unidadeEncontrada = unidadesValidas.find(u => unidadeBase?.includes(u));
+                    unidadeMedida = unidadeEncontrada || 'KG';
+                  }
+
+                  return {
+                    ...item,
+                    unidadeMedida
+                  };
+                });
                 
                 // Atualizar pedidoNormalizado com dados do form
                 pedidoNormalizado.maoObra = maoObraAtualizada;

@@ -113,26 +113,26 @@ const MaoObraRow = ({
   // ✅ Atualizar campo unidadeMedida no form quando toggle mudar (via useEffect para sincronização)
   React.useEffect(() => {
     if (frutaIdSelecionado && inicializadoRef.current) {
-      const itemAtual = form.getFieldValue('maoObra')?.[index];
+      const itemAtual = form.getFieldValue('maoObra')?.[index] || {};
       const valorAtualNoForm = itemAtual?.usarUnidadeSecundaria === true;
-      
-      // Só atualizar form se o estado mudou E for diferente do form (evita loop)
-      if (valorAtualNoForm !== usarUnidadeSecundaria && ultimoValorFormRef.current !== usarUnidadeSecundaria) {
+
+      const deveAtualizarToggle = valorAtualNoForm !== usarUnidadeSecundaria && ultimoValorFormRef.current !== usarUnidadeSecundaria;
+      const unidadeNaoDefinida = !itemAtual?.unidadeMedida;
+
+      if (deveAtualizarToggle || unidadeNaoDefinida) {
         ultimoValorFormRef.current = usarUnidadeSecundaria;
-        
-        // Calcular unidadeMedida diretamente
+
         const unidadeBase = usarUnidadeSecundaria && frutaSelecionada?.unidadeMedida2
           ? frutaSelecionada.unidadeMedida2
           : (frutaSelecionada?.unidadeMedida1 || 'KG');
-        
+
         const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
-        const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
+        const unidadeEncontrada = unidadeBase ? unidadesValidas.find(u => unidadeBase.includes(u)) : undefined;
         const unidadeMedida = unidadeEncontrada || 'KG';
-        
-        // Atualizar form (igual ao valorColheita)
+
         const maoObraAtual = form.getFieldValue('maoObra') || [];
-        maoObraAtual[index] = { 
-          ...maoObraAtual[index], 
+        maoObraAtual[index] = {
+          ...maoObraAtual[index],
           usarUnidadeSecundaria,
           unidadeMedida
         };
