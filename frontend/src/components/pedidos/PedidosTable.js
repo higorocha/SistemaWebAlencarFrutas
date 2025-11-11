@@ -140,6 +140,7 @@ const PedidosTable = ({
   const [frutasModalOpen, setFrutasModalOpen] = useState(false);
   const [turmasModalOpen, setTurmasModalOpen] = useState(false);
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
+  const [visualizarLoading, setVisualizarLoading] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [confirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
   const [pedidoParaExcluir, setPedidoParaExcluir] = useState(null);
@@ -171,11 +172,21 @@ const PedidosTable = ({
 
   // Função para abrir modal de visualização
   const handleOpenVisualizarModal = async (pedido) => {
-    // Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
-    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
-    if (pedidoAtualizado) {
-      setPedidoSelecionado(pedidoAtualizado);
-      setVisualizarModalOpen(true);
+    setVisualizarModalOpen(true);
+    setVisualizarLoading(true);
+    setPedidoSelecionado(null);
+    try {
+      const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
+      if (pedidoAtualizado) {
+        setPedidoSelecionado(pedidoAtualizado);
+      } else {
+        setVisualizarModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Erro ao abrir visualização de pedido:", error);
+      setVisualizarModalOpen(false);
+    } finally {
+      setVisualizarLoading(false);
     }
   };
 
@@ -857,8 +868,10 @@ const PedidosTable = ({
         onClose={() => {
           setVisualizarModalOpen(false);
           setPedidoSelecionado(null);
+          setVisualizarLoading(false);
         }}
         pedido={pedidoSelecionado}
+        loading={visualizarLoading}
       />
 
       {/* Modal de Confirmação de Exclusão */}

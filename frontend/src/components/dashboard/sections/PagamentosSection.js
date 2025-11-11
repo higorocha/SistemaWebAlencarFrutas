@@ -11,6 +11,7 @@ import { styled } from 'styled-components';
 import useResponsive from '../../../hooks/useResponsive';
 import { capitalizeName, intFormatter } from '../../../utils/formatters';
 import StyledTabs from '../../common/StyledTabs';
+import FornecedorColheitaModal from '../FornecedorColheitaModal';
 
 const { Title, Text } = Typography;
 
@@ -66,6 +67,10 @@ const PagamentosSection = ({
   const { isMobile } = useResponsive();
   const isModoPendentes = modoPagamentos === 'pendentes';
   const [activeTab, setActiveTab] = React.useState('turmas');
+  const [modalFornecedor, setModalFornecedor] = React.useState({
+    open: false,
+    fornecedor: null,
+  });
 
   const headerTitle = '💰 Pagamentos Pendentes';
 
@@ -368,6 +373,20 @@ const PagamentosSection = ({
     onTentarNovamente,
   ]);
 
+  const handleAbrirFornecedor = React.useCallback((fornecedor) => {
+    setModalFornecedor({
+      open: true,
+      fornecedor,
+    });
+  }, []);
+
+  const handleFecharFornecedor = React.useCallback(() => {
+    setModalFornecedor({
+      open: false,
+      fornecedor: null,
+    });
+  }, []);
+
   const renderFornecedoresContent = React.useCallback(() => {
     return (
       <div
@@ -444,8 +463,9 @@ const PagamentosSection = ({
                       minHeight: isMobile ? '56px' : '72px',
                       display: 'flex',
                       alignItems: 'center',
-                      cursor: 'default',
+                      cursor: 'pointer',
                     }}
+                    onClick={() => handleAbrirFornecedor(item)}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'translateY(-2px)';
                       e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
@@ -555,7 +575,7 @@ const PagamentosSection = ({
         )}
       </div>
     );
-  }, [contentHeight, dadosFornecedores, isMobile]);
+  }, [contentHeight, dadosFornecedores, handleAbrirFornecedor, isMobile]);
 
   const tabItems = React.useMemo(
     () => [
@@ -642,6 +662,12 @@ const PagamentosSection = ({
         activeKey={activeTab}
         onChange={setActiveTab}
         items={tabItems}
+      />
+
+      <FornecedorColheitaModal
+        open={modalFornecedor.open}
+        fornecedor={modalFornecedor.fornecedor}
+        onClose={handleFecharFornecedor}
       />
     </CardStyled>
   );

@@ -88,10 +88,15 @@ export class UpdateLancamentoExtratoPedidoDto {
 
 export class VinculoResumidoDto {
   @ApiProperty({ description: 'ID do pedido vinculado' })
+  @IsNotEmpty()
+  @IsInt()
   @Type(() => Number)
   pedidoId: number;
 
   @ApiProperty({ description: 'Valor vinculado ao pedido' })
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0.01)
   @Type(() => Number)
   valorVinculado: number;
 }

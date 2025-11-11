@@ -46,8 +46,8 @@ const gerarCombinacoesInteligentes = (pedidos = [], valorAlvo = 0) => {
   const resultados = [];
   const combinacoesRegistradas = new Set();
   const pedidosOrdenados = [...pedidos]
-    .filter((pedido) => (Number(pedido.valorRestante) || 0) > TOLERANCIA)
-    .sort((a, b) => (a.valorRestante || 0) - (b.valorRestante || 0))
+    .filter((pedido) => (Number(pedido.valorParaVinculo) || 0) > TOLERANCIA)
+    .sort((a, b) => (a.valorParaVinculo || 0) - (b.valorParaVinculo || 0))
     .slice(0, MAX_PEDIDOS_ANALISADOS);
 
   const explorar = (indiceInicial, combinacaoAtual, somaAtual) => {
@@ -93,7 +93,7 @@ const gerarCombinacoesInteligentes = (pedidos = [], valorAlvo = 0) => {
 
     for (let i = indiceInicial; i < pedidosOrdenados.length; i += 1) {
       const pedido = pedidosOrdenados[i];
-      const valorPedido = Number(pedido.valorRestante) || 0;
+      const valorPedido = Number(pedido.valorParaVinculo) || 0;
       const novaSoma = somaAtual + valorPedido;
 
       if (novaSoma > valorAlvo + tolerance) {
@@ -136,11 +136,30 @@ export const preparePedidosParaVinculo = (pedidos = [], { lancamento, clientePad
       const valorFinal = Number(pedido.valorFinal || 0);
       const valorRecebido = Number(pedido.valorRecebido || 0);
       const valorRestante = Number((valorFinal - valorRecebido).toFixed(2));
+      const vinculosExtrato = Array.isArray(pedido.lancamentosExtratoVinculos)
+        ? pedido.lancamentosExtratoVinculos
+        : [];
+      const valorVinculadoLancamentos = Number(
+        vinculosExtrato.reduce(
+          (acc, vinculo) => acc + (Number(vinculo?.valorVinculado) || 0),
+          0,
+        ).toFixed(2),
+      );
       const clienteInfo = pedido.cliente || clientePadrao || {};
       const clienteNome = pedido.clienteNome || clienteInfo.nome || 'Cliente não identificado';
       const doc = pedido.clienteDocumento || clienteInfo.cnpj || clienteInfo.cpf || '';
       const documentoLimpo = doc ? doc.replace(/\D/g, '') : '';
-      const diferenca = Math.abs(valorRestante - valorTotalLancamento);
+
+      let valorBaseVinculo;
+      if (STATUS_PEDIDOS_FINALIZADOS.includes(pedido.status)) {
+        const baseFinalizado = valorFinal > 0 ? valorFinal - valorVinculadoLancamentos : 0;
+        valorBaseVinculo = Number(Math.max(baseFinalizado, 0).toFixed(2));
+      } else {
+        valorBaseVinculo = Number(Math.max(valorRestante, 0).toFixed(2));
+      }
+
+      const valorParaVinculo = valorBaseVinculo;
+      const diferenca = Math.abs(valorParaVinculo - valorTotalLancamento);
       const matchPercentual = valorTotalLancamento > 0
         ? Math.max(0, 100 - (diferenca / valorTotalLancamento) * 100)
         : 0;
@@ -150,6 +169,8 @@ export const preparePedidosParaVinculo = (pedidos = [], { lancamento, clientePad
         valorFinal,
         valorRecebido,
         valorRestante,
+        valorParaVinculo,
+        valorVinculadoLancamentos,
         clienteId: pedido.clienteId ?? clienteInfo.id ?? null,
         clienteNome,
         clienteDocumento: doc,
@@ -160,7 +181,7 @@ export const preparePedidosParaVinculo = (pedidos = [], { lancamento, clientePad
     })
     .filter((pedido) => {
       if (STATUS_PEDIDOS_FINALIZADOS.includes(pedido.status)) {
-        return true;
+        return pedido.valorParaVinculo > TOLERANCIA;
       }
       return pedido.valorRestante > TOLERANCIA;
     });
@@ -349,7 +370,9 @@ const VincularPagamentoManualModal = ({
       const clienteMatch = pedido.clienteNome?.toLowerCase().includes(termoBusca);
       const statusMatch = pedido.status?.toLowerCase().includes(termoBusca);
       const valorMatch = termoBusca
-        ? pedido.valorFinal?.toString().includes(termoBusca) || pedido.valorRestante?.toString().includes(termoBusca)
+        ? pedido.valorFinal?.toString().includes(termoBusca)
+          || pedido.valorRestante?.toString().includes(termoBusca)
+          || pedido.valorParaVinculo?.toString().includes(termoBusca)
         : false;
       const docMatch = termoDocumento ? pedido.clienteDocumentoLimpo?.includes(termoDocumento) : false;
 
@@ -404,7 +427,9 @@ const VincularPagamentoManualModal = ({
         return;
       }
 
-      const saldo = Number(pedido.valorRestante ?? 0);
+    const saldo = Number(
+      (pedido.valorParaVinculo ?? pedido.valorRestante ?? 0)
+    );
       if (saldo <= TOLERANCIA) {
         return;
       }
@@ -639,16 +664,36 @@ const VincularPagamentoManualModal = ({
       render: (value) => formatarValorMonetario(value),
     },
     {
-      title: 'Saldo Devedor',
-      dataIndex: 'valorRestante',
-      key: 'valorRestante',
-      width: 120,
+      title: 'Base p/ vínculo',
+      key: 'valorReferencia',
+      width: 140,
       align: 'center',
-      render: (value) => (
-        <Tag color={value <= valorDisponivel ? 'green' : 'orange'} style={{ fontSize: 12 }}>
-          {formatarValorMonetario(value)}
-        </Tag>
-      ),
+      render: (_, record) => {
+        const isFinalizado = STATUS_PEDIDOS_FINALIZADOS.includes(record.status);
+        const valorReferencia = Number(
+          isFinalizado
+            ? (record.valorParaVinculo ?? 0)
+            : (record.valorRestante ?? 0)
+        );
+        const tagColor = isFinalizado
+          ? '#0ea5e9'
+          : valorReferencia <= valorDisponivel
+            ? 'green'
+            : 'orange';
+        const tooltipLabel = isFinalizado
+          ? `Valor final: ${formatarValorMonetario(record.valorFinal || 0)}\n` +
+            `Vínculos existentes: ${formatarValorMonetario(record.valorVinculadoLancamentos || 0)}\n` +
+            `Disponível para novo vínculo: ${formatarValorMonetario(valorReferencia)}`
+          : `Saldo devedor atual: ${formatarValorMonetario(valorReferencia)}`;
+
+        return (
+          <Tooltip title={<pre style={{ margin: 0 }}>{tooltipLabel}</pre>}>
+            <Tag color={tagColor} style={{ fontSize: 12 }}>
+              {formatarValorMonetario(valorReferencia)}
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Valor a Vincular',

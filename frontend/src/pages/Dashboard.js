@@ -166,6 +166,38 @@ const PAGAMENTOS_MODOS = {
   EFETUADOS: 'efetuados'
 };
 
+const FATURAMENTO_VISIBILIDADE_KEY = 'dashboard.faturamento.visibilidade';
+
+const getInitialFaturamentoVisibilidade = () => {
+  if (typeof window === 'undefined') {
+    return { total: false, aberto: false };
+  }
+
+  try {
+    const stored = window.localStorage.getItem(FATURAMENTO_VISIBILIDADE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return {
+        total: typeof parsed.total === 'boolean' ? parsed.total : false,
+        aberto: typeof parsed.aberto === 'boolean' ? parsed.aberto : false,
+      };
+    }
+  } catch (error) {
+    console.error('Erro ao recuperar visibilidade do faturamento:', error);
+  }
+
+  return { total: false, aberto: false };
+};
+
+const persistFaturamentoVisibilidade = (valor) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(FATURAMENTO_VISIBILIDADE_KEY, JSON.stringify(valor));
+  } catch (error) {
+    console.error('Erro ao salvar visibilidade do faturamento:', error);
+  }
+};
+
 const Dashboard = () => {
   const { isMobile, isTablet, screenSize, isSmallMobile } = useResponsive();
   const navigate = useNavigate();
@@ -238,15 +270,19 @@ const Dashboard = () => {
   const colorColheita = getStatusConfig('AGUARDANDO_COLHEITA')?.color || theme.palette.warning.main;
   const colorPrecificacao = getStatusConfig('AGUARDANDO_PRECIFICACAO')?.color || theme.palette.secondary.main;
   const colorPagamento = getStatusConfig('AGUARDANDO_PAGAMENTO')?.color || theme.palette.warning.dark;
-  const [mostrarFaturamento, setMostrarFaturamento] = useState({ total: true, aberto: true });
+  const [mostrarFaturamento, setMostrarFaturamento] = useState(getInitialFaturamentoVisibilidade);
 
   // Placeholder para futuros estilos locais
 
   const toggleMostrarFaturamento = (campo) => {
-    setMostrarFaturamento((prev) => ({
-      ...prev,
-      [campo]: !prev[campo],
-    }));
+    setMostrarFaturamento((prev) => {
+      const atualizado = {
+        ...prev,
+        [campo]: !prev[campo],
+      };
+      persistFaturamentoVisibilidade(atualizado);
+      return atualizado;
+    });
   };
 
   // Funções de navegação para os cards

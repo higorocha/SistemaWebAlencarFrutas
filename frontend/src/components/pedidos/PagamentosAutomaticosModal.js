@@ -14,6 +14,7 @@ import {
   DownOutlined,
   LinkOutlined,
   UserOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import axiosInstance from "../../api/axiosConfig";
@@ -24,7 +25,7 @@ import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import VincularPagamentoManualModal from "../clientes/VincularPagamentoManualModal";
 import VisualizarPedidoModal from "./VisualizarPedidoModal";
-import CentralizedLoader from "../common/loaders/CentralizedLoader";
+import VisualizarVinculosLancamentoModal from "./VisualizarVinculosLancamentoModal";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -74,6 +75,10 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [loadingPedido, setLoadingPedido] = useState(false);
+
+  // Modal de vínculos
+  const [vinculosModalOpen, setVinculosModalOpen] = useState(false);
+  const [lancamentoVinculos, setLancamentoVinculos] = useState(null);
 
   // Estatísticas gerais
   const [estatisticas, setEstatisticas] = useState({
@@ -489,19 +494,31 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
 
   // Função para abrir modal de visualização de pedido
   const handleOpenVisualizarPedido = async (pedido) => {
+    setVisualizarModalOpen(true);
+    setPedidoSelecionado(null);
     setLoadingPedido(true);
     try {
-      // Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
       const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
       if (pedidoAtualizado) {
         setPedidoSelecionado(pedidoAtualizado);
-        setVisualizarModalOpen(true);
+      } else {
+        setVisualizarModalOpen(false);
       }
     } catch (error) {
       console.error("Erro ao abrir visualização de pedido:", error);
+      setVisualizarModalOpen(false);
     } finally {
       setLoadingPedido(false);
     }
+  };
+
+  const handleAbrirModalVinculos = (lancamento) => {
+    if (!lancamento?.id) {
+      showNotification('info', 'Sem vínculos', 'Este lançamento ainda não possui pedidos vinculados.');
+      return;
+    }
+    setLancamentoVinculos(lancamento);
+    setVinculosModalOpen(true);
   };
 
   // Handler para abrir modal de vinculação manual
@@ -651,6 +668,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       setLoadingPedido(false);
       setPedidosVinculacao([]);
       setLoadingPedidosVinculacao(false);
+      setVinculosModalOpen(false);
+      setLancamentoVinculos(null);
     }
   }, [open]);
 
@@ -792,27 +811,44 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       title: "Pedido",
       key: "pedido",
       render: (_, record) => (
-        record.pedido ? (
-          <Text
-            strong
-            style={{
-              color: "#059669",
-              fontSize: "0.75rem",
-              cursor: "pointer",
-              textDecoration: "underline",
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenVisualizarPedido(record.pedido);
-            }}
-          >
-            #{record.pedido.numeroPedido}
-          </Text>
-        ) : (
-          <Text style={{ fontSize: "0.75rem", color: "#999", fontStyle: "italic" }}>
-            Não vinculado
-          </Text>
-        )
+        (() => {
+          const vinculosInformados = Array.isArray(record.lancamentosExtratoVinculos)
+            ? record.lancamentosExtratoVinculos.length
+            : 0;
+          const possuiVinculos = Boolean(record.vinculadoPedido || vinculosInformados > 0);
+
+          if (!possuiVinculos) {
+            return (
+              <Text style={{ fontSize: "0.75rem", color: "#999", fontStyle: "italic" }}>
+                Sem vínculos
+              </Text>
+            );
+          }
+
+          return (
+            <Space size={6}>
+              <Tooltip title="Visualizar pedidos vinculados">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EyeOutlined style={{ color: "#059669" }} />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAbrirModalVinculos(record);
+                  }}
+                  style={{ padding: 0, color: "#059669", fontSize: "0.75rem" }}
+                >
+                  Visualizar
+                </Button>
+              </Tooltip>
+              {vinculosInformados > 0 && (
+                <Tag color="green" style={{ borderRadius: 999, fontSize: "0.65rem", padding: "0 6px" }}>
+                  {vinculosInformados}
+                </Tag>
+              )}
+            </Space>
+          );
+        })()
       ),
       width: "12%",
     },
@@ -1285,15 +1321,21 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
         onClose={() => {
           setVisualizarModalOpen(false);
           setPedidoSelecionado(null);
+          setLoadingPedido(false);
         }}
         pedido={pedidoSelecionado}
+        loading={loadingPedido}
       />
 
-      {/* Loader centralizado para busca de pedido */}
-      <CentralizedLoader
-        visible={loadingPedido}
-        message="Carregando pedido..."
-        subMessage="Buscando dados atualizados do pedido"
+      {/* Modal de vínculos */}
+      <VisualizarVinculosLancamentoModal
+        open={vinculosModalOpen}
+        onClose={() => {
+          setVinculosModalOpen(false);
+          setLancamentoVinculos(null);
+        }}
+        lancamento={lancamentoVinculos}
+        onVisualizarPedido={(pedidoId) => handleOpenVisualizarPedido({ id: pedidoId })}
       />
     </Modal>
   );

@@ -138,6 +138,7 @@ const PedidosDashboard = () => {
   const [precificacaoModalOpen, setPrecificacaoModalOpen] = useState(false);
   const [pagamentoModalOpen, setPagamentoModalOpen] = useState(false);
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
+  const [visualizarLoading, setVisualizarLoading] = useState(false);
   const [lancarPagamentosModalOpen, setLancarPagamentosModalOpen] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
 
@@ -191,11 +192,21 @@ const PedidosDashboard = () => {
   };
 
   const handleVisualizar = async (pedido) => {
-    // Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
-    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
-    if (pedidoAtualizado) {
-      setPedidoSelecionado(pedidoAtualizado);
-      setVisualizarModalOpen(true);
+    setVisualizarModalOpen(true);
+    setVisualizarLoading(true);
+    setPedidoSelecionado(null);
+    try {
+      const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
+      if (pedidoAtualizado) {
+        setPedidoSelecionado(pedidoAtualizado);
+      } else {
+        setVisualizarModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Erro ao visualizar pedido:", error);
+      setVisualizarModalOpen(false);
+    } finally {
+      setVisualizarLoading(false);
     }
   };
 
@@ -389,6 +400,7 @@ const PedidosDashboard = () => {
     setVisualizarModalOpen(false);
     setLancarPagamentosModalOpen(false);
     setPedidoSelecionado(null);
+    setVisualizarLoading(false);
   };
 
   const handleModalSuccess = useCallback(() => {
@@ -648,6 +660,7 @@ const PedidosDashboard = () => {
           open={visualizarModalOpen}
           onClose={handleModalClose}
           pedido={pedidoSelecionado}
+          loading={visualizarLoading}
         />
       )}
 

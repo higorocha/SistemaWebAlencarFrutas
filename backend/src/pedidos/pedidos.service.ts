@@ -353,6 +353,17 @@ export class PedidosService {
   // Função auxiliar para converter null para undefined e serializar datas
   private convertNullToUndefined(obj: any): any {
     if (obj === null) return undefined;
+    if (typeof obj === 'bigint') {
+      return Number(obj);
+    }
+    if (obj && typeof obj === 'object' && typeof obj.toNumber === 'function') {
+      try {
+        return obj.toNumber();
+      } catch (error) {
+        const value = obj.valueOf?.();
+        return typeof value === 'number' ? value : Number(value);
+      }
+    }
     if (Array.isArray(obj)) {
       return obj.map(item => this.convertNullToUndefined(item));
     }
@@ -362,9 +373,8 @@ export class PedidosService {
         if (converted[key] === null) {
           converted[key] = undefined;
         } else if (converted[key] instanceof Date) {
-          // Converter objetos Date para string ISO
           converted[key] = converted[key].toISOString();
-        } else if (typeof converted[key] === 'object') {
+        } else {
           converted[key] = this.convertNullToUndefined(converted[key]);
         }
       }
@@ -513,6 +523,26 @@ export class PedidosService {
         quantidadeColhida: custo.quantidadeColhida,
         valorColheita: custo.valorColheita,
         observacoes: custo.observacoes
+      })) || [],
+      lancamentosExtratoVinculos: pedido.lancamentosExtratoVinculos?.map((vinculo) => ({
+        id: vinculo.id ? Number(vinculo.id) : vinculo.id,
+        lancamentoExtratoId: vinculo.lancamentoExtratoId ? Number(vinculo.lancamentoExtratoId) : undefined,
+        valorVinculado: vinculo.valorVinculado !== undefined && vinculo.valorVinculado !== null
+          ? Number(vinculo.valorVinculado)
+          : undefined,
+        createdAt: vinculo.createdAt,
+        updatedAt: vinculo.updatedAt,
+        lancamentoExtrato: vinculo.lancamentoExtrato
+          ? {
+              id: vinculo.lancamentoExtrato.id ? Number(vinculo.lancamentoExtrato.id) : vinculo.lancamentoExtrato.id,
+              textoDescricaoHistorico: vinculo.lancamentoExtrato.textoDescricaoHistorico || undefined,
+              categoriaOperacao: vinculo.lancamentoExtrato.categoriaOperacao || undefined,
+              nomeContrapartida: vinculo.lancamentoExtrato.nomeContrapartida || undefined,
+              agenciaConta: vinculo.lancamentoExtrato.agenciaConta || undefined,
+              numeroConta: vinculo.lancamentoExtrato.numeroConta || undefined,
+              textoInformacaoComplementar: vinculo.lancamentoExtrato.textoInformacaoComplementar || undefined,
+            }
+          : undefined,
       })) || [],
       // ✅ NOVO: Incluir usuário criador do pedido (primeiro registro CRIACAO_PEDIDO)
       usuarioCriador: (() => {
@@ -1380,6 +1410,26 @@ export class PedidosService {
                 }
               }
             }
+          },
+          lancamentosExtratoVinculos: {
+            select: {
+              id: true,
+              lancamentoExtratoId: true,
+              valorVinculado: true,
+              createdAt: true,
+              updatedAt: true,
+            lancamentoExtrato: {
+              select: {
+                id: true,
+                textoDescricaoHistorico: true,
+                categoriaOperacao: true,
+                nomeContrapartida: true,
+                agenciaConta: true,
+                numeroConta: true,
+                textoInformacaoComplementar: true,
+              },
+            },
+            },
           }
         }
       }),
@@ -1534,6 +1584,26 @@ export class PedidosService {
                 }
               }
             }
+          },
+          lancamentosExtratoVinculos: {
+            select: {
+              id: true,
+              lancamentoExtratoId: true,
+              valorVinculado: true,
+              createdAt: true,
+              updatedAt: true,
+            lancamentoExtrato: {
+              select: {
+                id: true,
+                textoDescricaoHistorico: true,
+                categoriaOperacao: true,
+                nomeContrapartida: true,
+                agenciaConta: true,
+                numeroConta: true,
+                textoInformacaoComplementar: true,
+              },
+            },
+            }
           }
         }
       }),
@@ -1641,20 +1711,40 @@ export class PedidosService {
             }
           }
         },
+        lancamentosExtratoVinculos: {
+          select: {
+            id: true,
+            lancamentoExtratoId: true,
+            valorVinculado: true,
+            createdAt: true,
+            updatedAt: true,
+            lancamentoExtrato: {
+              select: {
+                id: true,
+                textoDescricaoHistorico: true,
+                categoriaOperacao: true,
+                nomeContrapartida: true,
+                agenciaConta: true,
+                numeroConta: true,
+                textoInformacaoComplementar: true,
+              },
+            },
+          },
+        },
         historico: {
           include: {
             usuario: {
               select: {
                 id: true,
                 nome: true,
-                email: true
-              }
-            }
+                email: true,
+              },
+            },
           },
           orderBy: {
-            createdAt: 'desc'
-          }
-        }
+            createdAt: 'desc',
+          },
+        },
       }
     });
 

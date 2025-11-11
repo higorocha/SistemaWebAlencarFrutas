@@ -596,9 +596,6 @@ const DadosBasicosTab = ({
                           {frutas.map((frutaOption) => (
                             <Option key={frutaOption.id} value={frutaOption.id}>
                               {capitalizeName(frutaOption.nome)}
-                              {frutaOption.dePrimeira
-                                ? " • Primeira"
-                                : " • Segunda"}
                             </Option>
                           ))}
                         </Select>

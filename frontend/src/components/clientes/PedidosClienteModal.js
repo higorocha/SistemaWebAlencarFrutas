@@ -42,6 +42,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
   const [statusFilter, setStatusFilter] = useState("");
   const [dateRange, setDateRange] = useState(null);
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
+  const [visualizarLoading, setVisualizarLoading] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [intervaloMeses, setIntervaloMeses] = useState(3);
   const [dadosGrafico, setDadosGrafico] = useState(null);
@@ -235,11 +236,21 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
 
   // Função para abrir modal de visualização
   const handleOpenVisualizarModal = async (pedido) => {
-    // Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
-    const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
-    if (pedidoAtualizado) {
-      setPedidoSelecionado(pedidoAtualizado);
-      setVisualizarModalOpen(true);
+    setVisualizarModalOpen(true);
+    setVisualizarLoading(true);
+    setPedidoSelecionado(null);
+    try {
+      const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
+      if (pedidoAtualizado) {
+        setPedidoSelecionado(pedidoAtualizado);
+      } else {
+        setVisualizarModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Erro ao visualizar pedido do cliente:", error);
+      setVisualizarModalOpen(false);
+    } finally {
+      setVisualizarLoading(false);
     }
   };
 
@@ -316,6 +327,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       setPedidosFiltrados([]);
       setVisualizarModalOpen(false);
       setPedidoSelecionado(null);
+      setVisualizarLoading(false);
       setEstatisticas({
         totalPedidos: 0,
         pedidosAtivos: 0,
@@ -999,8 +1011,10 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         onClose={() => {
           setVisualizarModalOpen(false);
           setPedidoSelecionado(null);
+          setVisualizarLoading(false);
         }}
         pedido={pedidoSelecionado}
+        loading={visualizarLoading}
       />
     </Modal>
   );

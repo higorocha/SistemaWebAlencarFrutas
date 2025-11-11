@@ -15,6 +15,7 @@ import {
   UpOutlined,
   DownOutlined,
   LinkOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import axiosInstance from "../../api/axiosConfig";
@@ -25,7 +26,7 @@ import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import VincularPagamentoManualModal from "./VincularPagamentoManualModal";
 import VisualizarPedidoModal from "../pedidos/VisualizarPedidoModal";
-import CentralizedLoader from "../common/loaders/CentralizedLoader";
+import VisualizarVinculosLancamentoModal from "../pedidos/VisualizarVinculosLancamentoModal";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -72,6 +73,10 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   const [visualizarModalOpen, setVisualizarModalOpen] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [loadingPedido, setLoadingPedido] = useState(false);
+
+  // Modal de vínculos
+  const [vinculosModalOpen, setVinculosModalOpen] = useState(false);
+  const [lancamentoVinculos, setLancamentoVinculos] = useState(null);
 
   // Estatísticas do cliente
   const [estatisticas, setEstatisticas] = useState({
@@ -449,6 +454,15 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     carregarPedidosParaLancamento();
   };
 
+  const handleAbrirModalVinculos = (lancamento) => {
+    if (!lancamento?.id) {
+      showNotification('info', 'Sem vínculos', 'Este lançamento ainda não possui pedidos vinculados.');
+      return;
+    }
+    setLancamentoVinculos(lancamento);
+    setVinculosModalOpen(true);
+  };
+
   // Função para buscar pedido atualizado do banco
   const buscarPedidoAtualizado = async (pedidoId) => {
     try {
@@ -463,16 +477,19 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
 
   // Função para abrir modal de visualização de pedido
   const handleOpenVisualizarPedido = async (pedido) => {
+    setVisualizarModalOpen(true);
     setLoadingPedido(true);
+    setPedidoSelecionado(null);
     try {
-      // Buscar pedido atualizado do banco para garantir que todos os dados estejam presentes
       const pedidoAtualizado = await buscarPedidoAtualizado(pedido.id);
       if (pedidoAtualizado) {
         setPedidoSelecionado(pedidoAtualizado);
-        setVisualizarModalOpen(true);
+      } else {
+        setVisualizarModalOpen(false);
       }
     } catch (error) {
       console.error("Erro ao abrir visualização de pedido:", error);
+      setVisualizarModalOpen(false);
     } finally {
       setLoadingPedido(false);
     }
@@ -596,6 +613,8 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       setVisualizarModalOpen(false);
       setPedidoSelecionado(null);
       setLoadingPedido(false);
+      setVinculosModalOpen(false);
+      setLancamentoVinculos(null);
     }
   }, [open]);
 
@@ -742,30 +761,47 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     {
       title: "Pedido",
       key: "pedido",
-      render: (_, record) => (
-        record.pedido ? (
-          <Text 
-            strong 
-            style={{ 
-              color: "#059669", 
-              fontSize: "0.75rem",
-              cursor: "pointer",
-              textDecoration: "underline"
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenVisualizarPedido(record.pedido);
-            }}
-          >
-            #{record.pedido.numeroPedido}
-          </Text>
-        ) : (
-          <Text style={{ fontSize: "0.75rem", color: "#999", fontStyle: "italic" }}>
-            Não vinculado
-          </Text>
-        )
-      ),
       width: "12%",
+      render: (_, record) => (
+        (() => {
+          const vinculosInformados = Array.isArray(record.lancamentosExtratoVinculos)
+            ? record.lancamentosExtratoVinculos.length
+            : 0;
+          const possuiVinculos = Boolean(record.vinculadoPedido || vinculosInformados > 0);
+
+          if (!possuiVinculos) {
+            return (
+              <Text style={{ fontSize: "0.75rem", color: "#999", fontStyle: "italic" }}>
+                Sem vínculos
+              </Text>
+            );
+          }
+
+          return (
+            <Space size={6}>
+              <Tooltip title="Visualizar pedidos vinculados">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EyeOutlined style={{ color: "#059669" }} />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAbrirModalVinculos(record);
+                  }}
+                  style={{ padding: 0, color: "#059669", fontSize: "0.75rem" }}
+                >
+                  Visualizar
+                </Button>
+              </Tooltip>
+              {vinculosInformados > 0 && (
+                <Tag color="green" style={{ borderRadius: 999, fontSize: "0.65rem", padding: "0 6px" }}>
+                  {vinculosInformados}
+                </Tag>
+              )}
+            </Space>
+          );
+        })()
+      ),
     },
     {
       title: "Ação",
@@ -1180,21 +1216,26 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         onVincular={handleVincularPagamento}
       />
 
+      <VisualizarVinculosLancamentoModal
+        open={vinculosModalOpen}
+        onClose={() => {
+          setVinculosModalOpen(false);
+          setLancamentoVinculos(null);
+        }}
+        lancamento={lancamentoVinculos}
+        onVisualizarPedido={(pedidoId) => handleOpenVisualizarPedido({ id: pedidoId })}
+      />
+
       {/* Modal de Visualização de Pedido */}
       <VisualizarPedidoModal
         open={visualizarModalOpen}
         onClose={() => {
           setVisualizarModalOpen(false);
           setPedidoSelecionado(null);
+          setLoadingPedido(false);
         }}
         pedido={pedidoSelecionado}
-      />
-
-      {/* Loader centralizado para busca de pedido */}
-      <CentralizedLoader
-        visible={loadingPedido}
-        message="Carregando pedido..."
-        subMessage="Buscando dados atualizados do pedido"
+        loading={loadingPedido}
       />
     </Modal>
   );

@@ -527,10 +527,6 @@ export class LancamentoExtratoService {
         }
       }
 
-      if (clienteAtual === null && clientesDosPedidos.size > 1) {
-        throw new BadRequestException('Todos os pedidos precisam pertencer ao mesmo cliente para vinculação múltipla');
-      }
-
       await tx.lancamentoExtrato.update({
         where: { id },
         data: {
