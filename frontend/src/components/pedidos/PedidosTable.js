@@ -41,6 +41,7 @@ import moment from "moment";
 import { formatarValorMonetario, intFormatter, formatarNumero, capitalizeName } from "../../utils/formatters";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
+import { getFruitIcon } from "../../utils/fruitIcons";
 
 const { Text } = Typography;
 
@@ -369,20 +370,51 @@ const PedidosTable = ({
       align: 'left',
       ellipsis: true,
       render: (_, record) => {
-        if (!record.frutasPedidos || record.frutasPedidos.length === 0) {
+        const frutasPedidos = record.frutasPedidos || [];
+        if (frutasPedidos.length === 0) {
           return <Text>-</Text>;
         }
         
         // Se tiver apenas uma fruta, mostra badge simples
-        if (record.frutasPedidos.length === 1) {
+        if (frutasPedidos.length === 1) {
+          const fruta = frutasPedidos[0];
+          const frutaNome = fruta.fruta?.nome || fruta.nome || '-';
           return (
-            <Tag color="green" style={{ cursor: 'default' }}>
-              {capitalizeName(record.frutasPedidos[0].fruta?.nome || '-')}
-            </Tag>
+            <Tooltip title={capitalizeName(frutaNome)}>
+              <Tag
+                color="green"
+                style={{
+                  cursor: 'default',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '6px 10px',
+                  gap: 6,
+                  minWidth: 36,
+                }}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  {getFruitIcon(frutaNome, { width: 20, height: 20 })}
+                </span>
+              </Tag>
+            </Tooltip>
           );
         }
         
-        // Se tiver múltiplas frutas, mostra badge clicável
+        // Se tiver múltiplas frutas, mostra ícones agrupados por cultura
+        const gruposPorCultura = frutasPedidos.reduce((acc, fruta) => {
+          const culturaId = fruta.fruta?.cultura?.id ?? `fruta-${fruta.id}`;
+          if (!acc[culturaId]) {
+            acc[culturaId] = {
+              key: culturaId,
+              frutaNome: fruta.fruta?.nome || fruta.nome || '',
+              count: 0,
+            };
+          }
+          acc[culturaId].count += 1;
+          return acc;
+        }, {});
+
         return (
           <Tooltip title="Clique para ver as frutas">
             <Tag 
@@ -390,7 +422,48 @@ const PedidosTable = ({
               style={{ cursor: 'pointer' }}
               onClick={() => handleOpenFrutasModal(record)}
             >
-              {record.frutasPedidos.length} frutas
+              <Space size={4} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                {Object.values(gruposPorCultura).map((grupo) => (
+                  <span
+                    key={grupo.key}
+                    style={{
+                      position: 'relative',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 28,
+                      height: 28,
+                      backgroundColor: '#ffffff',
+                      borderRadius: '50%',
+                      border: '1px solid #bae7ff',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {getFruitIcon(grupo.frutaNome, { width: 18, height: 18 })}
+                    {grupo.count > 1 && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -6,
+                          right: -6,
+                          backgroundColor: '#1890ff',
+                          color: '#ffffff',
+                          borderRadius: '50%',
+                          width: 16,
+                          height: 16,
+                          fontSize: 10,
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {grupo.count}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </Space>
             </Tag>
           </Tooltip>
         );

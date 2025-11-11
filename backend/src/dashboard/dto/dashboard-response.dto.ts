@@ -17,6 +17,9 @@ export class ProgramacaoColheitaDto {
   @ApiProperty({ example: 'PED-2024-0001', description: 'Número do pedido' })
   numeroPedido: string;
 
+  @ApiProperty({ example: 'ABC-1D23', required: false, description: 'Placa primária associada ao pedido' })
+  placaPrimaria?: string;
+
   @ApiProperty({ example: 'João Silva Ltda' })
   cliente: string;
 
@@ -197,6 +200,67 @@ export class PagamentoEfetuadoDto {
   }>;
 }
 
+export class FornecedorColheitaDetalheDto {
+  @ApiProperty({ example: 'PED-2024-0001', description: 'Número do pedido associado' })
+  pedidoNumero: string;
+
+  @ApiProperty({ example: 123, description: 'ID do pedido associado' })
+  pedidoId: number;
+
+  @ApiProperty({ example: 'Fornecedor Oeste', description: 'Nome da área do fornecedor' })
+  areaNome: string;
+
+  @ApiProperty({ example: 'Banana Prata' })
+  fruta: string;
+
+  @ApiProperty({ example: 1500 })
+  quantidade: number;
+
+  @ApiProperty({ example: 'KG' })
+  unidade: string;
+
+  @ApiProperty({ example: 1750.5, description: 'Valor proporcional atribuído à colheita nesta área' })
+  valor: number;
+
+  @ApiProperty({ example: 2500.75, description: 'Valor total da fruta no pedido', required: false })
+  valorTotalFruta?: number;
+
+  @ApiProperty({ example: 'PEDIDO_FINALIZADO', description: 'Status atual do pedido' })
+  statusPedido: string;
+
+  @ApiProperty({ example: 'Cliente Exemplo Ltda' })
+  cliente: string;
+
+  @ApiProperty({ example: '2024-01-18T00:00:00Z', required: false })
+  dataColheita?: string;
+}
+
+export class FornecedorColheitaDto {
+  @ApiProperty({ example: 10 })
+  id: number;
+
+  @ApiProperty({ example: 'Fazenda União' })
+  nomeFornecedor: string;
+
+  @ApiProperty({ example: 3, description: 'Quantidade de pedidos atendidos por este fornecedor' })
+  quantidadePedidos: number;
+
+  @ApiProperty({ example: 4, description: 'Quantidade de frutas distintas colhidas' })
+  quantidadeFrutas: number;
+
+  @ApiProperty({ example: 5, description: 'Número de áreas do fornecedor utilizadas' })
+  quantidadeAreas: number;
+
+  @ApiProperty({ example: 4200.35, description: 'Somatório de valores proporcionalmente alocados ao fornecedor' })
+  totalValor: number;
+
+  @ApiProperty({ example: 3200, description: 'Total de quantidade colhida (soma das quantidades registradas)' })
+  totalQuantidade: number;
+
+  @ApiProperty({ type: [FornecedorColheitaDetalheDto] })
+  detalhes: FornecedorColheitaDetalheDto[];
+}
+
 export class DashboardResponseDto {
   // Cards principais
   @ApiProperty({ example: 1245780.50, description: 'Faturamento total consolidado' })
@@ -252,4 +316,7 @@ export class DashboardResponseDto {
   // Nova seção: Pagamentos Efetuados
   @ApiProperty({ type: [PagamentoEfetuadoDto], description: 'Pagamentos efetuados agrupados por colheitador e data' })
   pagamentosEfetuados: PagamentoEfetuadoDto[];
+
+  @ApiProperty({ type: [FornecedorColheitaDto], description: 'Colheitas realizadas em áreas de fornecedores' })
+  pagamentosFornecedores: FornecedorColheitaDto[];
 }

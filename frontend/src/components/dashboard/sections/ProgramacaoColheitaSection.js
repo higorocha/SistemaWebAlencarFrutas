@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { Row, Col } from 'antd';
 import { styled } from 'styled-components';
 import ProgramacaoColheitaGrid from '../ProgramacaoColheitaGrid';
@@ -11,10 +11,25 @@ const CardStyled = styled.div`
   background: white;
   padding: ${props => props.$isMobile ? '12px' : '16px'};
   transition: transform 0.2s ease-in-out;
+  position: relative;
 
   &:hover {
     transform: translateY(-2px);
   }
+
+  ${props => props.$isFullscreen ? `
+    min-height: calc(100vh - ${props.$isMobile ? '48px' : '96px'});
+    display: flex;
+    flex-direction: column;
+  ` : ''}
+`;
+
+const ContentRow = styled(Row)`
+  width: 100%;
+  ${props => props.$isFullscreen ? `
+    flex: 1;
+    height: 100%;
+  ` : ''}
 `;
 
 const ProgramacaoColheitaSection = ({
@@ -24,6 +39,34 @@ const ProgramacaoColheitaSection = ({
   const { isMobile } = useResponsive();
   const [activeTab, setActiveTab] = useState('1'); // '1' = Semana Atual, '2' = Atrasadas
   const [weekOffset, setWeekOffset] = useState(0);
+  const fullscreenRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const handleFullscreenChange = useCallback(() => {
+    const alvo = fullscreenRef.current;
+    setIsFullscreen(document.fullscreenElement === alvo);
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [handleFullscreenChange]);
+
+  const toggleFullscreen = useCallback(() => {
+    const alvo = fullscreenRef.current;
+    if (!alvo) return;
+
+    if (document.fullscreenElement === alvo) {
+      document.exitFullscreen?.();
+      return;
+    }
+
+    alvo.requestFullscreen?.().catch((erro) => {
+      console.error('Não foi possível alternar para tela cheia:', erro);
+    });
+  }, []);
 
   const getWeekRange = useCallback((offset = 0) => {
     const baseDate = new Date();
@@ -88,30 +131,40 @@ const ProgramacaoColheitaSection = ({
   return (
     <Row gutter={[24, 24]} style={{ marginBottom: '32px' }}>
       <Col xs={24}>
-        <CardStyled $isMobile={isMobile}>
-          <Row gutter={[24, 0]}>
+        <CardStyled
+          ref={fullscreenRef}
+          $isMobile={isMobile}
+          $isFullscreen={isFullscreen}
+        >
+          <ContentRow gutter={[24, 0]} $isFullscreen={isFullscreen} style={isFullscreen ? { flex: 1 } : undefined}>
             {/* Esquerda: Programação de Colheita Diária */}
-            <Col xs={24} lg={16}>
-              <ProgramacaoColheitaGrid
-                programacaoColheita={programacaoColheita}
-                onColheitaClick={onColheitaClick}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                selectedWeek={selectedWeek}
-                onNavigateWeek={handleNavigateWeek}
-                onResetWeek={handleResetWeek}
-              />
+            <Col xs={24} lg={16} style={isFullscreen ? { height: '100%', display: 'flex', flexDirection: 'column' } : {}}>
+              <div style={isFullscreen ? { flex: 1, display: 'flex', flexDirection: 'column' } : {}}>
+                <ProgramacaoColheitaGrid
+                  programacaoColheita={programacaoColheita}
+                  onColheitaClick={onColheitaClick}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  selectedWeek={selectedWeek}
+                  onNavigateWeek={handleNavigateWeek}
+                  onResetWeek={handleResetWeek}
+                  isFullscreen={isFullscreen}
+                  onToggleFullscreen={toggleFullscreen}
+                />
+              </div>
             </Col>
 
             {/* Direita: Estatísticas de Frutas */}
-            <Col xs={24} lg={8}>
-              <EstatisticasFrutasColheita 
-                programacaoColheita={programacaoColheita} 
-                activeTab={activeTab}
-                selectedWeek={selectedWeek}
-              />
+            <Col xs={24} lg={8} style={isFullscreen ? { height: '100%', display: 'flex', flexDirection: 'column', marginTop: 48 } : {}}>
+              <div style={isFullscreen ? { flex: 1, display: 'flex', flexDirection: 'column' } : {}}>
+                <EstatisticasFrutasColheita 
+                  programacaoColheita={programacaoColheita} 
+                  activeTab={activeTab}
+                  selectedWeek={selectedWeek}
+                />
+              </div>
             </Col>
-          </Row>
+          </ContentRow>
         </CardStyled>
       </Col>
     </Row>

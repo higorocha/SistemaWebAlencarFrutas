@@ -871,8 +871,31 @@ export class PedidosService {
     usuarioNivel?: string,
     usuarioCulturaId?: number,
   ): Promise<{ data: PedidoResponseDto[]; total: number; page: number; limit: number }> {
-    const skip = page && limit ? (page - 1) * limit : 0;
-    const take = limit || 10;
+    // Converter page/limit para números de forma segura, pois podem chegar como string via @Query
+    const pageNum = (() => {
+      if (typeof (page as unknown) === 'string') {
+        const parsed = parseInt(page as unknown as string, 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+      }
+      if (typeof page === 'number') {
+        return page > 0 ? page : 1;
+      }
+      return 1;
+    })();
+
+    const limitNum = (() => {
+      if (typeof (limit as unknown) === 'string') {
+        const parsed = parseInt(limit as unknown as string, 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+      }
+      if (typeof limit === 'number') {
+        return limit > 0 ? limit : 10;
+      }
+        return 10;
+    })();
+
+    const skip = pageNum && limitNum ? (pageNum - 1) * limitNum : 0;
+    const take = limitNum;
 
     const where: any = {};
 
@@ -1020,22 +1043,14 @@ export class PedidosService {
 
     // ✅ Processar filtros de status (suporta string única ou array)
     if (status && usuarioNivel !== 'GERENTE_CULTURA') {
-      // Se status for uma string, converter para array
-      let statusArray: string[] = [];
+      // Aceitar tanto array quanto string CSV em status
+      const normalized = (Array.isArray(status) ? status : [status])
+        .flatMap((s) => (typeof s === 'string' ? s.split(',') : []))
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
 
-      if (Array.isArray(status)) {
-        statusArray = status;
-      } else if (typeof status === 'string') {
-        // Se for string única, colocar em array
-        statusArray = [status];
-      }
-
-      const filteredStatuses = statusArray.filter(s => s && s.trim() !== '');
-
-      if (filteredStatuses.length > 0) {
-        where.status = {
-          in: filteredStatuses as any[],
-        };
+      if (normalized.length > 0) {
+        where.status = { in: normalized as any[] };
       }
     }
 
@@ -1071,6 +1086,18 @@ export class PedidosService {
 
       const buildFilterCondition = (type: string, value: string): Prisma.PedidoWhereInput | null => {
         switch (type) {
+          case 'semLancamento':
+          case 'semVinculoExtrato':
+          case 'semVinculo': {
+            const truthy = ['1', 'true', 'sim', 'yes'].includes(String(value).toLowerCase());
+            return truthy ? { lancamentosExtratoVinculos: { none: {} } } : null;
+          }
+          case 'comLancamento':
+          case 'comVinculoExtrato':
+          case 'comVinculo': {
+            const truthy = ['1', 'true', 'sim', 'yes'].includes(String(value).toLowerCase());
+            return truthy ? { lancamentosExtratoVinculos: { some: {} } } : null;
+          }
           case 'cliente':
             if (/^\d+$/.test(value)) {
               return { clienteId: parseInt(value, 10) };
@@ -1222,7 +1249,13 @@ export class PedidosService {
     }
 
     if (clienteId) {
-      where.clienteId = clienteId;
+      // Garantir que clienteId seja numérico
+      const clienteIdNum = typeof (clienteId as unknown) === 'string'
+        ? parseInt(clienteId as unknown as string, 10)
+        : (clienteId as number);
+      if (Number.isFinite(clienteIdNum)) {
+        where.clienteId = clienteIdNum as number;
+      }
     }
 
     if (dataInicio && dataFim) {

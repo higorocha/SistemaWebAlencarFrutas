@@ -33,6 +33,14 @@ const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+const STATUS_VINCULACAO = [
+  "PRECIFICACAO_REALIZADA",
+  "AGUARDANDO_PAGAMENTO",
+  "PAGAMENTO_PARCIAL",
+  "PAGAMENTO_REALIZADO",
+  "PEDIDO_FINALIZADO",
+];
+
 const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
@@ -392,7 +400,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     }
   }, [cliente?.id, rangeBuscaAPI, contaSelecionada, fetchPagamentosCliente]);
 
-  const carregarPedidosParaLancamento = useCallback(async (lancamentoReferencia) => {
+  const carregarPedidosParaLancamento = useCallback(async () => {
     if (!cliente?.id) {
       setPedidosVinculacao([]);
       return;
@@ -400,9 +408,8 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
 
     setLoadingPedidosVinculacao(true);
     try {
-      const statuses = 'PRECIFICACAO_REALIZADA,AGUARDANDO_PAGAMENTO,PAGAMENTO_PARCIAL';
       const response = await axiosInstance.get(`/api/pedidos/cliente/${cliente.id}`, {
-        params: { status: statuses },
+        params: { status: STATUS_VINCULACAO.join(",") },
       });
 
       const pedidosResposta = response?.data;
@@ -437,7 +444,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     setLancamentoParaVincular(lancamento);
     setPedidosVinculacao([]);
     setVinculacaoModalOpen(true);
-    carregarPedidosParaLancamento(lancamento);
+    carregarPedidosParaLancamento();
   };
 
   // Função para buscar pedido atualizado do banco

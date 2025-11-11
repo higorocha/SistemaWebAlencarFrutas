@@ -316,3 +316,27 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+.programacao-colheita-grid.fullscreen {
+  padding: 0;
+}
+
+.programacao-colheita-grid.fullscreen .coluna-dia {
+  max-height: none;
+}
+
+.programacao-colheita-grid.fullscreen .colheitas-lista {
+  max-height: 900px;
+  min-height: 600px;
+}
+
+@media (max-width: 992px) {
+  .programacao-colheita-grid.fullscreen {
+    padding: 0;
+  }
+
+  .programacao-colheita-grid.fullscreen .colheitas-lista {
+    max-height: 600px;
+    min-height: 420px;
+  }
+}

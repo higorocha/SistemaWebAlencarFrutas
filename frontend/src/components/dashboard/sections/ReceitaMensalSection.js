@@ -49,7 +49,7 @@ const ReceitaMensalSection = ({ receitaMensal = [] }) => {
       </Title>
       {isMobile ? (
         // Mobile: Gráfico de Pizza compacto
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={360}>
           <PieChart>
             <Pie
               data={receitaMensal}
@@ -95,7 +95,7 @@ const ReceitaMensalSection = ({ receitaMensal = [] }) => {
         </ResponsiveContainer>
       ) : (
         // Desktop: Gráfico de Barras original
-        <ResponsiveContainer width="100%" height={450}>
+        <ResponsiveContainer width="100%" height={540}>
           <BarChart data={receitaMensal} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis

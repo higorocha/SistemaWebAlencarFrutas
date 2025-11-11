@@ -36,7 +36,7 @@ import {
   MobilePedidoSimplificadoDto,
   MobileUpdatePedidoDto,
 } from '../dto';
-import { UpdateColheitaDto, CreatePedidoDto, PedidoResponseDto, UpdatePrecificacaoDto, UpdatePedidoDto } from '../../pedidos/dto';
+import { UpdateColheitaDto, CreatePedidoDto, PedidoResponseDto, UpdatePrecificacaoDto, UpdatePedidoDto, UpdatePedidoCompletoDto } from '../../pedidos/dto';
 import { CreateTurmaColheitaPedidoCustoDto } from '../../turma-colheita/dto/create-colheita-pedido.dto';
 import { TurmaColheitaPedidoCustoResponseDto } from '../../turma-colheita/dto/colheita-pedido-response.dto';
 import { StatusPedido } from '@prisma/client';
@@ -305,6 +305,42 @@ export class PedidosMobileController {
     };
 
     return this.pedidosService.update(id, updateDto, usuarioId);
+  }
+
+  /**
+   * Atualização completa do pedido (inclui frutas)
+   * Reutiliza o método updateCompleto do serviço web para evitar duplicação
+   */
+  @Patch(':id/completo')
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+    }),
+  )
+  @Niveis(
+    NivelUsuario.ADMINISTRADOR,
+    NivelUsuario.GERENTE_GERAL,
+    NivelUsuario.ESCRITORIO,
+  )
+  @ApiOperation({
+    summary: 'Atualização completa do pedido (mobile)',
+    description:
+      'Permite editar frutas, quantidades e dados básicos do pedido reaproveitando a lógica do sistema web.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Pedido atualizado com sucesso',
+    type: PedidoResponseDto,
+  })
+  async atualizarPedidoCompletoMobile(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePedidoCompletoDto,
+    @Req() request: any,
+  ): Promise<PedidoResponseDto> {
+    const usuarioId = request?.user?.id;
+    return this.pedidosService.updateCompleto(id, dto, usuarioId);
   }
 
   /**

@@ -150,6 +150,7 @@ const SearchInputInteligente = ({
   onSuggestionSelect,
   loading = false,
   style = {},
+  allowedTypes = null,
   ...props
 }) => {
   const [searchTerm, setSearchTerm] = useState(value);
@@ -264,7 +265,11 @@ const SearchInputInteligente = ({
 
       // Buscar sugestões do backend com termo limpo
       const response = await axiosInstance.get(`/api/pedidos/busca-inteligente?term=${encodeURIComponent(trimmedTerm)}`);
-      const backendSuggestions = response.data || [];
+      let backendSuggestions = response.data || [];
+
+      if (Array.isArray(allowedTypes) && allowedTypes.length > 0) {
+        backendSuggestions = backendSuggestions.filter((suggestion) => allowedTypes.includes(suggestion.type));
+      }
 
       setSuggestions(backendSuggestions);
 
@@ -301,7 +306,7 @@ const SearchInputInteligente = ({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [allowedTypes]);
 
   // Debounced search
   const debouncedSearch = useCallback(
@@ -316,8 +321,10 @@ const SearchInputInteligente = ({
     const suggestions = [];
     const lowerTerm = term.toLowerCase();
 
+    const acceptType = (type) => !Array.isArray(allowedTypes) || allowedTypes.length === 0 || allowedTypes.includes(type);
+
     // Sugestões por tipo
-    if (lowerTerm.includes('ped') || /^\d+/.test(term)) {
+    if (acceptType('numero') && (lowerTerm.includes('ped') || /^\d+/.test(term))) {
       suggestions.push({
         type: 'numero',
         label: 'Nº Pedido',
@@ -328,7 +335,7 @@ const SearchInputInteligente = ({
       });
     }
 
-    if (lowerTerm.includes('lessa') || lowerTerm.includes('joão') || lowerTerm.includes('maria')) {
+    if (acceptType('cliente') && (lowerTerm.includes('lessa') || lowerTerm.includes('joão') || lowerTerm.includes('maria'))) {
       suggestions.push({
         type: 'cliente',
         label: 'Cliente',
@@ -340,7 +347,7 @@ const SearchInputInteligente = ({
     }
 
     // Detecção para vale (sequência numérica)
-    if (/^\d+/.test(term)) {
+    if (acceptType('vale') && /^\d+/.test(term)) {
       suggestions.push({
         type: 'vale',
         label: 'Vale',
@@ -351,7 +358,7 @@ const SearchInputInteligente = ({
       });
     }
 
-    if (lowerTerm.includes('motorista') || lowerTerm.includes('joão') || lowerTerm.includes('carlos')) {
+    if (acceptType('motorista') && (lowerTerm.includes('motorista') || lowerTerm.includes('joão') || lowerTerm.includes('carlos'))) {
       suggestions.push({
         type: 'motorista',
         label: 'Motorista',
@@ -362,7 +369,7 @@ const SearchInputInteligente = ({
       });
     }
 
-    if (lowerTerm.includes('abc') || lowerTerm.includes('def') || /[A-Z]{3}[0-9]{4}/.test(term.toUpperCase())) {
+    if (acceptType('placa') && (lowerTerm.includes('abc') || lowerTerm.includes('def') || /[A-Z]{3}[0-9]{4}/.test(term.toUpperCase()))) {
       suggestions.push({
         type: 'placa',
         label: 'Placa',

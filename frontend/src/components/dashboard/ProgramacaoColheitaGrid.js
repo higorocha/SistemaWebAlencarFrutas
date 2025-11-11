@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Card, Typography, Row, Col, Space, Tag, Tooltip, Tabs, Button } from 'antd';
-import { CalendarOutlined, UserOutlined, AppleOutlined, NumberOutlined, ClockCircleOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { CalendarOutlined, UserOutlined, NumberOutlined, ClockCircleOutlined, LeftOutlined, RightOutlined, FullscreenOutlined, FullscreenExitOutlined } from '@ant-design/icons';
 import styled from 'styled-components';
 import useResponsive from '../../hooks/useResponsive';
 import { formatarData } from '../../utils/dateUtils';
@@ -8,6 +8,7 @@ import { intFormatter, capitalizeName, capitalizeNameShort } from '../../utils/f
 import { getFruitIcon } from '../../utils/fruitIcons';
 import './ProgramacaoColheitaGrid.css';
 import ColheitasDiaModal from './ColheitasDiaModal';
+import StyledTabs from '../common/StyledTabs';
 
 const { Text, Title } = Typography;
 
@@ -21,70 +22,6 @@ const STATUS_COLHEITAS_CONCLUIDAS = [
   'PAGAMENTO_REALIZADO',
   'PEDIDO_FINALIZADO'
 ];
-
-// Styled components para as abas
-const StyledTabs = styled(Tabs)`
-  .ant-tabs-nav {
-    margin-bottom: 0 !important;
-  }
-
-  .ant-tabs-tab {
-    padding: 10px 20px !important;
-    font-size: 14px !important;
-    transition: all 0.2s ease !important;
-    border-radius: 8px 8px 0 0 !important;
-    border-bottom: 2px solid transparent !important; // Reserva espaço para a borda no hover
-  }
-
-  /* Aba Semana Atual (primeira aba) */
-  .ant-tabs-tab:first-child {
-    .ant-tabs-tab-btn {
-      color: #059669 !important; // Cor padrão verde
-    }
-
-    &:hover {
-      border-bottom-color: #059669 !important; // Borda verde no hover
-    }
-
-    &.ant-tabs-tab-active {
-      border-color: #e8e8e8 !important;
-      border-bottom-color: #fff !important;
-
-      .ant-tabs-tab-btn {
-        font-weight: 600 !important;
-      }
-    }
-  }
-
-  /* Aba Colheitas Atrasadas (segunda aba) */
-  .ant-tabs-tab:nth-child(2) {
-    .ant-tabs-tab-btn {
-      color: #dc2626 !important; // Cor padrão vermelha
-    }
-
-    &:hover {
-      border-bottom-color: #dc2626 !important; // Borda vermelha no hover
-    }
-
-    &.ant-tabs-tab-active {
-      border-color: #e8e8e8 !important;
-      border-bottom-color: #fff !important;
-
-      .ant-tabs-tab-btn {
-        font-weight: 600 !important;
-      }
-    }
-  }
-
-  .ant-tabs-content-holder {
-    padding: 16px 0 0 0 !important;
-    border-top: 1px solid #e8e8e8;
-  }
-
-  .ant-tabs-content {
-    padding: 0 !important;
-  }
-`;
 
 // Bolinha pulsante vermelha - MAIOR
 const PulsingBadge = styled.div`
@@ -122,10 +59,17 @@ const ProgramacaoColheitaGrid = ({
   selectedWeek,
   onNavigateWeek,
   onResetWeek,
+  isFullscreen = false,
+  onToggleFullscreen,
 }) => {
   const { isMobile } = useResponsive();
   const [modalDiaAberto, setModalDiaAberto] = useState(false);
   const [diaSelecionado, setDiaSelecionado] = useState(null);
+  const handleToggleFullscreen = useCallback(() => {
+    if (typeof onToggleFullscreen === 'function') {
+      onToggleFullscreen();
+    }
+  }, [onToggleFullscreen]);
 
   const handleAbrirModalDia = useCallback((dadosDia) => {
     setDiaSelecionado(dadosDia);
@@ -394,10 +338,15 @@ const ProgramacaoColheitaGrid = ({
             </Text>
           </div>
           {item.numeroPedido && (
-            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '2px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', paddingLeft: '2px', gap: 2 }}>
               <Text style={{ fontSize: '11px', color: '#8c8c8c', fontWeight: 500 }}>
                 #{item.numeroPedido}
               </Text>
+              {item.placaPrimaria && (
+                <Text style={{ fontSize: '11px', color: '#8c8c8c', fontWeight: 500 }}>
+                  🚚 {item.placaPrimaria}
+                </Text>
+              )}
             </div>
           )}
         </div>
@@ -496,6 +445,8 @@ const ProgramacaoColheitaGrid = ({
       label: statusConfig.label || dataFormatada
     };
     
+    const cardHeight = isFullscreen ? (isMobile ? 840 : 1080) : (isMobile ? 350 : 400);
+
     return (
       <Col
         key={dataStr}
@@ -513,9 +464,9 @@ const ProgramacaoColheitaGrid = ({
             backgroundColor: statusConfig.cor,
             borderColor: statusConfig.border,
             borderWidth: '2px',
-            height: isMobile ? '350px' : '400px',
-            minHeight: isMobile ? '350px' : '400px',
-            maxHeight: isMobile ? '350px' : '400px',
+            height: `${cardHeight}px`,
+            minHeight: `${cardHeight}px`,
+            maxHeight: `${cardHeight}px`,
             cursor: 'pointer',
             transition: 'box-shadow 0.2s ease, transform 0.2s ease'
           }}
@@ -662,8 +613,12 @@ const ProgramacaoColheitaGrid = ({
     });
   }
 
+  const gridWrapperStyle = isFullscreen
+    ? { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }
+    : {};
+
   return (
-    <div className="programacao-colheita-grid">
+    <div className={`programacao-colheita-grid${isFullscreen ? ' fullscreen' : ''}`} style={gridWrapperStyle}>
       <div
         className="grid-header"
         style={{
@@ -788,6 +743,31 @@ const ProgramacaoColheitaGrid = ({
                 justifyContent: 'center',
               }}
             />
+            <Tooltip
+              title={isFullscreen ? 'Fechar tela cheia' : 'Expandir para tela cheia'}
+            >
+              <Button
+                onClick={handleToggleFullscreen}
+                size="small"
+                style={{
+                  backgroundColor: isFullscreen ? '#047857' : '#f8f9fa',
+                  borderColor: isFullscreen ? '#047857' : '#dee2e6',
+                  color: isFullscreen ? '#ffffff' : '#495057',
+                  width: isMobile ? '26px' : '30px',
+                  height: isMobile ? '24px' : '28px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                }}
+                icon={isFullscreen ? (
+                  <FullscreenExitOutlined style={{ fontSize: isMobile ? '12px' : '14px' }} />
+                ) : (
+                  <FullscreenOutlined style={{ fontSize: isMobile ? '12px' : '14px' }} />
+                )}
+              />
+            </Tooltip>
         </Space>
       </div>
 
@@ -815,6 +795,7 @@ const ProgramacaoColheitaGrid = ({
           items={tabItems}
         />
       )}
+
       <ColheitasDiaModal
         open={modalDiaAberto}
         onClose={handleFecharModalDia}

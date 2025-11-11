@@ -40,7 +40,7 @@ import {
 import axiosInstance from "../api/axiosConfig";
 import { useTheme } from '@mui/material/styles';
 import usePedidoStatusColors from "../hooks/usePedidoStatusColors";
-import  CentralizedLoader  from "../components/common/loaders/CentralizedLoader";
+import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
 import PagamentosPendentesModal from "../components/dashboard/PagamentosPendentesModal";
 import PagamentosEfetuadosModal from "../components/dashboard/PagamentosEfetuadosModal";
 import ModalDetalhesSemana from "../components/producao/ModalDetalhesSemana";
@@ -153,6 +153,7 @@ const CardStyled = styled(Card)`
   box-shadow: 0 2px 5px rgba(0,0,0,0.15), 0 2px 10px rgba(0,0,0,0.05);
   height: 100%;
   transition: transform 0.2s ease-in-out;
+  position: relative;
   
   &:hover {
     transform: translateY(-2px);
@@ -223,6 +224,7 @@ const Dashboard = () => {
 
     // Pagamentos efetuados
     pagamentosEfetuados: [],
+    pagamentosFornecedores: [],
 
     // Alertas - apenas esta seção mantém dados mock
     alertas: {
@@ -236,8 +238,16 @@ const Dashboard = () => {
   const colorColheita = getStatusConfig('AGUARDANDO_COLHEITA')?.color || theme.palette.warning.main;
   const colorPrecificacao = getStatusConfig('AGUARDANDO_PRECIFICACAO')?.color || theme.palette.secondary.main;
   const colorPagamento = getStatusConfig('AGUARDANDO_PAGAMENTO')?.color || theme.palette.warning.dark;
+  const [mostrarFaturamento, setMostrarFaturamento] = useState({ total: true, aberto: true });
 
   // Placeholder para futuros estilos locais
+
+  const toggleMostrarFaturamento = (campo) => {
+    setMostrarFaturamento((prev) => ({
+      ...prev,
+      [campo]: !prev[campo],
+    }));
+  };
 
   // Funções de navegação para os cards
   const handleNavigateToClientes = () => {
@@ -285,6 +295,7 @@ const Dashboard = () => {
         programacaoColheita: backendData.programacaoColheita || [],
         pagamentosPendentes: backendData.pagamentosPendentes || [],
         pagamentosEfetuados: backendData.pagamentosEfetuados || [],
+        pagamentosFornecedores: backendData.pagamentosFornecedores || [],
 
         // Alertas - apenas esta seção mantém dados mock
         alertas: {
@@ -514,6 +525,7 @@ const Dashboard = () => {
   const dadosPagamentosAtuais = isModoPendentes 
     ? dashboardData.pagamentosPendentes 
     : dashboardData.pagamentosEfetuados;
+  const dadosFornecedores = dashboardData.pagamentosFornecedores || [];
 
 
   useEffect(() => {
@@ -634,9 +646,19 @@ const Dashboard = () => {
               padding: '8px',
               minHeight: '100px'
             }}>
-              <DollarOutlined style={{ fontSize: '28px', color: '#52c41a', marginBottom: '8px' }} />
+              <div style={{ position: 'relative', width: '100%', marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+                <DollarOutlined style={{ fontSize: '28px', color: '#52c41a' }} />
+                <Button
+                  type="text"
+                  icon={<Icon icon={mostrarFaturamento.total ? "mdi:eye-off-outline" : "mdi:eye-outline"} />}
+                  onClick={() => toggleMostrarFaturamento('total')}
+                  style={{ position: 'absolute', right: 0, top: -6, color: '#52c41a' }}
+                />
+              </div>
               <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#52c41a', lineHeight: 1.2, marginBottom: '6px' }}>
-                {dashboardData.faturamentoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {mostrarFaturamento.total
+                  ? dashboardData.faturamentoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                  : '••••••••'}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
                 Faturamento Total
@@ -654,9 +676,19 @@ const Dashboard = () => {
               padding: '8px',
               minHeight: '100px'
             }}>
-              <DollarOutlined style={{ fontSize: '28px', color: '#faad14', marginBottom: '8px' }} />
+              <div style={{ position: 'relative', width: '100%', marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+                <DollarOutlined style={{ fontSize: '28px', color: '#faad14' }} />
+                <Button
+                  type="text"
+                  icon={<Icon icon={mostrarFaturamento.aberto ? "mdi:eye-off-outline" : "mdi:eye-outline"} />}
+                  onClick={() => toggleMostrarFaturamento('aberto')}
+                  style={{ position: 'absolute', right: 0, top: -6, color: '#faad14' }}
+                />
+              </div>
               <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#faad14', lineHeight: 1.2, marginBottom: '6px' }}>
-                {dashboardData.faturamentoAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {mostrarFaturamento.aberto
+                  ? dashboardData.faturamentoAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                  : '••••••••'}
               </div>
               <div style={{ fontSize: '0.6875rem', color: '#8c8c8c', textAlign: 'center', fontWeight: '400' }}>
                 Faturamento Aberto
@@ -771,6 +803,12 @@ const Dashboard = () => {
         <Row gutter={[16, 16]} style={{ marginBottom: '32px' }}>
           <Col xs={24} sm={12} md={8} lg={4}>
             <CardStyled>
+              <Button
+                type="text"
+                icon={<Icon icon={mostrarFaturamento.total ? "mdi:eye-off-outline" : "mdi:eye-outline"} />}
+                onClick={() => toggleMostrarFaturamento('total')}
+                style={{ position: 'absolute', right: 8, top: 8, color: '#52c41a' }}
+              />
               <Statistic
                 title="Faturamento Total"
                 value={dashboardData.faturamentoTotal}
@@ -781,7 +819,11 @@ const Dashboard = () => {
                   fontSize: '1.25rem',
                   fontWeight: 'bold'
                 }}
-                formatter={value => value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                formatter={value =>
+                  mostrarFaturamento.total
+                    ? Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                    : '••••••••'
+                }
               />
               <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
                 Receita consolidada
@@ -791,6 +833,12 @@ const Dashboard = () => {
 
           <Col xs={24} sm={12} md={8} lg={4}>
             <CardStyled>
+              <Button
+                type="text"
+                icon={<Icon icon={mostrarFaturamento.aberto ? "mdi:eye-off-outline" : "mdi:eye-outline"} />}
+                onClick={() => toggleMostrarFaturamento('aberto')}
+                style={{ position: 'absolute', right: 8, top: 8, color: '#faad14' }}
+              />
               <Statistic
                 title="Faturamento Aberto"
                 value={dashboardData.faturamentoAberto}
@@ -801,7 +849,11 @@ const Dashboard = () => {
                   fontSize: '1.25rem',
                   fontWeight: 'bold'
                 }}
-                formatter={value => value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                formatter={value =>
+                  mostrarFaturamento.aberto
+                    ? Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                    : '••••••••'
+                }
               />
               <Typography.Text type="secondary" style={{ fontSize: '0.6875rem' }}>
                 Pedidos não pagos
@@ -999,6 +1051,7 @@ const Dashboard = () => {
           <PagamentosSection
             modoPagamentos={modoPagamentos}
             dadosPagamentosAtuais={dadosPagamentosAtuais}
+            dadosFornecedores={dadosFornecedores}
             loadingPagamentosEfetuados={loadingPagamentosEfetuados}
             erroPagamentosEfetuados={erroPagamentosEfetuados}
             onToggleModo={toggleModoPagamentos}

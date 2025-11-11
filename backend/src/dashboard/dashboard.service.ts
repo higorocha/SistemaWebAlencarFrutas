@@ -23,7 +23,8 @@ export class DashboardService {
       programacaoColheita,
       previsoesBanana,
       pagamentosPendentes,
-      pagamentosEfetuados
+      pagamentosEfetuados,
+      pagamentosFornecedores
     ] = await Promise.all([
       this.getFaturamentoTotal(),
       this.getFaturamentoAberto(),
@@ -37,7 +38,8 @@ export class DashboardService {
       this.getProgramacaoColheita(),
       this.getPrevisoesBanana(),
       this.getPagamentosPendentes(),
-      this.getPagamentosEfetuados()
+      this.getPagamentosEfetuados(),
+      this.getFornecedoresColheitas()
     ]);
 
     const result = {
@@ -53,7 +55,8 @@ export class DashboardService {
       programacaoColheita,
       previsoesBanana,
       pagamentosPendentes,
-      pagamentosEfetuados
+      pagamentosEfetuados,
+      pagamentosFornecedores
     };
 
 
@@ -265,6 +268,7 @@ export class DashboardService {
         programacao.push({
           pedidoId: pedido.id,
           numeroPedido: pedido.numeroPedido, // Adicionado para exibição no frontend
+          placaPrimaria: pedido.placaPrimaria ?? undefined,
           cliente: clienteNome,
           fruta: frutaPedido.fruta.nome,
           quantidadePrevista: frutaPedido.quantidadePrevista,
@@ -623,6 +627,165 @@ export class DashboardService {
 
     } catch (error) {
       console.error('Erro ao buscar pagamentos efetuados:', error);
+      return [];
+    }
+  }
+
+  private async getFornecedoresColheitas(): Promise<any[]> {
+    try {
+      const fornecedores = await this.prisma.fornecedor.findMany({
+        where: {
+          areas: {
+            some: {
+              frutasPedidosAreas: {
+                some: {
+                  areaFornecedorId: {
+                    not: null,
+                  },
+                },
+              },
+            },
+          },
+        },
+        include: {
+          areas: {
+            include: {
+              frutasPedidosAreas: {
+                include: {
+                  frutaPedido: {
+                    include: {
+                      fruta: {
+                        select: {
+                          id: true,
+                          nome: true,
+                        },
+                      },
+                      pedido: {
+                        select: {
+                          id: true,
+                          numeroPedido: true,
+                          valorFinal: true,
+                          status: true,
+                          dataColheita: true,
+                          cliente: {
+                            select: {
+                              nome: true,
+                              razaoSocial: true,
+                            },
+                          },
+                        },
+                      },
+                      areas: {
+                        select: {
+                          id: true,
+                          areaFornecedorId: true,
+                          quantidadeColhidaUnidade1: true,
+                          quantidadeColhidaUnidade2: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const fornecedoresComDados = fornecedores.map((fornecedor) => {
+        const detalhes = [] as Array<{ pedidoId: number; pedidoNumero: string; cliente: string; frutaId: number; fruta: string; quantidade: number; unidade: string; valor: number; valorTotalFruta: number; areaNome: string; statusPedido: string; dataColheita?: Date }>;
+
+        fornecedor.areas.forEach((area) => {
+          area.frutasPedidosAreas.forEach((relacaoArea) => {
+            if (!relacaoArea.areaFornecedorId || !relacaoArea.frutaPedido) {
+              return;
+            }
+
+            const frutaPedido = relacaoArea.frutaPedido;
+            const pedido = frutaPedido.pedido;
+            if (!pedido) {
+              return;
+            }
+
+            const clienteNome = pedido.cliente?.razaoSocial || pedido.cliente?.nome || 'Cliente não informado';
+            const frutaNome = frutaPedido.fruta?.nome || 'Fruta não identificada';
+            const unidade = frutaPedido.unidadeMedida1;
+
+            const quantidadeArea =
+              relacaoArea.quantidadeColhidaUnidade1 ??
+              relacaoArea.quantidadeColhidaUnidade2 ??
+              frutaPedido.quantidadeReal ??
+              frutaPedido.quantidadePrecificada ??
+              frutaPedido.quantidadePrevista ??
+              0;
+
+            const somaAreasRelacionadas = frutaPedido.areas.reduce((acc, areaRelacionada) => {
+              const quantidadeRelacionada =
+                areaRelacionada.quantidadeColhidaUnidade1 ??
+                areaRelacionada.quantidadeColhidaUnidade2 ??
+                0;
+              return acc + quantidadeRelacionada;
+            }, 0);
+
+            const quantidadeReferencia =
+              (frutaPedido.quantidadeReal ?? frutaPedido.quantidadePrecificada ?? frutaPedido.quantidadePrevista ?? somaAreasRelacionadas) || 0;
+
+            const valorTotalFruta = frutaPedido.valorTotal ?? 0;
+            let valorProporcional = 0;
+            if (valorTotalFruta > 0 && quantidadeReferencia > 0) {
+              valorProporcional = (valorTotalFruta * quantidadeArea) / quantidadeReferencia;
+            }
+
+            detalhes.push({
+              pedidoId: pedido.id,
+              pedidoNumero: pedido.numeroPedido,
+              cliente: clienteNome,
+              frutaId: frutaPedido.frutaId,
+              fruta: frutaNome,
+              quantidade: Number(quantidadeArea) || 0,
+              unidade,
+              valor: Number(valorProporcional.toFixed(2)),
+              valorTotalFruta: Number(valorTotalFruta),
+              areaNome: area.nome,
+              statusPedido: pedido.status,
+              dataColheita: pedido.dataColheita ?? undefined,
+            });
+          });
+        });
+
+        if (detalhes.length === 0) {
+          return null;
+        }
+
+        const quantidadePedidos = new Set(detalhes.map((d) => d.pedidoId)).size;
+        const quantidadeFrutas = new Set(detalhes.map((d) => d.frutaId)).size;
+        const quantidadeAreas = new Set(detalhes.map((d) => d.areaNome)).size;
+        const totalValor = detalhes.reduce((acc, item) => acc + (item.valor || 0), 0);
+        const totalQuantidade = detalhes.reduce((acc, item) => acc + (item.quantidade || 0), 0);
+
+        return {
+          id: fornecedor.id,
+          nomeFornecedor: fornecedor.nome,
+          quantidadePedidos,
+          quantidadeFrutas,
+          quantidadeAreas,
+          totalValor: Number(totalValor.toFixed(2)),
+          totalQuantidade: Number(totalQuantidade.toFixed(2)),
+          detalhes: detalhes.map((d) => ({
+            ...d,
+            quantidade: Number(d.quantidade.toFixed(2)),
+            valor: Number(d.valor.toFixed(2)),
+            valorTotalFruta: Number(d.valorTotalFruta.toFixed(2)),
+            dataColheita: d.dataColheita ? d.dataColheita.toISOString() : undefined,
+          })),
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .sort((a, b) => b.totalValor - a.totalValor);
+
+      return fornecedoresComDados;
+    } catch (error) {
+      console.error('Erro ao buscar dados de fornecedores para a dashboard:', error);
       return [];
     }
   }

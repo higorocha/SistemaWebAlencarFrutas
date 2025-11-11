@@ -1,4 +1,4 @@
-// src/components/pedidos/PagamentosAutomaticosModal.js
+﻿// src/components/pedidos/PagamentosAutomaticosModal.js
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Modal, Table, Space, Typography, Tag, Button, Row, Col, Card, Statistic, Empty, Spin, DatePicker, Select, Divider, Tooltip } from "antd";
@@ -30,6 +30,14 @@ import moment from "moment";
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 const { Option } = Select;
+
+const STATUS_VINCULACAO = [
+  "PRECIFICACAO_REALIZADA",
+  "AGUARDANDO_PAGAMENTO",
+  "PAGAMENTO_PARCIAL",
+  "PAGAMENTO_REALIZADO",
+  "PEDIDO_FINALIZADO",
+];
 
 const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   // Hook de responsividade
@@ -307,11 +315,11 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
 
       const totalClientes = Array.isArray(clientesComLancamentos) ? clientesComLancamentos.length : 0;
 
-      const partesMensagem: string[] = [];
+      const partesMensagem = [];
       const labelSalvos = totalSalvos === 1 ? 'novo lançamento salvo' : 'novos lançamentos salvos';
       partesMensagem.push(`${totalSalvos} ${labelSalvos}`);
 
-      const detalhesSalvos: string[] = [];
+      const detalhesSalvos = [];
       if (totalSalvosComClienteIdentificado > 0) {
         detalhesSalvos.push(`${totalSalvosComClienteIdentificado} com cliente`);
       }
@@ -424,7 +432,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   const carregarPedidosParaLancamento = useCallback(async (lancamento, clienteRelacionado) => {
     setLoadingPedidosVinculacao(true);
     try {
-      const statuses = 'PRECIFICACAO_REALIZADA,AGUARDANDO_PAGAMENTO,PAGAMENTO_PARCIAL';
+      const statusCliente = STATUS_VINCULACAO.join(",");
+      const paramsBase = { status: statusCliente };
       const clienteId = clienteRelacionado?.id
         || lancamento?.cliente?.id
         || lancamento?.clienteId
@@ -434,11 +443,15 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       let response;
       if (clienteId) {
         response = await axiosInstance.get(`/api/pedidos/cliente/${clienteId}`, {
-          params: { status: statuses },
+          params: paramsBase,
         });
       } else {
         response = await axiosInstance.get(`/api/pedidos`, {
-          params: { status: statuses },
+          params: {
+            status: STATUS_VINCULACAO.join(","),
+            page: 1,
+            limit: 1000,
+          },
         });
       }
 
@@ -703,9 +716,7 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       render: (data) => (
         <Space>
           <CalendarOutlined style={{ color: "#059669", fontSize: "0.75rem" }} />
-          <Text style={{ fontSize: "0.75rem" }}>
-            {formatarDataBR(data)}
-          </Text>
+          <Text style={{ fontSize: "0.75rem" }}>{formatarDataBR(data)}</Text>
         </Space>
       ),
       width: "12%",
@@ -738,9 +749,7 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       dataIndex: "textoDescricaoHistorico",
       key: "textoDescricaoHistorico",
       render: (text) => (
-        <Text style={{ fontSize: "0.75rem", color: "#666" }}>
-          {text || "-"}
-        </Text>
+        <Text style={{ fontSize: "0.75rem", color: "#666" }}>{text || "-"}</Text>
       ),
       width: "14%",
     },
@@ -749,9 +758,7 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       dataIndex: "nomeContrapartida",
       key: "nomeContrapartida",
       render: (nome) => (
-        <Text style={{ fontSize: "0.75rem", color: "#333" }}>
-          {nome || "-"}
-        </Text>
+        <Text style={{ fontSize: "0.75rem", color: "#333" }}>{nome || "-"}</Text>
       ),
       width: "18%",
     },
@@ -766,13 +773,13 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       key: "pedido",
       render: (_, record) => (
         record.pedido ? (
-          <Text 
-            strong 
-            style={{ 
-              color: "#059669", 
+          <Text
+            strong
+            style={{
+              color: "#059669",
               fontSize: "0.75rem",
               cursor: "pointer",
-              textDecoration: "underline"
+              textDecoration: "underline",
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -794,10 +801,7 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       key: "acao",
       width: "10%",
       render: (_, record) => {
-        // Verificar se tem cliente associado
-        const clienteDoLancamento = record.cliente || record.pedido?.cliente;
-        
-        if (!record.vinculadoPedido && clienteDoLancamento) {
+        if (!record.vinculadoPedido) {
           return (
             <Button
               type="primary"
@@ -805,47 +809,33 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
               icon={<LinkOutlined />}
               onClick={() => handleAbrirVinculacaoManual(record)}
               style={{
-                backgroundColor: '#059669',
-                borderColor: '#047857',
-                fontSize: '0.75rem',
-                height: '28px',
-                padding: '0 8px'
+                backgroundColor: "#059669",
+                borderColor: "#047857",
+                fontSize: "0.75rem",
+                height: "28px",
+                padding: "0 8px",
               }}
             >
               Vincular
             </Button>
           );
-        } else if (record.vinculadoPedido) {
-          return (
-            <Tag
-              color="success"
-              style={{
-                fontSize: '0.65rem',
-                padding: '2px 8px',
-                borderRadius: '4px'
-              }}
-            >
-              Vinculado
-            </Tag>
-          );
-        } else {
-          return (
-            <Tag
-              color="default"
-              style={{
-                fontSize: '0.65rem',
-                padding: '2px 8px',
-                borderRadius: '4px'
-              }}
-            >
-              Sem cliente
-            </Tag>
-          );
         }
+
+        return (
+          <Tag
+            color="success"
+            style={{
+              fontSize: "0.65rem",
+              padding: "2px 8px",
+              borderRadius: "4px",
+            }}
+          >
+            Vinculado
+          </Tag>
+        );
       },
     },
   ];
-
   return (
     <Modal
       title={
@@ -1018,6 +1008,7 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
               onSuggestionSelect={handleClienteSelect}
               size={isMobile ? "middle" : "large"}
               style={{ width: "100%", marginBottom: 0 }}
+              allowedTypes={['cliente']}
             />
             {/* Chips de filtros aplicados */}
             {clientesFiltrosAplicados.length > 0 && (
@@ -1297,4 +1288,12 @@ PagamentosAutomaticosModal.propTypes = {
 PagamentosAutomaticosModal.displayName = 'PagamentosAutomaticosModal';
 
 export default PagamentosAutomaticosModal;
+
+
+
+
+
+
+
+
 
