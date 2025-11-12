@@ -1,3 +1,5 @@
+// src/components/dashboard/FornecedorColheitaPagamentosModal.js
+
 import React, { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import {
@@ -135,7 +137,7 @@ const parseLocaleNumber = (valor) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const FornecedorColheitaModal = ({ open, fornecedor, onClose }) => {
+const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
   const { isMobile } = useResponsive();
   const [filtroBusca, setFiltroBusca] = useState("");
   const [filtroData, setFiltroData] = useState(null);
@@ -904,7 +906,7 @@ const FornecedorColheitaModal = ({ open, fornecedor, onClose }) => {
   );
 };
 
-FornecedorColheitaModal.propTypes = {
+FornecedorColheitaPagamentosModal.propTypes = {
   open: PropTypes.bool.isRequired,
   fornecedor: PropTypes.shape({
     id: PropTypes.number,
@@ -934,9 +936,9 @@ FornecedorColheitaModal.propTypes = {
   onClose: PropTypes.func.isRequired,
 };
 
-FornecedorColheitaModal.defaultProps = {
+FornecedorColheitaPagamentosModal.defaultProps = {
   fornecedor: null,
 };
 
-export default FornecedorColheitaModal;
+export default FornecedorColheitaPagamentosModal;
 

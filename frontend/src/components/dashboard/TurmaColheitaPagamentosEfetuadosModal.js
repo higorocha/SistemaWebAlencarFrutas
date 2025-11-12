@@ -1,4 +1,4 @@
-// src/components/dashboard/PagamentosEfetuadosModal.js
+// src/components/dashboard/TurmaColheitaPagamentosEfetuadosModal.js
 
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
@@ -35,7 +35,7 @@ import {
 import styled from "styled-components";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
-import { formatCurrency } from "../../utils/formatters";
+import { formatCurrency, formatarDataBR } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 
@@ -56,9 +56,9 @@ const SpinnerContainer = styled.div`
   }
 `;
 
-// Styled component removido - usando cor padrão igual ao PagamentosPendentesModal
+// Styled component removido - usando cor padrão igual ao TurmaColheitaPagamentosModal
 
-const PagamentosEfetuadosModal = ({
+const TurmaColheitaPagamentosEfetuadosModal = ({
   open,
   onClose,
   turmaId,
@@ -197,7 +197,7 @@ const PagamentosEfetuadosModal = ({
       key: 'dataColheita',
       width: 140,
       render: (data) => (
-        data ? new Date(data).toLocaleDateString('pt-BR') : '-'
+        data ? formatarDataBR(data) : '-'
       ),
     },
     {
@@ -206,7 +206,7 @@ const PagamentosEfetuadosModal = ({
       key: 'dataPagamento',
       width: 140,
       render: (data) => (
-        data ? new Date(data).toLocaleDateString('pt-BR') : '-'
+        data ? formatarDataBR(data) : '-'
       ),
     },
     {
@@ -452,7 +452,7 @@ const PagamentosEfetuadosModal = ({
                             <HistoryOutlined style={{ color: '#059669', fontSize: '16px' }} />
                             <div>
                               <Text strong style={{ color: '#059669', fontSize: isMobile ? '14px' : '16px' }}>
-                                Pagamento em {new Date(pagamento.dataPagamento).toLocaleDateString('pt-BR')}
+                                Pagamento em {formatarDataBR(pagamento.dataPagamento)}
                               </Text>
                               <div style={{ fontSize: isMobile ? '12px' : '14px', color: '#666' }}>
                                 {pagamento.quantidadePedidos} pedido{pagamento.quantidadePedidos > 1 ? 's' : ''} • {pagamento.quantidadeFrutas} fruta{pagamento.quantidadeFrutas > 1 ? 's' : ''}
@@ -490,7 +490,7 @@ const PagamentosEfetuadosModal = ({
                       rowKey="id"
                       minWidthMobile={1200}
                       showScrollHint={true}
-                      // Sem styled component - usando cor padrão igual ao PagamentosPendentesModal
+                      // Sem styled component - usando cor padrão igual ao TurmaColheitaPagamentosModal
                     />
                   </div>
                 ))}
@@ -531,11 +531,11 @@ const PagamentosEfetuadosModal = ({
   );
 };
 
-PagamentosEfetuadosModal.propTypes = {
+TurmaColheitaPagamentosEfetuadosModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   turmaId: PropTypes.number,
   turmaNome: PropTypes.string,
 };
 
-export default PagamentosEfetuadosModal;
+export default TurmaColheitaPagamentosEfetuadosModal;

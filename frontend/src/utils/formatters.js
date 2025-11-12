@@ -117,15 +117,35 @@ export const formatarData = (notificacao) => {
   };
 
   // Função genérica para formatar qualquer data no padrão brasileiro
+  // Evita problemas de timezone extraindo apenas a parte da data (YYYY-MM-DD)
 export const formatarDataBR = (dataString) => {
   if (!dataString) return "N/A";
   
   try {
-    // Usar moment para formatação com configuração de fuso horário correto
-    const data = moment(dataString);
+    // Se for uma string de data com hora (ex: "2025-11-12 15:00:00")
+    // Extrair apenas a parte da data para evitar problemas de timezone
+    let dataParaFormatar = dataString;
+    
+    // Se contém espaço, extrair apenas a parte da data (antes do espaço)
+    if (typeof dataString === 'string' && dataString.includes(' ')) {
+      dataParaFormatar = dataString.split(' ')[0];
+    }
+    
+    // Usar moment para formatação
+    // Parsear como data local (não UTC) para evitar mudança de dia
+    const data = moment(dataParaFormatar, 'YYYY-MM-DD', true);
     
     if (!data.isValid()) {
-      return 'Data não disponível';
+      // Se falhar, tentar parsear como está (pode ser formato ISO)
+      const dataAlternativa = moment(dataString);
+      if (!dataAlternativa.isValid()) {
+        return 'Data não disponível';
+      }
+      // Formatar extraindo apenas ano, mês e dia para evitar timezone
+      const ano = dataAlternativa.year();
+      const mes = dataAlternativa.month() + 1; // month() retorna 0-11
+      const dia = dataAlternativa.date();
+      return `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
     }
     
     // Formatar no padrão brasileiro

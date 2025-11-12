@@ -41,8 +41,6 @@ import axiosInstance from "../api/axiosConfig";
 import { useTheme } from '@mui/material/styles';
 import usePedidoStatusColors from "../hooks/usePedidoStatusColors";
 import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
-import PagamentosPendentesModal from "../components/dashboard/PagamentosPendentesModal";
-import PagamentosEfetuadosModal from "../components/dashboard/PagamentosEfetuadosModal";
 import ModalDetalhesSemana from "../components/producao/ModalDetalhesSemana";
 import ColheitaModal from "../components/pedidos/ColheitaModal";
 import ProgramacaoColheitaGrid from "../components/dashboard/ProgramacaoColheitaGrid";
@@ -204,18 +202,6 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [bananaPrevisoes, setBananaPrevisoes] = useState([]);
   const [modoPagamentos, setModoPagamentos] = useState(PAGAMENTOS_MODOS.PENDENTES);
-  const [modalPagamentos, setModalPagamentos] = useState({
-    open: false,
-    turmaId: null,
-    turmaNome: null
-  });
-  
-  const [modalPagamentosEfetuados, setModalPagamentosEfetuados] = useState({
-    open: false,
-    turmaId: null,
-    turmaNome: null
-  });
-  
   const [modalSemana, setModalSemana] = useState({
     visible: false,
     dados: [],
@@ -364,48 +350,13 @@ const Dashboard = () => {
     }
   };
 
-  // Função para abrir modal de pagamentos
-  const abrirModalPagamentos = (turmaId, turmaNome) => {
-    setModalPagamentos({
-      open: true,
-      turmaId,
-      turmaNome
-    });
-  };
-
-  // Função para fechar modal de pagamentos
-  const fecharModalPagamentos = (houvePagamentos = false) => {
-    setModalPagamentos({
-      open: false,
-      turmaId: null,
-      turmaNome: null
-    });
-    // Atualizar dashboard apenas se houve pagamentos processados
-    if (houvePagamentos) {
-      fetchDashboardData();
-      // Resetar flag de carregamento dos pagamentos efetuados para forçar reload
-      setPagamentosEfetuadosCarregados(false);
-      setCacheTimestamp(null); // Resetar cache para forçar nova requisição
-      setErroPagamentosEfetuados(null); // Limpar qualquer erro anterior
-    }
-  };
-
-  // Função para abrir modal de pagamentos efetuados
-  const abrirModalPagamentosEfetuados = (turmaId, turmaNome) => {
-    setModalPagamentosEfetuados({
-      open: true,
-      turmaId,
-      turmaNome
-    });
-  };
-
-  // Função para fechar modal de pagamentos efetuados
-  const fecharModalPagamentosEfetuados = () => {
-    setModalPagamentosEfetuados({
-      open: false,
-      turmaId: null,
-      turmaNome: null
-    });
+  // Callback para quando pagamentos são processados na seção de pagamentos
+  const handlePagamentosProcessados = () => {
+    fetchDashboardData();
+    // Resetar flag de carregamento dos pagamentos efetuados para forçar reload
+    setPagamentosEfetuadosCarregados(false);
+    setCacheTimestamp(null); // Resetar cache para forçar nova requisição
+    setErroPagamentosEfetuados(null); // Limpar qualquer erro anterior
   };
 
   // Função para abrir modal de detalhes da semana
@@ -1091,13 +1042,12 @@ const Dashboard = () => {
             loadingPagamentosEfetuados={loadingPagamentosEfetuados}
             erroPagamentosEfetuados={erroPagamentosEfetuados}
             onToggleModo={toggleModoPagamentos}
-            onAbrirModalPagamentos={abrirModalPagamentos}
-            onAbrirModalPagamentosEfetuados={abrirModalPagamentosEfetuados}
             onTentarNovamente={() => {
               setErroPagamentosEfetuados(null);
               setPagamentosEfetuadosCarregados(false);
               toggleModoPagamentos();
             }}
+            onPagamentosProcessados={handlePagamentosProcessados}
           />
         </Col>
       </Row>
@@ -1111,23 +1061,6 @@ const Dashboard = () => {
           <AcoesRapidasSection />
         </Col>
       </Row>
-
-      {/* Modal de Pagamentos Pendentes */}
-      <PagamentosPendentesModal
-        open={modalPagamentos.open}
-        onClose={fecharModalPagamentos}
-        turmaId={modalPagamentos.turmaId}
-        turmaNome={modalPagamentos.turmaNome}
-        onPagamentosProcessados={() => fecharModalPagamentos(true)}
-      />
-
-      {/* Modal de Pagamentos Efetuados */}
-      <PagamentosEfetuadosModal
-        open={modalPagamentosEfetuados.open}
-        onClose={fecharModalPagamentosEfetuados}
-        turmaId={modalPagamentosEfetuados.turmaId}
-        turmaNome={modalPagamentosEfetuados.turmaNome}
-      />
 
       {/* Modal de Detalhes da Semana */}
       <ModalDetalhesSemana

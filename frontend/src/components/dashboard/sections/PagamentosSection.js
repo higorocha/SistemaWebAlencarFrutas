@@ -9,9 +9,11 @@ import {
 import { Icon } from '@iconify/react';
 import { styled } from 'styled-components';
 import useResponsive from '../../../hooks/useResponsive';
-import { capitalizeName, intFormatter } from '../../../utils/formatters';
+import { capitalizeName, intFormatter, formatarDataBR } from '../../../utils/formatters';
 import StyledTabs from '../../common/StyledTabs';
-import FornecedorColheitaModal from '../FornecedorColheitaModal';
+import FornecedorColheitaPagamentosModal from '../FornecedorColheitaPagamentosModal';
+import TurmaColheitaPagamentosModal from '../TurmaColheitaPagamentosModal';
+import TurmaColheitaPagamentosEfetuadosModal from '../TurmaColheitaPagamentosEfetuadosModal';
 
 const { Title, Text } = Typography;
 
@@ -60,19 +62,32 @@ const PagamentosSection = ({
   loadingPagamentosEfetuados,
   erroPagamentosEfetuados,
   onToggleModo,
-  onAbrirModalPagamentos,
-  onAbrirModalPagamentosEfetuados,
   onTentarNovamente,
+  onPagamentosProcessados,
 }) => {
   const { isMobile } = useResponsive();
   const isModoPendentes = modoPagamentos === 'pendentes';
   const [activeTab, setActiveTab] = React.useState('turmas');
+  
+  // Estados dos modais - todos gerenciados internamente
   const [modalFornecedor, setModalFornecedor] = React.useState({
     open: false,
     fornecedor: null,
   });
+  
+  const [modalPagamentos, setModalPagamentos] = React.useState({
+    open: false,
+    turmaId: null,
+    turmaNome: null,
+  });
+  
+  const [modalPagamentosEfetuados, setModalPagamentosEfetuados] = React.useState({
+    open: false,
+    turmaId: null,
+    turmaNome: null,
+  });
 
-  const headerTitle = '💰 Pagamentos Pendentes';
+  const headerTitle = '💰 Pagamentos';
 
   const contentHeight = isMobile ? '380px' : '460px';
 
@@ -178,10 +193,10 @@ const PagamentosSection = ({
                 }}
                 onClick={
                   isModoPendentes
-                    ? () => onAbrirModalPagamentos(item.id, item.nomeColhedor)
+                    ? () => handleAbrirModalPagamentos(item.id, item.nomeColhedor)
                     : () => {
                         const turmaId = parseInt(item.id.split('-')[0], 10);
-                        onAbrirModalPagamentosEfetuados(turmaId, item.nomeColhedor);
+                        handleAbrirModalPagamentosEfetuados(turmaId, item.nomeColhedor);
                       }
                 }
                 onMouseEnter={(e) => {
@@ -242,7 +257,7 @@ const PagamentosSection = ({
                       </div>
                       {!isModoPendentes && (
                         <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: '600' }}>
-                          💰 Pago em: {new Date(item.dataPagamento).toLocaleDateString('pt-BR')}
+                          💰 Pago em: {formatarDataBR(item.dataPagamento)}
                         </div>
                       )}
                       {!isMobile && item.chavePix && (
@@ -368,11 +383,10 @@ const PagamentosSection = ({
     isModoPendentes,
     isMobile,
     loadingPagamentosEfetuados,
-    onAbrirModalPagamentos,
-    onAbrirModalPagamentosEfetuados,
     onTentarNovamente,
   ]);
 
+  // Handlers para modais - todos padronizados com renderização condicional
   const handleAbrirFornecedor = React.useCallback((fornecedor) => {
     setModalFornecedor({
       open: true,
@@ -384,6 +398,42 @@ const PagamentosSection = ({
     setModalFornecedor({
       open: false,
       fornecedor: null,
+    });
+  }, []);
+
+  const handleAbrirModalPagamentos = React.useCallback((turmaId, turmaNome) => {
+    setModalPagamentos({
+      open: true,
+      turmaId,
+      turmaNome,
+    });
+  }, []);
+
+  const handleFecharModalPagamentos = React.useCallback((houvePagamentos = false) => {
+    setModalPagamentos({
+      open: false,
+      turmaId: null,
+      turmaNome: null,
+    });
+    // Notificar Dashboard se houve pagamentos processados
+    if (houvePagamentos && onPagamentosProcessados) {
+      onPagamentosProcessados();
+    }
+  }, [onPagamentosProcessados]);
+
+  const handleAbrirModalPagamentosEfetuados = React.useCallback((turmaId, turmaNome) => {
+    setModalPagamentosEfetuados({
+      open: true,
+      turmaId,
+      turmaNome,
+    });
+  }, []);
+
+  const handleFecharModalPagamentosEfetuados = React.useCallback(() => {
+    setModalPagamentosEfetuados({
+      open: false,
+      turmaId: null,
+      turmaNome: null,
     });
   }, []);
 
@@ -664,11 +714,33 @@ const PagamentosSection = ({
         items={tabItems}
       />
 
-      <FornecedorColheitaModal
-        open={modalFornecedor.open}
-        fornecedor={modalFornecedor.fornecedor}
-        onClose={handleFecharFornecedor}
-      />
+      {/* Modais de Pagamentos - Todos renderizados condicionalmente */}
+      {modalFornecedor.open && (
+        <FornecedorColheitaPagamentosModal
+          open={modalFornecedor.open}
+          fornecedor={modalFornecedor.fornecedor}
+          onClose={handleFecharFornecedor}
+        />
+      )}
+
+      {modalPagamentos.open && (
+        <TurmaColheitaPagamentosModal
+          open={modalPagamentos.open}
+          onClose={handleFecharModalPagamentos}
+          turmaId={modalPagamentos.turmaId}
+          turmaNome={modalPagamentos.turmaNome}
+          onPagamentosProcessados={() => handleFecharModalPagamentos(true)}
+        />
+      )}
+
+      {modalPagamentosEfetuados.open && (
+        <TurmaColheitaPagamentosEfetuadosModal
+          open={modalPagamentosEfetuados.open}
+          onClose={handleFecharModalPagamentosEfetuados}
+          turmaId={modalPagamentosEfetuados.turmaId}
+          turmaNome={modalPagamentosEfetuados.turmaNome}
+        />
+      )}
     </CardStyled>
   );
 };

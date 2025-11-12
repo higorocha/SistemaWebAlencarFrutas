@@ -1,4 +1,4 @@
-// src/components/dashboard/PagamentosPendentesModal.js
+// src/components/dashboard/TurmaColheitaPagamentosModal.js
 
 import React, { useState, useEffect, useMemo } from "react";
 import PropTypes from "prop-types";
@@ -121,7 +121,7 @@ const LinhaComAnimacao = styled.tr`
   `}
 `;
 
-const PagamentosPendentesModal = ({
+const TurmaColheitaPagamentosModal = ({
   open,
   onClose,
   turmaId,
@@ -1236,7 +1236,7 @@ const PagamentosPendentesModal = ({
   );
 };
 
-PagamentosPendentesModal.propTypes = {
+TurmaColheitaPagamentosModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   turmaId: PropTypes.number,
@@ -1244,4 +1244,4 @@ PagamentosPendentesModal.propTypes = {
   onPagamentosProcessados: PropTypes.func,
 };
 
-export default PagamentosPendentesModal;
+export default TurmaColheitaPagamentosModal;
