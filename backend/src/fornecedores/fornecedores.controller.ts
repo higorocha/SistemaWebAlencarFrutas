@@ -43,6 +43,14 @@ export class FornecedoresController {
   // ENDPOINTS DE PAGAMENTOS (devem vir ANTES do GET :id para evitar conflito)
   // ========================================
 
+  @Get(':id/estatisticas')
+  @ApiOperation({ summary: 'Obter estatísticas detalhadas de colheitas de um fornecedor' })
+  @ApiResponse({ status: 200, description: 'Estatísticas do fornecedor obtidas com sucesso' })
+  @ApiResponse({ status: 404, description: 'Fornecedor não encontrado' })
+  getEstatisticas(@Param('id') id: string) {
+    return this.fornecedorPagamentosService.getEstatisticasPorFornecedor(+id);
+  }
+
   @Get(':id/colheitas-pagamentos')
   @ApiOperation({ summary: 'Buscar colheitas e pagamentos de um fornecedor (endpoint para o modal)' })
   @ApiResponse({ status: 200, description: 'Dados de colheitas e pagamentos' })
@@ -57,6 +65,14 @@ export class FornecedoresController {
   @ApiResponse({ status: 404, description: 'Fornecedor não encontrado' })
   getPagamentosEfetuados(@Param('id') id: string): Promise<FornecedorPagamentoResponseDto[]> {
     return this.fornecedorPagamentosService.getPagamentosEfetuados(+id);
+  }
+
+  @Get(':id/pagamentos-efetuados')
+  @ApiOperation({ summary: 'Buscar pagamentos efetuados de um fornecedor agrupados por data de pagamento' })
+  @ApiResponse({ status: 200, description: 'Pagamentos efetuados agrupados por data de pagamento' })
+  @ApiResponse({ status: 404, description: 'Fornecedor não encontrado' })
+  getPagamentosEfetuadosAgrupados(@Param('id') id: string) {
+    return this.fornecedorPagamentosService.getPagamentosEfetuadosAgrupados(+id);
   }
 
   @Get(':id/pagamentos/:pagamentoId')

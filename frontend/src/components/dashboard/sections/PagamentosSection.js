@@ -12,6 +12,7 @@ import useResponsive from '../../../hooks/useResponsive';
 import { capitalizeName, intFormatter, formatarDataBR } from '../../../utils/formatters';
 import StyledTabs from '../../common/StyledTabs';
 import FornecedorColheitaPagamentosModal from '../FornecedorColheitaPagamentosModal';
+import FornecedorColheitaPagamentosEfetuadosModal from '../FornecedorColheitaPagamentosEfetuadosModal';
 import TurmaColheitaPagamentosModal from '../TurmaColheitaPagamentosModal';
 import TurmaColheitaPagamentosEfetuadosModal from '../TurmaColheitaPagamentosEfetuadosModal';
 
@@ -88,6 +89,12 @@ const PagamentosSection = ({
     open: false,
     turmaId: null,
     turmaNome: null,
+  });
+  
+  const [modalFornecedorEfetuados, setModalFornecedorEfetuados] = React.useState({
+    open: false,
+    fornecedorId: null,
+    fornecedorNome: null,
   });
 
   const headerTitle = '💰 Pagamentos';
@@ -449,6 +456,22 @@ const PagamentosSection = ({
     });
   }, []);
 
+  const handleAbrirModalFornecedorEfetuados = React.useCallback((fornecedorId, fornecedorNome) => {
+    setModalFornecedorEfetuados({
+      open: true,
+      fornecedorId,
+      fornecedorNome,
+    });
+  }, []);
+
+  const handleFecharModalFornecedorEfetuados = React.useCallback(() => {
+    setModalFornecedorEfetuados({
+      open: false,
+      fornecedorId: null,
+      fornecedorNome: null,
+    });
+  }, []);
+
   const renderFornecedoresContent = React.useCallback(() => {
     const isModoFornecedoresPendentes = modoFornecedores === 'pendentes';
 
@@ -458,11 +481,13 @@ const PagamentosSection = ({
       : [];
 
     // Modo Efetuados: Desagrupar pagamentos e criar lista individual de colheitas pagas
+    // Manter referência ao item agrupado original para poder abrir o modal
     const pagamentosIndividuais = !isModoFornecedoresPendentes
       ? dadosFornecedoresEfetuados.flatMap((pagamentoAgrupado) =>
           pagamentoAgrupado.detalhes.map((detalhe) => ({
             id: `${pagamentoAgrupado.id}-${detalhe.pedidoNumero}-${detalhe.fruta}`,
             nomeFornecedor: pagamentoAgrupado.nomeFornecedor,
+            fornecedorId: pagamentoAgrupado.fornecedorId || parseInt(pagamentoAgrupado.id.split('-')[0], 10),
             pedidoNumero: detalhe.pedidoNumero,
             cliente: detalhe.cliente,
             fruta: detalhe.fruta,
@@ -644,7 +669,9 @@ const PagamentosSection = ({
                     minHeight: isMobile ? '56px' : '72px',
                     display: 'flex',
                     alignItems: 'center',
+                    cursor: 'pointer',
                   }}
+                  onClick={() => handleAbrirModalFornecedorEfetuados(item.fornecedorId, item.nomeFornecedor)}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-2px)';
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
@@ -760,7 +787,7 @@ const PagamentosSection = ({
         )}
       </div>
     );
-  }, [contentHeight, dadosFornecedores, dadosFornecedoresEfetuados, modoFornecedores, handleAbrirFornecedor, isMobile]);
+  }, [contentHeight, dadosFornecedores, dadosFornecedoresEfetuados, modoFornecedores, handleAbrirFornecedor, handleAbrirModalFornecedorEfetuados, isMobile]);
 
   const tabItems = React.useMemo(
     () => [
@@ -886,6 +913,15 @@ const PagamentosSection = ({
           onClose={handleFecharModalPagamentosEfetuados}
           turmaId={modalPagamentosEfetuados.turmaId}
           turmaNome={modalPagamentosEfetuados.turmaNome}
+        />
+      )}
+
+      {modalFornecedorEfetuados.open && (
+        <FornecedorColheitaPagamentosEfetuadosModal
+          open={modalFornecedorEfetuados.open}
+          onClose={handleFecharModalFornecedorEfetuados}
+          fornecedorId={modalFornecedorEfetuados.fornecedorId}
+          fornecedorNome={modalFornecedorEfetuados.fornecedorNome}
         />
       )}
     </CardStyled>

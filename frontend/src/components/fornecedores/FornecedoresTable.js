@@ -1,6 +1,6 @@
 // src/components/fornecedores/FornecedoresTable.js
 
-import React from "react";
+import React, { useState } from "react";
 import { Dropdown, Button, Space, Tag, Empty, Typography, Tooltip } from "antd";
 import {
   EditOutlined,
@@ -11,10 +11,12 @@ import {
   MailOutlined,
   EnvironmentOutlined,
   TagOutlined,
+  BarChartOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import ResponsiveTable from "../common/ResponsiveTable";
 import { showNotification } from "../../config/notificationConfig";
+import EstatisticasFornecedorModal from "./EstatisticasFornecedorModal";
 
 const { Text } = Typography;
 
@@ -64,9 +66,43 @@ const FornecedoresTable = React.memo(({
   onPageChange,
   onShowSizeChange,
 }) => {
+  const [modalEstatisticas, setModalEstatisticas] = useState({
+    open: false,
+    fornecedorId: null,
+    fornecedorNome: "",
+  });
+
+  // Função para abrir modal de estatísticas
+  const handleVerEstatisticas = (fornecedor) => {
+    setModalEstatisticas({
+      open: true,
+      fornecedorId: fornecedor.id,
+      fornecedorNome: fornecedor.nome,
+    });
+  };
+
+  // Função para fechar modal de estatísticas
+  const handleFecharEstatisticas = () => {
+    setModalEstatisticas({
+      open: false,
+      fornecedorId: null,
+      fornecedorNome: "",
+    });
+  };
+
   // Função para criar o menu de ações
   const getMenuContent = (record) => {
     const menuItems = [
+      {
+        key: "estatisticas",
+        label: (
+          <Space>
+            <BarChartOutlined style={{ color: "#059669" }} />
+            <span style={{ color: "#333" }}>Colheitas</span>
+          </Space>
+        ),
+        onClick: () => handleVerEstatisticas(record),
+      },
       {
         key: "view",
         label: (
@@ -318,29 +354,39 @@ const FornecedoresTable = React.memo(({
   const paginatedData = fornecedores.slice(startIndex, endIndex);
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      dataSource={paginatedData}
-      rowKey="id"
-      loading={loading}
-      pagination={false}
-      minWidthMobile={1200}
-      showScrollHint={true}
-      size="middle"
-      bordered={true}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span style={{ color: "#8c8c8c", fontSize: "14px" }}>
-                Nenhum fornecedor encontrado
-              </span>
-            }
-          />
-        ),
-      }}
-    />
+    <>
+      <ResponsiveTable
+        columns={columns}
+        dataSource={paginatedData}
+        rowKey="id"
+        loading={loading}
+        pagination={false}
+        minWidthMobile={1200}
+        showScrollHint={true}
+        size="middle"
+        bordered={true}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <span style={{ color: "#8c8c8c", fontSize: "14px" }}>
+                  Nenhum fornecedor encontrado
+                </span>
+              }
+            />
+          ),
+        }}
+      />
+
+      {/* Modal de Estatísticas */}
+      <EstatisticasFornecedorModal
+        open={modalEstatisticas.open}
+        onClose={handleFecharEstatisticas}
+        fornecedorId={modalEstatisticas.fornecedorId}
+        fornecedorNome={modalEstatisticas.fornecedorNome}
+      />
+    </>
   );
 });
 

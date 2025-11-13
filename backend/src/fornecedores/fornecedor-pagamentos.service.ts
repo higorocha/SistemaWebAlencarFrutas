@@ -1060,5 +1060,470 @@ export class FornecedorPagamentosService {
       },
     };
   }
+
+  /**
+   * Buscar pagamentos efetuados de um fornecedor agrupados por data de pagamento
+   * Similar ao método getPagamentosEfetuadosTurma para turmas
+   */
+  async getPagamentosEfetuadosAgrupados(fornecedorId: number): Promise<any> {
+    try {
+      // Verificar se o fornecedor existe
+      const fornecedor = await this.prisma.fornecedor.findUnique({
+        where: { id: fornecedorId },
+        select: {
+          id: true,
+          nome: true,
+          cnpj: true,
+          cpf: true,
+        },
+      });
+
+      if (!fornecedor) {
+        throw new NotFoundException('Fornecedor não encontrado');
+      }
+
+      // Buscar todos os pagamentos efetuados do fornecedor
+      // dataPagamento é obrigatório no schema (não é opcional), então não precisa filtrar por not: null
+      const pagamentos = await this.prisma.fornecedorPagamento.findMany({
+        where: {
+          fornecedorId: fornecedorId,
+          status: StatusPagamentoFornecedor.PAGO,
+        },
+        include: {
+          fornecedor: {
+            select: {
+              id: true,
+              nome: true,
+              cnpj: true,
+              cpf: true,
+            },
+          },
+          areaFornecedor: {
+            select: {
+              id: true,
+              nome: true,
+            },
+          },
+          pedido: {
+            select: {
+              id: true,
+              numeroPedido: true,
+              cliente: {
+                select: {
+                  nome: true,
+                  razaoSocial: true,
+                },
+              },
+            },
+          },
+          fruta: {
+            select: {
+              id: true,
+              nome: true,
+            },
+          },
+        },
+        orderBy: {
+          dataPagamento: 'desc',
+        },
+      });
+
+      // Se não há pagamentos efetuados, retornar estrutura vazia
+      if (pagamentos.length === 0) {
+        return {
+          fornecedor: {
+            id: fornecedor.id,
+            nome: fornecedor.nome,
+            cnpj: fornecedor.cnpj || undefined,
+            cpf: fornecedor.cpf || undefined,
+          },
+          resumo: {
+            totalPago: 0,
+            quantidadeColheitas: 0,
+            quantidadePedidos: 0,
+            quantidadeFrutas: 0,
+          },
+          colheitas: [],
+        };
+      }
+
+      // Agrupar por data de pagamento
+      const pagamentosPorData = new Map<string, any>();
+      const frutas = new Set<string>();
+      const pedidos = new Set<string>();
+
+      for (const pagamento of pagamentos) {
+        // Verificar se as relações necessárias estão presentes
+        // dataPagamento sempre existe porque é obrigatório no schema quando status é PAGO
+        if (!pagamento.pedido || !pagamento.fruta || !pagamento.areaFornecedor) {
+          continue;
+        }
+
+        // Agrupar por data de pagamento (apenas a data, sem hora)
+        const dataPagamento = pagamento.dataPagamento.toISOString().split('T')[0];
+        const chave = `${dataPagamento}`;
+
+        if (!pagamentosPorData.has(chave)) {
+          pagamentosPorData.set(chave, {
+            dataPagamento: dataPagamento,
+            totalPago: 0,
+            quantidadePedidos: 0,
+            quantidadeFrutas: 0,
+            detalhes: [],
+            frutas: new Set<string>(),
+            pedidos: new Set<string>(),
+          });
+        }
+
+        const grupo = pagamentosPorData.get(chave);
+        grupo.totalPago += pagamento.valorTotal || 0;
+        grupo.pedidos.add(pagamento.pedido.numeroPedido);
+        grupo.frutas.add(pagamento.fruta.nome);
+        pedidos.add(pagamento.pedido.numeroPedido);
+        frutas.add(pagamento.fruta.nome);
+
+        grupo.detalhes.push({
+          id: pagamento.id,
+          pedidoNumero: pagamento.pedido.numeroPedido,
+          cliente: pagamento.pedido.cliente?.razaoSocial || pagamento.pedido.cliente?.nome || 'Cliente não informado',
+          fruta: pagamento.fruta.nome,
+          areaNome: pagamento.areaFornecedor.nome,
+          quantidadeColhida: pagamento.quantidade,
+          unidadeMedida: pagamento.unidadeMedida,
+          valorUnitario: pagamento.valorUnitario || undefined,
+          valorColheita: pagamento.valorTotal, // valorTotal do pagamento é o valor da colheita paga
+          dataColheita: pagamento.dataColheita?.toISOString(),
+          dataPagamento: pagamento.dataPagamento.toISOString(),
+          formaPagamento: pagamento.formaPagamento,
+          observacoes: pagamento.observacoes || undefined,
+        });
+      }
+
+      // Converter Sets para números e preparar dados finais
+      const colheitas: any[] = [];
+      let totalPago = 0;
+
+      for (const grupo of pagamentosPorData.values()) {
+        grupo.quantidadePedidos = grupo.pedidos.size;
+        grupo.quantidadeFrutas = grupo.frutas.size;
+        delete grupo.pedidos;
+        delete grupo.frutas;
+        totalPago += grupo.totalPago;
+        colheitas.push(grupo);
+      }
+
+      // Ordenar por data de pagamento (mais recentes primeiro)
+      colheitas.sort((a: any, b: any) => 
+        new Date(b.dataPagamento).getTime() - new Date(a.dataPagamento).getTime()
+      );
+
+      return {
+        fornecedor: {
+          id: fornecedor.id,
+          nome: fornecedor.nome,
+          cnpj: fornecedor.cnpj || undefined,
+          cpf: fornecedor.cpf || undefined,
+        },
+        resumo: {
+          totalPago,
+          quantidadeColheitas: colheitas.length,
+          quantidadePedidos: pedidos.size,
+          quantidadeFrutas: frutas.size,
+        },
+        colheitas,
+      };
+
+    } catch (error) {
+      console.error('Erro ao buscar pagamentos efetuados do fornecedor:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar estatísticas detalhadas de colheitas de um fornecedor
+   * Similar ao método getEstatisticasPorTurma para turmas
+   * Retorna todas as colheitas (precificadas, pagas e não precificadas)
+   */
+  async getEstatisticasPorFornecedor(fornecedorId: number) {
+    // Verificar se o fornecedor existe
+    const fornecedor = await this.prisma.fornecedor.findUnique({
+      where: { id: fornecedorId },
+      select: { id: true, nome: true },
+    });
+
+    if (!fornecedor) {
+      throw new NotFoundException('Fornecedor não encontrado');
+    }
+
+    // Buscar todas as colheitas do fornecedor (similar a getColheitasPagamentos)
+    const areas = await this.prisma.areaFornecedor.findMany({
+      where: { fornecedorId: fornecedorId },
+      include: {
+        frutasPedidosAreas: {
+          where: {
+            areaFornecedorId: { not: null },
+          },
+          include: {
+            frutaPedido: {
+              include: {
+                fruta: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    cultura: {
+                      select: {
+                        id: true,
+                        descricao: true,
+                      },
+                    },
+                  },
+                },
+                pedido: {
+                  select: {
+                    id: true,
+                    numeroPedido: true,
+                    status: true,
+                    dataColheita: true,
+                  },
+                },
+                areas: {
+                  select: {
+                    id: true,
+                    areaFornecedorId: true,
+                    quantidadeColhidaUnidade1: true,
+                    quantidadeColhidaUnidade2: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Buscar todos os pagamentos do fornecedor para mapear com as colheitas
+    const todosPagamentos = await this.prisma.fornecedorPagamento.findMany({
+      where: { fornecedorId: fornecedorId },
+      select: {
+        id: true,
+        frutaPedidoAreaId: true,
+        quantidade: true,
+        unidadeMedida: true,
+        valorUnitario: true,
+        valorTotal: true,
+        status: true,
+        dataColheita: true,
+        dataPagamento: true,
+        observacoes: true,
+      },
+    });
+
+    // Criar mapa de pagamentos por frutaPedidoAreaId
+    const pagamentosMap = new Map<number, typeof todosPagamentos[0]>();
+    todosPagamentos.forEach(p => {
+      pagamentosMap.set(p.frutaPedidoAreaId, p);
+    });
+
+    // Processar colheitas
+    const colheitas: Array<{
+      id: number;
+      pedido: string;
+      fruta: string;
+      quantidade: number;
+      unidade: string;
+      valor: number;
+      valorTotal?: number;
+      pagamentoId?: number;
+      statusPagamento?: string;
+      pagamentoEfetuado: boolean;
+      dataColheita?: Date;
+      observacoes?: string;
+      areaNome: string;
+    }> = [];
+
+    areas.forEach((area) => {
+      area.frutasPedidosAreas.forEach((relacaoArea) => {
+        if (!relacaoArea.areaFornecedorId || !relacaoArea.frutaPedido) {
+          return;
+        }
+
+        const frutaPedido = relacaoArea.frutaPedido;
+        const pedido = frutaPedido.pedido;
+        if (!pedido) {
+          return;
+        }
+
+        const frutaNome = frutaPedido.fruta?.nome || 'Fruta não identificada';
+        const unidade = frutaPedido.unidadeMedida1;
+
+        const quantidadeArea =
+          relacaoArea.quantidadeColhidaUnidade1 ??
+          relacaoArea.quantidadeColhidaUnidade2 ??
+          frutaPedido.quantidadeReal ??
+          frutaPedido.quantidadePrecificada ??
+          frutaPedido.quantidadePrevista ??
+          0;
+
+        const somaAreasRelacionadas = frutaPedido.areas.reduce((acc, areaRelacionada) => {
+          const quantidadeRelacionada =
+            areaRelacionada.quantidadeColhidaUnidade1 ??
+            areaRelacionada.quantidadeColhidaUnidade2 ??
+            0;
+          return acc + quantidadeRelacionada;
+        }, 0);
+
+        const quantidadeReferencia =
+          (frutaPedido.quantidadeReal ?? frutaPedido.quantidadePrecificada ?? frutaPedido.quantidadePrevista ?? somaAreasRelacionadas) || 0;
+
+        const valorTotalFruta = frutaPedido.valorTotal ?? 0;
+        let valorProporcional = 0;
+        if (valorTotalFruta > 0 && quantidadeReferencia > 0) {
+          valorProporcional = (valorTotalFruta * quantidadeArea) / quantidadeReferencia;
+        }
+
+        // Verificar se existe pagamento para esta colheita
+        const pagamento = pagamentosMap.get(relacaoArea.id);
+
+        // Determinar status e valores
+        const temPagamentoId = pagamento?.id !== undefined && pagamento?.id !== null;
+        const statusPago = pagamento?.status === StatusPagamentoFornecedor.PAGO;
+        const statusPendente = pagamento?.status === StatusPagamentoFornecedor.PENDENTE || pagamento?.status === StatusPagamentoFornecedor.PROCESSANDO;
+
+        // Valor a exibir: se tem pagamento, usar valorTotal do pagamento, senão usar valorProporcional
+        const valorExibir = temPagamentoId && pagamento.valorTotal
+          ? pagamento.valorTotal
+          : valorProporcional;
+
+        colheitas.push({
+          id: relacaoArea.id, // Usar ID da relação área como ID único
+          pedido: pedido.numeroPedido,
+          fruta: frutaNome,
+          quantidade: Number(quantidadeArea) || 0,
+          unidade,
+          // IMPORTANTE: Não retornar valor de venda (valorProporcional) para colheitas não precificadas
+          // Apenas retornar valorTotal do pagamento (se existir)
+          valor: 0, // Sempre 0 - valores só vêm da tabela de pagamentos
+          valorTotal: pagamento?.valorTotal || 0, // Valor total do pagamento (se precificada/paga), senão 0
+          pagamentoId: pagamento?.id,
+          statusPagamento: pagamento?.status,
+          pagamentoEfetuado: statusPago,
+          dataColheita: pedido.dataColheita ?? pagamento?.dataColheita ?? undefined,
+          observacoes: pagamento?.observacoes || undefined,
+          areaNome: area.nome,
+        });
+      });
+    });
+
+    // Calcular totais por unidade de medida (separando por status)
+    const totaisPorUnidade = colheitas.reduce((acc, colheita) => {
+      const unidade = colheita.unidade;
+      if (!acc[unidade]) {
+        acc[unidade] = {
+          quantidade: 0,
+          quantidadePaga: 0,
+          quantidadePrecificada: 0,
+          quantidadeNaoPrecificada: 0,
+          valor: 0,
+          valorPago: 0,
+          valorPrecificado: 0,
+          valorNaoPrecificado: 0,
+        };
+      }
+      acc[unidade].quantidade += colheita.quantidade || 0;
+
+      const temPagamentoId = colheita.pagamentoId !== undefined && colheita.pagamentoId !== null;
+      const statusPago = colheita.statusPagamento === StatusPagamentoFornecedor.PAGO;
+      const statusPendente = colheita.statusPagamento === StatusPagamentoFornecedor.PENDENTE || colheita.statusPagamento === StatusPagamentoFornecedor.PROCESSANDO;
+
+      if (temPagamentoId && statusPago) {
+        // Colheita paga - usar apenas valorTotal do pagamento
+        acc[unidade].quantidadePaga += colheita.quantidade || 0;
+        acc[unidade].valorPago += colheita.valorTotal || 0;
+        acc[unidade].valor += colheita.valorTotal || 0;
+      } else if (temPagamentoId && statusPendente) {
+        // Colheita precificada mas não paga - usar apenas valorTotal do pagamento
+        acc[unidade].quantidadePrecificada += colheita.quantidade || 0;
+        acc[unidade].valorPrecificado += colheita.valorTotal || 0;
+        acc[unidade].valor += colheita.valorTotal || 0;
+      } else {
+        // Colheita não precificada - não tem valor (valor = 0 até ser precificada)
+        // IMPORTANTE: Não somar valor de venda, apenas quantidade
+        // O valorNaoPrecificado já é inicializado como 0 e permanece 0 (valores só vêm da tabela de pagamentos)
+        acc[unidade].quantidadeNaoPrecificada += colheita.quantidade || 0;
+        // Não somar valor não precificado no valor total (valor = 0 até ser precificada)
+      }
+      return acc;
+    }, {} as Record<string, {
+      quantidade: number;
+      quantidadePaga: number;
+      quantidadePrecificada: number;
+      quantidadeNaoPrecificada: number;
+      valor: number;
+      valorPago: number;
+      valorPrecificado: number;
+      valorNaoPrecificado: number;
+    }>);
+
+    // Calcular totais gerais
+    let quantidadeTotal = 0;
+    let quantidadePaga = 0;
+    let quantidadePrecificada = 0;
+    let quantidadeNaoPrecificada = 0;
+    let valorTotal = 0;
+    let valorPago = 0;
+    let valorPrecificado = 0;
+    let valorNaoPrecificado = 0;
+
+    colheitas.forEach(colheita => {
+      quantidadeTotal += colheita.quantidade || 0;
+
+      const temPagamentoId = colheita.pagamentoId !== undefined && colheita.pagamentoId !== null;
+      const statusPago = colheita.statusPagamento === StatusPagamentoFornecedor.PAGO;
+      const statusPendente = colheita.statusPagamento === StatusPagamentoFornecedor.PENDENTE || colheita.statusPagamento === StatusPagamentoFornecedor.PROCESSANDO;
+
+      if (temPagamentoId && statusPago) {
+        // Colheita paga - usar apenas valorTotal do pagamento
+        quantidadePaga += colheita.quantidade || 0;
+        valorPago += colheita.valorTotal || 0;
+        valorTotal += colheita.valorTotal || 0;
+      } else if (temPagamentoId && statusPendente) {
+        // Colheita precificada mas não paga - usar apenas valorTotal do pagamento
+        quantidadePrecificada += colheita.quantidade || 0;
+        valorPrecificado += colheita.valorTotal || 0;
+        valorTotal += colheita.valorTotal || 0;
+      } else {
+        // Colheita não precificada - não tem valor (valor = 0 até ser precificada)
+        quantidadeNaoPrecificada += colheita.quantidade || 0;
+        valorNaoPrecificado = 0; // Sempre 0 - valores só vêm da tabela de pagamentos
+        // Não somar valor não precificado no valor total (valor = 0 até ser precificada)
+      }
+    });
+
+    const totalGeral = {
+      quantidade: quantidadeTotal,
+      quantidadePaga,
+      quantidadePrecificada,
+      quantidadeNaoPrecificada,
+      valor: valorTotal, // Apenas valores da tabela de pagamentos (pago + precificado)
+      valorPago,
+      valorPrecificado,
+      valorNaoPrecificado: 0, // Sempre 0 - valores só vêm da tabela de pagamentos
+      totalPedidos: new Set(colheitas.map(c => c.pedido)).size,
+      totalFrutas: new Set(colheitas.map(c => c.fruta)).size,
+    };
+
+    // Ordenar colheitas por dataColheita (mais recente primeiro)
+    colheitas.sort((a, b) => {
+      const dataA = a.dataColheita ? new Date(a.dataColheita).getTime() : 0;
+      const dataB = b.dataColheita ? new Date(b.dataColheita).getTime() : 0;
+      return dataB - dataA;
+    });
+
+    return {
+      totaisPorUnidade,
+      totalGeral,
+      detalhes: colheitas,
+    };
+  }
 }
 

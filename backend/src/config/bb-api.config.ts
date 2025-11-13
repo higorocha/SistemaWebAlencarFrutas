@@ -73,6 +73,18 @@ export const BB_APIS_CONFIG: Record<string, BBAPIConfig> = {
       apiKey: 'X-Developer-Application-Key'
     },
     timeout: 30000
+  },
+  
+  PAGAMENTOS: {
+    name: 'PAGAMENTOS',
+    authUrl: 'https://oauth.hm.bb.com.br/oauth/token',
+    baseUrl: 'https://homologa-api-ip.bb.com.br:7144/pagamentos-lote/v1',
+    certificates: BB_CERTIFICATES,
+    headers: {
+      authKey: 'Content-Type',
+      apiKey: 'gw-dev-app-key' // Usado como query param, não header
+    },
+    timeout: 30000
   }
   
   // Futuras APIs podem ser adicionadas aqui:
