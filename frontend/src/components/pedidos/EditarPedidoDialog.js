@@ -477,8 +477,6 @@ const EditarPedidoDialog = ({
 
     if (frutasNovas.length === 0) return { valido: true, erros: {}, quantidadeNovasFrutas: 0 };
 
-    console.log(`🔍 Validando ${frutasNovas.length} novas frutas para fase ${statusPedido}`);
-
     // Determinar quais dados são obrigatórios baseado na fase
     const requereColheita = [
       'COLHEITA_REALIZADA',
@@ -505,22 +503,12 @@ const EditarPedidoDialog = ({
       const frutaInfo = frutas.find(f => f.id === fruta.frutaId);
       const nomeFruta = frutaInfo?.nome || `Nova Fruta ${i + 1}`;
 
-      console.log(`  📝 Validando nova fruta: ${nomeFruta}`, {
-        requereColheita,
-        requerePrecificacao,
-        quantidadeReal: fruta.quantidadeReal,
-        areas: fruta.areas?.length,
-        fitas: fruta.fitas?.length,
-        valorUnitario: fruta.valorUnitario
-      });
-
       // ✅ Validar dados de colheita se fase requer
       if (requereColheita) {
         if (!fruta.quantidadeReal || fruta.quantidadeReal <= 0) {
           novosErros[`nova_fruta_colheita_${i}`] =
             `"${nomeFruta}" é uma nova fruta e o pedido está em fase ${statusPedido}. ` +
             `Informe a quantidade real colhida antes de salvar.`;
-          console.log(`  ❌ Falta quantidade real para ${nomeFruta}`);
         }
 
         // Validar áreas
@@ -531,7 +519,6 @@ const EditarPedidoDialog = ({
         if (areasValidas.length === 0) {
           novosErros[`nova_fruta_areas_${i}`] =
             `"${nomeFruta}" é uma nova fruta e deve ter pelo menos uma área de origem vinculada.`;
-          console.log(`  ❌ Falta área de origem para ${nomeFruta}`);
         }
 
         // Validar fitas se for banana
@@ -544,7 +531,6 @@ const EditarPedidoDialog = ({
           if (fitasValidas.length === 0) {
             novosErros[`nova_fruta_fitas_${i}`] =
               `"${nomeFruta}" é uma banana e deve ter pelo menos uma fita vinculada.`;
-            console.log(`  ❌ Falta fita para banana ${nomeFruta}`);
           }
         }
       }
@@ -555,19 +541,16 @@ const EditarPedidoDialog = ({
           novosErros[`nova_fruta_preco_${i}`] =
             `"${nomeFruta}" é uma nova fruta e o pedido está em fase ${statusPedido}. ` +
             `Informe o valor unitário antes de salvar.`;
-          console.log(`  ❌ Falta valor unitário para ${nomeFruta}`);
         }
 
         if (!fruta.unidadePrecificada) {
           novosErros[`nova_fruta_unidade_prec_${i}`] =
             `"${nomeFruta}" é uma nova fruta e deve ter unidade de precificação definida.`;
-          console.log(`  ❌ Falta unidade de precificação para ${nomeFruta}`);
         }
 
         if (!fruta.quantidadePrecificada || fruta.quantidadePrecificada <= 0) {
           novosErros[`nova_fruta_qtd_prec_${i}`] =
             `"${nomeFruta}" é uma nova fruta e deve ter quantidade precificada definida.`;
-          console.log(`  ❌ Falta quantidade precificada para ${nomeFruta}`);
         }
       }
     }
@@ -580,7 +563,6 @@ const EditarPedidoDialog = ({
       requerePrecificacao
     };
 
-    console.log(`✅ Validação de novas frutas concluída:`, resultado);
     return resultado;
   };
 
@@ -969,32 +951,32 @@ const EditarPedidoDialog = ({
         });
       }
 
-      // ✅ NOVO: Processar mão de obra (custos de colheita) se a aba 2 estiver disponível
-      // ✅ CRÍTICO: Usar maoObraAtualizada se fornecida (dados diretos do ColheitaTab), senão usar pedidoAtual.maoObra
-      const maoObraFonte = maoObraAtualizada || pedidoAtual.maoObra;
-      const maoObraPadronizada = normalizarListaMaoObra(maoObraFonte || []);
-      
-      if (canEditTab("2") && maoObraPadronizada && maoObraPadronizada.length > 0) {
-        console.log('🔍 [EditarPedidoDialog] maoObraParaProcessar (usando dados diretos do ColheitaTab?):', 
-          maoObraAtualizada ? 'SIM' : 'NÃO (lendo de pedidoAtual)',
-          JSON.stringify(maoObraPadronizada, null, 2)
-        );
+      // ✅ NOVO: Processar mão de obra (custos de colheita) APENAS se a aba 2 estiver disponível
+      // ✅ CORREÇÃO: Para pedidos PEDIDO_CRIADO, não processar mão de obra (não faz sentido)
+      if (canEditTab("2")) {
+        // ✅ CRÍTICO: Usar maoObraAtualizada se fornecida (dados diretos do ColheitaTab), senão usar pedidoAtual.maoObra
+        // ✅ CORREÇÃO: Garantir que sempre seja um array
+        const maoObraFonte = maoObraAtualizada || pedidoAtual.maoObra || [];
+        const maoObraPadronizada = Array.isArray(maoObraFonte) 
+          ? normalizarListaMaoObra(maoObraFonte) 
+          : [];
         
-        // Filtrar apenas itens válidos com dados obrigatórios preenchidos
-        const maoObraValida = maoObraPadronizada.filter(item =>
-          item.turmaColheitaId &&
-          item.frutaId &&
-          item.quantidadeColhida &&
-          item.quantidadeColhida > 0 &&
-          item.valorColheita &&
-          item.valorColheita > 0
-        );
+        if (maoObraPadronizada && maoObraPadronizada.length > 0) {
+          // Filtrar apenas itens válidos com dados obrigatórios preenchidos
+          const maoObraValida = maoObraPadronizada.filter(item =>
+            item.turmaColheitaId &&
+            item.frutaId &&
+            item.quantidadeColhida &&
+            item.quantidadeColhida > 0 &&
+            item.valorColheita &&
+            item.valorColheita > 0
+          );
 
-        // Só incluir maoObra no formData se houver itens válidos
-        if (maoObraValida.length > 0) {
-          // ✅ SIMPLIFICADO: Usar unidadeMedida diretamente (igual ao valorColheita)
-          // Se veio do ColheitaTab, já está correto. Se não, usar do item com fallback
-          formData.maoObra = maoObraValida.map(item => {
+          // Só incluir maoObra no formData se houver itens válidos
+          if (maoObraValida.length > 0) {
+            // ✅ SIMPLIFICADO: Usar unidadeMedida diretamente (igual ao valorColheita)
+            // Se veio do ColheitaTab, já está correto. Se não, usar do item com fallback
+            formData.maoObra = maoObraValida.map(item => {
             // Usar unidadeMedida do item (já está correto se veio do ColheitaTab)
             let unidadeMedida = item.unidadeMedida;
             
@@ -1010,19 +992,20 @@ const EditarPedidoDialog = ({
               unidadeMedida = unidadeEncontrada || 'KG';
             }
 
-            return {
-              id: item.id || undefined,
-              turmaColheitaId: item.turmaColheitaId,
-              frutaId: item.frutaId,
-              quantidadeColhida: item.quantidadeColhida,
-              unidadeMedida,
-              valorColheita: item.valorColheita,
-              observacoes: item.observacoes || undefined,
-              dataColheita: pedidoAtual.dataColheita
-                ? moment(pedidoAtual.dataColheita).startOf('day').add(12, 'hours').toISOString()
-                : undefined
-            };
-          });
+              return {
+                id: item.id || undefined,
+                turmaColheitaId: item.turmaColheitaId,
+                frutaId: item.frutaId,
+                quantidadeColhida: item.quantidadeColhida,
+                unidadeMedida,
+                valorColheita: item.valorColheita,
+                observacoes: item.observacoes || undefined,
+                dataColheita: pedidoAtual.dataColheita
+                  ? moment(pedidoAtual.dataColheita).startOf('day').add(12, 'hours').toISOString()
+                  : undefined
+              };
+            });
+          }
         }
       }
 

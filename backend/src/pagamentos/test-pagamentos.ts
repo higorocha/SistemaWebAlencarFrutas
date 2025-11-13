@@ -144,6 +144,12 @@ async function testarTransferenciaPix(token: string): Promise<RespostaTransferen
 
     console.log('📋 [TEST-PAGAMENTOS] Dados da transferência:', JSON.stringify(dadosTransferencia, null, 2));
     console.log('🔑 [TEST-PAGAMENTOS] Token (primeiros 20 chars):', token.substring(0, 20) + '...');
+    console.log('🌐 [TEST-PAGAMENTOS] URL completa:', `${apiClient.defaults.baseURL}/lotes-transferencias-pix`);
+    console.log('🔑 [TEST-PAGAMENTOS] Headers da requisição:', {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token.substring(0, 20)}...`,
+      'gw-dev-app-key': 'será enviado como query param'
+    });
 
     const response = await apiClient.post(
       `/lotes-transferencias-pix`,
