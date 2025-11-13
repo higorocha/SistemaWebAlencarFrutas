@@ -59,6 +59,7 @@ const PagamentosSection = ({
   modoPagamentos,
   dadosPagamentosAtuais = [],
   dadosFornecedores = [],
+  dadosFornecedoresEfetuados = [],
   loadingPagamentosEfetuados,
   erroPagamentosEfetuados,
   onToggleModo,
@@ -68,6 +69,8 @@ const PagamentosSection = ({
   const { isMobile } = useResponsive();
   const isModoPendentes = modoPagamentos === 'pendentes';
   const [activeTab, setActiveTab] = React.useState('turmas');
+  // Estado interno para controlar modo de fornecedores (pendentes/efetuados)
+  const [modoFornecedores, setModoFornecedores] = React.useState('pendentes');
   
   // Estados dos modais - todos gerenciados internamente
   const [modalFornecedor, setModalFornecedor] = React.useState({
@@ -401,6 +404,15 @@ const PagamentosSection = ({
     });
   }, []);
 
+  const handlePagamentosFornecedorCriados = React.useCallback(() => {
+    // Notificar Dashboard para recarregar dados
+    if (onPagamentosProcessados) {
+      onPagamentosProcessados();
+    }
+    // Fechar modal após recarregar
+    handleFecharFornecedor();
+  }, [onPagamentosProcessados, handleFecharFornecedor]);
+
   const handleAbrirModalPagamentos = React.useCallback((turmaId, turmaNome) => {
     setModalPagamentos({
       open: true,
@@ -438,6 +450,37 @@ const PagamentosSection = ({
   }, []);
 
   const renderFornecedoresContent = React.useCallback(() => {
+    const isModoFornecedoresPendentes = modoFornecedores === 'pendentes';
+
+    // Modo Pendentes: Filtrar apenas fornecedores com colheitas pendentes
+    const fornecedoresPendentes = isModoFornecedoresPendentes
+      ? dadosFornecedores.filter((item) => item.colheitasEmAberto > 0)
+      : [];
+
+    // Modo Efetuados: Desagrupar pagamentos e criar lista individual de colheitas pagas
+    const pagamentosIndividuais = !isModoFornecedoresPendentes
+      ? dadosFornecedoresEfetuados.flatMap((pagamentoAgrupado) =>
+          pagamentoAgrupado.detalhes.map((detalhe) => ({
+            id: `${pagamentoAgrupado.id}-${detalhe.pedidoNumero}-${detalhe.fruta}`,
+            nomeFornecedor: pagamentoAgrupado.nomeFornecedor,
+            pedidoNumero: detalhe.pedidoNumero,
+            cliente: detalhe.cliente,
+            fruta: detalhe.fruta,
+            areaNome: detalhe.areaNome,
+            quantidadeColhida: detalhe.quantidadeColhida,
+            unidadeMedida: detalhe.unidadeMedida,
+            valorUnitario: detalhe.valorUnitario,
+            valorTotal: detalhe.valorTotal,
+            dataColheita: detalhe.dataColheita,
+            dataPagamento: detalhe.dataPagamento,
+            formaPagamento: detalhe.formaPagamento,
+            observacoes: detalhe.observacoes,
+          }))
+        )
+      : [];
+
+    const dadosExibidos = isModoFornecedoresPendentes ? fornecedoresPendentes : pagamentosIndividuais;
+
     return (
       <div
         style={{
@@ -454,7 +497,7 @@ const PagamentosSection = ({
             minHeight: '200px',
           }}
         >
-          {dadosFornecedores.length === 0 ? (
+          {dadosExibidos.length === 0 ? (
             <div
               style={{
                 padding: '40px 0',
@@ -468,45 +511,30 @@ const PagamentosSection = ({
             >
               <Icon icon="mdi:truck-outline" style={{ fontSize: '36px', color: '#9ca3af' }} />
               <Text type="secondary" style={{ fontSize: '0.8rem' }}>
-                Nenhuma colheita de fornecedor registrada ainda.
+                {isModoFornecedoresPendentes
+                  ? 'Nenhuma colheita pendente de pagamento'
+                  : 'Nenhum pagamento efetuado'}
               </Text>
             </div>
-          ) : (
+          ) : isModoFornecedoresPendentes ? (
+            // Modo Pendentes: Listar fornecedores agrupados
             <List
               itemLayout="horizontal"
-              dataSource={dadosFornecedores}
+              dataSource={fornecedoresPendentes}
               renderItem={(item) => {
                 const areasResumo = Array.from(new Set(item.detalhes.map((det) => det.areaNome))).slice(0, 3);
                 const restanteAreas = item.quantidadeAreas - areasResumo.length;
 
-                const quantidadesPorUnidadeMap = item.detalhes.reduce((acc, detalhe) => {
-                  const unidade = detalhe.unidade || 'UN';
-                  const valorAtual = acc.get(unidade) || 0;
-                  return acc.set(unidade, valorAtual + (Number(detalhe.quantidade) || 0));
-                }, new Map());
-
-                const quantidadesPorUnidade = Array.from(quantidadesPorUnidadeMap.entries()).map(
-                  ([unidade, quantidade]) => `${intFormatter(quantidade)} ${unidade}`
-                );
-
-                const quantidadeTexto =
-                  quantidadesPorUnidade.length > 0
-                    ? quantidadesPorUnidade.join(' • ')
-                    : '0 UN';
-
-                const valorFormatado = item.totalValor > 0
-                  ? `R$ ${item.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                  : 'Valor pendente';
+                // Calcular totalPendente: se houver pagamento pendente/processando, usar totalPendente, senão não mostrar valor
+                const temPagamentoPendente = item.totalPendente > 0;
+                const temColheitasPendentes = item.colheitasEmAberto > 0;
 
                 return (
                   <List.Item
                     style={{
                       padding: isMobile ? '8px 6px' : '12px 8px',
                       borderBottom: '1px solid #f0f0f0',
-                      backgroundColor:
-                        item.totalValor > 0
-                          ? '#f6ffed'
-                          : '#fff7e6',
+                      backgroundColor: temPagamentoPendente ? '#fff7e6' : '#fffbf0',
                       borderRadius: '6px',
                       margin: isMobile ? '2px 0' : '4px 0',
                       transition: 'all 0.2s ease',
@@ -561,31 +589,30 @@ const PagamentosSection = ({
                           <div style={{ fontWeight: '500' }}>
                             📦 {item.quantidadePedidos} pedido{item.quantidadePedidos !== 1 ? 's' : ''} •
                             {item.quantidadeFrutas} fruta{item.quantidadeFrutas !== 1 ? 's' : ''} •
-                            {item.quantidadeAreas} área{item.quantidadeAreas !== 1 ? 's' : ''}
+                            {item.colheitasEmAberto} colheita{item.colheitasEmAberto !== 1 ? 's' : ''} pendente{item.colheitasEmAberto !== 1 ? 's' : ''}
                           </div>
                           <div style={{ color: '#047857' }}>
                             🌱 {areasResumo.join(', ')}{restanteAreas > 0 ? ` +${restanteAreas}` : ''}
-                          </div>
-                          <div style={{ fontSize: '0.75rem', color: '#666' }}>
-                            ⚖️ {quantidadeTexto}
                           </div>
                         </div>
                       }
                     />
                     <div style={{ textAlign: 'right', fontSize: isMobile ? '0.6875rem' : '0.8125rem' }}>
-                      <div
-                        style={{
-                          color: item.totalValor > 0 ? '#047857' : '#92400e',
-                          fontWeight: '700',
-                          marginBottom: isMobile ? '4px' : '8px',
-                          fontSize: isMobile ? '0.875rem' : '1rem',
-                          lineHeight: '1.2',
-                        }}
-                      >
-                        {valorFormatado}
-                      </div>
+                      {temPagamentoPendente && (
+                        <div
+                          style={{
+                            color: '#d46b08',
+                            fontWeight: '700',
+                            marginBottom: isMobile ? '4px' : '8px',
+                            fontSize: isMobile ? '0.875rem' : '1rem',
+                            lineHeight: '1.2',
+                          }}
+                        >
+                          R$ {item.totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </div>
+                      )}
                       <Tag
-                        color={item.totalValor > 0 ? 'green' : 'gold'}
+                        color="gold"
                         style={{
                           fontSize: '0.6875rem',
                           fontWeight: '600',
@@ -593,17 +620,116 @@ const PagamentosSection = ({
                           borderRadius: '4px',
                         }}
                       >
-                        {item.totalValor > 0 ? 'VALOR REGISTRADO' : 'AGUARDANDO PRECIFICAÇÃO'}
+                        AGUARDANDO PAGAMENTO
                       </Tag>
                     </div>
                   </List.Item>
                 );
               }}
             />
+          ) : (
+            // Modo Efetuados: Listar pagamentos individuais (desagrupados)
+            <List
+              itemLayout="horizontal"
+              dataSource={pagamentosIndividuais}
+              renderItem={(item) => (
+                <List.Item
+                  style={{
+                    padding: isMobile ? '8px 6px' : '12px 8px',
+                    borderBottom: '1px solid #f0f0f0',
+                    backgroundColor: '#f6ffed',
+                    borderRadius: '6px',
+                    margin: isMobile ? '2px 0' : '4px 0',
+                    transition: 'all 0.2s ease',
+                    minHeight: isMobile ? '56px' : '72px',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0px)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <List.Item.Meta
+                    avatar={
+                      <Avatar
+                        style={{
+                          backgroundColor: '#52c41a',
+                          color: 'white',
+                          fontSize: isMobile ? '0.75rem' : '0.875rem',
+                          fontWeight: 'bold',
+                        }}
+                        size={isMobile ? 32 : 40}
+                      >
+                        {item.nomeFornecedor
+                          .split(' ')
+                          .map((n) => n[0])
+                          .join('')
+                          .substring(0, 2)}
+                      </Avatar>
+                    }
+                    title={
+                      <div
+                        style={{
+                          fontSize: isMobile ? '0.875rem' : '1rem',
+                          fontWeight: '700',
+                          color: '#333',
+                          lineHeight: '1.3',
+                          marginBottom: '2px',
+                        }}
+                      >
+                        {capitalizeName(item.nomeFornecedor)}
+                      </div>
+                    }
+                    description={
+                      <div style={{ fontSize: isMobile ? '0.75rem' : '0.875rem', color: '#555', lineHeight: '1.4', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ fontWeight: '500' }}>
+                          📦 {item.pedidoNumero} • {item.fruta} • {item.areaNome}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                          ⚖️ {intFormatter(item.quantidadeColhida)} {item.unidadeMedida}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: '600' }}>
+                          💰 Pago em: {formatarDataBR(item.dataPagamento)} • {item.formaPagamento}
+                        </div>
+                      </div>
+                    }
+                  />
+                  <div style={{ textAlign: 'right', fontSize: isMobile ? '0.6875rem' : '0.8125rem' }}>
+                    <div
+                      style={{
+                        color: '#52c41a',
+                        fontWeight: '700',
+                        marginBottom: isMobile ? '4px' : '8px',
+                        fontSize: isMobile ? '0.875rem' : '1rem',
+                        lineHeight: '1.2',
+                      }}
+                    >
+                      R$ {item.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <Tag
+                      color="green"
+                      style={{
+                        fontSize: '0.6875rem',
+                        fontWeight: '600',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      PAGO
+                    </Tag>
+                  </div>
+                </List.Item>
+              )}
+            />
           )}
         </div>
 
-        {dadosFornecedores.length > 0 && (
+        {dadosExibidos.length > 0 && (
           <div
             style={{
               marginTop: 'auto',
@@ -616,16 +742,25 @@ const PagamentosSection = ({
             }}
           >
             <Text style={{ fontSize: '0.6875rem', color: '#999', maxWidth: '65%' }}>
-              {dadosFornecedores.length} fornecedor{dadosFornecedores.length !== 1 ? 'es' : ''} com colheitas registradas em áreas terceirizadas
+              {isModoFornecedoresPendentes
+                ? `${fornecedoresPendentes.length} fornecedor${fornecedoresPendentes.length !== 1 ? 'es' : ''} com colheita${fornecedoresPendentes.length !== 1 ? 's' : ''} pendente${fornecedoresPendentes.length !== 1 ? 's' : ''}`
+                : `${pagamentosIndividuais.length} pagamento${pagamentosIndividuais.length !== 1 ? 's' : ''} efetuado${pagamentosIndividuais.length !== 1 ? 's' : ''}`}
             </Text>
-            <Text style={{ fontSize: '0.6875rem', color: '#047857', fontWeight: 600 }}>
-              Total estimado: R$ {dadosFornecedores.reduce((acc, item) => acc + (item.totalValor || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </Text>
+            {isModoFornecedoresPendentes && (
+              <Text style={{ fontSize: '0.6875rem', color: '#d46b08', fontWeight: 600 }}>
+                Total pendente: R$ {fornecedoresPendentes.reduce((acc, item) => acc + (item.totalPendente || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </Text>
+            )}
+            {!isModoFornecedoresPendentes && (
+              <Text style={{ fontSize: '0.6875rem', color: '#52c41a', fontWeight: 600 }}>
+                Total pago: R$ {pagamentosIndividuais.reduce((acc, item) => acc + (item.valorTotal || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </Text>
+            )}
           </div>
         )}
       </div>
     );
-  }, [contentHeight, dadosFornecedores, handleAbrirFornecedor, isMobile]);
+  }, [contentHeight, dadosFornecedores, dadosFornecedoresEfetuados, modoFornecedores, handleAbrirFornecedor, isMobile]);
 
   const tabItems = React.useMemo(
     () => [
@@ -666,45 +801,56 @@ const PagamentosSection = ({
         <Title level={4} style={{ color: '#2E7D32', margin: 0, fontSize: '1rem' }}>
           {headerTitle}
         </Title>
-        <Button
-          type="text"
-          icon={
-            activeTab === 'fornecedores'
-              ? <Icon icon="mdi:eye-off-outline" style={{ fontSize: '20px' }} />
-              : loadingPagamentosEfetuados
-              ? <SyncOutlined spin />
-              : <SwapOutlined />
-          }
-          onClick={activeTab === 'fornecedores' ? undefined : onToggleModo}
-          loading={loadingPagamentosEfetuados && activeTab !== 'fornecedores'}
-          disabled={activeTab === 'fornecedores' ? true : loadingPagamentosEfetuados}
-          style={{
-            color: activeTab === 'fornecedores'
-              ? '#4b5563'
-              : loadingPagamentosEfetuados
-              ? '#8b8b8b'
-              : '#059669',
-            border: '1px solid ' + (
-              activeTab === 'fornecedores'
-                ? '#d1d5db'
-                : loadingPagamentosEfetuados
-                ? '#d9d9d9'
-                : '#059669'
-            ),
-            borderRadius: '6px',
-            padding: '6px',
-            height: 'auto',
-            minWidth: 'auto',
-            opacity: activeTab === 'fornecedores' || loadingPagamentosEfetuados ? 0.6 : 1,
-          }}
-          title={
-            activeTab === 'fornecedores'
-              ? 'Funcionalidade em desenvolvimento'
-              : loadingPagamentosEfetuados
-              ? 'Carregando...'
-              : `Alternar para ${isModoPendentes ? 'Efetuados' : 'Pendentes'}`
-          }
-        />
+        {activeTab === 'fornecedores' ? (
+          // Toggle button para aba de fornecedores
+          <Button
+            type="text"
+            icon={<SwapOutlined />}
+            onClick={() => setModoFornecedores(modoFornecedores === 'pendentes' ? 'efetuados' : 'pendentes')}
+            style={{
+              color: '#059669',
+              border: '1px solid #059669',
+              borderRadius: '6px',
+              padding: '6px',
+              height: 'auto',
+              minWidth: 'auto',
+            }}
+            title={`Alternar para ${modoFornecedores === 'pendentes' ? 'Efetuados' : 'Pendentes'}`}
+          />
+        ) : (
+          // Toggle button para aba de turmas
+          <Button
+            type="text"
+            icon={
+              loadingPagamentosEfetuados
+                ? <SyncOutlined spin />
+                : <SwapOutlined />
+            }
+            onClick={onToggleModo}
+            loading={loadingPagamentosEfetuados}
+            disabled={loadingPagamentosEfetuados}
+            style={{
+              color: loadingPagamentosEfetuados
+                ? '#8b8b8b'
+                : '#059669',
+              border: '1px solid ' + (
+                loadingPagamentosEfetuados
+                  ? '#d9d9d9'
+                  : '#059669'
+              ),
+              borderRadius: '6px',
+              padding: '6px',
+              height: 'auto',
+              minWidth: 'auto',
+              opacity: loadingPagamentosEfetuados ? 0.6 : 1,
+            }}
+            title={
+              loadingPagamentosEfetuados
+                ? 'Carregando...'
+                : `Alternar para ${isModoPendentes ? 'Efetuados' : 'Pendentes'}`
+            }
+          />
+        )}
       </div>
 
       <PaymentTabs
@@ -720,6 +866,7 @@ const PagamentosSection = ({
           open={modalFornecedor.open}
           fornecedor={modalFornecedor.fornecedor}
           onClose={handleFecharFornecedor}
+          onPagamentosCriados={handlePagamentosFornecedorCriados}
         />
       )}
 

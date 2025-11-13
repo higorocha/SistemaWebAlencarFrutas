@@ -97,18 +97,44 @@ const NotificacaoMenu = () => {
     setModalAberto(true);
   };
 
-  const carregarPedidosParaVinculacao = useCallback(async (lancamento) => {
-    if (!lancamento?.cliente?.id) {
-      setPedidosVinculacao([]);
-      return;
-    }
-
+  const carregarPedidosParaVinculacao = useCallback(async (lancamento, clienteRelacionado) => {
     setLoadingPedidosVinculacao(true);
     try {
-      const statuses = 'PRECIFICACAO_REALIZADA,AGUARDANDO_PAGAMENTO,PAGAMENTO_PARCIAL';
-      const response = await axiosInstance.get(`/api/pedidos/cliente/${lancamento.cliente.id}`, {
-        params: { status: statuses },
-      });
+      // Status de pedidos elegíveis para vinculação (mesmos do PagamentosAutomaticosModal)
+      const STATUS_VINCULACAO = [
+        "PRECIFICACAO_REALIZADA",
+        "AGUARDANDO_PAGAMENTO",
+        "PAGAMENTO_PARCIAL",
+        "PAGAMENTO_REALIZADO",
+        "PEDIDO_FINALIZADO",
+      ];
+      
+      const statusCliente = STATUS_VINCULACAO.join(",");
+      const paramsBase = { status: statusCliente };
+      
+      // Tentar obter clienteId de múltiplas fontes (como no PagamentosAutomaticosModal)
+      const clienteId = clienteRelacionado?.id
+        || lancamento?.cliente?.id
+        || lancamento?.clienteId
+        || lancamento?.pedido?.clienteId
+        || null;
+
+      let response;
+      if (clienteId) {
+        // Se tiver cliente, busca apenas pedidos do cliente específico
+        response = await axiosInstance.get(`/api/pedidos/cliente/${clienteId}`, {
+          params: paramsBase,
+        });
+      } else {
+        // Se não tiver cliente, busca TODOS os pedidos do sistema
+        response = await axiosInstance.get(`/api/pedidos`, {
+          params: {
+            status: statusCliente,
+            page: 1,
+            limit: 1000,
+          },
+        });
+      }
 
       const pedidosResposta = response?.data;
       let pedidosArray = Array.isArray(pedidosResposta)
@@ -121,10 +147,16 @@ const NotificacaoMenu = () => {
         pedidosArray = [];
       }
 
+      // Cliente padrão para normalização dos pedidos
+      const clienteDefault = clienteRelacionado 
+        || lancamento?.cliente 
+        || lancamento?.pedido?.cliente 
+        || null;
+
       const pedidosNormalizados = pedidosArray
         .map((pedido) => ({
           ...pedido,
-          cliente: pedido.cliente || lancamento.cliente,
+          cliente: pedido.cliente || clienteDefault,
         }))
         .filter(Boolean);
 
@@ -160,18 +192,28 @@ const NotificacaoMenu = () => {
         return;
       }
       
-      // Verificar se o lançamento tem cliente associado
-      if (!lancamento.cliente) {
-        showNotification('warning', 'Atenção', 'Este pagamento não possui cliente associado. Não é possível vincular a um pedido.');
-        return;
-      }
-      
       // Abrir modal de vinculação
+      // Sempre carrega pedidos automaticamente:
+      // - Se tiver cliente: carrega pedidos do cliente
+      // - Se não tiver cliente: carrega TODOS os pedidos do sistema (limit 1000)
+      
+      // Identificar cliente do lançamento (de múltiplas fontes, como no PagamentosAutomaticosModal)
+      let clienteDoLancamento = null;
+      if (lancamento.cliente) {
+        clienteDoLancamento = lancamento.cliente;
+      } else if (lancamento.clienteId) {
+        clienteDoLancamento = { id: lancamento.clienteId };
+      } else if (lancamento.pedido?.cliente) {
+        clienteDoLancamento = lancamento.pedido.cliente;
+      }
+
       setLancamentoParaVincular(lancamento);
-      setClienteParaVinculacao(lancamento.cliente);
+      setClienteParaVinculacao(clienteDoLancamento);
       setPedidosVinculacao([]);
       setVinculacaoModalOpen(true);
-      carregarPedidosParaVinculacao(lancamento);
+      
+      // Sempre carrega pedidos automaticamente (comportamento igual ao PagamentosAutomaticosModal)
+      carregarPedidosParaVinculacao(lancamento, clienteDoLancamento);
        
     } catch (error) {
       console.error('Erro ao abrir modal de vinculação:', error);
@@ -840,7 +882,7 @@ const NotificacaoMenu = () => {
       />
 
       {/* Modal de vinculação de pagamento */}
-      {lancamentoParaVincular && clienteParaVinculacao && (
+      {lancamentoParaVincular && (
         <VincularPagamentoManualModal
           open={vinculacaoModalOpen}
           onClose={() => {

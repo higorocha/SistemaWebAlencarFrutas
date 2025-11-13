@@ -243,6 +243,7 @@ const Dashboard = () => {
     // Pagamentos efetuados
     pagamentosEfetuados: [],
     pagamentosFornecedores: [],
+    pagamentosFornecedoresEfetuados: [],
 
     // Alertas - apenas esta seção mantém dados mock
     alertas: {
@@ -318,6 +319,7 @@ const Dashboard = () => {
         pagamentosPendentes: backendData.pagamentosPendentes || [],
         pagamentosEfetuados: backendData.pagamentosEfetuados || [],
         pagamentosFornecedores: backendData.pagamentosFornecedores || [],
+        pagamentosFornecedoresEfetuados: backendData.pagamentosFornecedoresEfetuados || [],
 
         // Alertas - apenas esta seção mantém dados mock
         alertas: {
@@ -513,6 +515,7 @@ const Dashboard = () => {
     ? dashboardData.pagamentosPendentes 
     : dashboardData.pagamentosEfetuados;
   const dadosFornecedores = dashboardData.pagamentosFornecedores || [];
+  const dadosFornecedoresEfetuados = dashboardData.pagamentosFornecedoresEfetuados || [];
 
 
   useEffect(() => {
@@ -1039,6 +1042,7 @@ const Dashboard = () => {
             modoPagamentos={modoPagamentos}
             dadosPagamentosAtuais={dadosPagamentosAtuais}
             dadosFornecedores={dadosFornecedores}
+            dadosFornecedoresEfetuados={dadosFornecedoresEfetuados}
             loadingPagamentosEfetuados={loadingPagamentosEfetuados}
             erroPagamentosEfetuados={erroPagamentosEfetuados}
             onToggleModo={toggleModoPagamentos}

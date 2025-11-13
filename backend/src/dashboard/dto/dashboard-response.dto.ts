@@ -207,8 +207,20 @@ export class FornecedorColheitaDetalheDto {
   @ApiProperty({ example: 123, description: 'ID do pedido associado' })
   pedidoId: number;
 
+  @ApiProperty({ example: 456, description: 'ID da fruta' })
+  frutaId: number;
+
+  @ApiProperty({ example: 789, description: 'ID do frutaPedido' })
+  frutaPedidoId: number;
+
+  @ApiProperty({ example: 101, description: 'ID do frutaPedidoArea' })
+  frutaPedidoAreaId: number;
+
   @ApiProperty({ example: 'Fornecedor Oeste', description: 'Nome da área do fornecedor' })
   areaNome: string;
+
+  @ApiProperty({ example: 5, description: 'ID da área do fornecedor' })
+  areaFornecedorId: number;
 
   @ApiProperty({ example: 'Banana Prata' })
   fruta: string;
@@ -233,6 +245,47 @@ export class FornecedorColheitaDetalheDto {
 
   @ApiProperty({ example: '2024-01-18T00:00:00Z', required: false })
   dataColheita?: string;
+
+  @ApiProperty({ example: 1, description: 'ID do pagamento se existir', required: false })
+  pagamentoId?: number;
+
+  @ApiProperty({ example: 'PAGO', description: 'Status do pagamento (PAGO, PENDENTE, PROCESSANDO)', required: false })
+  statusPagamento?: string;
+
+  @ApiProperty({ example: 5.50, description: 'Valor unitário do pagamento', required: false })
+  valorUnitario?: number;
+
+  @ApiProperty({ example: 8250.00, description: 'Valor total do pagamento', required: false })
+  valorTotal?: number;
+
+  @ApiProperty({ example: '2024-01-15T10:30:00Z', description: 'Data do pagamento', required: false })
+  dataPagamento?: string;
+
+  @ApiProperty({ example: 'PIX', description: 'Forma de pagamento', required: false })
+  formaPagamento?: string;
+}
+
+export class DistribuicaoPorUnidadeDto {
+  @ApiProperty({ example: 'KG', description: 'Unidade de medida' })
+  unidade: string;
+
+  @ApiProperty({ example: 1500.50, description: 'Quantidade paga' })
+  quantidadePaga: number;
+
+  @ApiProperty({ example: 500.25, description: 'Quantidade pendente' })
+  quantidadePendente: number;
+
+  @ApiProperty({ example: 2000.75, description: 'Quantidade total' })
+  quantidadeTotal: number;
+
+  @ApiProperty({ example: 8250.00, description: 'Valor pago' })
+  valorPago: number;
+
+  @ApiProperty({ example: 2750.50, description: 'Valor pendente' })
+  valorPendente: number;
+
+  @ApiProperty({ example: 11000.50, description: 'Valor total' })
+  valorTotal: number;
 }
 
 export class FornecedorColheitaDto {
@@ -248,8 +301,23 @@ export class FornecedorColheitaDto {
   @ApiProperty({ example: 4, description: 'Quantidade de frutas distintas colhidas' })
   quantidadeFrutas: number;
 
+  @ApiProperty({ example: 5, description: 'Total de colheitas' })
+  totalColheitas: number;
+
+  @ApiProperty({ example: 3, description: 'Colheitas pagas' })
+  colheitasPagas: number;
+
+  @ApiProperty({ example: 2, description: 'Colheitas em aberto' })
+  colheitasEmAberto: number;
+
   @ApiProperty({ example: 5, description: 'Número de áreas do fornecedor utilizadas' })
   quantidadeAreas: number;
+
+  @ApiProperty({ example: 2500.75, description: 'Total pendente de pagamento (colheitas sem pagamento ou com status PENDENTE/PROCESSANDO)' })
+  totalPendente: number;
+
+  @ApiProperty({ example: 1700.60, description: 'Total pago (colheitas com status PAGO)' })
+  totalPago: number;
 
   @ApiProperty({ example: 4200.35, description: 'Somatório de valores proporcionalmente alocados ao fornecedor' })
   totalValor: number;
@@ -259,6 +327,75 @@ export class FornecedorColheitaDto {
 
   @ApiProperty({ type: [FornecedorColheitaDetalheDto] })
   detalhes: FornecedorColheitaDetalheDto[];
+
+  @ApiProperty({ type: [DistribuicaoPorUnidadeDto], description: 'Distribuição por unidade (pago, pendente, total)' })
+  distribuicaoPorUnidade: DistribuicaoPorUnidadeDto[];
+}
+
+export class PagamentoFornecedorEfetuadoDto {
+  @ApiProperty({ example: '1-1642262400000', description: 'ID único do agrupamento (fornecedor-timestamp)' })
+  id: string;
+
+  @ApiProperty({ example: 1, description: 'ID do fornecedor' })
+  fornecedorId: number;
+
+  @ApiProperty({ example: 'Fazenda União', description: 'Nome do fornecedor' })
+  nomeFornecedor: string;
+
+  @ApiProperty({ example: '12.345.678/0001-90', description: 'CNPJ do fornecedor', required: false })
+  cnpj?: string;
+
+  @ApiProperty({ example: '123.456.789-00', description: 'CPF do fornecedor', required: false })
+  cpf?: string;
+
+  @ApiProperty({ example: '2024-01-15T10:30:00Z', description: 'Data do pagamento' })
+  dataPagamento: string;
+
+  @ApiProperty({ example: 2500.75, description: 'Valor total pago' })
+  totalPago: number;
+
+  @ApiProperty({ example: 3, description: 'Quantidade de pedidos pagos' })
+  quantidadePedidos: number;
+
+  @ApiProperty({ example: 2, description: 'Quantidade de frutas diferentes' })
+  quantidadeFrutas: number;
+
+  @ApiProperty({ example: 'PIX', description: 'Forma de pagamento utilizada' })
+  formaPagamento: string;
+
+  @ApiProperty({
+    example: [
+      {
+        pedidoNumero: 'PED-2024-0001',
+        cliente: 'Cliente Exemplo Ltda',
+        fruta: 'Banana Prata',
+        areaNome: 'Área Norte',
+        quantidadeColhida: 1500,
+        unidadeMedida: 'KG',
+        valorUnitario: 5.50,
+        valorTotal: 8250.00,
+        dataColheita: '2024-01-10T10:30:00Z',
+        dataPagamento: '2024-01-15T10:30:00Z',
+        formaPagamento: 'PIX',
+        observacoes: 'Pagamento realizado via PIX'
+      }
+    ],
+    description: 'Detalhes dos pagamentos efetuados'
+  })
+  detalhes: Array<{
+    pedidoNumero: string;
+    cliente: string;
+    fruta: string;
+    areaNome: string;
+    quantidadeColhida: number;
+    unidadeMedida: string;
+    valorUnitario: number;
+    valorTotal: number;
+    dataColheita?: string;
+    dataPagamento: string;
+    formaPagamento: string;
+    observacoes?: string;
+  }>;
 }
 
 export class DashboardResponseDto {
@@ -319,4 +456,7 @@ export class DashboardResponseDto {
 
   @ApiProperty({ type: [FornecedorColheitaDto], description: 'Colheitas realizadas em áreas de fornecedores' })
   pagamentosFornecedores: FornecedorColheitaDto[];
+
+  @ApiProperty({ type: [PagamentoFornecedorEfetuadoDto], description: 'Pagamentos efetuados a fornecedores' })
+  pagamentosFornecedoresEfetuados: PagamentoFornecedorEfetuadoDto[];
 }

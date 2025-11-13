@@ -17,7 +17,6 @@ import {
   Empty,
   Tag,
   Tooltip,
-  Badge,
   Button,
 } from "antd";
 import {
@@ -25,17 +24,24 @@ import {
   ShoppingCartOutlined,
   AppleOutlined,
   EnvironmentOutlined,
-  DollarOutlined,
   CalendarOutlined,
   FilterOutlined,
-  InfoCircleOutlined,
   CheckCircleOutlined,
   HeatMapOutlined,
+  CheckCircleTwoTone,
+  ClockCircleOutlined,
+  DollarOutlined,
+  DollarCircleOutlined,
+  CreditCardOutlined,
+  ReloadOutlined,
+  TagOutlined,
+  CalculatorOutlined,
 } from "@ant-design/icons";
 import { Icon } from "@iconify/react";
 import styled from "styled-components";
 import moment from "moment";
 import useResponsive from "../../hooks/useResponsive";
+import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 import ResponsiveTable from "../common/ResponsiveTable";
 import {
   formatCurrency,
@@ -43,7 +49,11 @@ import {
   capitalizeNameShort,
   intFormatter,
 } from "../../utils/formatters";
-import { MonetaryInput } from "../common/inputs";
+import { MonetaryInput, MaskedDatePicker } from "../common/inputs";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
+import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
+import axiosInstance from "../../api/axiosConfig";
+import { showNotification } from "../../config/notificationConfig";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -117,6 +127,7 @@ const parseLocaleNumber = (valor) => {
     return null;
   }
 
+  // Se já é um número, retornar diretamente
   if (typeof valor === "number") {
     return Number.isFinite(valor) ? valor : null;
   }
@@ -124,71 +135,233 @@ const parseLocaleNumber = (valor) => {
   const stringValor = String(valor).trim();
   if (!stringValor) return null;
 
-  let normalized;
+  // ✅ O MonetaryInput (NumericFormat) retorna values.value já como string numérica
+  // no formato americano (ponto como separador decimal, sem separador de milhares)
+  // Exemplo: "1.111" = 1.111 (um vírgula um um um), não 1111
+  // Então podemos converter diretamente para número usando parseFloat
+  // Se a string contém vírgula, é formato brasileiro, converter para formato americano
+  // Se contém ponto, assumir que já está no formato correto (pode ser decimal ou milhar)
+  
+  let normalized = stringValor;
+  
+  // Se contém vírgula, é formato brasileiro (vírgula decimal, ponto milhar)
   if (stringValor.includes(",")) {
+    // Remover pontos (separadores de milhares) e substituir vírgula por ponto
     normalized = stringValor.replace(/\./g, "").replace(",", ".");
-  } else if (/^\d{1,3}(\.\d{3})+$/.test(stringValor)) {
+  } 
+  // Se contém ponto mas não vírgula, verificar se é formato brasileiro de milhares
+  // Padrão: 1.111 (sem parte decimal) = 1111 (milhar)
+  // Padrão: 1.111.111 = 1111111 (milhar)
+  else if (/^\d{1,3}(\.\d{3})+$/.test(stringValor) && !stringValor.includes(",")) {
+    // É formato de milhar brasileiro, remover pontos
     normalized = stringValor.replace(/\./g, "");
-  } else {
-    normalized = stringValor;
   }
+  // Caso contrário, assumir que já está no formato correto (decimal com ponto)
+  // O NumericFormat já retorna neste formato
 
-  const parsed = Number(normalized);
+  const parsed = parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
+const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, onClose = () => {}, onPagamentosCriados = () => {} }) => {
   const { isMobile } = useResponsive();
+  const { getStatusColor, AGUARDANDO_PAGAMENTO, PEDIDO_FINALIZADO } = usePedidoStatusColors();
   const [filtroBusca, setFiltroBusca] = useState("");
   const [filtroData, setFiltroData] = useState(null);
-  const [filtroStatus, setFiltroStatus] = useState(undefined);
+  // ✅ Filtro de Status da Colheita: 'TODAS', 'PAGA', 'PRECIFICADA', 'NAO_PRECIFICADA'
+  // Por padrão, exibir 'NAO_PRECIFICADA' e 'PRECIFICADA' juntas (valor padrão: 'PENDENTE')
+  // 'PENDENTE' representa "não precificada + precificada" (todas exceto pagas)
+  const [filtroStatus, setFiltroStatus] = useState('PENDENTE');
   const [filtroFruta, setFiltroFruta] = useState(undefined);
   const [itensSelecionados, setItensSelecionados] = useState([]);
   const [valoresFornecedor, setValoresFornecedor] = useState({});
-
+  const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState(false);
+  const [statusPagamentoConfirmacao, setStatusPagamentoConfirmacao] = useState(null);
+  const [dataPagamentoSelecionada, setDataPagamentoSelecionada] = useState(null);
+  const [formaPagamentoSelecionada, setFormaPagamentoSelecionada] = useState(null);
+  const [loading, setLoading] = useState(false);
+  // Os dados já vêm do dashboard, não precisamos fazer nova chamada
   const detalhes = fornecedor?.detalhes || [];
+  
+  // Calcular resumo a partir dos detalhes (fonte de verdade)
+  // Sempre calcular a partir dos detalhes para garantir precisão
+  const resumo = useMemo(() => {
+    if (!detalhes || detalhes.length === 0) {
+      return {
+        quantidadePedidos: 0,
+        quantidadeFrutas: 0,
+        totalColheitas: 0,
+        colheitasPagas: 0,
+        colheitasEmAberto: 0,
+        quantidadeAreas: 0,
+        totalPago: 0,
+        totalPendente: 0,
+        distribuicaoPorUnidade: [],
+      };
+    }
+    
+    // Calcular a partir dos detalhes (fonte de verdade)
+    const quantidadePedidos = new Set(detalhes.map((d) => d.pedidoId)).size;
+    const quantidadeFrutas = new Set(detalhes.map((d) => d.frutaId)).size;
+    const quantidadeAreas = new Set(detalhes.map((d) => d.areaNome)).size;
+    const totalColheitas = detalhes.length;
+    
+    // Colheitas pagas: têm pagamentoId E status é PAGO
+    const colheitasPagas = detalhes.filter((d) => {
+      const temPagamentoId = d.pagamentoId !== undefined && 
+                             d.pagamentoId !== null && 
+                             typeof d.pagamentoId === 'number' && 
+                             d.pagamentoId > 0;
+      const statusPago = d.statusPagamento === 'PAGO';
+      return temPagamentoId && statusPago;
+    }).length;
+    
+    // Colheitas em aberto: não têm pagamentoId OU têm pagamentoId mas status não é PAGO
+    const colheitasEmAberto = detalhes.filter((d) => {
+      const temPagamentoId = d.pagamentoId !== undefined && 
+                             d.pagamentoId !== null && 
+                             typeof d.pagamentoId === 'number' && 
+                             d.pagamentoId > 0;
+      const statusPago = d.statusPagamento === 'PAGO';
+      // Em aberto se: não tem pagamentoId OU tem pagamentoId mas status não é PAGO
+      return !temPagamentoId || (temPagamentoId && !statusPago);
+    }).length;
+    
+    // Calcular Total Pago e Total Pendente
+    // IMPORTANTE: Só somar valores se houver pagamento PENDENTE/PROCESSANDO
+    // Se não tem pagamento, não somar nada (valor = 0), pois não foi precificada ainda
+    let totalPago = 0;
+    let totalPendente = 0;
+    
+    detalhes.forEach((colheita) => {
+      const temPagamentoId = colheita.pagamentoId !== undefined && 
+                             colheita.pagamentoId !== null && 
+                             typeof colheita.pagamentoId === 'number' && 
+                             colheita.pagamentoId > 0;
+      const statusPago = colheita.statusPagamento === 'PAGO';
+      const statusPendente = colheita.statusPagamento === 'PENDENTE' || colheita.statusPagamento === 'PROCESSANDO';
+      
+      if (temPagamentoId && statusPago) {
+        // Colheita paga - usar valorTotal do pagamento se disponível, senão usar valor
+        totalPago += colheita.valorTotal || colheita.valor || 0;
+      } else if (temPagamentoId && statusPendente) {
+        // Colheita precificada mas não paga (PENDENTE/PROCESSANDO) - usar valorTotal do pagamento
+        // Se valorTotal não estiver definido, usar 0 (não usar valor proporcional)
+        totalPendente += colheita.valorTotal || 0;
+      }
+      // Se não tem pagamento OU tem pagamento mas status não é PENDENTE/PROCESSANDO/PAGO:
+      // Não somar nada (valor = 0), pois não foi precificada ainda ou status é inválido
+    });
+    
+    // Calcular distribuição por unidade
+    const distribuicaoPorUnidadeMap = new Map();
+    detalhes.forEach((colheita) => {
+      const unidade = colheita.unidade || "UN";
+      if (!distribuicaoPorUnidadeMap.has(unidade)) {
+        distribuicaoPorUnidadeMap.set(unidade, {
+          unidade,
+          quantidadePaga: 0,
+          quantidadePendente: 0,
+          quantidadeTotal: 0,
+          valorPago: 0,
+          valorPendente: 0,
+          valorTotal: 0,
+        });
+      }
+      
+      const distribuicao = distribuicaoPorUnidadeMap.get(unidade);
+      distribuicao.quantidadeTotal += colheita.quantidade || 0;
+      distribuicao.valorTotal += colheita.valor || 0;
+      
+      const temPagamentoId = colheita.pagamentoId !== undefined && 
+                             colheita.pagamentoId !== null && 
+                             typeof colheita.pagamentoId === 'number' && 
+                             colheita.pagamentoId > 0;
+      const statusPago = colheita.statusPagamento === 'PAGO';
+      const statusPendente = colheita.statusPagamento === 'PENDENTE' || colheita.statusPagamento === 'PROCESSANDO';
+      
+      if (temPagamentoId && statusPago) {
+        // Colheita paga - usar valorTotal do pagamento se disponível, senão usar valor
+        distribuicao.quantidadePaga += colheita.quantidade || 0;
+        distribuicao.valorPago += colheita.valorTotal || colheita.valor || 0;
+      } else {
+        // Colheita pendente/em aberto - sempre contar quantidade
+        distribuicao.quantidadePendente += colheita.quantidade || 0;
+        
+        // IMPORTANTE: Só somar valor se houver pagamento PENDENTE/PROCESSANDO
+        // Se não tem pagamento, não somar valor (valor = 0), pois não foi precificada ainda
+        if (temPagamentoId && statusPendente) {
+          // Tem pagamento pendente/processando - usar valorTotal do pagamento
+          distribuicao.valorPendente += colheita.valorTotal || 0;
+        }
+        // Se não tem pagamento, não somar nada (valorPendente permanece 0)
+      }
+    });
+    
+    const distribuicaoPorUnidade = Array.from(distribuicaoPorUnidadeMap.values()).map((d) => ({
+      ...d,
+      quantidadePaga: Number(d.quantidadePaga.toFixed(2)),
+      quantidadePendente: Number(d.quantidadePendente.toFixed(2)),
+      quantidadeTotal: Number(d.quantidadeTotal.toFixed(2)),
+      valorPago: Number(d.valorPago.toFixed(2)),
+      valorPendente: Number(d.valorPendente.toFixed(2)),
+      valorTotal: Number(d.valorTotal.toFixed(2)),
+    }));
+    
+    return {
+      quantidadePedidos,
+      quantidadeFrutas,
+      totalColheitas,
+      colheitasPagas,
+      colheitasEmAberto,
+      quantidadeAreas,
+      totalPago,
+      totalPendente,
+      distribuicaoPorUnidade,
+    };
+  }, [fornecedor, detalhes]);
+  
+  // Obter nome do fornecedor
+  const nomeFornecedor = fornecedor?.nomeFornecedor || "Fornecedor";
 
   useEffect(() => {
     if (!open) {
       setFiltroBusca("");
       setFiltroData(null);
-      setFiltroStatus(undefined);
+      // ✅ Resetar filtroStatus para padrão (não precificada + precificada)
+      setFiltroStatus('PENDENTE');
       setFiltroFruta(undefined);
+      setItensSelecionados([]);
+      setValoresFornecedor({});
+      setModalConfirmacaoAberto(false);
+      setStatusPagamentoConfirmacao(null);
+      setDataPagamentoSelecionada(null);
+      setFormaPagamentoSelecionada(null);
     }
   }, [open, fornecedor?.id]);
 
-  const totaisPorUnidade = useMemo(() => {
-    if (!detalhes.length) return [];
+  useEffect(() => {
+    if (modalConfirmacaoAberto) {
+      if (!dataPagamentoSelecionada) {
+        setDataPagamentoSelecionada(moment());
+      }
+      if (!formaPagamentoSelecionada) {
+        setFormaPagamentoSelecionada('PIX');
+      }
+    }
+  }, [modalConfirmacaoAberto]);
 
-    const unidadesAgrupadas = detalhes.reduce((acc, item) => {
-      const unidade = (item.unidade || "UN").toUpperCase();
-      const quantidade = Number(item.quantidade || 0);
-      acc.set(unidade, (acc.get(unidade) || 0) + quantidade);
-      return acc;
-    }, new Map());
+  // Distribuição por unidade (vem do resumo calculado)
+  const distribuicaoPorUnidade = resumo.distribuicaoPorUnidade || [];
 
-    return Array.from(unidadesAgrupadas.entries()).map(([unidade, total]) => ({
-      unidade,
-      total,
-    }));
-  }, [detalhes]);
-
-  const valoresResumo = useMemo(() => {
-    const totalValor = detalhes.reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
-    const totalQuantidade = detalhes.reduce(
-      (acc, item) => acc + (Number(item.quantidade) || 0),
-      0
-    );
-    return {
-      totalValor,
-      totalQuantidade,
-    };
-  }, [detalhes]);
-
-  const statusDisponiveis = useMemo(() => {
-    const set = new Set(detalhes.map((item) => item.statusPedido).filter(Boolean));
-    return Array.from(set.values());
-  }, [detalhes]);
+  // ✅ Opções de status da colheita para o filtro
+  const statusColheitaOpcoes = useMemo(() => [
+    { value: 'TODAS', label: 'Todas' },
+    { value: 'PAGA', label: 'Colheita Paga' },
+    { value: 'PRECIFICADA', label: 'Precificada' },
+    { value: 'NAO_PRECIFICADA', label: 'Não Precificada' },
+    // Valor padrão 'PENDENTE' (Não Precificada + Precificada) não aparece na lista, é usado internamente
+  ], []);
 
   const frutasDisponiveis = useMemo(() => {
     const set = new Set(detalhes.map((item) => item.fruta).filter(Boolean));
@@ -200,6 +373,50 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
 
     return detalhes
       .filter((item) => {
+        // ✅ FILTRAR por Status da Colheita
+        // Verificar se tem pagamentoId e statusPagamento
+        const temPagamentoId = item.pagamentoId !== undefined && 
+                               item.pagamentoId !== null && 
+                               typeof item.pagamentoId === 'number' && 
+                               item.pagamentoId > 0;
+        const statusPago = item.statusPagamento === 'PAGO';
+        const statusPrecificado = temPagamentoId && (item.statusPagamento === 'PENDENTE' || item.statusPagamento === 'PROCESSANDO');
+        const statusNaoPrecificado = !temPagamentoId;
+        
+        // Aplicar filtro de status da colheita
+        if (filtroStatus) {
+          if (filtroStatus === 'PAGA') {
+            // Mostrar apenas colheitas pagas
+            if (!statusPago) {
+              return false;
+            }
+          } else if (filtroStatus === 'PRECIFICADA') {
+            // Mostrar apenas colheitas precificadas (tem pagamentoId mas não está pago)
+            if (!statusPrecificado) {
+              return false;
+            }
+          } else if (filtroStatus === 'NAO_PRECIFICADA') {
+            // Mostrar apenas colheitas não precificadas (não tem pagamentoId)
+            if (!statusNaoPrecificado) {
+              return false;
+            }
+          } else if (filtroStatus === 'PENDENTE') {
+            // Mostrar colheitas não precificadas + precificadas (padrão: todas exceto pagas)
+            if (statusPago) {
+              return false;
+            }
+          } else if (filtroStatus === 'TODAS') {
+            // Mostrar todas (incluindo pagas)
+            // Não filtrar por status
+          }
+        } else {
+          // Se não há filtro, usar padrão: mostrar não precificadas + precificadas (todas exceto pagas)
+          if (statusPago) {
+            return false;
+          }
+        }
+
+        // Filtro de busca (pedido, cliente, área)
         if (termoBusca) {
           const pedido = (item.pedidoNumero || "").toLowerCase();
           const cliente = (item.cliente || "").toLowerCase();
@@ -213,14 +430,12 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
           }
         }
 
-        if (filtroStatus && item.statusPedido !== filtroStatus) {
-          return false;
-        }
-
+        // Filtro de fruta
         if (filtroFruta && item.fruta !== filtroFruta) {
           return false;
         }
 
+        // Filtro de data
         if (
           filtroData &&
           filtroData.length === 2 &&
@@ -273,7 +488,7 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
 
       const grupo = mapa.get(fruta);
       grupo.detalhes.push(item);
-      grupo.totalValor += Number(item.valor) || 0;
+      grupo.totalValor += Number(item.valor || 0);
       const unidade = (item.unidade || "UN").toUpperCase();
       const quantidadeAtual = grupo.totalPorUnidade.get(unidade) || 0;
       grupo.totalPorUnidade.set(unidade, quantidadeAtual + (Number(item.quantidade) || 0));
@@ -356,7 +571,7 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
         ),
       },
       {
-        title: "Valor Vendido",
+        title: "Valor Venda",
         dataIndex: "valorTotalFruta",
         key: "valorTotalFruta",
         width: 140,
@@ -369,24 +584,68 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
       {
         title: "Valor Compra",
         key: "valorCompra",
-        width: 150,
-        render: () => (
-          <Tag
-            color="#facc15"
-            style={{
-              borderRadius: 999,
-              fontWeight: 600,
-              color: "#92400e",
-              border: "1px solid #facc15",
-              backgroundColor: "#fef9c3",
-            }}
-          >
-            -
-          </Tag>
-        ),
+        width: 140,
+        render: (_, record) => {
+          // Mostrar valorTotal se existir (valor de compra/precificação)
+          const valorCompra = record.valorTotal;
+          return (
+            <Text style={{ color: "#1f2937", fontWeight: 500 }}>
+              {valorCompra && valorCompra > 0 ? `R$ ${formatCurrency(valorCompra)}` : "-"}
+            </Text>
+          );
+        },
+      },
+      {
+        title: "Status",
+        key: "status",
+        width: 120,
+        render: (_, record) => {
+          // Se status é PAGO, mostrar badge verde "Pago" (cor PEDIDO_FINALIZADO)
+          if (record.statusPagamento === 'PAGO') {
+            const corPago = PEDIDO_FINALIZADO || getStatusColor('PEDIDO_FINALIZADO') || "#52c41a";
+            return (
+              <Tag
+                style={{
+                  backgroundColor: corPago,
+                  color: "#ffffff",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  border: "none",
+                  fontSize: "0.75rem",
+                  padding: "2px 8px",
+                }}
+              >
+                Pago
+              </Tag>
+            );
+          }
+          
+          // Se existe valorTotal (valor de compra/precificação), mostrar badge amarelo "Precificado" (cor AGUARDANDO_PAGAMENTO)
+          if (record.valorTotal && record.valorTotal > 0) {
+            const corPrecificado = AGUARDANDO_PAGAMENTO || getStatusColor('AGUARDANDO_PAGAMENTO') || "#faad14";
+            return (
+              <Tag
+                style={{
+                  backgroundColor: corPrecificado,
+                  color: "#ffffff",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  border: "none",
+                  fontSize: "0.75rem",
+                  padding: "2px 8px",
+                }}
+              >
+                Precificado
+              </Tag>
+            );
+          }
+          
+          // Se não tem valorTotal e não está pago, não mostrar badge
+          return <Text type="secondary">-</Text>;
+        },
       },
     ],
-    []
+    [AGUARDANDO_PAGAMENTO, PEDIDO_FINALIZADO, getStatusColor]
   );
 
   useEffect(() => {
@@ -403,6 +662,256 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
     });
   }, [detalhesFiltrados, getRowKey]);
 
+  // Validação: verificar se pode precificar/pagar
+  const podePrecificarOuPagar = useMemo(() => {
+    if (itensSelecionados.length === 0) {
+      return false;
+    }
+
+    // Verificar se todos os itens selecionados têm valor unitário válido (> 0)
+    const todosValoresValidos = itensSelecionados.every((key) => {
+      const item = detalhesPorKey.get(key);
+      if (!item) return false;
+
+      const valorUnitarioRaw = valoresFornecedor[key] ?? "";
+      // ✅ Converter valor unitário corretamente
+      let valorUnitarioNumero = null;
+      if (valorUnitarioRaw !== undefined && valorUnitarioRaw !== null && valorUnitarioRaw !== "") {
+        if (typeof valorUnitarioRaw === 'number') {
+          valorUnitarioNumero = valorUnitarioRaw;
+        } else {
+          // O NumericFormat retorna string no formato "1.111" (ponto decimal)
+          valorUnitarioNumero = parseFloat(String(valorUnitarioRaw));
+          if (isNaN(valorUnitarioNumero)) {
+            valorUnitarioNumero = null;
+          }
+        }
+      }
+      
+      return valorUnitarioNumero !== null && valorUnitarioNumero > 0;
+    });
+
+    return todosValoresValidos;
+  }, [itensSelecionados, valoresFornecedor, detalhesPorKey]);
+
+  // Calcular total a pagar/precificar
+  const totalAPagar = useMemo(() => {
+    if (itensSelecionados.length === 0) return 0;
+
+    return itensSelecionados.reduce((acc, key) => {
+      const item = detalhesPorKey.get(key);
+      if (!item) return acc;
+
+      const valorUnitarioRaw = valoresFornecedor[key] ?? "";
+      // ✅ Converter valor unitário corretamente
+      let valorUnitarioNumero = null;
+      if (valorUnitarioRaw !== undefined && valorUnitarioRaw !== null && valorUnitarioRaw !== "") {
+        if (typeof valorUnitarioRaw === 'number') {
+          valorUnitarioNumero = valorUnitarioRaw;
+        } else {
+          // O NumericFormat retorna string no formato "1.111" (ponto decimal)
+          valorUnitarioNumero = parseFloat(String(valorUnitarioRaw));
+          if (isNaN(valorUnitarioNumero)) {
+            valorUnitarioNumero = null;
+          }
+        }
+      }
+      
+      const quantidadeNumero = typeof item.quantidade === "number"
+        ? item.quantidade
+        : parseLocaleNumber(String(item.quantidade ?? "")) ?? 0;
+
+      if (valorUnitarioNumero !== null && valorUnitarioNumero > 0 && quantidadeNumero > 0) {
+        // ✅ Calcular com precisão correta (2 casas decimais)
+        return acc + Number((valorUnitarioNumero * quantidadeNumero).toFixed(2));
+      }
+
+      return acc;
+    }, 0);
+  }, [itensSelecionados, valoresFornecedor, detalhesPorKey]);
+
+  // Função para abrir modal de confirmação
+  const abrirModalConfirmacao = (status) => {
+    if (!fornecedor || !fornecedor.id) {
+      showNotification("error", "Erro", "Fornecedor não informado");
+      return;
+    }
+
+    if (itensSelecionados.length === 0) {
+      showNotification("warning", "Atenção", "Selecione pelo menos uma colheita");
+      return;
+    }
+
+    if (!podePrecificarOuPagar) {
+      showNotification("warning", "Atenção", "Preencha os valores unitários para todas as colheitas selecionadas");
+      return;
+    }
+
+    setStatusPagamentoConfirmacao(status);
+    setModalConfirmacaoAberto(true);
+  };
+
+  // Função para criar pagamentos (após confirmação)
+  const criarPagamentos = async () => {
+    if (!dataPagamentoSelecionada) {
+      showNotification('error', 'Validação', 'Selecione a data do pagamento.');
+      return;
+    }
+
+    if (!formaPagamentoSelecionada) {
+      showNotification('error', 'Validação', 'Selecione a forma de pagamento.');
+      return;
+    }
+
+    if (!fornecedor || !fornecedor.id) {
+      showNotification("error", "Erro", "Fornecedor não informado");
+      return;
+    }
+
+    if (itensSelecionados.length === 0) {
+      showNotification("warning", "Atenção", "Selecione pelo menos uma colheita");
+      return;
+    }
+
+    const status = statusPagamentoConfirmacao;
+
+    // Preparar pagamentos
+    const pagamentos = itensSelecionados.map((key) => {
+      const item = detalhesPorKey.get(key);
+      if (!item) return null;
+
+      // Verificar se já existe pagamento para esta colheita
+      if (item.pagamentoId !== undefined && item.pagamentoId !== null && typeof item.pagamentoId === 'number' && item.pagamentoId > 0) {
+        console.warn(`Colheita ${key} já tem pagamento (ID: ${item.pagamentoId})`);
+        return null;
+      }
+
+      const valorUnitarioRaw = valoresFornecedor[key] ?? "";
+      // ✅ Converter valor unitário corretamente
+      let valorUnitarioNumero = null;
+      if (valorUnitarioRaw !== undefined && valorUnitarioRaw !== null && valorUnitarioRaw !== "") {
+        if (typeof valorUnitarioRaw === 'number') {
+          valorUnitarioNumero = valorUnitarioRaw;
+        } else {
+          // O NumericFormat retorna string no formato "1.111" (ponto decimal)
+          valorUnitarioNumero = parseFloat(String(valorUnitarioRaw));
+          if (isNaN(valorUnitarioNumero)) {
+            valorUnitarioNumero = null;
+          }
+        }
+      }
+
+      if (!valorUnitarioNumero || valorUnitarioNumero <= 0) {
+        return null;
+      }
+
+      const quantidadeNumero = typeof item.quantidade === "number"
+        ? item.quantidade
+        : parseLocaleNumber(String(item.quantidade ?? "")) ?? 0;
+
+      // ✅ Calcular valor total com precisão correta (2 casas decimais)
+      const valorTotal = Number((valorUnitarioNumero * quantidadeNumero).toFixed(2));
+
+      if (valorTotal <= 0) {
+        return null;
+      }
+
+      // Converter unidade para o formato do backend (UnidadeMedida enum)
+      // Valores válidos: KG, CX, TON, UND, ML
+      const unidadeMap = {
+        "KG": "KG",
+        "CX": "CX",
+        "TON": "TON",
+        "TONELADA": "TON",
+        "UND": "UND",
+        "UN": "UND",
+        "UNIDADE": "UND",
+        "UNIDADES": "UND",
+        "ML": "ML",
+        "MILILITRO": "ML",
+        "MILILITROS": "ML",
+      };
+      const unidadeUpper = item.unidade?.toUpperCase() || "UND";
+      const unidadeMedida = unidadeMap[unidadeUpper] || "UND";
+
+      return {
+        fornecedorId: fornecedor.id,
+        areaFornecedorId: item.areaFornecedorId,
+        pedidoId: item.pedidoId,
+        frutaId: item.frutaId,
+        frutaPedidoId: item.frutaPedidoId,
+        frutaPedidoAreaId: item.frutaPedidoAreaId,
+        quantidade: quantidadeNumero,
+        unidadeMedida: unidadeMedida,
+        valorUnitario: valorUnitarioNumero,
+        valorTotal: valorTotal,
+        dataColheita: item.dataColheita ? moment(item.dataColheita).toISOString() : undefined,
+        dataPagamento: dataPagamentoSelecionada
+          ? (moment.isMoment(dataPagamentoSelecionada) 
+              ? dataPagamentoSelecionada.clone().startOf('day').add(12, 'hours').toISOString()
+              : moment(dataPagamentoSelecionada).startOf('day').add(12, 'hours').toISOString())
+          : moment().startOf('day').add(12, 'hours').toISOString(),
+        formaPagamento: formaPagamentoSelecionada || undefined,
+        status: status,
+      };
+    }).filter(Boolean);
+
+    if (pagamentos.length === 0) {
+      showNotification("error", "Erro", "Nenhum pagamento válido para criar");
+      return;
+    }
+
+    if (pagamentos.length !== itensSelecionados.length) {
+      showNotification("warning", "Atenção", "Alguns itens não foram incluídos por terem valores inválidos");
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await axiosInstance.post(
+        `/api/fornecedores/${fornecedor.id}/pagamentos/criar-multiplos`,
+        { pagamentos }
+      );
+
+      showNotification(
+        "success",
+        "Sucesso",
+        `${pagamentos.length} pagamento(s) ${status === "PENDENTE" ? "precificado(s)" : "criado(s)"} com sucesso`
+      );
+
+      // Fechar modal de confirmação
+      setModalConfirmacaoAberto(false);
+      setStatusPagamentoConfirmacao(null);
+      setDataPagamentoSelecionada(null);
+      setFormaPagamentoSelecionada(null);
+
+      // Limpar seleção e valores
+      setItensSelecionados([]);
+      setValoresFornecedor({});
+
+      // Chamar callback para recarregar dados
+      onPagamentosCriados();
+
+      // Fechar modal após sucesso
+      onClose();
+    } catch (error) {
+      console.error("Erro ao criar pagamentos:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Erro ao criar pagamentos";
+      showNotification("error", "Erro", errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handlers para botões
+  const handlePrecificar = () => {
+    abrirModalConfirmacao("PENDENTE");
+  };
+
+  const handlePagar = () => {
+    abrirModalConfirmacao("PAGO");
+  };
+
   const rowSelection = useMemo(
     () => ({
       selectedRowKeys: itensSelecionados,
@@ -410,34 +919,88 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
         setItensSelecionados(selectedKeys);
         setValoresFornecedor((prev) => {
           const atualizado = {};
-          selectedKeys.forEach((key) => {
-            atualizado[key] = prev[key] ?? null;
+          
+          // Primeiro, limpar valores de itens que foram desselecionados
+          Object.keys(prev).forEach((key) => {
+            if (!selectedKeys.includes(key)) {
+              // Item foi desselecionado, não incluir no novo estado
+            }
           });
+          
+          selectedKeys.forEach((key) => {
+            const item = detalhesPorKey.get(key);
+            
+            // Se já tem valor no estado (usuário pode ter editado), manter
+            if (prev[key] !== undefined && prev[key] !== null && prev[key] !== "") {
+              atualizado[key] = prev[key];
+            } else if (item) {
+              // Verificar se o item já tem um pagamento precificado (PENDENTE/PROCESSANDO)
+              const temPagamentoId = item.pagamentoId !== undefined && 
+                                     item.pagamentoId !== null && 
+                                     typeof item.pagamentoId === 'number' && 
+                                     item.pagamentoId > 0;
+              const statusPendente = item.statusPagamento === 'PENDENTE' || 
+                                     item.statusPagamento === 'PROCESSANDO';
+              
+              // Se tem pagamento precificado, usar o valorUnitario do pagamento
+              if (temPagamentoId && statusPendente && item.valorUnitario !== undefined && item.valorUnitario !== null) {
+                // Passar o valor como string numérica (ex: "1.0")
+                // O MonetaryInput (NumericFormat) aceita número ou string numérica e formata automaticamente
+                // O onChange retorna string numérica, então vamos manter consistência usando string
+                atualizado[key] = String(item.valorUnitario);
+              } else {
+                // Se não tem pagamento precificado, deixar vazio (undefined)
+                atualizado[key] = undefined;
+              }
+            } else {
+              // Se não encontrou o item, deixar vazio
+              atualizado[key] = undefined;
+            }
+          });
+          
           return atualizado;
         });
       },
+      // ✅ IMPEDIR seleção de colheitas pagas
+      getCheckboxProps: (record) => {
+        const key = getRowKey(record);
+        const item = detalhesPorKey.get(key);
+        
+        // Verificar se é colheita paga
+        const temPagamentoId = item?.pagamentoId !== undefined && 
+                               item?.pagamentoId !== null && 
+                               typeof item?.pagamentoId === 'number' && 
+                               item?.pagamentoId > 0;
+        const statusPago = item?.statusPagamento === 'PAGO';
+        const isColheitaPaga = temPagamentoId && statusPago;
+        
+        return {
+          disabled: isColheitaPaga, // Desabilitar checkbox se for colheita paga
+          name: `checkbox-${key}`,
+        };
+      },
     }),
-    [itensSelecionados]
+    [itensSelecionados, detalhesPorKey, getRowKey]
   );
 
   return (
     <Modal
       title={
-        <span
-          style={{
-            color: "#ffffff",
-            fontWeight: 600,
-            fontSize: "16px",
-            backgroundColor: "#059669",
-            padding: "12px 16px",
-            margin: "-20px -24px 0 -24px",
-            display: "block",
-            borderRadius: "8px 8px 0 0",
-          }}
-        >
-          <Icon icon="mdi:truck-delivery" style={{ marginRight: 8 }} />
-          Detalhes do Fornecedor - {capitalizeName(fornecedor?.nomeFornecedor || "")}
-        </span>
+          <span
+            style={{
+              color: "#ffffff",
+              fontWeight: 600,
+              fontSize: "16px",
+              backgroundColor: "#059669",
+              padding: "12px 16px",
+              margin: "-20px -24px 0 -24px",
+              display: "block",
+              borderRadius: "8px 8px 0 0",
+            }}
+          >
+            <Icon icon="mdi:truck-delivery" style={{ marginRight: 8 }} />
+            Detalhes do Fornecedor - {capitalizeName(nomeFornecedor)}
+          </span>
       }
       open={open}
       onCancel={onClose}
@@ -489,6 +1052,10 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
         <div style={{ padding: "40px", textAlign: "center" }}>
           <Empty description="Selecione um fornecedor para visualizar os detalhes" />
         </div>
+      ) : detalhes.length === 0 ? (
+        <div style={{ padding: "40px", textAlign: "center" }}>
+          <Empty description="Nenhuma colheita registrada para este fornecedor" />
+        </div>
       ) : (
         <div>
           <SummaryCard
@@ -510,90 +1077,121 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
               },
             }}
           >
+            {/* Primeira linha: Total de pedidos / Total de frutas / Total de colheitas / Total de áreas */}
             <Row gutter={isMobile ? [12, 12] : [24, 16]}>
               <Col xs={12} sm={6}>
                 <Statistic
-                  title="Pedidos Atendidos"
-                  value={fornecedor.quantidadePedidos || 0}
+                  title="Total de Pedidos"
+                  value={resumo.quantidadePedidos || 0}
                   prefix={<ShoppingCartOutlined />}
                   valueStyle={{ color: "#047857", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
                 />
               </Col>
               <Col xs={12} sm={6}>
                 <Statistic
-                  title="Frutas Diferentes"
-                  value={fornecedor.quantidadeFrutas || 0}
+                  title="Total de Frutas"
+                  value={resumo.quantidadeFrutas || 0}
                   prefix={<AppleOutlined />}
                   valueStyle={{ color: "#f97316", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
                 />
               </Col>
               <Col xs={12} sm={6}>
                 <Statistic
-                  title="Áreas Utilizadas"
-                  value={fornecedor.quantidadeAreas || 0}
-                  prefix={<EnvironmentOutlined />}
+                  title="Total de Colheitas"
+                  value={resumo.totalColheitas || 0}
+                  prefix={<HeatMapOutlined />}
                   valueStyle={{ color: "#0ea5e9", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
                 />
               </Col>
               <Col xs={12} sm={6}>
                 <Statistic
-                  title="Valor Proporcional"
-                  value={fornecedor.totalValor || valoresResumo.totalValor}
-                  prefix={<DollarOutlined />}
-                  formatter={(value) => formatCurrency(value || 0)}
-                  valueStyle={{ color: "#047857", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
+                  title="Total de Áreas"
+                  value={resumo.quantidadeAreas || 0}
+                  prefix={<EnvironmentOutlined />}
+                  valueStyle={{ color: "#8b5cf6", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
                 />
               </Col>
             </Row>
 
             <Divider style={{ margin: isMobile ? "12px 0" : "16px 0" }} />
 
-            <Row gutter={[12, 12]}>
-              <Col xs={24} sm={12}>
-                <Title level={5} style={{ color: "#047857", marginBottom: 8 }}>
-                  <HeatMapOutlined style={{ marginRight: 8 }} />
-                  Distribuição por Unidade
-                </Title>
-                {totaisPorUnidade.length > 0 ? (
-                  <Space wrap size={[8, 8]}>
-                    {totaisPorUnidade.map(({ unidade, total }) => (
-                      <QuantitiesBadge key={unidade}>
-                        <Icon icon="mdi:scale-balance" />
-                        {formatQuantidade(total)} {unidade}
-                      </QuantitiesBadge>
-                    ))}
-                  </Space>
-                ) : (
-                  <Text type="secondary">Nenhuma quantidade registrada.</Text>
-                )}
+            {/* Segunda linha: Colheitas pagas / Colheitas em aberto / Total Pendente / Total Pago */}
+            <Row gutter={isMobile ? [12, 12] : [24, 16]}>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Colheitas Pagas"
+                  value={resumo.colheitasPagas || 0}
+                  prefix={<CheckCircleTwoTone twoToneColor="#52c41a" />}
+                  valueStyle={{ color: "#52c41a", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
+                />
               </Col>
-              <Col xs={24} sm={12}>
-                <Title level={5} style={{ color: "#047857", marginBottom: 8 }}>
-                  <DollarOutlined style={{ marginRight: 8 }} />
-                  Indicadores Financeiros
-                </Title>
-                <Space direction="vertical" size={6} style={{ width: "100%" }}>
-                  <Badge
-                    status="processing"
-                    color="#047857"
-                    text={
-                      <Text strong style={{ color: "#047857" }}>
-                        Total proporcional atribuído: {formatCurrency(valoresResumo.totalValor)}
-                      </Text>
-                    }
-                  />
-                  <Badge
-                    status="processing"
-                    color="#0f766e"
-                    text={
-                      <Text style={{ color: "#0f172a" }}>
-                        Quantidade acumulada: {intFormatter(valoresResumo.totalQuantidade || 0)}
-                      </Text>
-                    }
-                  />
-                </Space>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Colheitas em Aberto"
+                  value={resumo.colheitasEmAberto || 0}
+                  prefix={<ClockCircleOutlined />}
+                  valueStyle={{ color: "#faad14", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
+                />
+              </Col>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Total Pendente"
+                  value={formatCurrency(resumo.totalPendente || 0)}
+                  prefix={<DollarOutlined />}
+                  valueStyle={{ color: "#faad14", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
+                />
+              </Col>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Total Pago"
+                  value={formatCurrency(resumo.totalPago || 0)}
+                  prefix={<DollarCircleOutlined />}
+                  valueStyle={{ color: "#52c41a", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
+                />
               </Col>
             </Row>
+
+            <Divider style={{ margin: isMobile ? "12px 0" : "16px 0" }} />
+
+            {/* Terceira linha: Distribuição por Unidade (layout compacto) */}
+            {distribuicaoPorUnidade.length > 0 && (
+              <div style={{ marginTop: isMobile ? 8 : 12 }}>
+                <Text strong style={{ color: "#047857", fontSize: "0.875rem", marginBottom: 8, display: "block" }}>
+                  <HeatMapOutlined style={{ marginRight: 6 }} />
+                  Distribuição por Unidade
+                </Text>
+                <Space wrap size={[8, 8]} style={{ width: "100%" }}>
+                  {distribuicaoPorUnidade.map((dist) => (
+                    <div
+                      key={dist.unidade}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 12px",
+                        backgroundColor: "#f9fafb",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "6px",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      <Text strong style={{ color: "#047857", fontSize: "0.8rem" }}>
+                        {dist.unidade}:
+                      </Text>
+                      <Tag color="success" style={{ margin: 0, fontSize: "0.75rem", padding: "2px 8px" }}>
+                        Pago: {intFormatter(dist.quantidadePaga)}
+                      </Tag>
+                      <Tag color="warning" style={{ margin: 0, fontSize: "0.75rem", padding: "2px 8px" }}>
+                        Pendente: {intFormatter(dist.quantidadePendente)}
+                      </Tag>
+                      <Tag color="default" style={{ margin: 0, fontSize: "0.75rem", padding: "2px 8px" }}>
+                        Total: {intFormatter(dist.quantidadeTotal)}
+                      </Tag>
+                    </div>
+                  ))}
+                </Space>
+              </div>
+            )}
           </SummaryCard>
 
           <FiltersCard
@@ -627,27 +1225,24 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
               </Col>
               <Col xs={24} sm={12} md={5}>
                 <Select
-                  value={filtroStatus}
-                  onChange={setFiltroStatus}
+                  value={filtroStatus === 'PENDENTE' ? undefined : filtroStatus}
+                  onChange={(value) => {
+                    // Se limpar (value === undefined), voltar para padrão (PENDENTE)
+                    setFiltroStatus(value || 'PENDENTE');
+                  }}
+                  placeholder="Status da Colheita"
                   allowClear
-                  placeholder="Status do pedido"
                   style={{ width: "100%" }}
                   size={isMobile ? "middle" : "large"}
                 >
-                  {statusDisponiveis.map((status) => {
-                    const config = getStatusDisplay(status);
-                    return (
-                      <Option value={status} key={status}>
-                        <Space>
-                          <CheckCircleOutlined style={{ color: config.color }} />
-                          {config.label}
-                        </Space>
-                      </Option>
-                    );
-                  })}
+                  {statusColheitaOpcoes.map((opcao) => (
+                    <Option key={opcao.value} value={opcao.value}>
+                      {opcao.label}
+                    </Option>
+                  ))}
                 </Select>
               </Col>
-              <Col xs={24} sm={12} md={5}>
+              <Col xs={24} sm={12} md={4}>
                 <Select
                   value={filtroFruta}
                   onChange={setFiltroFruta}
@@ -658,15 +1253,12 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
                 >
                   {frutasDisponiveis.map((fruta) => (
                     <Option key={fruta} value={fruta}>
-                      <Space>
-                        <Icon icon="mdi:fruit-watermelon" style={{ color: "#10b981" }} />
-                        {capitalizeName(fruta)}
-                      </Space>
+                      {capitalizeName(fruta)}
                     </Option>
                   ))}
                 </Select>
               </Col>
-              <Col xs={24} md={4}>
+              <Col xs={24} md={5}>
                 <RangePicker
                   value={filtroData}
                   onChange={setFiltroData}
@@ -697,44 +1289,11 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
                   key={grupo.fruta}
                   $isMobile={isMobile}
                   title={
-                    <Space
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        width: "100%",
-                      }}
-                    >
-                      <Space>
-                        <AppleOutlined style={{ color: "#ffffff" }} />
-                        <span style={{ color: "#ffffff", fontWeight: 600 }}>
-                          {capitalizeName(grupo.fruta)}
-                        </span>
-                      </Space>
-                      <Space>
-                        {grupo.totalPorUnidade.map(({ unidade, total }) => (
-                          <Tag
-                            key={unidade}
-                            color="#10b981"
-                            style={{
-                              borderRadius: 999,
-                              fontWeight: 600,
-                              letterSpacing: 0.3,
-                            }}
-                          >
-                            {formatQuantidade(total)} {unidade}
-                          </Tag>
-                        ))}
-                        <Tag
-                          color="#047857"
-                          style={{
-                            borderRadius: 999,
-                            fontWeight: 600,
-                            letterSpacing: 0.3,
-                          }}
-                        >
-                          {formatCurrency(grupo.totalValor)}
-                        </Tag>
-                      </Space>
+                    <Space>
+                      <Icon icon="healthicons:fruits" style={{ fontSize: '20px', color: "#ffffff" }} />
+                      <span style={{ color: "#ffffff", fontWeight: 600 }}>
+                        {capitalizeName(grupo.fruta)}
+                      </span>
                     </Space>
                   }
                   styles={{
@@ -797,111 +1356,460 @@ const FornecedorColheitaPagamentosModal = ({ open, fornecedor, onClose }) => {
             },
           }}
         >
-          {itensSelecionados.map((key, index) => {
-            const item = detalhesPorKey.get(key);
-            if (!item) return null;
+          {/* Área de scroll com altura máxima para 5 linhas */}
+          <div style={{
+            maxHeight: isMobile ? 'auto' : '480px', // ~96px por linha × 5 linhas
+            overflowY: itensSelecionados.length > 5 ? 'auto' : 'visible',
+            marginBottom: isMobile ? '12px' : '16px',
+            paddingRight: itensSelecionados.length > 5 ? '8px' : '0'
+          }}>
+            {/* Cabeçalho das colunas */}
+            {!isMobile && (
+              <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
+                <Col xs={24} md={6}>
+                  <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                    <AppleOutlined style={{ marginRight: "0.5rem" }} />
+                    Fruta
+                  </span>
+                </Col>
+                <Col xs={24} md={4}>
+                  <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                    <EnvironmentOutlined style={{ marginRight: "0.5rem" }} />
+                    Área
+                  </span>
+                </Col>
+                <Col xs={24} md={4}>
+                  <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                    <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                    Quantidade
+                  </span>
+                </Col>
+                <Col xs={24} md={5}>
+                  <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                    <DollarOutlined style={{ marginRight: "0.25rem" }} />
+                    Valor Unitário
+                  </span>
+                </Col>
+                <Col xs={24} md={5}>
+                  <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                    <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
+                    Valor Total
+                  </span>
+                </Col>
+              </Row>
+            )}
 
-            const quantidadeNumero =
-              typeof item.quantidade === "number"
-                ? item.quantidade
-                : parseLocaleNumber(String(item.quantidade ?? "")) ?? 0;
-            const quantidadeTexto = `${intFormatter(quantidadeNumero || 0)} ${item.unidade || ""}`.trim();
+            {itensSelecionados.map((key, index) => {
+              const item = detalhesPorKey.get(key);
+              if (!item) return null;
 
-            const valorUnitarioRaw = valoresFornecedor[key] ?? "";
-            const valorUnitarioNumero = parseLocaleNumber(valorUnitarioRaw);
-            const valorTotal =
-              valorUnitarioNumero !== null && quantidadeNumero
-                ? valorUnitarioNumero * quantidadeNumero
-                : null;
+              const quantidadeNumero =
+                typeof item.quantidade === "number"
+                  ? item.quantidade
+                  : parseLocaleNumber(String(item.quantidade ?? "")) ?? 0;
+              const quantidadeTexto = `${intFormatter(quantidadeNumero || 0)} ${item.unidade || ""}`.trim();
 
-            return (
-              <div key={key} style={{ marginBottom: index < itensSelecionados.length - 1 ? (isMobile ? 12 : 16) : 0 }}>
-                <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="middle">
-                  <Col xs={24} md={6}>
-                    <Space direction="vertical" size={4}>
-                      <Text strong style={{ color: "#059669", fontSize: isMobile ? "0.95rem" : "1rem" }}>
-                        {capitalizeName(item.fruta)}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: "0.75rem" }}>
-                        Pedido #{item.pedidoNumero} • {capitalizeNameShort(item.areaNome)}
-                      </Text>
-                    </Space>
-                  </Col>
+              // Obter valor unitário do estado (já inicializado no rowSelection.onChange se tiver pagamento precificado)
+              const valorUnitarioRaw = valoresFornecedor[key];
+              
+              // Converter para número (pode ser string numérica ou número)
+              // ✅ O MonetaryInput (NumericFormat) retorna values.value já como string numérica
+              // no formato americano (ponto como separador decimal)
+              // Exemplo: "1.111" = 1.111 (um vírgula um um um)
+              // Precisamos garantir que a conversão seja feita corretamente
+              let valorUnitarioNumero = null;
+              
+              if (valorUnitarioRaw !== undefined && valorUnitarioRaw !== null && valorUnitarioRaw !== "") {
+                if (typeof valorUnitarioRaw === 'number') {
+                  valorUnitarioNumero = valorUnitarioRaw;
+                } else {
+                  // ✅ O NumericFormat retorna string no formato "1.111" (ponto decimal)
+                  // Converter diretamente para número
+                  valorUnitarioNumero = parseFloat(String(valorUnitarioRaw));
+                  if (isNaN(valorUnitarioNumero)) {
+                    valorUnitarioNumero = null;
+                  }
+                }
+              }
+              
+              // ✅ Calcular valor total com precisão correta
+              // Usar Number() para garantir precisão numérica
+              const valorTotal = valorUnitarioNumero !== null && quantidadeNumero && valorUnitarioNumero > 0
+                ? Number((valorUnitarioNumero * quantidadeNumero).toFixed(2))
+                : 0;
 
-                  <Col xs={12} md={4}>
-                    <Space direction="vertical" size={2}>
-                      <Text type="secondary" style={{ fontSize: "0.75rem" }}>
-                        Quantidade
-                      </Text>
-                      <Tag color="#10b981" style={{ borderRadius: 999, fontWeight: 600 }}>
-                        {quantidadeTexto || "-"}
-                      </Tag>
-                    </Space>
-                  </Col>
+              return (
+                <div key={key} style={{ 
+                  paddingBottom: index < itensSelecionados.length - 1 ? (isMobile ? 12 : 16) : 0,
+                  marginBottom: index < itensSelecionados.length - 1 ? (isMobile ? 12 : 16) : 0,
+                  borderBottom: index < itensSelecionados.length - 1 ? "1px solid #f0f0f0" : "none"
+                }}>
+                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="middle" style={{ marginBottom: 0 }}>
+                    {/* Fruta */}
+                    <Col xs={24} md={6}>
+                      {isMobile ? (
+                        <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.95rem" }}>
+                            {capitalizeName(item.fruta)}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                            Pedido #{item.pedidoNumero}
+                          </Text>
+                        </Space>
+                      ) : (
+                        <Space direction="vertical" size={2} style={{ width: "100%" }}>
+                          <Text strong style={{ color: "#333", fontSize: "0.875rem" }}>
+                            {capitalizeName(item.fruta)}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                            Pedido #{item.pedidoNumero}
+                          </Text>
+                        </Space>
+                      )}
+                    </Col>
 
-                  <Col xs={24} md={5}>
-                    <Space direction="vertical" size={2} style={{ width: "100%" }}>
-                      <Text type="secondary" style={{ fontSize: "0.75rem" }}>
-                        Valor unitário (R$)
-                      </Text>
-                      <MonetaryInput
-                        decimalScale={4}
-                        placeholder="0,0000"
-                        addonBefore="R$"
-                        size={isMobile ? "small" : "large"}
-                        value={valorUnitarioRaw}
-                        onChange={(value) =>
-                          setValoresFornecedor((prev) => ({
-                            ...prev,
-                            [key]: value,
-                          }))
-                        }
-                        style={{
-                          fontSize: isMobile ? "0.875rem" : "1rem",
-                        }}
-                      />
-                    </Space>
-                  </Col>
+                    {/* Área */}
+                    <Col xs={24} md={4}>
+                      {isMobile ? (
+                        <Space direction="vertical" size={2}>
+                          <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                            Área
+                          </Text>
+                          <Tag color="#0f766e" style={{ borderRadius: 999, fontWeight: 600 }}>
+                            {capitalizeNameShort(item.areaNome || "-")}
+                          </Tag>
+                        </Space>
+                      ) : (
+                        <Tag color="#0f766e" style={{ borderRadius: 999, fontWeight: 600, fontSize: "0.875rem" }}>
+                          {capitalizeNameShort(item.areaNome || "-")}
+                        </Tag>
+                      )}
+                    </Col>
 
-                  <Col xs={12} md={4}>
-                    <Space direction="vertical" size={2}>
-                      <Text type="secondary" style={{ fontSize: "0.75rem" }}>
-                        Valor total (R$)
-                      </Text>
-                      <Tag color="#047857" style={{ borderRadius: 999, fontWeight: 600 }}>
-                        {valorTotal !== null ? `R$ ${formatCurrency(valorTotal)}` : "-"}
-                      </Tag>
-                    </Space>
-                  </Col>
+                    {/* Quantidade */}
+                    <Col xs={12} md={4}>
+                      {isMobile ? (
+                        <Space direction="vertical" size={2}>
+                          <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                            Quantidade
+                          </Text>
+                          <Tag color="#10b981" style={{ borderRadius: 999, fontWeight: 600 }}>
+                            {quantidadeTexto || "-"}
+                          </Tag>
+                        </Space>
+                      ) : (
+                        <Tag color="#10b981" style={{ borderRadius: 999, fontWeight: 600, fontSize: "0.875rem" }}>
+                          {quantidadeTexto || "-"}
+                        </Tag>
+                      )}
+                    </Col>
 
-                  <Col xs={12} md={5}>
-                    <Space direction="vertical" size={2}>
-                      <Text type="secondary" style={{ fontSize: "0.75rem" }}>
-                        Pagamento
-                      </Text>
-                      <Tag
-                        color="gold"
-                        style={{
-                          borderRadius: 999,
-                          fontWeight: 600,
-                          padding: "0 12px",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Pendente
-                      </Tag>
-                    </Space>
-                  </Col>
-                </Row>
+                    {/* Valor Unitário */}
+                    <Col xs={24} md={5}>
+                      {isMobile ? (
+                        <Space direction="vertical" size={2} style={{ width: "100%" }}>
+                          <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                            Valor unitário (R$)
+                          </Text>
+                          <MonetaryInput
+                            decimalScale={4}
+                            placeholder="0,0000"
+                            addonBefore="R$"
+                            size={isMobile ? "small" : "large"}
+                            value={valorUnitarioRaw !== undefined && valorUnitarioRaw !== null && valorUnitarioRaw !== "" 
+                              ? valorUnitarioRaw 
+                              : undefined}
+                            onChange={(value) =>
+                              setValoresFornecedor((prev) => ({
+                                ...prev,
+                                [key]: value,
+                              }))
+                            }
+                            style={{
+                              fontSize: isMobile ? "0.875rem" : "1rem",
+                              width: "100%",
+                              maxWidth: isMobile ? "100%" : "160px",
+                            }}
+                          />
+                        </Space>
+                      ) : (
+                        <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                          <MonetaryInput
+                            decimalScale={4}
+                            placeholder="0,0000"
+                            addonBefore="R$"
+                            size={isMobile ? "small" : "large"}
+                            value={valorUnitarioRaw !== undefined && valorUnitarioRaw !== null && valorUnitarioRaw !== "" 
+                              ? valorUnitarioRaw 
+                              : undefined}
+                            onChange={(value) =>
+                              setValoresFornecedor((prev) => ({
+                                ...prev,
+                                [key]: value,
+                              }))
+                            }
+                            style={{
+                              fontSize: isMobile ? "0.875rem" : "1rem",
+                              width: "160px",
+                              maxWidth: "160px",
+                            }}
+                          />
+                        </div>
+                      )}
+                    </Col>
 
-                {index < itensSelecionados.length - 1 && (
-                  <Divider style={{ margin: isMobile ? "12px 0" : "16px 0" }} />
-                )}
-              </div>
-            );
-          })}
+                    {/* Valor Total */}
+                    <Col xs={12} md={5}>
+                      {isMobile ? (
+                        <Space direction="vertical" size={2}>
+                          <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                            Valor total (R$)
+                          </Text>
+                          <Tag color="#047857" style={{ borderRadius: 999, fontWeight: 600 }}>
+                            R$ {formatCurrency(valorTotal || 0)}
+                          </Tag>
+                        </Space>
+                      ) : (
+                        <Tag color="#047857" style={{ borderRadius: 999, fontWeight: 600, fontSize: "0.875rem" }}>
+                          R$ {formatCurrency(valorTotal || 0)}
+                        </Tag>
+                      )}
+                    </Col>
+                  </Row>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Área de Ações - Sempre visível quando há itens selecionados */}
+          <Divider style={{ margin: isMobile ? "16px 0" : "20px 0" }} />
+          <div style={{
+            backgroundColor: '#f6ffed',
+            padding: isMobile ? '12px' : '16px',
+            borderRadius: '8px'
+          }}>
+            <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]} align="middle">
+              <Col xs={24} sm={24} md={8}>
+                <Button
+                  type="primary"
+                  size={isMobile ? "middle" : "large"}
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    setItensSelecionados([]);
+                    setValoresFornecedor({});
+                  }}
+                  disabled={itensSelecionados.length === 0}
+                  style={{
+                    backgroundColor: '#059669',
+                    borderColor: '#059669',
+                    width: '100%',
+                    transition: 'all 0.2s ease',
+                    cursor: itensSelecionados.length === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!e.currentTarget.disabled) {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(5, 150, 105, 0.3)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  Limpar Seleção
+                </Button>
+              </Col>
+              <Col xs={12} sm={12} md={8}>
+                <Button
+                  type="primary"
+                  size={isMobile ? "middle" : "large"}
+                  onClick={handlePrecificar}
+                  loading={loading}
+                  disabled={!podePrecificarOuPagar}
+                  style={{
+                    backgroundColor: '#059669',
+                    borderColor: '#059669',
+                    width: '100%',
+                    transition: 'all 0.2s ease',
+                    cursor: !podePrecificarOuPagar ? 'not-allowed' : 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!e.currentTarget.disabled) {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(5, 150, 105, 0.3)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  Precificar
+                </Button>
+              </Col>
+              <Col xs={12} sm={12} md={8}>
+                <Button
+                  type="primary"
+                  size={isMobile ? "middle" : "large"}
+                  onClick={handlePagar}
+                  loading={loading}
+                  disabled={!podePrecificarOuPagar}
+                  style={{
+                    backgroundColor: '#059669',
+                    borderColor: '#059669',
+                    width: '100%',
+                    transition: 'all 0.2s ease',
+                    cursor: !podePrecificarOuPagar ? 'not-allowed' : 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!e.currentTarget.disabled) {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(5, 150, 105, 0.3)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  Pagar ✓
+                </Button>
+              </Col>
+            </Row>
+          </div>
         </Card>
       )}
+
+      {/* Modal de Confirmação */}
+      <ConfirmActionModal
+        open={modalConfirmacaoAberto}
+        onCancel={() => {
+          setModalConfirmacaoAberto(false);
+          setStatusPagamentoConfirmacao(null);
+          setDataPagamentoSelecionada(null);
+          setFormaPagamentoSelecionada(null);
+        }}
+        onConfirm={criarPagamentos}
+        title={statusPagamentoConfirmacao === "PENDENTE" ? "Confirmar Precificação" : "Confirmar Pagamento"}
+        confirmText={statusPagamentoConfirmacao === "PENDENTE" ? "Confirmar Precificação" : "Confirmar Pagamento"}
+        cancelText="Cancelar"
+        icon={<DollarOutlined />}
+        iconColor="#059669"
+        confirmDisabled={!dataPagamentoSelecionada || !formaPagamentoSelecionada}
+        customContent={
+          <div style={{ textAlign: "center", padding: "16px" }}>
+            <div style={{ 
+              fontSize: "48px", 
+              color: "#059669", 
+              marginBottom: "16px",
+              display: "block"
+            }}>
+              <DollarOutlined />
+            </div>
+            <Text style={{ 
+              fontSize: "16px", 
+              fontWeight: "500", 
+              color: "#333",
+              lineHeight: "1.5",
+              marginBottom: "20px",
+              display: "block"
+            }}>
+              Você está prestes a {statusPagamentoConfirmacao === "PENDENTE" ? "precificar" : "pagar"} as colheitas selecionadas.
+            </Text>
+            
+            {/* Detalhes da operação */}
+            <div style={{
+              backgroundColor: "#f6ffed",
+              border: "1px solid #b7eb8f",
+              borderRadius: "8px",
+              padding: "16px",
+              marginTop: "16px",
+              textAlign: "left"
+            }}>
+              <Text style={{ fontSize: "14px", fontWeight: "600", color: "#059669", display: "block", marginBottom: "8px" }}>
+                📋 Detalhes da Operação:
+              </Text>
+              <div style={{ fontSize: "13px", color: "#333", lineHeight: "1.6" }}>
+                <div style={{ marginBottom: "4px" }}>
+                  <strong>👤 Fornecedor:</strong> {fornecedor?.nomeFornecedor || "Fornecedor"}
+                </div>
+                <div style={{ marginBottom: "4px" }}>
+                  <strong>📦 Total de itens:</strong> {itensSelecionados.length}
+                </div>
+                <div style={{ marginBottom: "4px" }}>
+                  <strong>💰 Valor total:</strong> R$ {totalAPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ marginBottom: "0" }}>
+                  <strong>ℹ️ Status:</strong> {statusPagamentoConfirmacao === "PENDENTE" ? "Precificação (PENDENTE)" : "Pagamento (PAGO)"}
+                </div>
+              </div>
+            </div>
+            {/* Campos adicionais */}
+            <div style={{ marginTop: "16px" }}>
+              <Row gutter={[12, 12]}>
+                <Col xs={24} sm={12}>
+                  <div style={{ textAlign: "left", marginBottom: "6px" }}>
+                    <Space>
+                      <CalendarOutlined style={{ color: "#059669" }} />
+                      <Text strong style={{ color: "#059669" }}>Data do Pagamento</Text>
+                    </Space>
+                  </div>
+                  <MaskedDatePicker
+                    value={dataPagamentoSelecionada}
+                    onChange={setDataPagamentoSelecionada}
+                    size="middle"
+                    style={{ borderRadius: 6, width: "100%" }}
+                    disabledDate={(current) => current && current > moment().endOf('day')}
+                    placeholder="Selecione a data"
+                  />
+                </Col>
+                <Col xs={24} sm={12}>
+                  <div style={{ textAlign: "left", marginBottom: "6px" }}>
+                    <Space>
+                      <CreditCardOutlined style={{ color: "#059669" }} />
+                      <Text strong style={{ color: "#059669" }}>Método</Text>
+                    </Space>
+                  </div>
+                  <Select
+                    value={formaPagamentoSelecionada}
+                    onChange={setFormaPagamentoSelecionada}
+                    placeholder="Selecione a forma"
+                    style={{ width: "100%" }}
+                    size="middle"
+                  >
+                    {[
+                      { value: 'PIX', label: 'PIX', icon: <PixIcon width={16} height={16} /> },
+                      { value: 'BOLETO', label: 'Boleto Bancário', icon: <BoletoIcon width={16} height={16} /> },
+                      { value: 'TRANSFERENCIA', label: 'Transferência Bancária', icon: <TransferenciaIcon width={16} height={16} /> },
+                      { value: 'DINHEIRO', label: 'Dinheiro', icon: '💰' },
+                      { value: 'CHEQUE', label: 'Cheque', icon: '📄' },
+                    ].map((metodo) => (
+                      <Option key={metodo.value} value={metodo.value}>
+                        <Space>
+                          {typeof metodo.icon === 'string' ? (
+                            <span>{metodo.icon}</span>
+                          ) : (
+                            metodo.icon
+                          )}
+                          <span>{metodo.label}</span>
+                        </Space>
+                      </Option>
+                    ))}
+                  </Select>
+                </Col>
+              </Row>
+            </div>
+            {(!dataPagamentoSelecionada || !formaPagamentoSelecionada) && (
+              <div style={{ marginTop: "16px" }}>
+                <Text type="danger" style={{ fontSize: "12px" }}>
+                  Preencha a data e a forma de pagamento para continuar.
+                </Text>
+              </div>
+            )}
+          </div>
+        }
+      />
     </Modal>
   );
 };
@@ -934,10 +1842,6 @@ FornecedorColheitaPagamentosModal.propTypes = {
     ),
   }),
   onClose: PropTypes.func.isRequired,
-};
-
-FornecedorColheitaPagamentosModal.defaultProps = {
-  fornecedor: null,
 };
 
 export default FornecedorColheitaPagamentosModal;

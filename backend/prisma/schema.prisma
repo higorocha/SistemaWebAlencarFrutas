@@ -234,6 +234,7 @@ model Fruta {
   cultura         Cultura                    @relation(fields: [culturaId], references: [id])
   frutasPedidos   FrutasPedidos[]
   custosColheita  TurmaColheitaPedidoCusto[]
+  pagamentosFornecedor FornecedorPagamento[]
 
   @@map("frutas")
 }
@@ -280,6 +281,7 @@ model Fornecedor {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   areas       AreaFornecedor[]
+  pagamentos  FornecedorPagamento[]
 
   @@map("fornecedores")
 }
@@ -294,6 +296,7 @@ model AreaFornecedor {
   cultura            Cultura?             @relation(fields: [culturaId], references: [id])
   fornecedor         Fornecedor           @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
   frutasPedidosAreas FrutasPedidosAreas[]
+  pagamentos         FornecedorPagamento[]
 
   @@map("areas_fornecedores")
 }
@@ -333,6 +336,7 @@ model Pedido {
   lancamentosExtrato   LancamentoExtrato[]
   lancamentosExtratoVinculos LancamentoExtratoPedido[]
   historico            HistoricoPedido[]
+  pagamentosFornecedor FornecedorPagamento[]
 
   @@map("pedidos")
 }
@@ -356,6 +360,7 @@ model FrutasPedidos {
   pedido                Pedido               @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   areas                 FrutasPedidosAreas[]
   fitas                 FrutasPedidosFitas[]
+  pagamentosFornecedor  FornecedorPagamento[]
 
   @@unique([pedidoId, frutaId])
   @@map("frutas_pedidos")
@@ -490,6 +495,7 @@ model FrutasPedidosAreas {
   areaFornecedor            AreaFornecedor? @relation(fields: [areaFornecedorId], references: [id], onDelete: SetNull)
   areaPropria               AreaAgricola?   @relation(fields: [areaPropriaId], references: [id])
   frutaPedido               FrutasPedidos   @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
+  pagamentosFornecedor      FornecedorPagamento[]
 
   @@map("frutas_pedidos_areas")
 }
@@ -597,6 +603,57 @@ model TurmaColheitaPedidoCusto {
   @@map("turma_colheita_pedido_custo")
 }
 
+model FornecedorPagamento {
+  id                    Int                      @id @default(autoincrement())
+  
+  // Relacionamentos Principais
+  fornecedorId          Int
+  areaFornecedorId      Int
+  pedidoId              Int
+  frutaId               Int
+  frutaPedidoId         Int
+  frutaPedidoAreaId     Int
+  
+  // Dados da Colheita
+  quantidade            Float
+  unidadeMedida         UnidadeMedida
+  valorUnitario         Float
+  valorTotal            Float
+  dataColheita          DateTime?
+  
+  // Dados do Pagamento
+  status                StatusPagamentoFornecedor @default(PAGO)
+  dataPagamento         DateTime
+  formaPagamento        String                    @db.VarChar(50)
+  
+  // Campos de Controle
+  observacoes           String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  
+  // Relacionamentos
+  fornecedor            Fornecedor                @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  areaFornecedor        AreaFornecedor            @relation(fields: [areaFornecedorId], references: [id], onDelete: Cascade)
+  pedido                Pedido                    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  fruta                 Fruta                     @relation(fields: [frutaId], references: [id])
+  frutaPedido           FrutasPedidos             @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
+  frutaPedidoArea       FrutasPedidosAreas        @relation(fields: [frutaPedidoAreaId], references: [id], onDelete: Cascade)
+  
+  // Índices para performance
+  @@index([fornecedorId])
+  @@index([pedidoId])
+  @@index([frutaId])
+  @@index([status])
+  @@index([dataPagamento])
+  @@index([fornecedorId, status])
+  @@index([pedidoId, frutaId])
+  
+  // Unique constraint: um pagamento por combinação única de área+pedido+fruta
+  @@unique([frutaPedidoAreaId, pedidoId, frutaId])
+  
+  @@map("fornecedor_pagamentos")
+}
+
 enum NivelUsuario {
   ADMINISTRADOR
   USUARIO
@@ -689,6 +746,12 @@ enum MetodoPagamento {
 enum TipoOperacaoExtrato {
   CREDITO  // Pagamentos recebidos
   DEBITO   // Pagamentos enviados
+}
+
+enum StatusPagamentoFornecedor {
+  PENDENTE      // Pagamento pendente (não usado agora, para futuro)
+  PROCESSANDO   // Pagamento em processamento (não usado agora, para futuro)
+  PAGO          // Pagamento efetuado com sucesso
 }
 
 model HistoricoPedido {

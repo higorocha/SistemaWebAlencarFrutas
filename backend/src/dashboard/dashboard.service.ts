@@ -2,7 +2,8 @@
 
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DashboardResponseDto, ReceitaMensalDto, ProgramacaoColheitaDto, PrevisaoBananaDto, PagamentoEfetuadoDto } from './dto/dashboard-response.dto';
+import { DashboardResponseDto, ReceitaMensalDto, ProgramacaoColheitaDto, PrevisaoBananaDto, PagamentoEfetuadoDto, PagamentoFornecedorEfetuadoDto } from './dto/dashboard-response.dto';
+import { StatusPagamentoFornecedor } from '@prisma/client';
 
 @Injectable()
 export class DashboardService {
@@ -24,7 +25,8 @@ export class DashboardService {
       previsoesBanana,
       pagamentosPendentes,
       pagamentosEfetuados,
-      pagamentosFornecedores
+      pagamentosFornecedores,
+      pagamentosFornecedoresEfetuados
     ] = await Promise.all([
       this.getFaturamentoTotal(),
       this.getFaturamentoAberto(),
@@ -39,7 +41,8 @@ export class DashboardService {
       this.getPrevisoesBanana(),
       this.getPagamentosPendentes(),
       this.getPagamentosEfetuados(),
-      this.getFornecedoresColheitas()
+      this.getFornecedoresColheitas(),
+      this.getPagamentosFornecedoresEfetuados()
     ]);
 
     const result = {
@@ -56,7 +59,8 @@ export class DashboardService {
       previsoesBanana,
       pagamentosPendentes,
       pagamentosEfetuados,
-      pagamentosFornecedores
+      pagamentosFornecedores,
+      pagamentosFornecedoresEfetuados
     };
 
 
@@ -633,6 +637,7 @@ export class DashboardService {
 
   private async getFornecedoresColheitas(): Promise<any[]> {
     try {
+      // Buscar fornecedores com suas áreas e colheitas
       const fornecedores = await this.prisma.fornecedor.findMany({
         where: {
           areas: {
@@ -692,8 +697,55 @@ export class DashboardService {
         },
       });
 
+      // Buscar todos os pagamentos (PAGO, PENDENTE, PROCESSANDO) para os fornecedores
+      const pagamentos = await this.prisma.fornecedorPagamento.findMany({
+        where: {
+          fornecedorId: {
+            in: fornecedores.map(f => f.id),
+          },
+        },
+        select: {
+          id: true,
+          fornecedorId: true,
+          frutaPedidoAreaId: true,
+          status: true,
+          valorUnitario: true,
+          valorTotal: true,
+          dataPagamento: true,
+          formaPagamento: true,
+        },
+      });
+
+      // Criar mapa de pagamentos por frutaPedidoAreaId
+      const pagamentosMap = new Map<number, typeof pagamentos[0]>();
+      pagamentos.forEach(p => {
+        pagamentosMap.set(p.frutaPedidoAreaId, p);
+      });
+
       const fornecedoresComDados = fornecedores.map((fornecedor) => {
-        const detalhes = [] as Array<{ pedidoId: number; pedidoNumero: string; cliente: string; frutaId: number; fruta: string; quantidade: number; unidade: string; valor: number; valorTotalFruta: number; areaNome: string; statusPedido: string; dataColheita?: Date }>;
+        const detalhes = [] as Array<{
+          pedidoId: number;
+          pedidoNumero: string;
+          cliente: string;
+          frutaId: number;
+          fruta: string;
+          quantidade: number;
+          unidade: string;
+          valor: number;
+          valorTotalFruta: number;
+          areaNome: string;
+          areaFornecedorId: number;
+          statusPedido: string;
+          dataColheita?: Date;
+          frutaPedidoId: number;
+          frutaPedidoAreaId: number;
+          pagamentoId?: number;
+          statusPagamento?: StatusPagamentoFornecedor;
+          valorUnitario?: number;
+          valorTotal?: number;
+          dataPagamento?: Date;
+          formaPagamento?: string;
+        }>;
 
         fornecedor.areas.forEach((area) => {
           area.frutasPedidosAreas.forEach((relacaoArea) => {
@@ -736,6 +788,9 @@ export class DashboardService {
               valorProporcional = (valorTotalFruta * quantidadeArea) / quantidadeReferencia;
             }
 
+            // Verificar se existe pagamento para esta colheita
+            const pagamento = pagamentosMap.get(relacaoArea.id);
+
             detalhes.push({
               pedidoId: pedido.id,
               pedidoNumero: pedido.numeroPedido,
@@ -747,8 +802,17 @@ export class DashboardService {
               valor: Number(valorProporcional.toFixed(2)),
               valorTotalFruta: Number(valorTotalFruta),
               areaNome: area.nome,
+              areaFornecedorId: area.id,
               statusPedido: pedido.status,
               dataColheita: pedido.dataColheita ?? undefined,
+              frutaPedidoId: frutaPedido.id,
+              frutaPedidoAreaId: relacaoArea.id,
+              pagamentoId: pagamento?.id,
+              statusPagamento: pagamento?.status,
+              valorUnitario: pagamento?.valorUnitario,
+              valorTotal: pagamento?.valorTotal,
+              dataPagamento: pagamento?.dataPagamento,
+              formaPagamento: pagamento?.formaPagamento,
             });
           });
         });
@@ -760,24 +824,147 @@ export class DashboardService {
         const quantidadePedidos = new Set(detalhes.map((d) => d.pedidoId)).size;
         const quantidadeFrutas = new Set(detalhes.map((d) => d.frutaId)).size;
         const quantidadeAreas = new Set(detalhes.map((d) => d.areaNome)).size;
+        const totalColheitas = detalhes.length;
+        // Colheitas pagas: têm pagamentoId e status é PAGO
+        const colheitasPagas = detalhes.filter(d => 
+          d.pagamentoId !== undefined && d.statusPagamento === StatusPagamentoFornecedor.PAGO
+        ).length;
+        // Colheitas em aberto: não têm pagamentoId OU têm pagamentoId mas status é PENDENTE/PROCESSANDO
+        const colheitasEmAberto = detalhes.filter(d => 
+          d.pagamentoId === undefined || 
+          (d.pagamentoId !== undefined && d.statusPagamento !== StatusPagamentoFornecedor.PAGO)
+        ).length;
+        
+        // Calcular totalPendente: soma dos valores das colheitas pendentes
+        // IMPORTANTE: Só somar valores se houver pagamento PENDENTE/PROCESSANDO
+        // Se não tem pagamento, não somar nada (valor = 0), pois não foi precificada ainda
+        const totalPendente = detalhes
+          .filter(d => 
+            d.pagamentoId !== undefined && 
+            d.statusPagamento !== undefined &&
+            d.statusPagamento !== StatusPagamentoFornecedor.PAGO
+          )
+          .reduce((acc, item) => {
+            // Se tem pagamento pendente/processando, usar valorTotal do pagamento
+            // Se valorTotal não estiver definido, usar 0 (não usar valor proporcional)
+            const valorPendente = item.valorTotal || 0;
+            return acc + valorPendente;
+          }, 0);
+        
+        // Calcular totalPago: soma dos valores das colheitas pagas
+        const totalPago = detalhes
+          .filter(d => 
+            d.pagamentoId !== undefined && d.statusPagamento === StatusPagamentoFornecedor.PAGO
+          )
+          .reduce((acc, item) => {
+            const valorPago = item.valorTotal || item.valor || 0;
+            return acc + valorPago;
+          }, 0);
+        
+        // totalValor: soma de todas as colheitas (para histórico/compatibilidade)
         const totalValor = detalhes.reduce((acc, item) => acc + (item.valor || 0), 0);
         const totalQuantidade = detalhes.reduce((acc, item) => acc + (item.quantidade || 0), 0);
+
+        // Calcular distribuição por unidade (pago, pendente, total)
+        const distribuicaoPorUnidade = new Map<string, {
+          unidade: string;
+          quantidadePaga: number;
+          quantidadePendente: number;
+          quantidadeTotal: number;
+          valorPago: number;
+          valorPendente: number;
+          valorTotal: number;
+        }>();
+
+        detalhes.forEach((colheita) => {
+          const unidade = colheita.unidade || 'UN';
+          if (!distribuicaoPorUnidade.has(unidade)) {
+            distribuicaoPorUnidade.set(unidade, {
+              unidade,
+              quantidadePaga: 0,
+              quantidadePendente: 0,
+              quantidadeTotal: 0,
+              valorPago: 0,
+              valorPendente: 0,
+              valorTotal: 0,
+            });
+          }
+
+          const distribuicao = distribuicaoPorUnidade.get(unidade)!;
+          distribuicao.quantidadeTotal += colheita.quantidade || 0;
+          distribuicao.valorTotal += colheita.valor || 0;
+
+          // Verificar se é colheita paga (tem pagamentoId E status é PAGO)
+          if (colheita.pagamentoId !== undefined && colheita.statusPagamento === StatusPagamentoFornecedor.PAGO) {
+            // Colheita paga - usar valorTotal do pagamento se disponível, senão usar valorProporcional
+            distribuicao.quantidadePaga += colheita.quantidade || 0;
+            distribuicao.valorPago += colheita.valorTotal || colheita.valor || 0;
+          } else {
+            // Colheita pendente - sempre contar quantidade, mas só somar valor se houver pagamento pendente/processando
+            distribuicao.quantidadePendente += colheita.quantidade || 0;
+            // IMPORTANTE: Só somar valor se houver pagamento PENDENTE/PROCESSANDO
+            // Se não tem pagamento, não somar valor (valor = 0), pois não foi precificada ainda
+            if (colheita.pagamentoId !== undefined && 
+                colheita.statusPagamento !== undefined &&
+                colheita.statusPagamento !== StatusPagamentoFornecedor.PAGO) {
+              // Tem pagamento pendente/processando - usar valorTotal do pagamento
+              distribuicao.valorPendente += colheita.valorTotal || 0;
+            }
+            // Se não tem pagamento, não somar nada (valorPendente permanece 0)
+          }
+        });
+
+        const distribuicaoPorUnidadeArray = Array.from(distribuicaoPorUnidade.values()).map(d => ({
+          ...d,
+          quantidadePaga: Number(d.quantidadePaga.toFixed(2)),
+          quantidadePendente: Number(d.quantidadePendente.toFixed(2)),
+          quantidadeTotal: Number(d.quantidadeTotal.toFixed(2)),
+          valorPago: Number(d.valorPago.toFixed(2)),
+          valorPendente: Number(d.valorPendente.toFixed(2)),
+          valorTotal: Number(d.valorTotal.toFixed(2)),
+        }));
 
         return {
           id: fornecedor.id,
           nomeFornecedor: fornecedor.nome,
-          quantidadePedidos,
-          quantidadeFrutas,
-          quantidadeAreas,
+          quantidadePedidos: Number(quantidadePedidos) || 0,
+          quantidadeFrutas: Number(quantidadeFrutas) || 0,
+          totalColheitas: Number(totalColheitas) || 0,
+          colheitasPagas: Number(colheitasPagas) || 0,
+          colheitasEmAberto: Number(colheitasEmAberto) || 0,
+          quantidadeAreas: Number(quantidadeAreas) || 0,
+          totalPendente: Number(totalPendente.toFixed(2)),
+          totalPago: Number(totalPago.toFixed(2)),
           totalValor: Number(totalValor.toFixed(2)),
           totalQuantidade: Number(totalQuantidade.toFixed(2)),
-          detalhes: detalhes.map((d) => ({
-            ...d,
-            quantidade: Number(d.quantidade.toFixed(2)),
-            valor: Number(d.valor.toFixed(2)),
-            valorTotalFruta: Number(d.valorTotalFruta.toFixed(2)),
-            dataColheita: d.dataColheita ? d.dataColheita.toISOString() : undefined,
-          })),
+          detalhes: detalhes.map((d) => {
+            const detalhe = {
+              pedidoId: d.pedidoId,
+              pedidoNumero: d.pedidoNumero,
+              cliente: d.cliente,
+              frutaId: d.frutaId,
+              fruta: d.fruta,
+              quantidade: Number(d.quantidade.toFixed(2)),
+              unidade: d.unidade,
+              valor: Number(d.valor.toFixed(2)),
+              valorTotalFruta: Number(d.valorTotalFruta.toFixed(2)),
+              areaNome: d.areaNome,
+              areaFornecedorId: d.areaFornecedorId,
+              statusPedido: d.statusPedido,
+              dataColheita: d.dataColheita ? d.dataColheita.toISOString() : undefined,
+              frutaPedidoId: d.frutaPedidoId,
+              frutaPedidoAreaId: d.frutaPedidoAreaId,
+              // Campos de pagamento (podem ser undefined se não houver pagamento)
+              pagamentoId: d.pagamentoId !== undefined && d.pagamentoId !== null ? Number(d.pagamentoId) : undefined,
+              statusPagamento: d.statusPagamento || undefined,
+              valorUnitario: d.valorUnitario !== undefined && d.valorUnitario !== null ? Number(d.valorUnitario) : undefined,
+              valorTotal: d.valorTotal !== undefined && d.valorTotal !== null ? Number(d.valorTotal) : undefined,
+              dataPagamento: d.dataPagamento ? d.dataPagamento.toISOString() : undefined,
+              formaPagamento: d.formaPagamento || undefined,
+            };
+            return detalhe;
+          }),
+          distribuicaoPorUnidade: distribuicaoPorUnidadeArray,
         };
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -786,6 +973,122 @@ export class DashboardService {
       return fornecedoresComDados;
     } catch (error) {
       console.error('Erro ao buscar dados de fornecedores para a dashboard:', error);
+      return [];
+    }
+  }
+
+  private async getPagamentosFornecedoresEfetuados(): Promise<PagamentoFornecedorEfetuadoDto[]> {
+    try {
+      // Buscar todos os pagamentos efetuados (status = PAGO)
+      const pagamentos = await this.prisma.fornecedorPagamento.findMany({
+        where: {
+          status: StatusPagamentoFornecedor.PAGO,
+        },
+        include: {
+          fornecedor: {
+            select: {
+              id: true,
+              nome: true,
+              cnpj: true,
+              cpf: true,
+            },
+          },
+          areaFornecedor: {
+            select: {
+              id: true,
+              nome: true,
+            },
+          },
+          pedido: {
+            select: {
+              id: true,
+              numeroPedido: true,
+              cliente: {
+                select: {
+                  nome: true,
+                  razaoSocial: true,
+                },
+              },
+            },
+          },
+          fruta: {
+            select: {
+              id: true,
+              nome: true,
+            },
+          },
+        },
+        orderBy: {
+          dataPagamento: 'desc',
+        },
+      });
+
+      // Agrupar por fornecedor, data de pagamento e forma de pagamento
+      const pagamentosAgrupados = new Map<string, any>();
+
+      pagamentos.forEach(pagamento => {
+        const dataPagamento = pagamento.dataPagamento;
+        if (!dataPagamento) return;
+
+        // Agrupar por fornecedor + data + formaPagamento
+        const formaPagamento = pagamento.formaPagamento || 'NÃO INFORMADO';
+        const chaveAgrupamento = `${pagamento.fornecedorId}-${dataPagamento.toISOString().split('T')[0]}-${formaPagamento}`;
+
+        if (!pagamentosAgrupados.has(chaveAgrupamento)) {
+          pagamentosAgrupados.set(chaveAgrupamento, {
+            id: `${pagamento.fornecedorId}-${dataPagamento.getTime()}-${formaPagamento}`,
+            fornecedorId: pagamento.fornecedorId,
+            nomeFornecedor: pagamento.fornecedor.nome,
+            cnpj: pagamento.fornecedor.cnpj || undefined,
+            cpf: pagamento.fornecedor.cpf || undefined,
+            dataPagamento: dataPagamento,
+            totalPago: 0,
+            quantidadePedidos: new Set(),
+            quantidadeFrutas: new Set(),
+            formaPagamento: formaPagamento,
+            detalhes: [],
+          });
+        }
+
+        const pagamentoAgrupado = pagamentosAgrupados.get(chaveAgrupamento);
+
+        // Acumular valores
+        pagamentoAgrupado.totalPago += pagamento.valorTotal || 0;
+        pagamentoAgrupado.quantidadePedidos.add(pagamento.pedidoId);
+        pagamentoAgrupado.quantidadeFrutas.add(pagamento.frutaId);
+
+        // Adicionar detalhes
+        pagamentoAgrupado.detalhes.push({
+          pedidoNumero: pagamento.pedido.numeroPedido,
+          cliente: pagamento.pedido.cliente.razaoSocial || pagamento.pedido.cliente.nome,
+          fruta: pagamento.fruta.nome,
+          areaNome: pagamento.areaFornecedor.nome,
+          quantidadeColhida: pagamento.quantidade,
+          unidadeMedida: pagamento.unidadeMedida,
+          valorUnitario: pagamento.valorUnitario,
+          valorTotal: pagamento.valorTotal,
+          dataColheita: pagamento.dataColheita ? pagamento.dataColheita.toISOString() : undefined,
+          dataPagamento: pagamento.dataPagamento.toISOString(),
+          formaPagamento: pagamento.formaPagamento,
+          observacoes: pagamento.observacoes || undefined,
+        });
+      });
+
+      // Converter para array e ajustar contadores
+      const pagamentosEfetuados = Array.from(pagamentosAgrupados.values()).map(pagamento => ({
+        ...pagamento,
+        quantidadePedidos: pagamento.quantidadePedidos.size,
+        quantidadeFrutas: pagamento.quantidadeFrutas.size,
+        dataPagamento: pagamento.dataPagamento.toISOString(),
+      }));
+
+      // Ordenar por data de pagamento mais recente primeiro
+      return pagamentosEfetuados.sort((a, b) => 
+        new Date(b.dataPagamento).getTime() - new Date(a.dataPagamento).getTime()
+      );
+
+    } catch (error) {
+      console.error('Erro ao buscar pagamentos efetuados de fornecedores:', error);
       return [];
     }
   }
