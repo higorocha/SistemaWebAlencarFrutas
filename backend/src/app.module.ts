@@ -31,6 +31,7 @@ import { PagamentosModule } from './pagamentos/pagamentos.module';
 import { CertificateMonitorModule } from './certificate-monitor/certificate-monitor.module';
 import { ExtratosMonitorModule } from './extratos-monitor/extratos-monitor.module';
 import { MobileModule } from './mobile/mobile.module';
+import { BbWebhooksModule } from './bb-webhooks/bb-webhooks.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { MobileModule } from './mobile/mobile.module';
     CertificateMonitorModule,
     ExtratosMonitorModule,
     MobileModule, // Módulo para API mobile
+    BbWebhooksModule, // Módulo para webhooks do Banco do Brasil
   ],
   controllers: [AppController],
   providers: [AppService],

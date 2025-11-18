@@ -39,9 +39,15 @@
      - Se não existir, logar e descartar o item (motivo: item inexistente/local).
    - Caso encontrado:
      - Atualizar campos de item (estado, data, valor, payloadAtual).
-     - Atualizar `pagamento_api_item_colheita` e `turma_colheita_pedido_custo`:
-       - Para cada `api_item_colheita`, marcar colheita como paga (seguir mesma lógica usada após resposta do BB).
-       - Atualizar status/agregados em `turma_colheita_pedido_custo` (pagamento concluído, data, valor, etc.).
+     - **Atualizar colheitas (condicional - APENAS se for pagamento de colheitas):**
+       - Verificar se existe `pagamento_api_item_colheita` vinculado ao item
+       - Se existir (pagamento de colheitas):
+         - Para cada `pagamento_api_item_colheita`, marcar colheita como paga (seguir mesma lógica usada após resposta do BB)
+         - Atualizar status/agregados em `turma_colheita_pedido_custo` (pagamento concluído, data, valor, etc.)
+         - Log: `[PAGAMENTOS-WEBHOOK] ${quantidade} colheita(s) marcada(s) como PAGO`
+       - Se não existir (outros tipos: funcionários, fornecedores, etc.):
+         - **NÃO** processar `pagamento_api_item_colheita` ou `turma_colheita_pedido_custo`
+         - Log: `[PAGAMENTOS-WEBHOOK] Item processado (não é pagamento de colheitas) - apenas item atualizado`
      - Atualizar lote (estado atual, datas, payload, contadores).
      - Logar `[PAGAMENTOS-WEBHOOK] Item atualizado com sucesso`.
 6. No final, registrar status do evento (processado, parcialmente processado, descartado) e possíveis erros.
@@ -69,9 +75,15 @@
 ### 5.3 Configuração
 - Reutilizar certificados do `@exemploWebhook` (ou apontar para os específicos da API de pagamentos se necessário).
 - Variáveis `.env` centralizadas para webhooks BB:
-  - `BB_WEBHOOK_CERT_PATH`, `BB_WEBHOOK_KEY_PATH`
-  - `BB_WEBHOOK_ALLOWED_IPS` ou lista por recurso.
+  - `BB_WEBHOOK_CERT_PATH`, `BB_WEBHOOK_KEY_PATH`, `BB_WEBHOOK_CA_PATHS`
+  - `BB_WEBHOOK_ALLOWED_SUBJECTS` (lista de CNs autorizados pela CA do BB para validar o mTLS na aplicação)
   - `BB_WEBHOOK_VALIDATE_HEADERS` (flag).
+  - *(IP allowlist pode ser configurado futuramente se necessário)*
+
+### 5.4 Segurança mTLS (implementado)
+- Guard `BbWebhookMtlsGuard` valida que a requisição chegou via mTLS e que o certificado do cliente foi emitido pelo BB.
+- Informações do certificado (`subject`, `issuer`, `serialNumber`, `validFrom`, `validTo`) são anexadas ao evento para auditoria.
+- Variável `BB_WEBHOOK_ALLOWED_SUBJECTS` controla quais `CN` são aceitos (vazio = aceita qualquer certificado válido emitido pela cadeia configurada).
 
 ## 6. Mapeamento de Campos
 | Payload BB | Tabela/Coluna | Observações |
@@ -94,17 +106,28 @@
 - Atualizar `estadoRequisicaoAtual` do lote para `9 - Liberado/Pago` quando todos os itens chegarem como "Pago".
 
 ### 7.1 Atualização Condicional por Tipo de Pagamento
-- **Pagamentos de Colheitas:**
-  - Possuem relacionamento N:N via `pagamento_api_item_colheita`
-  - Ao receber webhook com status "Pago", atualizar também `turma_colheita_pedido_custo.statusPagamento = 'PAGO'`
-- **Outros Pagamentos (Funcionários, Fornecedores, etc.):**
-  - **NÃO** possuem `pagamento_api_item_colheita`
-  - Todos os dados ficam diretamente em `pagamento_api_item`
-  - Apenas atualizar o item, sem processar colheitas
-- Atualizar `turma_colheita_pedido_custo.statusPagamento` e campos relacionados:
-  - Para cada `pagamento_api_item_colheita`, definir colheita como paga (mesmo fluxo usado em `listarLotesTurmaColheita`/consultas).
-  - Se todas as colheitas de uma turma estiverem pagas, atualizar indicadores agregados (valorPago, dataPagamento).
-- Garantir que atualizações sejam transacionais para manter consistência entre `pagamento_api_item` e `pagamento_api_item_colheita`.
+
+**IMPORTANTE:** A atualização de `pagamento_api_item_colheita` e `turma_colheita_pedido_custo` é **específica para pagamentos de colheitas** e não se aplica a outros tipos de pagamento.
+
+#### Pagamentos de Colheitas
+- Possuem relacionamento N:N via `pagamento_api_item_colheita`
+- Ao receber webhook com status "Pago":
+  1. Atualizar `pagamento_api_item` (status, data, valor, etc.)
+  2. Buscar todos os registros de `pagamento_api_item_colheita` vinculados ao item
+  3. Para cada `pagamento_api_item_colheita`:
+     - Buscar a `turma_colheita_pedido_custo` correspondente
+     - Atualizar `statusPagamento = 'PAGO'` na colheita
+     - Atualizar `dataPagamento = dataPagamento` (do webhook)
+  4. Se todas as colheitas de uma turma estiverem pagas, atualizar indicadores agregados (valorPago, dataPagamento)
+  5. Garantir que atualizações sejam transacionais para manter consistência
+
+#### Outros Pagamentos (Funcionários, Fornecedores, etc.)
+- **NÃO** possuem `pagamento_api_item_colheita`
+- Todos os lançamentos ficam diretamente em `pagamento_api_item`
+- Ao receber webhook com status "Pago":
+  1. Atualizar apenas `pagamento_api_item` (status, data, valor, etc.)
+  2. **NÃO** processar `pagamento_api_item_colheita` ou `turma_colheita_pedido_custo`
+  3. Log: `[PAGAMENTOS-WEBHOOK] Item processado (não é pagamento de colheitas)`
 
 ## 8. Auditoria & Monitoramento
 - Salvar todos os eventos em `bb_webhook_events`:

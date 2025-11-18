@@ -1021,3 +1021,27 @@ model PagamentoApiItemColheita {
   @@index([turmaColheitaCustoId])
   @@map("pagamento_api_item_colheita")
 }
+
+// Tabela genérica para armazenar eventos de webhook do Banco do Brasil
+model BbWebhookEvent {
+  id                Int       @id @default(autoincrement())
+  tipoRecurso       String    // 'pagamentos', 'cobranca', etc.
+  payload           Json      // Payload completo recebido do BB
+  headers           Json?     // Headers da requisição (para auditoria)
+  receivedAt        DateTime  @default(now()) // Quando foi recebido
+  processedAt       DateTime? // Quando foi processado
+  statusProcessamento String  @default("PENDENTE") // PENDENTE, PROCESSADO, PARCIALMENTE_PROCESSADO, DESCARTADO, ERRO
+  motivoDescarta    String?   // Motivo se foi descartado
+  erros             Json?     // Array de erros encontrados durante o processamento
+  quantidadeItens   Int?      // Quantidade de itens no payload
+  quantidadeProcessados Int?  // Quantidade de itens processados com sucesso
+  quantidadeDescartados Int?  // Quantidade de itens descartados
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tipoRecurso])
+  @@index([statusProcessamento])
+  @@index([receivedAt])
+  @@map("bb_webhook_events")
+}
