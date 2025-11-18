@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { CredenciaisAPIService } from '../credenciais-api/credenciais-api.service';
 import { createApiClient, BB_API_URLS } from '../utils/bb-api-client';
+import { createBBClient } from '../utils/bb-api-client-factory';
 import { TransacaoPixResponseDto, ConsultaTransacoesPixResponseDto } from './dto/pix.dto';
 
 /**
@@ -67,24 +68,32 @@ export class PixService {
     console.log('🔐 [PIX-SERVICE] Obtendo novo token de acesso...');
 
     try {
-      // Buscar credenciais PIX do banco de dados (EXATAMENTE como no exemplo)
-      const credenciaisPix = await this.credenciaisAPIService.findByBancoAndModalidade('001', '002 - Pix');
+      // ⚠️ TEMPORÁRIO: Credenciais hardcoded para teste
+      const credencialPix = {
+        developerAppKey: '8500502ed72549049ddea960d6c5452f',
+        clienteId: 'eyJpZCI6ImM5OWIzZTAtMTU5OS00NDkzLTljNzIiLCJjb2RpZ29QdWJsaWNhZG9yIjowLCJjb2RpZ29Tb2Z0d2FyZSI6MTM0NzIxLCJzZXF1ZW5jaWFsSW5zdGFsYWNhbyI6MX0',
+        clienteSecret: 'eyJpZCI6IjBjMGQ4ZGEtOWY2MC00MjdlLWI2ODctZDQ2NzU2ZGFiNmVkOWEiLCJjb2RpZ29QdWJsaWNhZG9yIjowLCJjb2RpZ29Tb2Z0d2FyZSI6MTM0NzIxLCJzZXF1ZW5jaWFsSW5zdGFsYWNhbyI6MSwic2VxdWVuY2lhbENyZWRlbmNpYWwiOjEsImFtYmllbnRlIjoicHJvZHVjYW8iLCJpYXQiOjE3NjI0NTkxMTQ2MzJ9',
+      };
+
+      console.log('🔑 [PIX-SERVICE] Usando credenciais hardcoded para teste');
+      console.log('🔑 [PIX-SERVICE] developerAppKey:', credencialPix.developerAppKey.substring(0, 8) + '...');
+      console.log('🔑 [PIX-SERVICE] clienteId:', credencialPix.clienteId.substring(0, 20) + '...');
+
+      // ⚠️ TESTE: Criar cliente OAuth SEM gw-dev-app-key (seguindo documentação BB)
+      // Usar createBBClient com tipo 'auth' que NÃO adiciona gw-dev-app-key
+      const authClient = createBBClient({
+        apiName: 'PIX',
+        appKey: '', // Não usado para auth
+        clientType: 'auth'
+      });
       
-      if (!credenciaisPix || credenciaisPix.length === 0) {
-        throw new NotFoundException(
-          'Credencial de PIX não cadastrada. Favor cadastrar as credenciais de PIX.'
-        );
-      }
+      console.log('🔍 [PIX-SERVICE] Cliente OAuth criado (SEM gw-dev-app-key no header)');
 
-      // Usar a primeira credencial encontrada (EXATAMENTE como no exemplo)
-      const credencialPix = credenciaisPix[0];
-
-      // Criar cliente HTTP para autenticação (EXATAMENTE como no exemplo)
-      const apiClient = createApiClient(credencialPix.developerAppKey);
-
-      // Fazer requisição de autenticação OAuth2 (EXATAMENTE como no exemplo)
-      const response = await apiClient.post(
-        BB_API_URLS.PIX_AUTH,
+      // Fazer requisição de autenticação OAuth2
+      // authClient já tem baseURL configurado com a URL completa (https://oauth.bb.com.br/oauth/token)
+      // Usar path vazio para usar apenas o baseURL
+      const response = await authClient.post(
+        '',
         new URLSearchParams({
           grant_type: 'client_credentials',
           scope: 'pix.read cob.read'
@@ -144,9 +153,10 @@ export class PixService {
       const formattedInicio = this.formatDate(inicio, false);
       const formattedFim = this.formatDate(fim, true);
 
-      // Buscar credenciais para obter o developerAppKey (EXATAMENTE como no exemplo)
-      const credenciaisPix = await this.credenciaisAPIService.findByBancoAndModalidade('001', '002 - Pix');
-      const credencialPix = credenciaisPix[0];
+      // ⚠️ TEMPORÁRIO: Credenciais hardcoded para teste
+      const credencialPix = {
+        developerAppKey: '8500502ed72549049ddea960d6c5452f',
+      };
 
       // Criar cliente HTTP para consulta (EXATAMENTE como no exemplo)
       const apiClient = createApiClient(credencialPix.developerAppKey);

@@ -1,7 +1,7 @@
 // src/components/frutas/FrutasTable.js
 
 import React from "react";
-import { Dropdown, Button, Tag, Empty, Typography } from "antd";
+import { Dropdown, Button, Tag, Empty, Typography, Space } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -97,14 +97,22 @@ const FrutasTable = ({
     const items = [
       {
         key: "edit",
-        label: "Editar",
-        icon: <EditOutlined />,
+        label: (
+          <Space>
+            <EditOutlined style={{ color: "#fa8c16" }} />
+            <span style={{ color: "#333" }}>Editar</span>
+          </Space>
+        ),
         onClick: () => onEdit(record),
       },
       {
         key: "delete",
-        label: "Excluir",
-        icon: <DeleteOutlined />,
+        label: (
+          <Space>
+            <DeleteOutlined style={{ color: "#ff4d4f" }} />
+            <span style={{ color: "#333" }}>Excluir</span>
+          </Space>
+        ),
         danger: true,
         onClick: () => onDelete(record.id),
       },

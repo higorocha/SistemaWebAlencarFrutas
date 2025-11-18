@@ -6,9 +6,11 @@ import {
   MaxLength,
   IsBoolean,
   IsNumber,
-  Min
+  Min,
+  IsInt,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class CreateContaCorrenteDto {
   @ApiProperty({
@@ -80,6 +82,16 @@ export class CreateContaCorrenteDto {
   @IsNumber({}, { message: 'Intervalo deve ser um número' })
   @Min(1, { message: 'Intervalo deve ser maior que 0' })
   intervalo?: number;
+
+  @ApiProperty({
+    description: 'Número do contrato de pagamentos BB vinculado a esta conta (opcional)',
+    example: 731030,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Número do contrato de pagamentos deve ser numérico' })
+  numeroContratoPagamento?: number;
 }
 
 export class UpdateContaCorrenteDto {
@@ -156,6 +168,16 @@ export class UpdateContaCorrenteDto {
   @IsNumber({}, { message: 'Intervalo deve ser um número' })
   @Min(1, { message: 'Intervalo deve ser maior que 0' })
   intervalo?: number;
+
+  @ApiProperty({
+    description: 'Número do contrato de pagamentos BB vinculado a esta conta (opcional)',
+    example: 731030,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Número do contrato de pagamentos deve ser numérico' })
+  numeroContratoPagamento?: number;
 }
 
 export class ContaCorrenteResponseDto {
@@ -219,4 +241,11 @@ export class ContaCorrenteResponseDto {
     required: false,
   })
   intervalo?: number | null;
+
+  @ApiProperty({
+    description: 'Número do contrato de pagamentos BB vinculado a esta conta (opcional)',
+    example: 731030,
+    required: false,
+  })
+  numeroContratoPagamento?: number | null;
 } 

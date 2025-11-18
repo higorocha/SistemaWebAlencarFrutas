@@ -11,6 +11,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { CulturaGuard } from './guards/cultura.guard';
 import { PushTokensService } from './services/push-tokens.service';
 import { ClientesModule } from '../clientes/clientes.module';
+import { PagamentosModule } from '../pagamentos/pagamentos.module';
+import { PagamentosMobileController } from './controllers/pagamentos-mobile.controller';
 
 /**
  * Módulo Mobile - API específica para o aplicativo mobile
@@ -35,12 +37,14 @@ import { ClientesModule } from '../clientes/clientes.module';
     FitasBananaModule, // Reutiliza FitasBananaService
     ControleBananaModule, // Reutiliza ControleBananaService
     ClientesModule, // Reutiliza ClientesService
+    PagamentosModule, // Reutiliza PagamentosService (BB)
   ],
   controllers: [
     PedidosMobileController,
     FitasMobileController,
     PushTokensMobileController,
     ClientesMobileController,
+    PagamentosMobileController,
   ],
   providers: [
     CulturaGuard,

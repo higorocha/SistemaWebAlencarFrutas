@@ -15,6 +15,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { useNotificacao } from "../contexts/NotificacaoContext";
 import NotificacaoDetalheModal from "./NotificacaoDetalheModal";
 import VincularPagamentoManualModal from "./clientes/VincularPagamentoManualModal";
+import LotePagamentosDetalhesModal from "./pagamentos/LotePagamentosDetalhesModal";
 import CentralizedLoader from "./common/loaders/CentralizedLoader";
 import moment from "../config/momentConfig";
 import { formatarValorMonetario } from "../utils/formatters";
@@ -49,6 +50,12 @@ const NotificacaoMenu = () => {
   const [pedidosVinculacao, setPedidosVinculacao] = useState([]);
   const [loadingPedidosVinculacao, setLoadingPedidosVinculacao] = useState(false);
 
+  // Estados para modal de liberação de pagamento
+  const [modalLiberacaoOpen, setModalLiberacaoOpen] = useState(false);
+  const [loteParaLiberacao, setLoteParaLiberacao] = useState(null);
+  const [loadingLoteLiberacao, setLoadingLoteLiberacao] = useState(false);
+  const [liberandoLoteId, setLiberandoLoteId] = useState(null);
+
   // Função para carregar notificações ao clicar no ícone
   const handleIconClick = (e) => {
     e.stopPropagation();
@@ -79,12 +86,26 @@ const NotificacaoMenu = () => {
     return !!dadosAdicionais.tipoPagamento || notificacao.titulo === 'Novo pagamento recebido';
   };
 
+  // Função para verificar se é notificação de liberação de lote de pagamentos
+  const isNotificacaoLiberarPagamento = (notificacao) => {
+    if (!notificacao) return false;
+
+    const dadosAdicionais = obterDadosAdicionais(notificacao);
+    return dadosAdicionais.tipoNegocio === 'liberar_pagamento';
+  };
+
   // Função para lidar com o clique na notificação
   const handleNotificacaoClick = async (notificacao) => {
     if (!notificacao || !notificacao.id) return;
 
     // Marcar como lida
     marcarComoLida(notificacao.id);
+
+    // Se for notificação de liberação de lote de pagamento, buscar dados do lote e abrir modal
+    if (isNotificacaoLiberarPagamento(notificacao)) {
+      await handleAbrirModalLiberacao(notificacao);
+      return;
+    }
 
     // Se for notificação de pagamento, abrir modal de vinculação
     if (isNotificacaoPagamento(notificacao)) {
@@ -169,6 +190,67 @@ const NotificacaoMenu = () => {
       setLoadingPedidosVinculacao(false);
     }
   }, [showNotification]);
+
+  // Função para abrir modal de liberação de pagamento
+  const handleAbrirModalLiberacao = async (notificacao) => {
+    try {
+      setLoadingLoteLiberacao(true);
+      
+      const dadosAdicionais = obterDadosAdicionais(notificacao);
+      const numeroRequisicao = dadosAdicionais.numeroRequisicao;
+      
+      if (!numeroRequisicao) {
+        showNotification('warning', 'Atenção', 'Dados incompletos na notificação. Não foi possível abrir o modal de liberação.');
+        return;
+      }
+      
+      // Buscar dados do lote pelo numeroRequisicao
+      const response = await axiosInstance.get(`/api/pagamentos/lotes-turma-colheita`);
+      const lotes = response.data || [];
+      
+      const loteEncontrado = lotes.find(lote => lote.numeroRequisicao === numeroRequisicao);
+      
+      if (!loteEncontrado) {
+        showNotification('error', 'Erro', 'Lote de pagamento não encontrado.');
+        return;
+      }
+      
+      // Abrir modal com os dados do lote
+      setLoteParaLiberacao(loteEncontrado);
+      setModalLiberacaoOpen(true);
+      
+    } catch (error) {
+      console.error('Erro ao abrir modal de liberação:', error);
+      const message = error.response?.data?.message || 'Erro ao carregar dados do lote de pagamento.';
+      showNotification('error', 'Erro', message);
+    } finally {
+      setLoadingLoteLiberacao(false);
+    }
+  };
+
+  // Função para liberar pagamento (chamada do modal)
+  const handleLiberarPagamento = async (numeroRequisicao, indicadorFloat) => {
+    try {
+      setLiberandoLoteId(numeroRequisicao);
+      await axiosInstance.post("/api/pagamentos/liberar", {
+        numeroRequisicao,
+        indicadorFloat,
+      });
+      showNotification("success", "Sucesso", "Pagamento liberado com sucesso!");
+      setModalLiberacaoOpen(false);
+      setLoteParaLiberacao(null);
+      // Atualizar notificações após liberação
+      buscarNotificacoes();
+    } catch (error) {
+      console.error("Erro ao liberar pagamento:", error);
+      const message =
+        error.response?.data?.message ||
+        "Erro ao liberar pagamento. Verifique os logs para mais detalhes.";
+      showNotification("error", "Erro", message);
+    } finally {
+      setLiberandoLoteId(null);
+    }
+  };
 
   // Função para abrir modal de vinculação de pagamento
   const handleAbrirVinculacaoPagamento = async (notificacao) => {
@@ -570,6 +652,171 @@ const NotificacaoMenu = () => {
     );
   };
 
+  // Renderização específica para notificações de liberação de lote de pagamentos
+  const renderNotificacaoLiberarPagamento = (item) => {
+    const dadosAdicionais = obterDadosAdicionais(item);
+    const numeroRequisicao = dadosAdicionais.numeroRequisicao;
+    const conta = dadosAdicionais.contaCorrente;
+    const valorBase =
+      (typeof dadosAdicionais.valorTotalValido === "number"
+        ? dadosAdicionais.valorTotalValido
+        : dadosAdicionais.valorTotalEnviado) || 0;
+
+    const origemTipo = dadosAdicionais.origemTipo;
+    const origemNome = dadosAdicionais.origemNome;
+
+    const origemLabel = origemTipo && origemNome
+      ? `Origem: ${origemTipo.replace(/_/g, " ").toUpperCase()} - ${origemNome}`
+      : origemTipo
+      ? `Origem: ${origemTipo.replace(/_/g, " ").toUpperCase()}`
+      : origemNome
+      ? `Origem: ${origemNome}`
+      : null;
+
+    const isNaoLida =
+      item?.status === "nao_lida" ||
+      item?.status === "NAO_LIDA" ||
+      (!item?.lida && !item?.status);
+
+    return (
+      <Box
+        sx={{
+          position: "relative",
+          padding: "12px",
+          paddingLeft: isNaoLida ? "16px" : "12px",
+          marginBottom: "8px",
+          borderRadius: "4px",
+          backgroundColor: theme.palette.background.paper,
+          cursor: "pointer",
+          border: `1px solid ${theme.palette.ui.border}`,
+          borderLeft: isNaoLida
+            ? `3px solid ${theme.palette.primary.main}`
+            : `1px solid ${theme.palette.ui.border}`,
+          boxShadow: isNaoLida ? `0 1px 3px rgba(0, 0, 0, 0.08)` : "none",
+          "&:hover": {
+            backgroundColor: theme.palette.background.hover,
+            boxShadow: `0 2px 6px rgba(0, 0, 0, 0.12)`,
+          },
+        }}
+        onClick={() => handleNotificacaoClick(item)}
+      >
+        {/* Título */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 1,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {isNaoLida && (
+              <Box
+                sx={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  backgroundColor: theme.palette.primary.main,
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            {renderTipo(item?.tipo || "SISTEMA")}
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontWeight: "700",
+                fontSize: "15px",
+                color: theme.palette.text.primary,
+                lineHeight: 1.2,
+              }}
+            >
+              {item?.titulo || "Lote de pagamentos criado para liberação"}
+            </Typography>
+          </Box>
+          <Tooltip title="Remover notificação">
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (item?.id) descartarNotificacao(item.id);
+              }}
+            >
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        {/* Conteúdo */}
+        <Box>
+          {numeroRequisicao != null && (
+            <Typography
+              variant="body2"
+              sx={{
+                mb: 0.25,
+                fontSize: "13px",
+                color: theme.palette.text.primary,
+                fontWeight: "bold",
+              }}
+            >
+              {`Lote: ${numeroRequisicao}`}
+            </Typography>
+          )}
+
+          {conta && (
+            <Typography
+              variant="body2"
+              sx={{
+                mb: 0.25,
+                fontSize: "13px",
+                color: theme.palette.text.primary,
+              }}
+            >
+              {`Conta: ${conta.agencia} / ${conta.contaCorrente}`}
+            </Typography>
+          )}
+
+          {origemLabel && (
+            <Typography
+              variant="body2"
+              sx={{
+                mb: 0.25,
+                fontSize: "13px",
+                color: theme.palette.text.secondary,
+              }}
+            >
+              {origemLabel}
+            </Typography>
+          )}
+
+          <Typography
+            variant="body2"
+            sx={{
+              mb: 0.25,
+              fontSize: "13px",
+              color: theme.palette.text.primary,
+            }}
+          >
+            {`Valor total: R$ ${formatarValorMonetario(valorBase)}`}
+          </Typography>
+        </Box>
+
+        <Divider sx={{ my: 1, borderColor: theme.palette.ui.border }} />
+
+        {/* Data da notificação */}
+        <Typography
+          variant="caption"
+          sx={{
+            display: "block",
+            color: theme.palette.text.muted || theme.palette.text.secondary,
+            fontSize: "11px",
+          }}
+        >
+          {formatarData(item)}
+        </Typography>
+      </Box>
+    );
+  };
   const renderNotificacaoPagamento = (item) => {
     const dadosAdicionais = obterDadosAdicionais(item);
     const conteudoMenu = dadosAdicionais.menu?.conteudo || item.conteudo || '';
@@ -742,6 +989,15 @@ const NotificacaoMenu = () => {
         </Box>
       ) : notificacoesAtivas.length > 0 ? (
         notificacoesAtivas.slice(0, 10).map((item) => {
+          // Renderizar notificação de liberação de lote de pagamentos (tipoNegocio = liberar_pagamento)
+          if (isNotificacaoLiberarPagamento(item)) {
+            return (
+              <Box key={item?.id || Math.random()}>
+                {renderNotificacaoLiberarPagamento(item)}
+              </Box>
+            );
+          }
+
           // Renderizar notificação de pedido com layout customizado
           if (isNotificacaoPedido(item)) {
             return (
@@ -904,6 +1160,30 @@ const NotificacaoMenu = () => {
         visible={loadingDadosPagamento}
         message="Carregando dados do pagamento..."
         subMessage="Buscando lançamento e informações do cliente"
+      />
+
+      {/* Loader centralizado para busca de dados do lote de liberação */}
+      <CentralizedLoader
+        visible={loadingLoteLiberacao}
+        message="Carregando dados do lote de pagamento..."
+        subMessage="Buscando informações do lote para liberação"
+      />
+
+      {/* Modal de liberação de pagamento */}
+      <LotePagamentosDetalhesModal
+        open={modalLiberacaoOpen}
+        onClose={() => {
+          if (!liberandoLoteId) {
+            setModalLiberacaoOpen(false);
+            setLoteParaLiberacao(null);
+          }
+        }}
+        lote={loteParaLiberacao}
+        loadingLiberacao={!!liberandoLoteId}
+        onConfirmLiberacao={async (lote) => {
+          // Usar indicadorFloat 'S' (produção)
+          await handleLiberarPagamento(lote.numeroRequisicao, 'S');
+        }}
       />
     </>
   );

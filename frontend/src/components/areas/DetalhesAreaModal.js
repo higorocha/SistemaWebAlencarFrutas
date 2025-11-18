@@ -310,12 +310,13 @@ const DetalhesAreaModal = ({ open, onClose, area, loading = false }) => {
       title: 'Nº Pedido',
       dataIndex: 'numeroPedido',
       key: 'numeroPedido',
-      width: 100,
+      width: 120,
       render: (text) => (
-        <Text strong style={{ color: '#059669' }}>
+        <Text strong style={{ color: '#059669', fontSize: '0.8125rem' }}>
           {text}
         </Text>
       ),
+      sorter: (a, b) => (a.numeroPedido || '').localeCompare(b.numeroPedido || ''),
     },
     {
       title: 'Cliente',
@@ -419,6 +420,11 @@ const DetalhesAreaModal = ({ open, onClose, area, loading = false }) => {
       dataIndex: ['pedido', 'numeroPedido'],
       key: 'pedido',
       width: 120,
+      render: (text) => (
+        <Text strong style={{ color: '#059669', fontSize: '0.8125rem' }}>
+          {text}
+        </Text>
+      ),
     },
     {
       title: 'Fruta',

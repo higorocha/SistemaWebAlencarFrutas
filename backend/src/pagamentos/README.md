@@ -6,15 +6,43 @@ Este módulo contém a integração com a API de Pagamentos do Banco do Brasil.
 
 ```
 pagamentos/
-├── README.md                    # Esta documentação
+├── DOCUMENTACAO_CONSOLIDADA.md  # 📚 Documentação completa do sistema (LER ESTE ARQUIVO)
+├── PLANO_IMPLEMENTACAO.md       # 📋 Plano de implementação detalhado
+├── README.md                    # Esta documentação (resumo)
+├── pagamentos.service.ts        # Service principal
+├── pagamentos.controller.ts     # Controller com endpoints
+├── dto/pagamentos.dto.ts        # DTOs para requisições e respostas
 └── test-pagamentos.ts           # Script de teste "hardcore" com credenciais de homologação
 ```
 
 ## 🚀 Status Atual
 
-**Fase de Testes Iniciais** - Script hardcore para validação da conexão
+**✅ 95% Concluído** - Sistema completo de controle de pagamentos
 
-Atualmente, o módulo está em fase de testes com um script "hardcore" que utiliza credenciais de homologação hardcoded. Após validação, será organizado para ser escalável por credencial/conta, seguindo o padrão da API de Extratos.
+O módulo está **praticamente completo** com:
+- ✅ Persistência completa de lotes e itens
+- ✅ Consultas de lote e individuais
+- ✅ Pagamento consolidado (1 transferência para múltiplas colheitas)
+- ✅ Relacionamento N:N com tabelas de origem
+- ✅ Rastreabilidade completa
+- ✅ Auditoria completa
+
+**⚠️ Pendente:**
+- Jobs para consultar status automaticamente
+- Webhook para receber atualizações do BB
+
+## 📚 Documentação
+
+**👉 Leia a documentação completa em:** [`DOCUMENTACAO_CONSOLIDADA.md`](./DOCUMENTACAO_CONSOLIDADA.md)
+
+A documentação consolidada inclui:
+- 🗄️ Modelo de banco de dados completo
+- 🔄 Lógica de funcionamento detalhada
+- 🎯 Funcionalidades implementadas
+- 📝 Fluxos de pagamento
+- 🔗 Relacionamentos N:N
+- 🚀 Comandos de migration
+- 🎨 Instruções para frontend
 
 ## 🔧 Configuração
 
@@ -38,10 +66,12 @@ A API de Pagamentos está configurada em:
 
 ### Certificados
 
-Utiliza os mesmos certificados mTLS das outras APIs BB:
-- `certs/final.cer` (certificado cliente)
-- `certs/final_key.pem` (chave privada)
+Utiliza certificados mTLS específicos para Pagamentos (diferentes de PIX e Extratos):
+- `certs/alencar_final.cer` (certificado cliente)
+- `certs/alencar_final_key.pem` (chave privada)
 - Certificados CA (GeoTrust, DigiCert, api-pix_bb_com_br)
+
+**Nota:** A API de Pagamentos usa certificados com prefixo `alencar`, enquanto as APIs PIX e Extratos usam certificados com prefixo `bestnet`.
 
 ## 🔐 Scopes OAuth2
 
@@ -565,6 +595,32 @@ Após validação do script de teste:
 - **Query Params**: O `gw-dev-app-key` deve ser passado como query param, não como header
 - **mTLS**: O endpoint de homologação com mTLS é obrigatório para produção
 - **Número de Requisição**: Deve ser único por contrato de pagamento (1 a 9999999)
+
+### Liberação e Cancelamento
+
+Além da solicitação e consulta de pagamentos, o módulo implementa:
+
+- **Liberação de Requisição/Remessa** (`POST /liberar-pagamentos` BB)  
+  - Exposto internamente via `POST /api/pagamentos/liberar` (apenas ADMIN).  
+  - Usa `numeroRequisicao` do lote e `indicadorFloat`:
+    - `'N'` → não dispensa prazos de float (sem tarifa de antecipação).
+    - `'S'` → dispensa prazos de float (tarifa de antecipação poderá ser cobrada conforme contrato).
+  - Comportamento:
+    - O sistema sempre envia o `numeroRequisicao` real do lote e `indicadorFloat = 'S'` (produção).
+
+- **Cancelamento de Pagamentos** (`POST /cancelar-pagamentos` BB)  
+  - Exposto internamente via `POST /api/pagamentos/cancelar` (apenas ADMIN).  
+  - **⚠️ IMPORTANTE:** O cancelamento é feito por **ITEM (lançamento individual)**, não por lote. Cada item possui um `codigoPagamento` único.
+  - Um lançamento somente poderá ser cancelado **até a liberação do lote** que o contém.
+  - Usa `contaCorrenteId` para recuperar `numeroContratoPagamento`, agência, conta/dígito.
+  - Envia `listaPagamentos` com `codigoPagamento` de cada item a ser cancelado (pode cancelar múltiplos itens de uma vez).
+  - Campos `codigoPagamento` por tipo:
+    - **PIX:** `identificadorPagamento`
+    - **Boleto:** `codigoIdentificadorPagamento`
+    - **Guia:** `codigoPagamento`
+  - O BB retorna para cada item se foi aceito ou rejeitado.
+  - Se aceito, o sistema reverte automaticamente o status das colheitas/funcionários vinculados para `PENDENTE`.
+  - Está implementado e funcional; o fluxo principal atual não depende dele, mas está pronto para uso.
 
 ### Transferências PIX
 - **Limite de Registros**: Máximo de 320 transferências por lote

@@ -42,7 +42,8 @@ export function createPagamentosApiClient(developerAppKey: string) {
   
   // Para homologação, pode ser necessário ajustar a validação de certificados
   // Em produção, sempre usar rejectUnauthorized: true
-  const isHomologacao = config.baseUrl.includes('homologa-api-ip.bb.com.br');
+  const isHomologacao = config.baseUrl.includes('homologa-api-ip.bb.com.br') || 
+                        config.baseUrl.includes('oauth.hm.bb.com.br');
   
   const httpsAgent = new Agent({
     cert: clientCert,
@@ -71,6 +72,15 @@ export function createPagamentosApiClient(developerAppKey: string) {
     } else {
       config.params = { 'gw-dev-app-key': developerAppKey };
     }
+    
+    // Log para debug: verificar se gw-dev-app-key está sendo enviado
+    console.log('🔑 [BB-PAGAMENTOS-CLIENT] Adicionando gw-dev-app-key como query param:', {
+      url: config.url,
+      baseURL: config.baseURL,
+      params: config.params,
+      'gw-dev-app-key': developerAppKey ? `${developerAppKey.substring(0, 8)}...` : 'VAZIO',
+    });
+    
     return config;
   });
 
@@ -79,14 +89,18 @@ export function createPagamentosApiClient(developerAppKey: string) {
 
 /**
  * Cria uma instância do Axios para autenticação OAuth2 de Pagamentos.
+ * IMPORTANTE: O gw-dev-app-key NÃO deve ser enviado no OAuth (apenas Basic Auth).
+ * O gw-dev-app-key é usado apenas nas chamadas da API (como query param).
  */
-export function createPagamentosAuthClient() {
+export function createPagamentosAuthClient(developerAppKey: string) {
   const config = getBBAPIConfig('PAGAMENTOS');
   const { clientCert, clientKey, caCerts } = loadCertificates();
   
   // Para homologação, pode ser necessário ajustar a validação de certificados
-  const isHomologacao = config.authUrl.includes('oauth.hm.bb.com.br');
-  
+  // Em produção, sempre usar rejectUnauthorized: true
+  const isHomologacao = config.authUrl.includes('oauth.hm.bb.com.br') ||
+                        config.baseUrl?.includes('homologa-api-ip.bb.com.br');
+
   const httpsAgent = new Agent({
     cert: clientCert,
     key: clientKey,
@@ -94,21 +108,30 @@ export function createPagamentosAuthClient() {
     rejectUnauthorized: !isHomologacao, // Temporariamente false para homologação se necessário
   });
 
-  return axios.create({
+  const client = axios.create({
     baseURL: config.authUrl,
     httpsAgent,
     timeout: config.timeout || 30000,
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
+      // NÃO enviar gw-dev-app-key no OAuth (apenas Basic Auth)
     },
   } as any);
+
+  // Log para debug
+  console.log('🔑 [BB-PAGAMENTOS-CLIENT] Criando cliente OAuth (SEM gw-dev-app-key no header):', {
+    baseURL: config.authUrl,
+  });
+
+  return client;
 }
 
 /**
  * URLs das APIs de Pagamentos do BB
  */
 export const BB_PAGAMENTOS_API_URLS = {
-  PAGAMENTOS_AUTH: getBBAPIConfig('PAGAMENTOS').authUrl,
+  // Caminho do endpoint de token OAuth; o host vem de PAGAMENTOS.authUrl (homolog/produção)
+  PAGAMENTOS_AUTH: '/oauth/token',
   PAGAMENTOS_BASE: getBBAPIConfig('PAGAMENTOS').baseUrl
 };
 

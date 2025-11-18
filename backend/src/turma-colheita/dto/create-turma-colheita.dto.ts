@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNotEmpty, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsDateString, IsInt, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateTurmaColheitaDto {
@@ -25,6 +25,25 @@ export class CreateTurmaColheitaDto {
   @IsOptional()
   @IsString()
   responsavelChavePix?: string;
+
+  @ApiPropertyOptional({
+    description: 'Código do tipo da chave PIX: 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória',
+    example: 2,
+    enum: [1, 2, 3, 4],
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(4)
+  tipoChavePix?: number;
+
+  @ApiPropertyOptional({
+    description: 'Nome da modalidade da chave PIX: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"',
+    example: 'Email',
+  })
+  @IsOptional()
+  @IsString()
+  modalidadeChave?: string;
 
   @ApiPropertyOptional({
     description: 'Data de cadastro da turma',

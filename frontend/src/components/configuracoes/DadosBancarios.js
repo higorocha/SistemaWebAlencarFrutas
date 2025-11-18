@@ -302,6 +302,7 @@ const DadosBancarios = () => {
         agenciaDigito: values.agenciaDigito,
         contaCorrente: values.contaCorrente,
         contaCorrenteDigito: values.contaCorrenteDigito,
+        numeroContratoPagamento: values.numeroContratoPagamento || null,
       };
 
       // Sempre enviar campos de monitoramento quando estiver editando
@@ -380,6 +381,7 @@ const DadosBancarios = () => {
       agenciaDigito: contaCorrente.agenciaDigito,
       contaCorrente: contaCorrente.contaCorrente,
       contaCorrenteDigito: contaCorrente.contaCorrenteDigito,
+        numeroContratoPagamento: contaCorrente.numeroContratoPagamento || undefined,
       monitorar: Boolean(contaCorrente.monitorar),
       intervalo: contaCorrente.intervalo || undefined,
     });
@@ -449,8 +451,8 @@ const DadosBancarios = () => {
         // Verifica se já existe para a combinação banco + conta + modalidade
         const existente = credenciaisRecords.find(
           (item) =>
-            item.banco === values.banco &&
-            item.contaCorrenteId === values.contaCorrente &&
+            item.banco === values.api_banco &&
+            item.contaCorrenteId === values.api_contaCorrente &&
             item.modalidadeApi === values.modalidadeApi
         );
         if (existente) {
@@ -801,6 +803,33 @@ const DadosBancarios = () => {
                       ]}
                     >
                       <Input size="large" placeholder="Ex: 1" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                {/* Número do contrato de pagamentos (opcional) */}
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="numeroContratoPagamento"
+                      label={
+                        <Text strong>
+                          <NumberOutlined style={{ marginRight: 8 }} />
+                          Número do Contrato de Pagamentos (opcional)
+                        </Text>
+                      }
+                      rules={[
+                        {
+                          pattern: /^[0-9]+$/,
+                          message: "⚠️ Número do contrato deve conter apenas números",
+                        },
+                        {
+                          max: 10,
+                          message: "⚠️ Número do contrato deve ter no máximo 10 dígitos",
+                        },
+                      ]}
+                    >
+                      <Input size="large" placeholder="Ex: 731030" />
                     </Form.Item>
                   </Col>
                 </Row>

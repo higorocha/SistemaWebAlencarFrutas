@@ -250,11 +250,19 @@ export function backupCertificates(backupDir: string = 'certs/backup'): {
     // Cria diretório de backup
     fs.mkdirSync(backupPath, { recursive: true });
 
-    const config = getBBAPIConfig('PIX'); // Usa PIX como referência (mesmos certificados)
+    // Inclui certificados de todas as APIs (bestnet e alencar)
+    const configPix = getBBAPIConfig('PIX'); // Certificados bestnet
+    const configPagamentos = getBBAPIConfig('PAGAMENTOS'); // Certificados alencar
+    
     const filesToBackup = [
-      config.certificates.clientCertPath,
-      config.certificates.clientKeyPath,
-      ...config.certificates.caCertPaths
+      // Certificados bestnet (PIX e EXTRATOS)
+      configPix.certificates.clientCertPath,
+      configPix.certificates.clientKeyPath,
+      // Certificados alencar (PAGAMENTOS)
+      configPagamentos.certificates.clientCertPath,
+      configPagamentos.certificates.clientKeyPath,
+      // Certificados CA (compartilhados)
+      ...configPix.certificates.caCertPaths
     ];
 
     const backedUpFiles: string[] = [];

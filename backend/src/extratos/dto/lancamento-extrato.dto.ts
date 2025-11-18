@@ -358,6 +358,9 @@ export class LancamentoExtratoResponseDto {
   @ApiPropertyOptional({ description: 'ID do pedido vinculado' })
   pedidoId?: number;
 
+  @ApiPropertyOptional({ description: 'ID da conta corrente' })
+  contaCorrenteId?: number;
+
   @ApiProperty({ description: 'Se já foi processado' })
   processado: boolean;
 

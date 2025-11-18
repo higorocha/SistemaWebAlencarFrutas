@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Put,
   Param,
   Delete,
   Query,
@@ -158,8 +159,8 @@ export class CredenciaisAPIController {
 
   @Patch(':id')
   @ApiOperation({
-    summary: 'Atualizar credenciais API',
-    description: 'Atualiza dados das credenciais API existentes',
+    summary: 'Atualizar credenciais API (parcial)',
+    description: 'Atualiza dados das credenciais API existentes (atualização parcial)',
   })
   @ApiParam({
     name: 'id',
@@ -209,6 +210,65 @@ export class CredenciaisAPIController {
     },
   })
   async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(ValidationPipe) updateCredenciaisAPIDto: UpdateCredenciaisAPIDto,
+  ): Promise<CredenciaisAPIResponseDto> {
+    return this.credenciaisAPIService.update(id, updateCredenciaisAPIDto);
+  }
+
+  @Put(':id')
+  @ApiOperation({
+    summary: 'Atualizar credenciais API (completo)',
+    description: 'Atualiza dados das credenciais API existentes (atualização completa)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID das credenciais API',
+    type: Number,
+  })
+  @ApiBody({
+    description: 'Dados para atualização (todos os campos são opcionais)',
+    type: UpdateCredenciaisAPIDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Credenciais atualizadas com sucesso',
+    type: CredenciaisAPIResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Credenciais não encontradas',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Credenciais API não encontradas',
+        error: 'Not Found',
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Conflito - combinação banco/conta/modalidade já existe',
+    schema: {
+      example: {
+        statusCode: 409,
+        message: 'Já existem credenciais para 001 - 001 - Cobrança nesta conta corrente',
+        error: 'Conflict',
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dados inválidos',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: ['Banco não pode estar vazio'],
+        error: 'Bad Request',
+      },
+    },
+  })
+  async updatePut(
     @Param('id', ParseIntPipe) id: number,
     @Body(ValidationPipe) updateCredenciaisAPIDto: UpdateCredenciaisAPIDto,
   ): Promise<CredenciaisAPIResponseDto> {

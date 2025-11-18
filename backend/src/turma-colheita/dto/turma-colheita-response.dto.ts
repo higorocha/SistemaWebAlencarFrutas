@@ -25,6 +25,19 @@ export class TurmaColheitaResponseDto {
   })
   responsavelChavePix?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Código do tipo da chave PIX: 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória',
+    example: 2,
+    enum: [1, 2, 3, 4],
+  })
+  tipoChavePix?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Nome da modalidade da chave PIX: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"',
+    example: 'Email',
+  })
+  modalidadeChave?: string | null;
+
   @ApiProperty({
     description: 'Data de cadastro da turma',
     example: '2024-12-15T10:00:00Z',

@@ -27,6 +27,7 @@ import { CnpjModule } from './cnpj/cnpj.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PixModule } from './pix/pix.module';
 import { ExtratosModule } from './extratos/extratos.module';
+import { PagamentosModule } from './pagamentos/pagamentos.module';
 import { CertificateMonitorModule } from './certificate-monitor/certificate-monitor.module';
 import { ExtratosMonitorModule } from './extratos-monitor/extratos-monitor.module';
 import { MobileModule } from './mobile/mobile.module';
@@ -70,6 +71,7 @@ import { MobileModule } from './mobile/mobile.module';
     DashboardModule,
     PixModule,
     ExtratosModule,
+    PagamentosModule,
     CertificateMonitorModule,
     ExtratosMonitorModule,
     MobileModule, // Módulo para API mobile

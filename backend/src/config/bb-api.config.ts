@@ -30,11 +30,22 @@ export interface BBAPIConfig {
 
 /**
  * Configuração centralizada de certificados
- * TODOS os serviços BB usam os mesmos certificados
+ * PIX e EXTRATOS usam certificados bestnet
+ * PAGAMENTOS usa certificados alencar
  */
-const BB_CERTIFICATES: BBCertificateConfig = {
-  clientCertPath: 'certs/final.cer',
-  clientKeyPath: 'certs/final_key.pem',
+const BB_CERTIFICATES_BESTNET: BBCertificateConfig = {
+  clientCertPath: 'certs/bestnet_final.cer',
+  clientKeyPath: 'certs/bestnet_final_key.pem',
+  caCertPaths: [
+    'certs/GeoTrust_EV_RSA_CA_G2.cer',
+    'certs/DigiCert_Global_Root_G2.cer',
+    'certs/api-pix_bb_com_br.crt'
+  ]
+};
+
+const BB_CERTIFICATES_ALENCAR: BBCertificateConfig = {
+  clientCertPath: 'certs/alencar_final.cer',
+  clientKeyPath: 'certs/alencar_final_key.pem',
   caCertPaths: [
     'certs/GeoTrust_EV_RSA_CA_G2.cer',
     'certs/DigiCert_Global_Root_G2.cer',
@@ -55,7 +66,7 @@ export const BB_APIS_CONFIG: Record<string, BBAPIConfig> = {
     name: 'PIX',
     authUrl: 'https://oauth.bb.com.br/oauth/token',
     baseUrl: 'https://api-pix.bb.com.br/pix/v2/pix',
-    certificates: BB_CERTIFICATES,
+    certificates: BB_CERTIFICATES_BESTNET,
     headers: {
       authKey: 'Content-Type',
       apiKey: 'gw-dev-app-key'
@@ -67,7 +78,7 @@ export const BB_APIS_CONFIG: Record<string, BBAPIConfig> = {
     name: 'EXTRATOS',
     authUrl: 'https://oauth.bb.com.br/oauth/token',
     baseUrl: 'https://api-extratos.bb.com.br/extratos/v1',
-    certificates: BB_CERTIFICATES,
+    certificates: BB_CERTIFICATES_BESTNET,
     headers: {
       authKey: 'Content-Type',
       apiKey: 'X-Developer-Application-Key'
@@ -77,9 +88,10 @@ export const BB_APIS_CONFIG: Record<string, BBAPIConfig> = {
   
   PAGAMENTOS: {
     name: 'PAGAMENTOS',
-    authUrl: 'https://oauth.hm.bb.com.br/oauth/token',
-    baseUrl: 'https://homologa-api-ip.bb.com.br:7144/pagamentos-lote/v1',
-    certificates: BB_CERTIFICATES,
+    // Produção: endpoints de OAuth e API de produção
+    authUrl: 'https://oauth.bb.com.br',
+    baseUrl: 'https://api-ip.bb.com.br/pagamentos-lote/v1',
+    certificates: BB_CERTIFICATES_ALENCAR,
     headers: {
       authKey: 'Content-Type',
       apiKey: 'gw-dev-app-key' // Usado como query param, não header
@@ -96,16 +108,16 @@ export const BB_APIS_CONFIG: Record<string, BBAPIConfig> = {
 /**
  * Configurações de ambiente
  * 
- * Para diferentes ambientes (dev, staging, prod):
- * 1. Crie BB_APIS_CONFIG_DEV, BB_APIS_CONFIG_PROD
- * 2. Use process.env.NODE_ENV para escolher
- * 3. Ou crie um sistema de configuração mais robusto
+ * Sempre retorna a configuração de produção.
+ * Para testes de homologação, use o script test-pagamentos-homologacao.ts
  */
 export const getBBAPIConfig = (apiName: keyof typeof BB_APIS_CONFIG): BBAPIConfig => {
   const config = BB_APIS_CONFIG[apiName];
   if (!config) {
     throw new Error(`Configuração não encontrada para a API: ${apiName}`);
   }
+
+  // Sempre retornar configuração de produção
   return config;
 };
 

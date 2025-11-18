@@ -33,6 +33,9 @@ async function main() {
   console.log('Senha: 123456');
   console.log('\n⚠️  ALTERE A SENHA APÓS O PRIMEIRO LOGIN!');
 
+  // Nota: Sequências de numeroRequisicao são criadas automaticamente pelo PagamentosService
+  // quando necessário (ver obterProximoNumeroRequisicao), então não precisamos inicializar aqui
+
   console.log('\n🌱 Seed concluído com sucesso!');
 }
 

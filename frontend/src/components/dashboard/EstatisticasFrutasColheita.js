@@ -27,7 +27,7 @@ const FruitCard = styled.div`
   }
 `;
 
-const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab, selectedWeek }) => {
+const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab, selectedWeek, isFullscreen = false, cardHeight = null }) => {
   const { isMobile } = useResponsive();
 
   // Agrupar frutas por status (Pendente, Colhido e Atrasado)
@@ -179,9 +179,13 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab, selec
         backgroundColor: '#f9f9f9',
         borderRadius: '8px',
         border: '1px solid #e8e8e8',
-        height: isMobile ? 'auto' : '520px',
+        height: isFullscreen ? (cardHeight || '100%') : (isMobile ? 'auto' : '520px'),
+        minHeight: isFullscreen ? (cardHeight || '100%') : undefined,
+        maxHeight: isFullscreen ? (cardHeight || '100%') : undefined,
+        marginTop: isFullscreen ? (isMobile ? '48px' : '64px') : 0,
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        overflow: 'hidden'
       }}>
         <Title
           level={4}
@@ -237,9 +241,13 @@ const EstatisticasFrutasColheita = ({ programacaoColheita = [], activeTab, selec
       backgroundColor: '#f9f9f9',
       borderRadius: '8px',
       border: '1px solid #e8e8e8',
-      height: isMobile ? 'auto' : '520px',
+      height: isFullscreen ? (cardHeight || '100%') : (isMobile ? 'auto' : '520px'),
+      minHeight: isFullscreen ? (cardHeight || '100%') : undefined,
+      maxHeight: isFullscreen ? (cardHeight || '100%') : undefined,
+      marginTop: isFullscreen ? (isMobile ? '48px' : '64px') : 0,
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      overflow: 'hidden'
     }}>
       <Title
         level={4}

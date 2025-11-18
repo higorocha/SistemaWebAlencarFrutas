@@ -8,24 +8,27 @@ datasource db {
 }
 
 model Usuario {
-  id              Int              @id @default(autoincrement())
-  nome            String
-  cpf             String           @unique
-  email           String           @unique
-  nivel           NivelUsuario     @default(ESCRITORIO)
-  senha           String
-  dataCadastro    DateTime         @default(now())
-  ultimoAcesso    DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  culturaId       Int?             @map("cultura_id")
-  controlesBanana ControleBanana[]
-  fitasBanana     FitaBanana[]
-  historicosFitas HistoricoFitas[]
-  notificacoes    Notificacao[]
-  pushTokens      PushToken[]
-  cultura         Cultura?         @relation(fields: [culturaId], references: [id])
+  id               Int               @id @default(autoincrement())
+  nome             String
+  cpf              String            @unique
+  email            String            @unique
+  nivel            NivelUsuario      @default(ESCRITORIO)
+  senha            String
+  dataCadastro     DateTime          @default(now())
+  ultimoAcesso     DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  culturaId        Int?              @map("cultura_id")
+  controlesBanana  ControleBanana[]
+  fitasBanana      FitaBanana[]
+  historicosFitas  HistoricoFitas[]
+  notificacoes     Notificacao[]
+  pushTokens       PushToken[]
+  cultura          Cultura?          @relation(fields: [culturaId], references: [id])
   historicoPedidos HistoricoPedido[]
+  lotesPagamentoCriados PagamentoApiLote[] @relation("UsuarioCriacao")
+  lotesPagamentoLiberados PagamentoApiLote[] @relation("UsuarioLiberacao")
+  itensPagamentoCancelados PagamentoApiItem[] @relation("UsuarioCancelamento")
 
   @@map("usuarios")
 }
@@ -55,12 +58,15 @@ model ContaCorrente {
   agenciaDigito       String
   contaCorrente       String
   contaCorrenteDigito String
-  monitorar           Boolean           @default(false)
-  intervalo           Int?              // Intervalo em segundos para monitoramento
+  numeroContratoPagamento Int? // Número do contrato de pagamentos BB (ex: 731030)
+  monitorar           Boolean            @default(false)
+  intervalo           Int? // Intervalo em segundos para monitoramento
   createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  conveniosCobranca   ConvenioCobranca[]
-  credenciaisAPI      CredenciaisAPI[]
+  updatedAt                 DateTime                      @updatedAt
+  conveniosCobranca         ConvenioCobranca[]
+  credenciaisAPI            CredenciaisAPI[]
+  lotesPagamentoApi         PagamentoApiLote[]
+  sequenciaNumeroRequisicao SequenciaNumeroRequisicao? // Sequência de número de requisição para esta conta
 
   @@unique([bancoCodigo, agencia, contaCorrente])
   @@map("conta_corrente")
@@ -218,68 +224,68 @@ model LotesCulturas {
 }
 
 model Fruta {
-  id              Int                        @id @default(autoincrement())
-  nome            String                     @db.VarChar(100)
-  codigo          String?                    @unique
-  descricao       String?
-  status          StatusFruta?               @default(ATIVA)
-  nomeCientifico  String?                    @map("nome_cientifico")
-  corPredominante String?                    @map("cor_predominante")
-  epocaColheita   String?                    @map("epoca_colheita")
-  observacoes     String?
-  dePrimeira      Boolean                    @default(false) @map("de_primeira")
-  createdAt       DateTime                   @default(now()) @map("created_at")
-  updatedAt       DateTime                   @updatedAt @map("updated_at")
-  culturaId       Int                        @map("cultura_id")
-  cultura         Cultura                    @relation(fields: [culturaId], references: [id])
-  frutasPedidos   FrutasPedidos[]
-  custosColheita  TurmaColheitaPedidoCusto[]
+  id                   Int                        @id @default(autoincrement())
+  nome                 String                     @db.VarChar(100)
+  codigo               String?                    @unique
+  descricao            String?
+  status               StatusFruta?               @default(ATIVA)
+  nomeCientifico       String?                    @map("nome_cientifico")
+  corPredominante      String?                    @map("cor_predominante")
+  epocaColheita        String?                    @map("epoca_colheita")
+  observacoes          String?
+  dePrimeira           Boolean                    @default(false) @map("de_primeira")
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @map("updated_at")
+  culturaId            Int                        @map("cultura_id")
+  cultura              Cultura                    @relation(fields: [culturaId], references: [id])
+  frutasPedidos        FrutasPedidos[]
+  custosColheita       TurmaColheitaPedidoCusto[]
   pagamentosFornecedor FornecedorPagamento[]
 
   @@map("frutas")
 }
 
 model Cliente {
-  id                 Int           @id @default(autoincrement())
-  nome               String        @db.VarChar(100)
-  razaoSocial        String?       @db.VarChar(100)
-  cnpj               String?       @db.VarChar(18)
-  cpf                String?       @db.VarChar(14)
-  inscricaoEstadual  String?       @db.VarChar(20)
-  inscricaoMunicipal String?       @db.VarChar(20)
-  cep                String?       @db.VarChar(9)
-  logradouro         String?       @db.VarChar(100)
-  numero             String?       @db.VarChar(10)
-  complemento        String?       @db.VarChar(50)
-  bairro             String?       @db.VarChar(50)
-  cidade             String?       @db.VarChar(50)
-  estado             String?       @db.VarChar(2)
-  telefone1          String?       @db.VarChar(15)
-  telefone2          String?       @db.VarChar(15)
-  email1             String?       @db.VarChar(100)
-  email2             String?       @db.VarChar(100)
+  id                 Int                 @id @default(autoincrement())
+  nome               String              @db.VarChar(100)
+  razaoSocial        String?             @db.VarChar(100)
+  cnpj               String?             @db.VarChar(18)
+  cpf                String?             @db.VarChar(14)
+  inscricaoEstadual  String?             @db.VarChar(20)
+  inscricaoMunicipal String?             @db.VarChar(20)
+  cep                String?             @db.VarChar(9)
+  logradouro         String?             @db.VarChar(100)
+  numero             String?             @db.VarChar(10)
+  complemento        String?             @db.VarChar(50)
+  bairro             String?             @db.VarChar(50)
+  cidade             String?             @db.VarChar(50)
+  estado             String?             @db.VarChar(2)
+  telefone1          String?             @db.VarChar(15)
+  telefone2          String?             @db.VarChar(15)
+  email1             String?             @db.VarChar(100)
+  email2             String?             @db.VarChar(100)
   observacoes        String?
-  status             StatusCliente @default(ATIVO)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  industria          Boolean?      @default(false)
+  status             StatusCliente       @default(ATIVO)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  industria          Boolean?            @default(false)
   pedidos            Pedido[]
   lancamentosExtrato LancamentoExtrato[]
-  
+
   @@map("clientes")
 }
 
 model Fornecedor {
-  id          Int              @id @default(autoincrement())
-  nome        String           @db.VarChar(100)
-  cnpj        String?          @unique
-  cpf         String?          @unique
+  id          Int                   @id @default(autoincrement())
+  nome        String                @db.VarChar(100)
+  cnpj        String?               @unique
+  cpf         String?               @unique
   telefone    String?
   email       String?
   endereco    String?
   observacoes String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
   areas       AreaFornecedor[]
   pagamentos  FornecedorPagamento[]
 
@@ -287,14 +293,14 @@ model Fornecedor {
 }
 
 model AreaFornecedor {
-  id                 Int                  @id @default(autoincrement())
+  id                 Int                   @id @default(autoincrement())
   fornecedorId       Int
-  nome               String               @db.VarChar(100)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  culturaId          Int?                 @map("cultura_id")
-  cultura            Cultura?             @relation(fields: [culturaId], references: [id])
-  fornecedor         Fornecedor           @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  nome               String                @db.VarChar(100)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  culturaId          Int?                  @map("cultura_id")
+  cultura            Cultura?              @relation(fields: [culturaId], references: [id])
+  fornecedor         Fornecedor            @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
   frutasPedidosAreas FrutasPedidosAreas[]
   pagamentos         FornecedorPagamento[]
 
@@ -302,47 +308,47 @@ model AreaFornecedor {
 }
 
 model Pedido {
-  id                   Int                        @id @default(autoincrement())
-  numeroPedido         String                     @unique
-  clienteId            Int
-  dataPedido           DateTime                   @default(now())
-  dataPrevistaColheita DateTime
-  dataColheita         DateTime?
-  dataPrecificacaoRealizada DateTime?
-  frete                Float?
-  icms                 Float?
-  desconto             Float?
-  valorFinal           Float?
-  status               StatusPedido               @default(PEDIDO_CRIADO)
-  observacoes          String?
-  observacoesColheita  String?
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
-  valorRecebido        Float?
-  avaria               Float?
-  nomeMotorista        String?
-  pesagem              String?
-  placaPrimaria        String?
-  placaSecundaria      String?
-  indDataDescarga      DateTime?                  @map("ind_data_descarga")
-  indDataEntrada       DateTime?                  @map("ind_data_entrada")
-  indMediaMililitro    Float?                     @map("ind_media_mililitro")
-  indNumeroNf          Int?                       @map("ind_numero_nf")
-  indPesoMedio         Float?                     @map("ind_peso_medio")
-  frutasPedidos        FrutasPedidos[]
-  pagamentosPedidos    PagamentosPedidos[]
-  cliente              Cliente                    @relation(fields: [clienteId], references: [id])
-  custosColheita       TurmaColheitaPedidoCusto[]
-  lancamentosExtrato   LancamentoExtrato[]
+  id                         Int                        @id @default(autoincrement())
+  numeroPedido               String                     @unique
+  clienteId                  Int
+  dataPedido                 DateTime                   @default(now())
+  dataPrevistaColheita       DateTime
+  dataColheita               DateTime?
+  dataPrecificacaoRealizada  DateTime?
+  frete                      Float?
+  icms                       Float?
+  desconto                   Float?
+  valorFinal                 Float?
+  status                     StatusPedido               @default(PEDIDO_CRIADO)
+  observacoes                String?
+  observacoesColheita        String?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  valorRecebido              Float?
+  avaria                     Float?
+  nomeMotorista              String?
+  pesagem                    String?
+  placaPrimaria              String?
+  placaSecundaria            String?
+  indDataDescarga            DateTime?                  @map("ind_data_descarga")
+  indDataEntrada             DateTime?                  @map("ind_data_entrada")
+  indMediaMililitro          Float?                     @map("ind_media_mililitro")
+  indNumeroNf                Int?                       @map("ind_numero_nf")
+  indPesoMedio               Float?                     @map("ind_peso_medio")
+  frutasPedidos              FrutasPedidos[]
+  pagamentosPedidos          PagamentosPedidos[]
+  cliente                    Cliente                    @relation(fields: [clienteId], references: [id])
+  custosColheita             TurmaColheitaPedidoCusto[]
+  lancamentosExtrato         LancamentoExtrato[]
   lancamentosExtratoVinculos LancamentoExtratoPedido[]
-  historico            HistoricoPedido[]
-  pagamentosFornecedor FornecedorPagamento[]
+  historico                  HistoricoPedido[]
+  pagamentosFornecedor       FornecedorPagamento[]
 
   @@map("pedidos")
 }
 
 model FrutasPedidos {
-  id                    Int                  @id @default(autoincrement())
+  id                    Int                   @id @default(autoincrement())
   pedidoId              Int
   frutaId               Int
   quantidadePrevista    Float
@@ -353,11 +359,11 @@ model FrutasPedidos {
   valorUnitario         Float?
   valorTotal            Float?
   unidadePrecificada    UnidadeMedida?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
   quantidadePrecificada Float?
-  fruta                 Fruta                @relation(fields: [frutaId], references: [id])
-  pedido                Pedido               @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  fruta                 Fruta                 @relation(fields: [frutaId], references: [id])
+  pedido                Pedido                @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   areas                 FrutasPedidosAreas[]
   fitas                 FrutasPedidosFitas[]
   pagamentosFornecedor  FornecedorPagamento[]
@@ -384,66 +390,68 @@ model PagamentosPedidos {
 }
 
 model LancamentoExtrato {
-  id                          BigInt               @id @default(autoincrement())
-  
+  id BigInt @id @default(autoincrement())
+
   // Campos originais da API BB (mantidos para integridade e auditoria)
-  indicadorTipoLancamento    String?              @db.VarChar(10)
-  dataLancamentoRaw          BigInt?              // Data no formato original (DDMMYYYY como número, ex: 1102025)
-  dataMovimento              BigInt?              @default(0)
-  codigoAgenciaOrigem        BigInt?              @default(0)
-  numeroLote                 BigInt?
-  numeroDocumento            String?               @db.VarChar(50) // String para suportar números grandes
-  codigoHistorico            Int?
-  textoDescricaoHistorico    String?              @db.VarChar(200)
-  valorLancamentoRaw         Decimal?             @db.Decimal(15, 2) // Valor original com sinal
-  indicadorSinalLancamento   String?              @db.VarChar(1) // "C" = Crédito, "D" = Débito
-  textoInformacaoComplementar String?             @db.Text
-  numeroCpfCnpjContrapartida String?             @db.VarChar(18) // String para suportar CPF/CNPJ
-  indicadorTipoPessoaContrapartida String?        @db.VarChar(1) // "J" = Jurídica, "F" = Física, "" = vazio
-  codigoBancoContrapartida   BigInt?             @default(0)
-  codigoAgenciaContrapartida BigInt?             @default(0)
-  numeroContaContrapartida   String?              @db.VarChar(30)
-  textoDvContaContrapartida  String?             @db.VarChar(5)
-  
+  indicadorTipoLancamento          String?  @db.VarChar(10)
+  dataLancamentoRaw                BigInt? // Data no formato original (DDMMYYYY como número, ex: 1102025)
+  dataMovimento                    BigInt?  @default(0)
+  codigoAgenciaOrigem              BigInt?  @default(0)
+  numeroLote                       BigInt?
+  numeroDocumento                  String?  @db.VarChar(50) // String para suportar números grandes
+  codigoHistorico                  Int?
+  textoDescricaoHistorico          String?  @db.VarChar(200)
+  valorLancamentoRaw               Decimal? @db.Decimal(15, 2) // Valor original com sinal
+  indicadorSinalLancamento         String?  @db.VarChar(1) // "C" = Crédito, "D" = Débito
+  textoInformacaoComplementar      String?  @db.Text
+  numeroCpfCnpjContrapartida       String?  @db.VarChar(18) // String para suportar CPF/CNPJ
+  indicadorTipoPessoaContrapartida String?  @db.VarChar(1) // "J" = Jurídica, "F" = Física, "" = vazio
+  codigoBancoContrapartida         BigInt?  @default(0)
+  codigoAgenciaContrapartida       BigInt?  @default(0)
+  numeroContaContrapartida         String?  @db.VarChar(30)
+  textoDvContaContrapartida        String?  @db.VarChar(5)
+
   // Campos processados para facilitar consultas e filtros
-  dataLancamento             DateTime             // Data convertida do dataLancamentoRaw (DDMMYYYY → DateTime)
-  valorLancamento            Decimal              @db.Decimal(15, 2) // Valor sempre positivo (sinal separado)
-  tipoOperacao               TipoOperacaoExtrato // "CREDITO" ou "DEBITO" baseado no indicadorSinalLancamento
-  categoriaOperacao          String?              @db.VarChar(50) // "PIX_RECEBIDO", "PIX_ENVIADO", "TRANSFERENCIA", etc (extraído de textoDescricaoHistorico)
-  
+  dataLancamento    DateTime // Data convertida do dataLancamentoRaw (DDMMYYYY → DateTime)
+  valorLancamento   Decimal             @db.Decimal(15, 2) // Valor sempre positivo (sinal separado)
+  tipoOperacao      TipoOperacaoExtrato // "CREDITO" ou "DEBITO" baseado no indicadorSinalLancamento
+  categoriaOperacao String?             @db.VarChar(50) // "PIX_RECEBIDO", "PIX_ENVIADO", "TRANSFERENCIA", etc (extraído de textoDescricaoHistorico)
+
   // Campos extraídos do textoInformacaoComplementar para facilitar buscas e filtros
-  horarioLancamento          String?              @db.VarChar(10) // Extraído do textoInformacaoComplementar (ex: "11:56")
-  nomeContrapartida          String?              @db.VarChar(200) // Nome extraído do textoInformacaoComplementar (ex: "AGC NORDEST")
-  
+  horarioLancamento String? @db.VarChar(10) // Extraído do textoInformacaoComplementar (ex: "11:56")
+  nomeContrapartida String? @db.VarChar(200) // Nome extraído do textoInformacaoComplementar (ex: "AGC NORDEST")
+
   // Relacionamento com Cliente (OBRIGATÓRIO - só salvamos lançamentos de clientes do sistema)
-  clienteId                  Int?
-  cliente                    Cliente?             @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  
+  clienteId Int?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
   // Relacionamento com Pedido (opcional - quando for detectada correspondência automática ou vinculação manual)
-  pedidoId                   Int?
-  pedido                     Pedido?              @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
-  
+  pedidoId Int?
+  pedido   Pedido? @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
+
   // Referência à ContaCorrente (apenas para referência - qual conta foi usada na busca da API)
-  contaCorrenteId            Int?                 // ID da conta que foi usada para buscar na API
-  agenciaConta               String?              @db.VarChar(10) // Salvo para referência futura
-  numeroConta                String?              @db.VarChar(20) // Salvo para referência futura
-  
+  contaCorrenteId Int? // ID da conta que foi usada para buscar na API
+  agenciaConta    String? @db.VarChar(10) // Salvo para referência futura
+  numeroConta     String? @db.VarChar(20) // Salvo para referência futura
+
   // Campos de controle e processamento
-  processado                 Boolean              @default(false) // Se já foi processado pelo sistema
-  vinculadoPedido            Boolean              @default(false) // Se foi vinculado a um pedido (automático ou manual)
-  vinculadoPagamento         Boolean              @default(false) // Se foi criado um registro em PagamentosPedidos
-  vinculacaoAutomatica       Boolean              @default(false) // Se a vinculação foi automática (true) ou manual (false)
-  valorComparacao            Decimal?             @db.Decimal(15, 2) // Valor usado na comparação com pedido (pode ter pequenas diferenças)
-  valorDisponivel            Decimal              @default(0) @db.Decimal(15, 2) // Saldo disponível para novas vinculações
-  valorVinculadoTotal        Decimal              @default(0) @db.Decimal(15, 2) // Soma dos valores já vinculados
-  estaLiquidado              Boolean              @default(false) // Indica se o saldo foi completamente distribuído
-  observacoesProcessamento   String?             @db.Text // Observações sobre o processamento/vinculação
-  
-  createdAt                  DateTime             @default(now())
-  updatedAt                  DateTime             @updatedAt
+  processado               Boolean  @default(false) // Se já foi processado pelo sistema
+  vinculadoPedido          Boolean  @default(false) // Se foi vinculado a um pedido (automático ou manual)
+  vinculadoPagamento       Boolean  @default(false) // Se foi criado um registro em PagamentosPedidos
+  vinculacaoAutomatica     Boolean  @default(false) // Se a vinculação foi automática (true) ou manual (false)
+  valorComparacao          Decimal? @db.Decimal(15, 2) // Valor usado na comparação com pedido (pode ter pequenas diferenças)
+  valorDisponivel          Decimal  @default(0) @db.Decimal(15, 2) // Saldo disponível para novas vinculações
+  valorVinculadoTotal      Decimal  @default(0) @db.Decimal(15, 2) // Soma dos valores já vinculados
+  estaLiquidado            Boolean  @default(false) // Indica se o saldo foi completamente distribuído
+  observacoesProcessamento String?  @db.Text // Observações sobre o processamento/vinculação
 
-  vinculos                   LancamentoExtratoPedido[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  vinculos LancamentoExtratoPedido[]
+
+  // Unique constraint para evitar duplicatas ao importar
+  @@unique([numeroDocumento, dataLancamentoRaw, numeroLote])
   // Índices para performance nas consultas e filtros
   @@index([dataLancamento])
   @@index([tipoOperacao])
@@ -458,24 +466,21 @@ model LancamentoExtrato {
   @@index([dataLancamento, categoriaOperacao])
   @@index([clienteId, processado])
   @@index([clienteId, vinculadoPedido])
-  
-  // Unique constraint para evitar duplicatas ao importar
-  @@unique([numeroDocumento, dataLancamentoRaw, numeroLote])
   @@map("lancamentos_extrato")
 }
 
 model LancamentoExtratoPedido {
-  id                   Int               @id @default(autoincrement())
+  id                   Int      @id @default(autoincrement())
   lancamentoExtratoId  BigInt
   pedidoId             Int
-  valorVinculado       Decimal           @db.Decimal(15, 2)
-  vinculacaoAutomatica Boolean           @default(false)
-  observacoes          String?           @db.Text
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  valorVinculado       Decimal  @db.Decimal(15, 2)
+  vinculacaoAutomatica Boolean  @default(false)
+  observacoes          String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  lancamentoExtrato    LancamentoExtrato @relation(fields: [lancamentoExtratoId], references: [id], onDelete: Cascade)
-  pedido               Pedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  lancamentoExtrato LancamentoExtrato @relation(fields: [lancamentoExtratoId], references: [id], onDelete: Cascade)
+  pedido            Pedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   @@index([lancamentoExtratoId])
   @@index([pedidoId])
@@ -483,18 +488,18 @@ model LancamentoExtratoPedido {
 }
 
 model FrutasPedidosAreas {
-  id                        Int             @id @default(autoincrement())
+  id                        Int                   @id @default(autoincrement())
   frutaPedidoId             Int
   areaPropriaId             Int?
   areaFornecedorId          Int?
   observacoes               String?
-  createdAt                 DateTime        @default(now())
-  updatedAt                 DateTime        @updatedAt
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
   quantidadeColhidaUnidade1 Int?
   quantidadeColhidaUnidade2 Int?
-  areaFornecedor            AreaFornecedor? @relation(fields: [areaFornecedorId], references: [id], onDelete: SetNull)
-  areaPropria               AreaAgricola?   @relation(fields: [areaPropriaId], references: [id])
-  frutaPedido               FrutasPedidos   @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
+  areaFornecedor            AreaFornecedor?       @relation(fields: [areaFornecedorId], references: [id], onDelete: SetNull)
+  areaPropria               AreaAgricola?         @relation(fields: [areaPropriaId], references: [id])
+  frutaPedido               FrutasPedidos         @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
   pagamentosFornecedor      FornecedorPagamento[]
 
   @@map("frutas_pedidos_areas")
@@ -567,78 +572,90 @@ model HistoricoFitas {
 }
 
 model TurmaColheita {
-  id                   Int                        @id @default(autoincrement())
-  nomeColhedor         String                     @db.VarChar(100)
-  chavePix             String?                    @db.VarChar(100)
-  responsavelChavePix  String?                   @db.VarChar(100)
-  observacoes          String?
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
-  dataCadastro         DateTime                   @default(now())
-  custosColheita       TurmaColheitaPedidoCusto[]
+  id                  Int                        @id @default(autoincrement())
+  nomeColhedor        String                     @db.VarChar(100)
+  chavePix            String?                    @db.VarChar(100)
+  responsavelChavePix String?                    @db.VarChar(100)
+  tipoChavePix        Int? // Código: 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória
+  modalidadeChave     String?                    @db.VarChar(50) // Nome: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"
+  observacoes         String?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  dataCadastro        DateTime                   @default(now())
+  custosColheita      TurmaColheitaPedidoCusto[]
 
   @@map("turma_colheita")
 }
 
 model TurmaColheitaPedidoCusto {
-  id                Int           @id @default(autoincrement())
-  turmaColheitaId   Int
-  pedidoId          Int
-  frutaId           Int
-  quantidadeColhida Float
-  unidadeMedida     UnidadeMedida
-  valorColheita     Float?
-  dataColheita      DateTime?
-  pagamentoEfetuado Boolean       @default(false)
-  formaPagamento    String?       @db.VarChar(50)
-  observacoes       String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  dataPagamento     DateTime?
-  fruta             Fruta         @relation(fields: [frutaId], references: [id])
-  pedido            Pedido        @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  turmaColheita     TurmaColheita @relation(fields: [turmaColheitaId], references: [id], onDelete: Cascade)
+  id                        Int                        @id @default(autoincrement())
+  turmaColheitaId           Int
+  pedidoId                  Int
+  frutaId                   Int
+  quantidadeColhida         Float
+  unidadeMedida             UnidadeMedida
+  valorColheita             Float?
+  dataColheita              DateTime?
+  pagamentoEfetuado         Boolean                    @default(false)
+  /// Status detalhado do pagamento da colheita:
+  /// - PENDENTE: ainda não enviado para pagamento
+  /// - PROCESSANDO: pagamento enviado via API BB, aguardando confirmação/liberação
+  /// - PAGO: pagamento concluído (confirmado / processado)
+  statusPagamento           StatusPagamentoFornecedor  @default(PENDENTE)
+  formaPagamento            String?                    @db.VarChar(50)
+  observacoes               String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  dataPagamento             DateTime?
+  fruta                     Fruta                      @relation(fields: [frutaId], references: [id])
+  pedido                    Pedido                     @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  turmaColheita             TurmaColheita              @relation(fields: [turmaColheitaId], references: [id], onDelete: Cascade)
+  itensPagamentoApi         PagamentoApiItem[] // Relacionamento 1:N (deprecated, usar PagamentoApiItemColheita)
+  pagamentoApiItemColheitas PagamentoApiItemColheita[] // Relacionamento N:N via tabela intermediária
 
   @@unique([turmaColheitaId, pedidoId, frutaId])
   @@map("turma_colheita_pedido_custo")
 }
 
 model FornecedorPagamento {
-  id                    Int                      @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   // Relacionamentos Principais
-  fornecedorId          Int
-  areaFornecedorId      Int
-  pedidoId              Int
-  frutaId               Int
-  frutaPedidoId         Int
-  frutaPedidoAreaId     Int
-  
+  fornecedorId      Int
+  areaFornecedorId  Int
+  pedidoId          Int
+  frutaId           Int
+  frutaPedidoId     Int
+  frutaPedidoAreaId Int
+
   // Dados da Colheita
-  quantidade            Float
-  unidadeMedida         UnidadeMedida
-  valorUnitario         Float
-  valorTotal            Float
-  dataColheita          DateTime?
-  
+  quantidade    Float
+  unidadeMedida UnidadeMedida
+  valorUnitario Float
+  valorTotal    Float
+  dataColheita  DateTime?
+
   // Dados do Pagamento
-  status                StatusPagamentoFornecedor @default(PAGO)
-  dataPagamento         DateTime
-  formaPagamento        String                    @db.VarChar(50)
-  
+  status         StatusPagamentoFornecedor @default(PAGO)
+  dataPagamento  DateTime
+  formaPagamento String                    @db.VarChar(50)
+
   // Campos de Controle
-  observacoes           String?
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
-  
+  observacoes String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   // Relacionamentos
-  fornecedor            Fornecedor                @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
-  areaFornecedor        AreaFornecedor            @relation(fields: [areaFornecedorId], references: [id], onDelete: Cascade)
-  pedido                Pedido                    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  fruta                 Fruta                     @relation(fields: [frutaId], references: [id])
-  frutaPedido           FrutasPedidos             @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
-  frutaPedidoArea       FrutasPedidosAreas        @relation(fields: [frutaPedidoAreaId], references: [id], onDelete: Cascade)
-  
+  fornecedor        Fornecedor         @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  areaFornecedor    AreaFornecedor     @relation(fields: [areaFornecedorId], references: [id], onDelete: Cascade)
+  pedido            Pedido             @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  fruta             Fruta              @relation(fields: [frutaId], references: [id])
+  frutaPedido       FrutasPedidos      @relation(fields: [frutaPedidoId], references: [id], onDelete: Cascade)
+  frutaPedidoArea   FrutasPedidosAreas @relation(fields: [frutaPedidoAreaId], references: [id], onDelete: Cascade)
+  itensPagamentoApi PagamentoApiItem[]
+
+  // Unique constraint: um pagamento por combinação única de área+pedido+fruta
+  @@unique([frutaPedidoAreaId, pedidoId, frutaId])
   // Índices para performance
   @@index([fornecedorId])
   @@index([pedidoId])
@@ -647,10 +664,6 @@ model FornecedorPagamento {
   @@index([dataPagamento])
   @@index([fornecedorId, status])
   @@index([pedidoId, frutaId])
-  
-  // Unique constraint: um pagamento por combinação única de área+pedido+fruta
-  @@unique([frutaPedidoAreaId, pedidoId, frutaId])
-  
   @@map("fornecedor_pagamentos")
 }
 
@@ -744,14 +757,42 @@ enum MetodoPagamento {
 }
 
 enum TipoOperacaoExtrato {
-  CREDITO  // Pagamentos recebidos
-  DEBITO   // Pagamentos enviados
+  CREDITO // Pagamentos recebidos
+  DEBITO // Pagamentos enviados
 }
 
 enum StatusPagamentoFornecedor {
-  PENDENTE      // Pagamento pendente (não usado agora, para futuro)
-  PROCESSANDO   // Pagamento em processamento (não usado agora, para futuro)
-  PAGO          // Pagamento efetuado com sucesso
+  PENDENTE // Pagamento pendente (não usado agora, para futuro)
+  PROCESSANDO // Pagamento em processamento (não usado agora, para futuro)
+  PAGO // Pagamento efetuado com sucesso
+}
+
+// ========================================
+// ENUMS PARA CONTROLE DE PAGAMENTOS API BB
+// ========================================
+enum TipoPagamentoApi {
+  PIX // Transferências PIX (limite: 320 registros)
+  BOLETO // Pagamento de boletos (limite: 150 registros)
+  GUIA // Pagamento de guias com código de barras (limite: 200 registros)
+}
+
+enum StatusPagamentoLote {
+  PENDENTE // Lote criado, aguardando envio
+  ENVIADO // Enviado ao BB, aguardando resposta inicial
+  PROCESSANDO // BB está processando
+  CONCLUIDO // Processado com sucesso (todos os itens aceitos)
+  PARCIAL // Alguns itens foram aceitos, outros rejeitados
+  REJEITADO // Lote rejeitado pelo BB (todos os itens rejeitados)
+  ERRO // Erro no processamento
+}
+
+enum StatusPagamentoItem {
+  PENDENTE // Item criado, aguardando envio
+  ENVIADO // Enviado ao BB
+  ACEITO // Aceito pelo BB (indicadorMovimentoAceito = "S")
+  REJEITADO // Rejeitado pelo BB (indicadorMovimentoAceito = "N")
+  PROCESSADO // Processado internamente (marcado como pago na tabela de origem)
+  ERRO // Erro no processamento
 }
 
 model HistoricoPedido {
@@ -773,4 +814,210 @@ model HistoricoPedido {
   @@index([acao]) // Filtrar por tipo de ação
   @@index([createdAt]) // Ordenação temporal
   @@map("historico_pedidos")
+}
+
+// ========================================
+// MODELOS PARA CONTROLE DE PAGAMENTOS API BB
+// ========================================
+
+// Tabela de controle de sequência para numeroRequisicao
+// IMPORTANTE: Uma sequência por conta corrente (separação entre CNPJ e PF)
+// Use o script seed-sequencia-numero-requisicao.ts para inicializar
+model SequenciaNumeroRequisicao {
+  id              Int      @id @default(autoincrement())
+  contaCorrenteId Int      @unique // Uma sequência por conta
+  ultimoNumero     Int      @default(0) // Último número usado para esta conta
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  contaCorrente    ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+
+  @@map("sequencia_numero_requisicao")
+}
+
+// Tabela principal: Lote de pagamentos
+model PagamentoApiLote {
+  id Int @id @default(autoincrement())
+
+  // Identificação do Lote na API BB
+  numeroRequisicao Int @unique // Número sequencial único (1, 2, 3...)
+  numeroContrato   Int // Convênio PGT (ex: 731030)
+  tipoPagamento    Int // 126=Fornecedores, 128=Diversos
+
+  // Tipo de pagamento API (PIX, BOLETO, GUIA)
+  tipoPagamentoApi TipoPagamentoApi @default(PIX) // PIX, BOLETO, GUIA
+
+  // Conta utilizada
+  contaCorrenteId Int
+  contaCorrente   ContaCorrente @relation(fields: [contaCorrenteId], references: [id])
+
+  // Dados da requisição enviada (payload completo)
+  payloadEnviado Json // Payload completo enviado ao BB
+
+  // Dados da resposta recebida (resposta inicial)
+  payloadResposta   Json? // Resposta completa do BB
+  estadoRequisicao  Int? // Estado retornado pelo BB (1=enviado, etc)
+  quantidadeEnviada Int // Quantidade de itens enviados (transferências/lançamentos)
+  valorTotalEnviado Decimal  @db.Decimal(15, 2)
+  quantidadeValida  Int? // Quantidade aceita pelo BB
+  valorTotalValido  Decimal? @db.Decimal(15, 2)
+
+  // Status do processamento interno
+  status               StatusPagamentoLote @default(PENDENTE)
+  processadoComSucesso Boolean             @default(false)
+  dataProcessamento    DateTime?
+
+  // Controle de atualização de status (via consulta ou webhook)
+  ultimaConsultaStatus     DateTime? // Última vez que consultamos o status no BB
+  ultimaAtualizacaoWebhook DateTime? // Última atualização recebida via webhook
+  estadoRequisicaoAtual    Int? // Estado atual (pode mudar após consulta/webhook)
+  payloadRespostaAtual     Json? // Resposta mais recente (após consulta/webhook)
+
+  // Auditoria
+  observacoes       String?
+  erroProcessamento String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Rastreamento por usuário
+  usuarioCriacaoId  Int? // Usuário que criou o lote
+  usuarioCriacao    Usuario? @relation("UsuarioCriacao", fields: [usuarioCriacaoId], references: [id], onDelete: SetNull)
+  usuarioLiberacaoId Int? // Usuário que liberou o lote
+  usuarioLiberacao  Usuario? @relation("UsuarioLiberacao", fields: [usuarioLiberacaoId], references: [id], onDelete: SetNull)
+  dataLiberacao     DateTime? // Data/hora da liberação
+
+  // Relacionamentos com itens pagos
+  itensPagamento PagamentoApiItem[]
+
+  @@index([numeroRequisicao])
+  @@index([contaCorrenteId])
+  @@index([tipoPagamentoApi])
+  @@index([status])
+  @@index([createdAt])
+  @@index([estadoRequisicaoAtual])
+  @@index([usuarioCriacaoId])
+  @@index([usuarioLiberacaoId])
+  @@map("pagamento_api_lote")
+}
+
+// Tabela de itens: Cada pagamento do lote
+model PagamentoApiItem {
+  id Int @id @default(autoincrement())
+
+  // Relacionamento com o lote
+  loteId Int
+  lote   PagamentoApiLote @relation(fields: [loteId], references: [id], onDelete: Cascade)
+
+  // Identificação do item no lote (índice na listaTransferencias/lancamentos)
+  indiceLote Int // Posição na lista (0, 1, 2...)
+
+  // Dados do item enviado ao BB (campos comuns)
+  valorEnviado         Decimal @db.Decimal(15, 2)
+  dataPagamentoEnviada String // Data no formato ddmmaaaa
+  descricaoEnviada     String?
+  payloadItemEnviado   Json // Dados completos do item enviado (preserva tudo)
+
+  // Dados específicos de PIX (quando tipoPagamentoApi = PIX)
+  descricaoInstantaneoEnviada   String? // descricaoPagamentoInstantaneo (apenas PIX)
+  chavePixEnviada               String? // Chave PIX (apenas PIX)
+  tipoChavePixEnviado           Int? // 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória (apenas PIX)
+  identificadorPagamento        String? // Identificador PIX retornado pelo BB (ex: 96494633731030000)
+  indicadorMovimentoAceito      String? // "S" ou "N" - PIX (resposta inicial)
+  indicadorMovimentoAceitoAtual String? // "S" ou "N" - PIX (status atual)
+
+  // Dados específicos de BOLETO (quando tipoPagamentoApi = BOLETO)
+  numeroCodigoBarras           String? // Código de barras do boleto (44 dígitos) - apenas BOLETO
+  codigoIdentificadorPagamento String? // Identificador boleto retornado pelo BB - apenas BOLETO
+  indicadorAceite              String? // "S" ou "N" - BOLETO (resposta inicial)
+  indicadorAceiteAtual         String? // "S" ou "N" - BOLETO (status atual)
+  valorNominal                 Decimal? @db.Decimal(15, 2) // Valor original do boleto - apenas BOLETO
+  valorDesconto                Decimal? @db.Decimal(15, 2) // Valor do desconto - apenas BOLETO
+  valorMoraMulta               Decimal? @db.Decimal(15, 2) // Valor de mora/multa - apenas BOLETO
+
+  // Dados específicos de GUIA (quando tipoPagamentoApi = GUIA)
+  codigoPagamento          String? // Identificador GUIA retornado pelo BB (ex: 97310301234560001) - apenas GUIA
+  codigoBarrasGuia         String? // Código de barras da guia (44 dígitos, sem dígitos verificadores) - apenas GUIA
+  nomeBeneficiario         String? // Nome do beneficiário/convenente - apenas GUIA
+  indicadorAceiteGuia      String? // "S" ou "N" - GUIA (resposta inicial)
+  indicadorAceiteGuiaAtual String? // "S" ou "N" - GUIA (status atual)
+
+  // Dados da resposta do BB (resposta inicial) - campos comuns
+  erros               Json? // Array de erros retornados pelo BB
+  payloadItemResposta Json? // Resposta completa do item (resposta inicial)
+
+  // Dados atualizados (via consulta ou webhook) - campos comuns
+  payloadItemRespostaAtual Json? // Resposta mais recente
+  ultimaAtualizacaoStatus  DateTime? // Última atualização de status
+
+  // Dados da consulta individual
+  // Para PIX: GET /pix/:identificadorPagamento
+  // Para BOLETO: GET /boletos/:codigoIdentificadorPagamento
+  // Para GUIA: GET /guias-codigo-barras/:codigoPagamento
+  estadoPagamentoIndividual String? // Estado do pagamento individual: Consistente, Inconsistente, Pendente, Agendado, Rejeitado, Cancelado, Devolvido, Bloqueado, Aguardando débito, Debitado, Vencido, Pago
+  payloadConsultaIndividual Json? // Resposta completa da consulta individual
+  ultimaConsultaIndividual  DateTime? // Última consulta individual realizada
+  listaDevolucao            Json? // Array de devoluções (BOLETO e GUIA) - contém codigoMotivo, dataDevolucao (apenas BOLETO), valorDevolucao (apenas BOLETO)
+
+  // Relacionamento polimórfico com o registro pago
+  // Usando campos nullable para suportar diferentes tipos
+  fornecedorPagamentoId  Int? // Se for pagamento de fornecedor
+  funcionarioPagamentoId Int? // Se for pagamento de funcionário (futuro)
+
+  // Relacionamentos específicos (N:N para turma de colheita via tabela intermediária)
+  colheitas           PagamentoApiItemColheita[] // Relacionamento N:N com TurmaColheitaPedidoCusto
+  fornecedorPagamento FornecedorPagamento?       @relation(fields: [fornecedorPagamentoId], references: [id], onDelete: SetNull)
+  // funcionarioPagamento  FuncionarioPagamento? @relation(fields: [funcionarioPagamentoId], references: [id], onDelete: SetNull)
+
+  // Status do item
+  status               StatusPagamentoItem @default(PENDENTE)
+  processadoComSucesso Boolean             @default(false)
+
+  // Rastreamento por usuário
+  usuarioCancelamentoId Int? // Usuário que cancelou o item
+  usuarioCancelamento   Usuario? @relation("UsuarioCancelamento", fields: [usuarioCancelamentoId], references: [id], onDelete: SetNull)
+  dataCancelamento      DateTime? // Data/hora do cancelamento
+
+  // Auditoria
+  observacoes                String?
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  TurmaColheitaPedidoCusto   TurmaColheitaPedidoCusto? @relation(fields: [turmaColheitaPedidoCustoId], references: [id])
+  turmaColheitaPedidoCustoId Int?
+
+  // Constraints: garantir que apenas um tipo de relacionamento seja preenchido
+  @@index([loteId])
+  @@index([loteId, indiceLote]) // Para garantir ordem no lote
+  @@index([fornecedorPagamentoId])
+  @@index([identificadorPagamento]) // Para PIX
+  @@index([codigoIdentificadorPagamento]) // Para BOLETO
+  @@index([codigoPagamento]) // Para GUIA
+  @@index([status])
+  @@index([usuarioCancelamentoId])
+  @@map("pagamento_api_item")
+}
+
+// Tabela de relacionamento N:N: PagamentoApiItem ↔ TurmaColheitaPedidoCusto
+// Permite que 1 único PagamentoApiItem (1 transferência PIX) pague múltiplas colheitas
+model PagamentoApiItemColheita {
+  id Int @id @default(autoincrement())
+
+  // Relacionamento com PagamentoApiItem
+  pagamentoApiItemId Int
+  pagamentoApiItem   PagamentoApiItem @relation(fields: [pagamentoApiItemId], references: [id], onDelete: Cascade)
+
+  // Relacionamento com TurmaColheitaPedidoCusto
+  turmaColheitaCustoId Int
+  turmaColheitaCusto   TurmaColheitaPedidoCusto @relation(fields: [turmaColheitaCustoId], references: [id], onDelete: Cascade)
+
+  // Valor individual da colheita (para rastreabilidade)
+  valorColheita Decimal @db.Decimal(15, 2) // Valor da colheita específica
+
+  // Auditoria
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Constraints: evitar relacionamentos duplicados
+  @@unique([pagamentoApiItemId, turmaColheitaCustoId])
+  @@index([pagamentoApiItemId])
+  @@index([turmaColheitaCustoId])
+  @@map("pagamento_api_item_colheita")
 }

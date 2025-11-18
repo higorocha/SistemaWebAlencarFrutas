@@ -2,7 +2,7 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-import { Form, Input, Card, Row, Col, Spin, Space } from "antd";
+import { Form, Input, Card, Row, Col, Spin, Space, Select } from "antd";
 import {
   UserOutlined,
   CreditCardOutlined,
@@ -12,13 +12,23 @@ import {
 import useResponsive from "../../hooks/useResponsive";
 
 const { TextArea } = Input;
+const { Option } = Select;
+
+// Mapeamento dos tipos de chave PIX
+const TIPOS_CHAVE_PIX = {
+  1: "Telefone",
+  2: "Email",
+  3: "CPF/CNPJ",
+  4: "Chave Aleatória"
+};
 
 const TurmaColheitaForm = ({
   turmaAtual,
   setTurmaAtual,
   erros,
   setErros,
-  loadingData
+  loadingData,
+  onChavePixChange
 }) => {
   const { isMobile } = useResponsive();
 
@@ -33,6 +43,23 @@ const TurmaColheitaForm = ({
       setErros(prev => ({
         ...prev,
         [field]: undefined
+      }));
+    }
+  };
+
+  // Handler especial para tipoChavePix que também atualiza modalidadeChave
+  const handleTipoChavePixChange = (value) => {
+    setTurmaAtual(prev => ({
+      ...prev,
+      tipoChavePix: value,
+      modalidadeChave: value ? TIPOS_CHAVE_PIX[value] : undefined
+    }));
+
+    // Limpar erro do campo quando alterado
+    if (erros.tipoChavePix) {
+      setErros(prev => ({
+        ...prev,
+        tipoChavePix: undefined
       }));
     }
   };
@@ -108,7 +135,37 @@ const TurmaColheitaForm = ({
           </Row>
 
           <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]}>
-            <Col xs={24}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label={
+                  <Space>
+                    <CreditCardOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Tipo da Chave PIX (Opcional)</span>
+                  </Space>
+                }
+                validateStatus={erros.tipoChavePix ? "error" : ""}
+                help={erros.tipoChavePix}
+              >
+                <Select
+                  placeholder="Selecione o tipo"
+                  value={turmaAtual.tipoChavePix}
+                  onChange={handleTipoChavePixChange}
+                  allowClear
+                  style={{
+                    borderRadius: "6px",
+                    borderColor: erros.tipoChavePix ? "#ff4d4f" : "#d9d9d9",
+                    width: "100%",
+                  }}
+                  size={isMobile ? "middle" : "large"}
+                >
+                  <Option value={1}>{TIPOS_CHAVE_PIX[1]}</Option>
+                  <Option value={2}>{TIPOS_CHAVE_PIX[2]}</Option>
+                  <Option value={3}>{TIPOS_CHAVE_PIX[3]}</Option>
+                  <Option value={4}>{TIPOS_CHAVE_PIX[4]}</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label={
                   <Space>
@@ -122,7 +179,15 @@ const TurmaColheitaForm = ({
                 <Input
                   placeholder="CPF, e-mail, telefone ou chave aleatória"
                   value={turmaAtual.chavePix}
-                  onChange={(e) => handleFieldChange("chavePix", e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Se há callback customizado, usar ele; senão usar o handler padrão
+                    if (onChavePixChange) {
+                      onChavePixChange(value);
+                    } else {
+                      handleFieldChange("chavePix", value);
+                    }
+                  }}
                   maxLength={100}
                   style={{
                     borderRadius: "6px",
@@ -225,6 +290,7 @@ TurmaColheitaForm.propTypes = {
   erros: PropTypes.object.isRequired,
   setErros: PropTypes.func.isRequired,
   loadingData: PropTypes.bool.isRequired,
+  onChavePixChange: PropTypes.func,
 };
 
 export default TurmaColheitaForm;

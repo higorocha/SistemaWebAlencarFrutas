@@ -150,10 +150,14 @@ export class PixController {
     try {
       console.log('🏥 [PIX-CONTROLLER] Verificando saúde do serviço PIX');
 
+      // ⚠️ TEMPORÁRIO: Com credenciais hardcoded, sempre retornar healthy
       // Verificar se há credenciais configuradas
       const credenciaisPix = await this.pixService['credenciaisAPIService'].findByBancoAndModalidade('001', '002 - Pix');
       
-      if (!credenciaisPix || credenciaisPix.length === 0) {
+      // Com credenciais hardcoded, sempre considerar configurado
+      const usandoHardcoded = true;
+      
+      if (!usandoHardcoded && (!credenciaisPix || credenciaisPix.length === 0)) {
         throw new HttpException(
           {
             status: 'unhealthy',
@@ -167,10 +171,11 @@ export class PixController {
 
       return {
         status: 'healthy',
-        message: 'Serviço PIX operacional',
+        message: 'Serviço PIX operacional (usando credenciais hardcoded para teste)',
         timestamp: new Date().toISOString(),
         configurado: true,
-        credenciaisEncontradas: credenciaisPix.length
+        credenciaisEncontradas: credenciaisPix?.length || 0,
+        usandoHardcoded: true
       };
 
     } catch (error) {

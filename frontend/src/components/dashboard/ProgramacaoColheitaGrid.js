@@ -445,7 +445,10 @@ const ProgramacaoColheitaGrid = ({
       label: statusConfig.label || dataFormatada
     };
     
-    const cardHeight = isFullscreen ? (isMobile ? 840 : 1080) : (isMobile ? 350 : 400);
+    // Calcular altura dinâmica baseada no espaço disponível em fullscreen
+    const cardHeight = isFullscreen 
+      ? (isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 180px)')
+      : (isMobile ? 350 : 400);
 
     return (
       <Col
@@ -464,9 +467,9 @@ const ProgramacaoColheitaGrid = ({
             backgroundColor: statusConfig.cor,
             borderColor: statusConfig.border,
             borderWidth: '2px',
-            height: `${cardHeight}px`,
-            minHeight: `${cardHeight}px`,
-            maxHeight: `${cardHeight}px`,
+            height: typeof cardHeight === 'string' ? cardHeight : `${cardHeight}px`,
+            minHeight: typeof cardHeight === 'string' ? cardHeight : `${cardHeight}px`,
+            maxHeight: typeof cardHeight === 'string' ? cardHeight : `${cardHeight}px`,
             cursor: 'pointer',
             transition: 'box-shadow 0.2s ease, transform 0.2s ease'
           }}

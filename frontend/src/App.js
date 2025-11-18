@@ -25,6 +25,7 @@ import Pedidos from "./pages/Pedidos";
 import PedidosDashboard from "./pages/PedidosDashboard";
 import Fornecedores from "./pages/FornecedoresPage";
 import TurmaColheita from "./pages/TurmaColheita";
+import Pagamentos from "./pages/Pagamentos";
 import ControleBanana from "./pages/producao/ControleBanana";
 import MapaGeral from "./pages/MapaGeral";
 import Login from "./pages/Login";
@@ -96,6 +97,7 @@ const App = () => {
                             <Route path="/pedidos/dashboard" element={<PedidosDashboard />} />
                             <Route path="/fornecedores" element={<Fornecedores />} />
                             <Route path="/turma-colheita" element={<TurmaColheita />} />
+                            <Route path="/relatorios/pagamentos" element={<Pagamentos />} />
                             <Route path="/producao/banana" element={<ControleBanana />} />
                             <Route path="/mapa-geral" element={<MapaGeral />} />
                             <Route path="/configuracoes" element={<Configuracoes />} />

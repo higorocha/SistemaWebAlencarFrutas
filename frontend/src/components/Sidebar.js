@@ -88,6 +88,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     PEDIDOS: false,
     CADASTRO: false,
     PRODUCAO: false,
+    RELATORIOS: false,
   });
 
   // ------------------------------------------------------------------
@@ -133,6 +134,14 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     },
   ];
 
+  const relatoriosItems = [
+    { 
+      text: "Pagamentos", 
+      icon: <Icon icon="mdi:bank-transfer" style={{ fontSize: '20px' }} />, 
+      path: "/relatorios/pagamentos" 
+    },
+  ];
+
   const producaoItems = [
       { 
         text: "Banana", 
@@ -170,6 +179,10 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     // se "/producao" => abre PRODUCAO
     if (location.pathname.startsWith("/producao")) {
       setOpenParents((prev) => ({ ...prev, PRODUCAO: true }));
+    }
+    // se "/relatorios" => abre RELATORIOS
+    if (location.pathname.startsWith("/relatorios")) {
+      setOpenParents((prev) => ({ ...prev, RELATORIOS: true }));
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -566,6 +579,51 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               }
             >
               {producaoItems.map((p) => renderMenuItem(p, "PRODUCAO"))}
+            </SubMenu>
+          )}
+
+          {/* SUBMENU RELATÓRIOS */}
+          {isOpen ? (
+            <SubMenu
+              key="RELATORIOS"
+              icon={<Icon icon="mdi:chart-box-outline" style={{ fontSize: '20px' }} />}
+              label="Relatórios"
+              open={openParents.RELATORIOS}
+              onOpenChange={(opened) =>
+                handleParentOpenChange("RELATORIOS", opened)
+              }
+              className={
+                isMenuActive([
+                  "/relatorios",
+                ])
+                  ? "ps-active-parent"
+                  : ""
+              }
+            >
+              {relatoriosItems.map((r) => renderMenuItem(r, "RELATORIOS"))}
+            </SubMenu>
+          ) : (
+            <SubMenu
+              key="RELATORIOS"
+              icon={
+                <Tooltip title="Relatórios" placement="right">
+                  <Icon icon="mdi:chart-box-outline" style={{ fontSize: '20px' }} />
+                </Tooltip>
+              }
+              label=""
+              open={openParents.RELATORIOS}
+              onOpenChange={(opened) =>
+                handleParentOpenChange("RELATORIOS", opened)
+              }
+              className={
+                isMenuActive([
+                  "/relatorios",
+                ])
+                  ? "ps-active-parent"
+                  : ""
+              }
+            >
+              {relatoriosItems.map((r) => renderMenuItem(r, "RELATORIOS"))}
             </SubMenu>
           )}
         </Menu>

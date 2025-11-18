@@ -437,9 +437,12 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       dataIndex: "dataPrevistaColheita",
       key: "dataPrevistaColheita",
       render: (data) => (
-        <Text style={{ fontSize: "0.75rem" }}>
-          {formatarData(data)}
-        </Text>
+        <Space>
+          <CalendarOutlined style={{ color: "#059669", fontSize: "0.75rem" }} />
+          <Text style={{ fontSize: "0.75rem" }}>
+            {formatarData(data)}
+          </Text>
+        </Space>
       ),
       width: "15%",
       sorter: (a, b) => new Date(a.dataPrevistaColheita || 0) - new Date(b.dataPrevistaColheita || 0),

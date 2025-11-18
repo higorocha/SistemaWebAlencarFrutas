@@ -6,6 +6,7 @@ import { UpdateTurmaColheitaPedidoCustoDto } from './dto/update-colheita-pedido.
 import { TurmaColheitaResponseDto } from './dto/turma-colheita-response.dto';
 import { TurmaColheitaPedidoCustoResponseDto } from './dto/colheita-pedido-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { StatusPagamentoFornecedor } from '@prisma/client';
 
 @Injectable()
 export class TurmaColheitaService {
@@ -16,11 +17,13 @@ export class TurmaColheitaService {
   // ========================================
 
   async create(createTurmaColheitaDto: CreateTurmaColheitaDto): Promise<TurmaColheitaResponseDto> {
+    // Extrai dataCadastro para tratamento especial e inclui todos os outros campos automaticamente
+    // Isso inclui os campos: nomeColhedor, chavePix, responsavelChavePix, tipoChavePix, modalidadeChave, observacoes
     const { dataCadastro, ...turmaData } = createTurmaColheitaDto;
 
     const turmaColheita = await this.prisma.turmaColheita.create({
       data: {
-        ...turmaData,
+        ...turmaData, // Inclui automaticamente: nomeColhedor, chavePix, responsavelChavePix, tipoChavePix (Int), modalidadeChave (String), observacoes
         ...(dataCadastro && { dataCadastro: new Date(dataCadastro) }),
       },
       include: {
@@ -155,12 +158,14 @@ export class TurmaColheitaService {
       throw new NotFoundException(`Turma de colheita com ID ${id} não encontrada`);
     }
 
+    // Extrai dataCadastro para tratamento especial e inclui todos os outros campos automaticamente
+    // Isso inclui os campos opcionais: nomeColhedor, chavePix, responsavelChavePix, tipoChavePix, modalidadeChave, observacoes
     const { dataCadastro, ...turmaData } = updateTurmaColheitaDto;
 
     const turmaColheita = await this.prisma.turmaColheita.update({
       where: { id },
       data: {
-        ...turmaData,
+        ...turmaData, // Inclui automaticamente todos os campos do DTO: nomeColhedor, chavePix, responsavelChavePix, tipoChavePix (Int), modalidadeChave (String), observacoes
         ...(dataCadastro && { dataCadastro: new Date(dataCadastro) }),
       },
       include: {
@@ -786,7 +791,11 @@ export class TurmaColheitaService {
         quantidade: colheita.quantidadeColhida,
         unidade: colheita.unidadeMedida,
         valor: colheita.valorColheita,
+        // Valor pago individual: considera apenas colheitas já marcadas como pagas
+        valorPago: colheita.pagamentoEfetuado ? (colheita.valorColheita || 0) : 0,
         pagamentoEfetuado: colheita.pagamentoEfetuado,
+        statusPagamento: colheita.statusPagamento,
+        formaPagamento: colheita.formaPagamento,
         dataColheita: colheita.dataColheita,
         observacoes: colheita.observacoes,
       })),
@@ -839,6 +848,7 @@ export class TurmaColheitaService {
 
   async getPagamentosPendentesDetalhado(turmaId: number) {
     // Verificar se a turma existe
+    // Buscar todos os campos necessários (incluindo tipoChavePix e modalidadeChave que foram adicionados)
     const turma = await this.prisma.turmaColheita.findUnique({
       where: { id: turmaId },
     });
@@ -914,17 +924,23 @@ export class TurmaColheitaService {
       valorColheita: custo.valorColheita || 0,
       dataColheita: custo.dataColheita,
       formaPagamento: custo.formaPagamento,
+      statusPagamento: custo.statusPagamento,
       observacoes: custo.observacoes,
       createdAt: custo.createdAt,
       updatedAt: custo.updatedAt,
     }));
 
     // Retornar dados completos
+    // Type assertion temporário até regenerar o Prisma Client
+    const turmaCompleta = turma as any;
     return {
       turma: {
         id: turma.id,
         nomeColhedor: turma.nomeColhedor,
         chavePix: turma.chavePix,
+        tipoChavePix: turmaCompleta.tipoChavePix ?? null,
+        modalidadeChave: turmaCompleta.modalidadeChave ?? null,
+        responsavelChavePix: turma.responsavelChavePix,
         dataCadastro: turma.dataCadastro,
         observacoes: turma.observacoes,
       },
@@ -1009,11 +1025,23 @@ export class TurmaColheitaService {
       }> = [];
 
       for (const colheita of colheitasParaPagar) {
+        // Definir status de pagamento conforme a forma de pagamento
+        // - PIX - API  => PROCESSANDO (aguarda webhook/liberação BB)
+        // - Demais     => PAGO imediato (pagamento interno/manual)
+        const novoStatusPagamento =
+          formaPagamentoAjustada === 'PIX - API'
+            ? StatusPagamentoFornecedor.PROCESSANDO
+            : StatusPagamentoFornecedor.PAGO;
+
         const pagamentoAtualizado = await prisma.turmaColheitaPedidoCusto.update({
           where: { id: colheita.id },
           data: {
-            pagamentoEfetuado: true,
-            dataPagamento: dataPagamentoAjustada,
+            pagamentoEfetuado: novoStatusPagamento === StatusPagamentoFornecedor.PAGO,
+            dataPagamento:
+              novoStatusPagamento === StatusPagamentoFornecedor.PAGO
+                ? dataPagamentoAjustada
+                : null,
+            statusPagamento: novoStatusPagamento,
             observacoes: dadosPagamento.observacoes
               ? `${colheita.observacoes || ''}\n[PAGAMENTO] ${dadosPagamento.observacoes}`.trim()
               : colheita.observacoes,

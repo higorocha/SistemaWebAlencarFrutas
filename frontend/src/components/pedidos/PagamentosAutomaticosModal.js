@@ -235,10 +235,10 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     // Aplicar filtro de conta-corrente
     if (contaCorrenteFilter) {
       pagamentosFiltrados = pagamentosFiltrados.filter(p => {
-        if (p.contaCorrenteId) {
-          return p.contaCorrenteId === contaCorrenteFilter;
-        }
-        return false;
+        // Converter ambos para número para garantir comparação correta
+        const pContaId = p.contaCorrenteId ? Number(p.contaCorrenteId) : null;
+        const filterContaId = Number(contaCorrenteFilter);
+        return pContaId === filterContaId;
       });
     }
 
@@ -323,38 +323,54 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       const totalClientes = Array.isArray(clientesComLancamentos) ? clientesComLancamentos.length : 0;
 
       const partesMensagem = [];
-      const labelSalvos = totalSalvos === 1 ? 'novo lançamento salvo' : 'novos lançamentos salvos';
-      partesMensagem.push(`${totalSalvos} ${labelSalvos}`);
-
-      const detalhesSalvos = [];
-      if (totalSalvosComClienteIdentificado > 0) {
-        detalhesSalvos.push(`${totalSalvosComClienteIdentificado} com cliente`);
+      
+      // Resumo geral: total analisado
+      if (totalFiltrados > 0) {
+        partesMensagem.push(`${totalFiltrados} lançamento${totalFiltrados > 1 ? 's' : ''} analisado${totalFiltrados > 1 ? 's' : ''}`);
       }
-      if (totalSalvosSemClienteIdentificado > 0) {
-        detalhesSalvos.push(`${totalSalvosSemClienteIdentificado} sem cliente`);
+      
+      // 1. Lançamentos salvos (com detalhamento)
+      if (totalSalvos > 0) {
+        const labelSalvos = totalSalvos === 1 ? 'salvo' : 'salvos';
+        const detalhesSalvos = [];
+        
+        if (totalSalvosComClienteIdentificado > 0) {
+          detalhesSalvos.push(`${totalSalvosComClienteIdentificado} com cliente`);
+        }
+        if (totalSalvosSemClienteIdentificado > 0) {
+          detalhesSalvos.push(`${totalSalvosSemClienteIdentificado} sem cliente`);
+        }
+        
+        if (detalhesSalvos.length > 0) {
+          partesMensagem.push(`${totalSalvos} ${labelSalvos} (${detalhesSalvos.join(', ')})`);
+        } else {
+          partesMensagem.push(`${totalSalvos} ${labelSalvos}`);
+        }
+      } else {
+        partesMensagem.push('0 salvos');
       }
-      if (detalhesSalvos.length > 0) {
-        partesMensagem.push(`(${detalhesSalvos.join(' | ')})`);
-      }
-
+      
+      // 2. Duplicados ignorados
       if (totalDuplicados > 0) {
         partesMensagem.push(
-          `${totalDuplicados} duplicado${totalDuplicados > 1 ? 's' : ''} ignorado${totalDuplicados > 1 ? 's' : ''}`
+          `${totalDuplicados} duplicado${totalDuplicados > 1 ? 's' : ''} (já existiam no sistema)`
         );
       }
-
-      if (totalSemClienteIdentificado > 0) {
+      
+      // 3. Lançamentos não salvos por falta de cliente
+      // totalSemClienteIdentificado = todos os elegíveis sem cliente (incluindo duplicados e não salvos)
+      // totalSalvosSemClienteIdentificado = apenas os salvos sem cliente
+      // A diferença são os que não foram salvos (podem incluir duplicados sem cliente)
+      const naoSalvosPorFaltaCliente = (totalSemClienteIdentificado || 0) - (totalSalvosSemClienteIdentificado || 0);
+      if (naoSalvosPorFaltaCliente > 0) {
         partesMensagem.push(
-          `${totalSemClienteIdentificado} lançamento${totalSemClienteIdentificado > 1 ? 's' : ''} sem cliente identificado`
+          `${naoSalvosPorFaltaCliente} não salvo${naoSalvosPorFaltaCliente > 1 ? 's' : ''} (sem cliente identificado)`
         );
       }
-
-      if (totalFiltrados > 0 && totalFiltrados !== totalSalvos + totalDuplicados) {
-        partesMensagem.push(`${totalFiltrados} crédito${totalFiltrados > 1 ? 's' : ''} analisado${totalFiltrados > 1 ? 's' : ''}`);
-      }
-
+      
+      // 4. Informações adicionais (opcionais)
       if (totalClientes > 0) {
-        partesMensagem.push(`${totalClientes} cliente${totalClientes > 1 ? 's' : ''} com lançamentos`);
+        partesMensagem.push(`${totalClientes} cliente${totalClientes > 1 ? 's' : ''} afetado${totalClientes > 1 ? 's' : ''}`);
       }
 
       const mensagem = partesMensagem.join(' • ') || 'Busca finalizada sem novos lançamentos.';

@@ -89,12 +89,14 @@ const PagamentosSection = ({
     open: false,
     turmaId: null,
     turmaNome: null,
+    dataPagamento: null,
   });
   
   const [modalFornecedorEfetuados, setModalFornecedorEfetuados] = React.useState({
     open: false,
     fornecedorId: null,
     fornecedorNome: null,
+    dataPagamento: null,
   });
 
   const headerTitle = '💰 Pagamentos';
@@ -206,7 +208,7 @@ const PagamentosSection = ({
                     ? () => handleAbrirModalPagamentos(item.id, item.nomeColhedor)
                     : () => {
                         const turmaId = parseInt(item.id.split('-')[0], 10);
-                        handleAbrirModalPagamentosEfetuados(turmaId, item.nomeColhedor);
+                        handleAbrirModalPagamentosEfetuados(turmaId, item.nomeColhedor, item.dataPagamento);
                       }
                 }
                 onMouseEnter={(e) => {
@@ -305,7 +307,9 @@ const PagamentosSection = ({
                   <Tag
                     color={
                       isModoPendentes
-                        ? item.totalPendente > 1000
+                        ? item.detalhes?.some(det => det.statusPagamento === 'PROCESSANDO')
+                          ? 'gold'
+                          : item.totalPendente > 1000
                           ? 'orange'
                           : item.totalPendente > 500
                           ? 'gold'
@@ -320,7 +324,9 @@ const PagamentosSection = ({
                     }}
                   >
                     {isModoPendentes
-                      ? item.totalPendente > 1000
+                      ? item.detalhes?.some(det => det.statusPagamento === 'PROCESSANDO')
+                        ? 'PROCESSANDO'
+                        : item.totalPendente > 1000
                         ? 'ALTO'
                         : item.totalPendente > 500
                         ? 'MÉDIO'
@@ -440,11 +446,12 @@ const PagamentosSection = ({
     }
   }, [onPagamentosProcessados]);
 
-  const handleAbrirModalPagamentosEfetuados = React.useCallback((turmaId, turmaNome) => {
+  const handleAbrirModalPagamentosEfetuados = React.useCallback((turmaId, turmaNome, dataPagamento) => {
     setModalPagamentosEfetuados({
       open: true,
       turmaId,
       turmaNome,
+      dataPagamento,
     });
   }, []);
 
@@ -453,14 +460,16 @@ const PagamentosSection = ({
       open: false,
       turmaId: null,
       turmaNome: null,
+      dataPagamento: null,
     });
   }, []);
 
-  const handleAbrirModalFornecedorEfetuados = React.useCallback((fornecedorId, fornecedorNome) => {
+  const handleAbrirModalFornecedorEfetuados = React.useCallback((fornecedorId, fornecedorNome, dataPagamento) => {
     setModalFornecedorEfetuados({
       open: true,
       fornecedorId,
       fornecedorNome,
+      dataPagamento,
     });
   }, []);
 
@@ -469,6 +478,7 @@ const PagamentosSection = ({
       open: false,
       fornecedorId: null,
       fornecedorNome: null,
+      dataPagamento: null,
     });
   }, []);
 
@@ -671,7 +681,7 @@ const PagamentosSection = ({
                     alignItems: 'center',
                     cursor: 'pointer',
                   }}
-                  onClick={() => handleAbrirModalFornecedorEfetuados(item.fornecedorId, item.nomeFornecedor)}
+                  onClick={() => handleAbrirModalFornecedorEfetuados(item.fornecedorId, item.nomeFornecedor, item.dataPagamento)}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-2px)';
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
@@ -913,6 +923,7 @@ const PagamentosSection = ({
           onClose={handleFecharModalPagamentosEfetuados}
           turmaId={modalPagamentosEfetuados.turmaId}
           turmaNome={modalPagamentosEfetuados.turmaNome}
+          dataPagamento={modalPagamentosEfetuados.dataPagamento}
         />
       )}
 
@@ -922,6 +933,7 @@ const PagamentosSection = ({
           onClose={handleFecharModalFornecedorEfetuados}
           fornecedorId={modalFornecedorEfetuados.fornecedorId}
           fornecedorNome={modalFornecedorEfetuados.fornecedorNome}
+          dataPagamento={modalFornecedorEfetuados.dataPagamento}
         />
       )}
     </CardStyled>

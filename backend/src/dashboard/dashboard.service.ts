@@ -448,7 +448,7 @@ export class DashboardService {
         include: {
           custosColheita: {
             where: {
-              pagamentoEfetuado: false, // Apenas pagamentos pendentes
+              pagamentoEfetuado: false, // Ainda não marcados como pagos
             },
             include: {
               pedido: {
@@ -482,11 +482,10 @@ export class DashboardService {
 
       // Processar dados para o formato esperado no frontend
       const pagamentosPendentes = turmasComPendencias.map(turma => {
-        // Calcular totais agregados
-        const totalPendente = turma.custosColheita.reduce(
-          (acc, custo) => acc + (custo.valorColheita || 0),
-          0
-        );
+        // Calcular totais agregados, separando PENDENTE x PROCESSANDO
+        const totalPendente = turma.custosColheita
+          .filter(custo => custo.statusPagamento !== 'PAGO')
+          .reduce((acc, custo) => acc + (custo.valorColheita || 0), 0);
 
         const quantidadePedidos = new Set(
           turma.custosColheita.map(custo => custo.pedidoId)
@@ -505,6 +504,7 @@ export class DashboardService {
           unidadeMedida: custo.unidadeMedida,
           valorColheita: custo.valorColheita || 0,
           dataColheita: custo.dataColheita,
+           statusPagamento: custo.statusPagamento,
           observacoes: custo.observacoes,
         }));
 

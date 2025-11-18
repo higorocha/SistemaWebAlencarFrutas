@@ -8,10 +8,11 @@ import {
   MoreOutlined,
   UserOutlined,
   BarChartOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import { showNotification } from "../../config/notificationConfig";
-import { formatarChavePix, formatCurrency, capitalizeName } from "../../utils/formatters";
+import { formatarChavePixPorTipo, formatCurrency, capitalizeName } from "../../utils/formatters";
 import EstatisticasTurmaModal from "./EstatisticasTurmaModal";
 import ResponsiveTable from "../common/ResponsiveTable";
 
@@ -86,9 +87,9 @@ const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, on
       dataIndex: "chavePix",
       key: "chavePix",
       align: "center",
-      render: (text) => (
+      render: (text, record) => (
         <Text style={{ fontSize: "13px" }}>
-          {formatarChavePix(text)}
+          {formatarChavePixPorTipo(text, record.tipoChavePix)}
         </Text>
       ),
     },
@@ -244,21 +245,33 @@ const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, on
       render: (_, record) => {
         const menuItems = [
           {
-            key: "estatisticas",
-            label: "Estatísticas",
-            icon: <BarChartOutlined />,
+            key: "colheitas",
+            label: (
+              <Space>
+                <BarChartOutlined style={{ color: "#059669" }} />
+                <span style={{ color: "#333" }}>Colheitas</span>
+              </Space>
+            ),
             onClick: () => handleVerEstatisticas(record),
           },
           {
             key: "edit",
-            label: "Editar",
-            icon: <EditOutlined />,
+            label: (
+              <Space>
+                <EditOutlined style={{ color: "#fa8c16" }} />
+                <span style={{ color: "#333" }}>Editar</span>
+              </Space>
+            ),
             onClick: () => handleEdit(record),
           },
           {
             key: "delete",
-            label: "Excluir",
-            icon: <DeleteOutlined />,
+            label: (
+              <Space>
+                <DeleteOutlined style={{ color: "#ff4d4f" }} />
+                <span style={{ color: "#333" }}>Excluir</span>
+              </Space>
+            ),
             onClick: () => handleDelete(record),
             danger: true,
           },

@@ -41,13 +41,14 @@ import {
 import styled from "styled-components";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
-import { formatCurrency, capitalizeNameShort, capitalizeName } from "../../utils/formatters";
+import { formatCurrency, capitalizeNameShort, capitalizeName, formatarDataParaAPIBB } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import { getFruitIcon } from "../../utils/fruitIcons";
 import { MaskedDatePicker } from "../common/inputs";
 import { SecondaryButton } from "../common/buttons";
+import CentralizedLoader from "../common/loaders/CentralizedLoader";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import moment from "moment";
 import { Box } from "@mui/material";
@@ -119,6 +120,23 @@ const LinhaComAnimacao = styled.tr`
       color: #52c41a !important;
     }
   `}
+
+  ${props => props.$itemProcessando && `
+    background-color: #fffbe6 !important;
+    border-left: 4px solid #faad14 !important;
+    opacity: 0.9;
+
+    td {
+      color: #ad6800 !important;
+      font-weight: 500;
+    }
+
+    .ant-tag {
+      background-color: #fffbe6 !important;
+      border-color: #faad14 !important;
+      color: #ad6800 !important;
+    }
+  `}
 `;
 
 const TurmaColheitaPagamentosModal = ({
@@ -142,6 +160,13 @@ const TurmaColheitaPagamentosModal = ({
   const [formaPagamentoSelecionada, setFormaPagamentoSelecionada] = useState(null);
   const [filtroBusca, setFiltroBusca] = useState('');
   const [filtroDataColheita, setFiltroDataColheita] = useState(null);
+  // Estados para contas correntes com credenciais de pagamentos
+  const [contasDisponiveis, setContasDisponiveis] = useState([]);
+  const [contaSelecionada, setContaSelecionada] = useState(null);
+  const [loadingContas, setLoadingContas] = useState(false);
+  // Estado para loading do processamento PIX-API
+  const [loadingPixAPI, setLoadingPixAPI] = useState(false);
+  const [mensagemLoadingPix, setMensagemLoadingPix] = useState('');
 
   useEffect(() => {
     if (open && turmaId) {
@@ -163,13 +188,19 @@ const TurmaColheitaPagamentosModal = ({
       setFormaPagamentoSelecionada(null);
       setFiltroBusca('');
       setFiltroDataColheita(null);
+      setContasDisponiveis([]);
+      setContaSelecionada(null);
+      setLoadingPixAPI(false);
+      setMensagemLoadingPix('');
     }
   }, [open]);
 
   useEffect(() => {
     if (modalConfirmacaoAberto) {
       setDataPagamentoSelecionada(moment());
-      setFormaPagamentoSelecionada('PIX');
+      setFormaPagamentoSelecionada('PIX - API');
+      // Buscar contas disponíveis quando o modal de confirmação abrir
+      fetchContasDisponiveis();
     }
   }, [modalConfirmacaoAberto]);
 
@@ -194,8 +225,8 @@ const TurmaColheitaPagamentosModal = ({
   const handleSelecaoColheita = (colheitaId, selecionada) => {
     // Verificar se o item já foi pago (não deve ser selecionável)
     const item = dados?.colheitas.find(c => c.id === colheitaId);
-    if (item?.status === 'PAGO') {
-      return; // Não permitir seleção de itens já pagos
+    if (item?.statusPagamento === 'PAGO' || item?.statusPagamento === 'PROCESSANDO') {
+      return; // Não permitir seleção de itens já pagos ou em processamento
     }
 
     if (selecionada) {
@@ -209,7 +240,12 @@ const TurmaColheitaPagamentosModal = ({
   const calcularTotalSelecionado = () => {
     if (!dados) return 0;
     return dados.colheitas
-      .filter(c => colheitasSelecionadas.includes(c.id) && c.status !== 'PAGO')
+      .filter(
+        c =>
+          colheitasSelecionadas.includes(c.id) &&
+          c.statusPagamento !== 'PAGO' &&
+          c.statusPagamento !== 'PROCESSANDO'
+      )
       .reduce((acc, c) => acc + (c.valorColheita || 0), 0);
   };
 
@@ -251,9 +287,15 @@ const TurmaColheitaPagamentosModal = ({
 
     const colheitasBase = colheitasSelecionadas.length > 0
       ? dados.colheitas.filter(colheita =>
-          colheitasSelecionadas.includes(colheita.id) && colheita.status !== 'PAGO'
+          colheitasSelecionadas.includes(colheita.id) &&
+          colheita.statusPagamento !== 'PAGO' &&
+          colheita.statusPagamento !== 'PROCESSANDO'
         )
-      : colheitasFiltradas.filter(colheita => colheita.status !== 'PAGO');
+      : colheitasFiltradas.filter(
+          colheita =>
+            colheita.statusPagamento !== 'PAGO' &&
+            colheita.statusPagamento !== 'PROCESSANDO'
+        );
 
     const totaisPorUnidade = colheitasBase.reduce((acc, colheita) => {
       const unidade = colheita.unidadeMedida || 'un';
@@ -290,12 +332,21 @@ const TurmaColheitaPagamentosModal = ({
 
     if (colheitasSelecionadas.length > 0) {
       return dados.colheitas
-        .filter(c => colheitasSelecionadas.includes(c.id) && c.status !== 'PAGO')
+        .filter(
+          c =>
+            colheitasSelecionadas.includes(c.id) &&
+            c.statusPagamento !== 'PAGO' &&
+            c.statusPagamento !== 'PROCESSANDO'
+        )
         .reduce((acc, c) => acc + (c.valorColheita || 0), 0);
     }
 
     return colheitasFiltradas
-      .filter(colheita => colheita.status !== 'PAGO')
+      .filter(
+        colheita =>
+          colheita.statusPagamento !== 'PAGO' &&
+          colheita.statusPagamento !== 'PROCESSANDO'
+      )
       .reduce((acc, colheita) => acc + (colheita.valorColheita || 0), 0);
   }, [dados, colheitasSelecionadas, colheitasFiltradas]);
 
@@ -304,6 +355,300 @@ const TurmaColheitaPagamentosModal = ({
   // Função para abrir modal de confirmação
   const abrirModalConfirmacao = () => {
     setModalConfirmacaoAberto(true);
+  };
+
+  // Função auxiliar para obter informações da chave PIX baseado no tipo
+  const obterInfoChavePix = (chavePix, tipoChavePix) => {
+    if (!chavePix || !tipoChavePix) return null;
+    
+    const chave = chavePix.trim();
+    
+    // Usar o tipo já cadastrado no banco de dados
+    switch (tipoChavePix) {
+      case 1: // Telefone
+        const telefoneLimpo = chave.replace(/\D/g, '');
+        const ddd = telefoneLimpo.substring(0, 2);
+        const numero = telefoneLimpo.substring(2);
+        return { tipo: 1, ddd, telefone: numero };
+      
+      case 2: // Email
+        return { tipo: 2, valor: chave };
+      
+      case 3: // CPF/CNPJ
+        if (chave.length === 11) {
+          return { tipo: 3, cpf: chave };
+        } else if (chave.length === 14) {
+          return { tipo: 3, cnpj: chave };
+        }
+        // Se não conseguir determinar se é CPF ou CNPJ, usar o valor como está
+        return { tipo: 3, valor: chave };
+      
+      case 4: // Chave Aleatória
+        return { tipo: 4, valor: chave };
+      
+      default:
+        // Fallback: chave aleatória se tipo desconhecido
+        return { tipo: 4, valor: chave };
+    }
+  };
+
+  // Importar função de formatação de data para API BB
+  const formatarDataParaAPI = formatarDataParaAPIBB;
+
+  // Função para processar pagamentos via PIX - API
+  const processarPagamentosPixAPI = async () => {
+    console.log('🚀 [PIX-API] Iniciando processamento de pagamentos via PIX - API');
+    console.log('📋 [PIX-API] Dados recebidos:', {
+      dataPagamentoSelecionada,
+      contaSelecionada,
+      turmaId,
+      dados: dados ? {
+        turma: dados.turma,
+        colheitasSelecionadas,
+        totalColheitas: dados.colheitas.length
+      } : null
+    });
+
+    try {
+      // Buscar dados da conta selecionada
+      const contaSelecionadaData = contasDisponiveis.find(c => c.id === contaSelecionada);
+      if (!contaSelecionadaData) {
+        throw new Error('Conta corrente selecionada não encontrada');
+      }
+
+      console.log('🏦 [PIX-API] Dados da conta selecionada:', contaSelecionadaData);
+
+      // Ativar loader com mensagem inicial
+      const mensagemInicial = `Processando pagamentos via PIX - API...`;
+      setMensagemLoadingPix(mensagemInicial);
+      setLoadingPixAPI(true);
+
+      // Preparar dados das colheitas
+      const itensDisponiveis = dados.colheitas.filter(
+        c => c.statusPagamento !== 'PAGO' && c.statusPagamento !== 'PROCESSANDO'
+      );
+      const idsParaPagar = colheitasSelecionadas.length > 0
+        ? colheitasSelecionadas
+        : itensDisponiveis.map(c => c.id);
+
+      const colheitasParaPagar = dados.colheitas.filter(c => idsParaPagar.includes(c.id));
+      console.log('💰 [PIX-API] Colheitas para pagar:', colheitasParaPagar);
+
+      // Verificar se a turma tem chave PIX e tipo de chave cadastrados
+      if (!dados.turma?.chavePix) {
+        throw new Error('A turma não possui chave PIX cadastrada. Configure a chave PIX da turma antes de realizar pagamentos via PIX - API.');
+      }
+
+      if (!dados.turma?.tipoChavePix) {
+        throw new Error('A turma não possui tipo de chave PIX cadastrado. Configure o tipo da chave PIX da turma antes de realizar pagamentos via PIX - API.');
+      }
+
+      // Obter informações da chave PIX usando o tipo cadastrado no banco
+      const chavePixInfo = obterInfoChavePix(dados.turma.chavePix, dados.turma.tipoChavePix);
+      console.log('🔍 [PIX-API] Informações da chave PIX:', {
+        chavePix: dados.turma.chavePix,
+        tipoChavePix: dados.turma.tipoChavePix,
+        modalidadeChave: dados.turma.modalidadeChave,
+        chavePixInfo
+      });
+
+      if (!chavePixInfo) {
+        throw new Error('Não foi possível processar as informações da chave PIX da turma');
+      }
+
+      // Formatar data do pagamento
+      const dataFormatada = formatarDataParaAPI(dataPagamentoSelecionada);
+      console.log('📅 [PIX-API] Data formatada para API:', dataFormatada);
+
+      // Calcular valor total consolidado de todas as colheitas
+      const valorTotalConsolidado = colheitasParaPagar.reduce((acc, colheita) => acc + (colheita.valorColheita || 0), 0);
+      const quantidadeColheitas = colheitasParaPagar.length;
+      
+      console.log(`💰 [PIX-API] Valor total consolidado: R$ ${valorTotalConsolidado.toFixed(2)} para ${quantidadeColheitas} colheita(s)`);
+
+      // Função auxiliar para limitar string a um tamanho máximo
+      const limitarString = (str, maxLength) => {
+        if (!str) return '';
+        return str.length > maxLength ? str.substring(0, maxLength) : str;
+      };
+
+      // Obter número do pedido (primeiro pedido no caso consolidado)
+      // Para pagamento consolidado, usar o primeiro pedido encontrado
+      const numeroPedido = colheitasParaPagar.length > 0 
+        ? (colheitasParaPagar[0].pedidoNumero || String(colheitasParaPagar[0].pedidoId) || '')
+        : '';
+
+      // Criar 1 ÚNICA transferência consolidada para todas as colheitas
+      // descricaoPagamento: nome do colhedor (limite: 40 caracteres - conforme resposta do BB)
+      // descricaoPagamentoInstantaneo: número do pedido (limite: 26 caracteres - conforme resposta do BB)
+      const transferenciaConsolidada = {
+        data: dataFormatada,
+        valor: valorTotalConsolidado.toFixed(2),
+        descricaoPagamento: limitarString(turmaNome || '', 40),
+        descricaoPagamentoInstantaneo: limitarString(numeroPedido, 26),
+        formaIdentificacao: chavePixInfo.tipo,
+      };
+
+      // Adicionar campos condicionais baseados no tipo de chave
+      if (chavePixInfo.tipo === 1) {
+        transferenciaConsolidada.dddTelefone = chavePixInfo.ddd;
+        transferenciaConsolidada.telefone = chavePixInfo.telefone;
+      } else if (chavePixInfo.tipo === 2) {
+        transferenciaConsolidada.email = chavePixInfo.valor;
+      } else if (chavePixInfo.tipo === 3) {
+        if (chavePixInfo.cpf) {
+          transferenciaConsolidada.cpf = chavePixInfo.cpf;
+        } else if (chavePixInfo.cnpj) {
+          transferenciaConsolidada.cnpj = chavePixInfo.cnpj;
+        }
+      } else if (chavePixInfo.tipo === 4) {
+        transferenciaConsolidada.identificacaoAleatoria = chavePixInfo.valor;
+      }
+
+      // Lista com 1 única transferência consolidada
+      const listaTransferencias = [transferenciaConsolidada];
+
+      console.log('📤 [PIX-API] Transferência consolidada montada:', listaTransferencias);
+
+      // Obter dígito verificador da conta (já vem nos dados da conta selecionada)
+      const digitoVerificador = contaSelecionadaData.contaCorrenteDigito || 'X';
+      console.log('🔢 [PIX-API] Dígito verificador da conta:', digitoVerificador);
+
+      // Preparar array de IDs das colheitas para relacionamento N:N
+      // 1 única transferência consolidada pagará todas essas colheitas
+      const colheitaIds = colheitasParaPagar.map(colheita => colheita.id);
+      console.log(`🔗 [PIX-API] ${colheitaIds.length} colheita(s) serão pagas com 1 única transferência consolidada:`, colheitaIds);
+
+      // Montar payload completo
+      // ✅ numeroRequisicao é gerado automaticamente pelo backend (sequencial: 1, 2, 3...)
+      const payload = {
+        contaCorrenteId: contaSelecionada,
+        // numeroRequisicao: removido - gerado automaticamente pelo backend
+        agenciaDebito: contaSelecionadaData.agencia,
+        contaCorrenteDebito: contaSelecionadaData.contaCorrente,
+        digitoVerificadorContaCorrente: digitoVerificador,
+        tipoPagamento: 128, // 128 = Pagamentos diversos
+        listaTransferencias: listaTransferencias,
+        colheitaIds: colheitaIds // ✅ Adicionar array de IDs para relacionamento
+      };
+
+      // ========================================
+      // LOG COMPLETO DO PAYLOAD DE IDA
+      // ========================================
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('📤 [PIX-API] PAYLOAD COMPLETO DE IDA:');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log(JSON.stringify(payload, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      // Atualizar mensagem antes de enviar para API
+      const mensagemTransferencia = quantidadeColheitas === 1
+        ? `Enviando 1 transferência via PIX - API...`
+        : `Enviando 1 transferência consolidada (${quantidadeColheitas} colheitas) via PIX - API...`;
+      setMensagemLoadingPix(mensagemTransferencia);
+      
+      // Chamar API de pagamentos
+      console.log('🌐 [PIX-API] Enviando requisição para /api/pagamentos/transferencias-pix...');
+      const response = await axiosInstance.post('/api/pagamentos/transferencias-pix', payload);
+
+      // ========================================
+      // LOG COMPLETO DA RESPOSTA
+      // ========================================
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('✅ [PIX-API] RESPOSTA COMPLETA DA API:');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('Status HTTP:', response.status, response.statusText);
+      console.log('Headers:', JSON.stringify(response.headers, null, 2));
+      console.log('Body:', JSON.stringify(response.data, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      // Log detalhado da resposta (resumo)
+      if (response.data) {
+        console.log('📊 [PIX-API] Resumo da resposta:');
+        console.log('  - Número da requisição (gerado pelo backend):', response.data.numeroRequisicao);
+        console.log('  - Estado da requisição:', response.data.estadoRequisicao);
+        console.log('  - Quantidade de transferências:', response.data.quantidadeTransferencias);
+        console.log('  - Valor total:', response.data.valorTransferencias);
+        console.log('  - Transferências válidas:', response.data.quantidadeTransferenciasValidas);
+        console.log('  - Valor válido:', response.data.valorTransferenciasValidas);
+        
+        if (response.data.listaTransferencias) {
+          console.log('📋 [PIX-API] Detalhes das transferências:');
+          response.data.listaTransferencias.forEach((transferencia, index) => {
+            console.log(`  Transferência ${index + 1}:`, {
+              identificadorPagamento: transferencia.identificadorPagamento,
+              indicadorMovimentoAceito: transferencia.indicadorMovimentoAceito,
+              erros: transferencia.erros || []
+            });
+          });
+        }
+      }
+
+      // Se chegou aqui, a API retornou sucesso
+      console.log('✅ [PIX-API] Pagamento via PIX - API processado com sucesso!');
+
+      // Atualizar mensagem do loader
+      setMensagemLoadingPix('Transferências processadas! Finalizando operação...');
+
+      // Agora processar o pagamento no backend também (marcar como pago)
+      console.log('🔄 [PIX-API] Marcando pagamentos como processados no backend...');
+      await processarPagamentosBackend();
+      console.log('✅ [PIX-API] Pagamentos marcados como processados no backend!');
+
+      // Desativar loader
+      setLoadingPixAPI(false);
+      setMensagemLoadingPix('');
+
+      return response.data;
+
+    } catch (error) {
+      console.error('❌ [PIX-API] Erro ao processar pagamento via PIX - API:', error);
+      console.error('❌ [PIX-API] Detalhes do erro:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        headers: error.response?.headers
+      });
+
+      // Desativar loader em caso de erro
+      setLoadingPixAPI(false);
+      setMensagemLoadingPix('');
+
+      throw error;
+    }
+  };
+
+  // Função para processar pagamentos no backend (marcar como pago)
+  const processarPagamentosBackend = async () => {
+    const itensDisponiveis = dados.colheitas.filter(
+      c => c.statusPagamento !== 'PAGO' && c.statusPagamento !== 'PROCESSANDO'
+    );
+    const idsParaPagar = colheitasSelecionadas.length > 0
+      ? colheitasSelecionadas
+      : itensDisponiveis.map(c => c.id);
+
+    const dadosPagamento = {
+      colheitaIds: idsParaPagar,
+      observacoes: observacoesPagamento.trim() || undefined,
+      dataPagamento: dataPagamentoSelecionada
+        ? dataPagamentoSelecionada.clone().startOf('day').add(12, 'hours').toISOString()
+        : undefined,
+      formaPagamento: 'PIX - API'
+    };
+
+    console.log('📤 [PIX-API-BACKEND] Enviando requisição para marcar pagamentos como processados:');
+    console.log('  - Endpoint: PATCH /api/turma-colheita/' + turmaId + '/processar-pagamentos');
+    console.log('  - Payload:', JSON.stringify(dadosPagamento, null, 2));
+
+    const response = await axiosInstance.patch(
+      `/api/turma-colheita/${turmaId}/processar-pagamentos`,
+      dadosPagamento
+    );
+
+    console.log('✅ [PIX-API-BACKEND] Resposta recebida:', JSON.stringify(response.data, null, 2));
+
+    return response.data;
   };
 
   // Função para processar pagamentos (após confirmação)
@@ -318,6 +663,124 @@ const TurmaColheitaPagamentosModal = ({
       return;
     }
 
+    // Validação específica para PIX - API
+    if (formaPagamentoSelecionada === 'PIX - API' && !contaSelecionada) {
+      showNotification('error', 'Validação', 'Selecione uma conta corrente para pagamento via PIX - API.');
+      return;
+    }
+
+    // Se for PIX - API, usar função específica
+    if (formaPagamentoSelecionada === 'PIX - API') {
+      try {
+        // Fechar modal de confirmação imediatamente para evitar conflitos visuais
+        // O CentralizedLoader será exibido durante o processamento
+        setModalConfirmacaoAberto(false);
+        
+        setLoadingPagamento(true);
+        
+        const responseAPI = await processarPagamentosPixAPI();
+
+        // Se chegou aqui, a API retornou sucesso
+        // O modal de confirmação já foi fechado anteriormente
+
+        // Marcar itens como sendo pagos (animação de saída)
+        const itensDisponiveis = dados.colheitas.filter(
+          c => c.statusPagamento !== 'PAGO' && c.statusPagamento !== 'PROCESSANDO'
+        );
+        const idsParaPagar = colheitasSelecionadas.length > 0
+          ? colheitasSelecionadas
+          : itensDisponiveis.map(c => c.id);
+        setItensSendoPagos(idsParaPagar);
+
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Mostrar checkmark nos itens pagos
+        setItensComCheckmark(idsParaPagar);
+        setItensSendoPagos([]);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Atualizar dados localmente
+        const colheitasAtualizadas = dados.colheitas.map(colheita => {
+          if (idsParaPagar.includes(colheita.id)) {
+            // Para PIX - API, marcar como PROCESSANDO (aguardando liberação/webhook)
+            return { ...colheita, statusPagamento: 'PROCESSANDO' };
+          }
+          return {
+            ...colheita,
+            statusPagamento: colheita.statusPagamento || 'PENDENTE',
+          };
+        });
+
+        const colheitasPendentes = colheitasAtualizadas.filter(
+          colheita => colheita.statusPagamento === 'PENDENTE'
+        );
+        const novoValorTotal = colheitasPendentes.reduce((acc, colheita) => acc + (colheita.valorColheita || 0), 0);
+
+        setDados(prevDados => ({
+          ...prevDados,
+          colheitas: colheitasAtualizadas,
+          resumo: {
+            ...prevDados.resumo,
+            valorTotalPendente: novoValorTotal,
+            quantidadeColheitas: colheitasPendentes.length
+          }
+        }));
+
+        const tipoOperacao = colheitasSelecionadas.length > 0 ? 'selecionados' : 'todos';
+        const numeroRequisicao = responseAPI?.numeroRequisicao;
+        const mensagemSucesso = numeroRequisicao
+          ? `Pagamento via PIX - API realizado com sucesso! ${responseAPI.quantidadeTransferenciasValidas || idsParaPagar.length} transferência(s) ${tipoOperacao}. Número da requisição: ${numeroRequisicao}`
+          : `Pagamento via PIX - API realizado com sucesso! ${responseAPI.quantidadeTransferenciasValidas || idsParaPagar.length} transferência(s) ${tipoOperacao}.`;
+        
+        showNotification(
+          'success',
+          'Pagamentos via PIX - API Processados',
+          mensagemSucesso
+        );
+
+        setPagamentosProcessados(true);
+        setColheitasSelecionadas([]);
+        setObservacoesPagamento('');
+        setItensComCheckmark([]);
+        setDataPagamentoSelecionada(null);
+        setFormaPagamentoSelecionada(null);
+
+        if (onPagamentosProcessados) {
+          onPagamentosProcessados();
+        }
+
+        const aindaTemPendencias = colheitasPendentes.length > 0;
+        if (!aindaTemPendencias) {
+          setTimeout(() => {
+            fecharModal();
+            showNotification(
+              'success',
+              'Todos os Pagamentos Concluídos',
+              `Não há mais pendências para ${turmaNome}.`
+            );
+          }, 400);
+        }
+
+      } catch (error) {
+        console.error('❌ [PIX-API] Erro ao processar pagamento:', error);
+        setItensSendoPagos([]);
+        setItensComCheckmark([]);
+
+        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao processar pagamento via PIX - API';
+        showNotification(
+          'error',
+          'Erro no Pagamento PIX - API',
+          mensagemErro
+        );
+        // Em caso de erro, o modal de confirmação já foi fechado
+        // O usuário pode tentar novamente abrindo o modal novamente
+      } finally {
+        setLoadingPagamento(false);
+      }
+      return; // Sair da função aqui para não executar o código abaixo
+    }
+
+    // Código original para outros métodos de pagamento
     try {
       // Fechar modal de confirmação
       setModalConfirmacaoAberto(false);
@@ -325,7 +788,9 @@ const TurmaColheitaPagamentosModal = ({
       setLoadingPagamento(true);
 
       // Se nenhuma seleção, pagar todas as colheitas PENDENTES
-      const itensDisponiveis = dados.colheitas.filter(c => c.status !== 'PAGO');
+      const itensDisponiveis = dados.colheitas.filter(
+        c => c.statusPagamento !== 'PAGO' && c.statusPagamento !== 'PROCESSANDO'
+      );
       const idsParaPagar = colheitasSelecionadas.length > 0
         ? colheitasSelecionadas
         : itensDisponiveis.map(c => c.id);
@@ -360,13 +825,18 @@ const TurmaColheitaPagamentosModal = ({
       // ATUALIZAR DADOS LOCALMENTE - marcar itens como PAGOS em vez de remover
       const colheitasAtualizadas = dados.colheitas.map(colheita => {
         if (idsParaPagar.includes(colheita.id)) {
-          return { ...colheita, status: 'PAGO' };
+          return { ...colheita, statusPagamento: 'PAGO' };
         }
-        return { ...colheita, status: colheita.status || 'PENDENTE' };
+        return {
+          ...colheita,
+          statusPagamento: colheita.statusPagamento || 'PENDENTE',
+        };
       });
 
       // Recalcular totais considerando apenas itens PENDENTES
-      const colheitasPendentes = colheitasAtualizadas.filter(colheita => colheita.status === 'PENDENTE');
+      const colheitasPendentes = colheitasAtualizadas.filter(
+        colheita => colheita.statusPagamento === 'PENDENTE'
+      );
       const novoValorTotal = colheitasPendentes.reduce((acc, colheita) => acc + (colheita.valorColheita || 0), 0);
 
       // Atualizar estado local
@@ -443,18 +913,32 @@ const TurmaColheitaPagamentosModal = ({
       render: (_, record) => {
         const sendoPago = itensSendoPagos.includes(record.id);
         const comCheckmark = itensComCheckmark.includes(record.id);
-        const isPago = record.status === 'PAGO';
+        const isPago = record.statusPagamento === 'PAGO';
+        const isProcessando = record.statusPagamento === 'PROCESSANDO';
 
         // Se item já foi pago, mostrar checkmark permanente
         if (isPago) {
           return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '18px' }} />
+              <Tooltip title="Pagamento concluído">
+                <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '18px' }} />
+              </Tooltip>
             </div>
           );
         }
 
-        // Se está sendo processado, mostrar checkmark animado
+        // Se está em processamento (aguardando liberação no BB), mostrar relógio amarelo
+        if (isProcessando) {
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Tooltip title="Pagamento processando - Aguardando liberação no Banco do Brasil. O pagamento será concluído após a liberação e processamento pelo banco.">
+                <ClockCircleOutlined style={{ color: '#faad14', fontSize: '18px' }} />
+              </Tooltip>
+            </div>
+          );
+        }
+
+        // Se está sendo processado (animação temporária), mostrar checkmark animado
         if (comCheckmark) {
           return (
             <div className="checkmark-container">
@@ -573,7 +1057,11 @@ const TurmaColheitaPagamentosModal = ({
   const possuiSelecao = colheitasSelecionadas.length > 0;
   const totalItensConfirmacao = possuiSelecao
     ? colheitasSelecionadas.length
-    : (dados?.colheitas?.filter(colheita => colheita.status !== 'PAGO').length || 0);
+    : (dados?.colheitas?.filter(
+        colheita =>
+          colheita.statusPagamento !== 'PAGO' &&
+          colheita.statusPagamento !== 'PROCESSANDO'
+      ).length || 0);
   const valorTotalConfirmacao = possuiSelecao
     ? calcularTotalSelecionado()
     : dados?.resumo?.totalPendente || 0;
@@ -582,6 +1070,12 @@ const TurmaColheitaPagamentosModal = ({
     : "Todos os itens pendentes serão pagos";
 
   const metodosPagamento = [
+    {
+      value: 'PIX - API',
+      label: 'PIX - API',
+      color: '#52c41a',
+      icon: <PixIcon width={16} height={16} />
+    },
     {
       value: 'PIX',
       label: 'PIX',
@@ -614,7 +1108,25 @@ const TurmaColheitaPagamentosModal = ({
     },
   ];
 
-  const confirmacaoDesabilitada = !dataPagamentoSelecionada || !formaPagamentoSelecionada;
+  // Função para buscar contas correntes com credenciais de pagamentos
+  const fetchContasDisponiveis = async () => {
+    setLoadingContas(true);
+    try {
+      const response = await axiosInstance.get('/api/pagamentos/contas-disponiveis');
+      setContasDisponiveis(response.data || []);
+      if (response.data && response.data.length > 0) {
+        setContaSelecionada(response.data[0].id);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar contas disponíveis:', error);
+      showNotification('error', 'Erro', 'Erro ao carregar contas correntes disponíveis');
+    } finally {
+      setLoadingContas(false);
+    }
+  };
+
+  const confirmacaoDesabilitada = !dataPagamentoSelecionada || !formaPagamentoSelecionada || 
+    (formaPagamentoSelecionada === 'PIX - API' && !contaSelecionada);
 
 
   return (
@@ -937,7 +1449,8 @@ const TurmaColheitaPagamentosModal = ({
                           {...props}
                           $sendoPago={itensSendoPagos.includes(record?.id)}
                           $comCheckmark={itensComCheckmark.includes(record?.id)}
-                          $itemPago={record?.status === 'PAGO'}
+                          $itemPago={record?.statusPagamento === 'PAGO'}
+                          $itemProcessando={record?.statusPagamento === 'PROCESSANDO'}
                         >
                           {children}
                         </LinhaComAnimacao>
@@ -1200,7 +1713,16 @@ const TurmaColheitaPagamentosModal = ({
                   </div>
                   <Select
                     value={formaPagamentoSelecionada}
-                    onChange={setFormaPagamentoSelecionada}
+                    onChange={(value) => {
+                      setFormaPagamentoSelecionada(value);
+                      // Limpar conta selecionada se não for PIX - API
+                      if (value !== 'PIX - API') {
+                        setContaSelecionada(null);
+                      } else if (contasDisponiveis.length > 0 && !contaSelecionada) {
+                        // Se for PIX - API e não tiver conta selecionada, selecionar a primeira
+                        setContaSelecionada(contasDisponiveis[0].id);
+                      }
+                    }}
                     placeholder="Selecione a forma"
                     style={{ width: "100%" }}
                     size="middle"
@@ -1220,6 +1742,34 @@ const TurmaColheitaPagamentosModal = ({
                   </Select>
                 </Col>
               </Row>
+              {/* Select de contas correntes quando PIX - API for selecionado */}
+              {formaPagamentoSelecionada === 'PIX - API' && (
+                <Row gutter={[12, 12]} style={{ marginTop: "12px" }}>
+                  <Col xs={24} sm={24}>
+                    <div style={{ textAlign: "left", marginBottom: "6px" }}>
+                      <Space>
+                        <CreditCardOutlined style={{ color: "#059669" }} />
+                        <Text strong style={{ color: "#059669" }}>Conta Corrente:</Text>
+                      </Space>
+                    </div>
+                    <Select
+                      value={contaSelecionada}
+                      onChange={setContaSelecionada}
+                      placeholder="Selecione a conta corrente"
+                      style={{ width: "100%" }}
+                      size="middle"
+                      loading={loadingContas}
+                      notFoundContent={loadingContas ? <Spin size="small" /> : "Nenhuma conta encontrada"}
+                    >
+                      {contasDisponiveis.map((conta) => (
+                        <Option key={conta.id} value={conta.id}>
+                          {conta.agencia} / {conta.contaCorrente} - {conta.nomeBanco || 'Banco do Brasil'}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Col>
+                </Row>
+              )}
             </div>
             {confirmacaoDesabilitada && (
               <Alert
@@ -1231,6 +1781,14 @@ const TurmaColheitaPagamentosModal = ({
             )}
           </div>
         }
+      />
+
+      {/* Loader centralizado para processamento PIX-API */}
+      <CentralizedLoader
+        visible={loadingPixAPI}
+        message={mensagemLoadingPix || "Processando pagamentos via PIX - API..."}
+        subMessage={loadingPixAPI ? "Por favor, aguarde. Não feche esta janela." : ""}
+        size="large"
       />
     </Modal>
   );

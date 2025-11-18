@@ -1,7 +1,7 @@
 // src/components/turma-colheita/EstatisticasTurmaModal.js
 
-import React, { useState, useEffect } from "react";
-import { Modal, Card, Row, Col, Statistic, Table, Tag, Space, Typography, Spin, Divider, Button, Tooltip } from "antd";
+import React, { useState, useEffect, useMemo } from "react";
+import { Modal, Card, Row, Col, Statistic, Table, Tag, Space, Typography, Spin, Divider, Button, Tooltip, Input, DatePicker, Empty } from "antd";
 import { 
   DollarOutlined, 
   ShoppingCartOutlined, 
@@ -21,8 +21,13 @@ import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { formatCurrency } from "../../utils/formatters";
 import MiniSelectPersonalizavel from "../common/MiniComponents/MiniSelectPersonalizavel";
+import { SecondaryButton, PDFButton } from "../common/buttons";
+import moment from "moment";
+import useResponsive from "../../hooks/useResponsive";
+import PDFIcon from "../Icons/PDFIcon";
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 // Styled components para tabela com tema personalizado
 const StyledTable = styled(Table)`
@@ -87,16 +92,28 @@ const EstatisticasTurmaModal = ({
   turmaId, 
   turmaNome 
 }) => {
+  const { isMobile } = useResponsive();
   const [loading, setLoading] = useState(false);
   const [estatisticas, setEstatisticas] = useState(null);
   const [intervaloMeses, setIntervaloMeses] = useState(6);
   const [dadosGrafico, setDadosGrafico] = useState(null);
+  const [filtroBusca, setFiltroBusca] = useState('');
+  const [filtroDataColheita, setFiltroDataColheita] = useState(null);
 
   useEffect(() => {
     if (open && turmaId) {
       fetchEstatisticas();
     }
   }, [open, turmaId]);
+
+  useEffect(() => {
+    if (!open) {
+      // Limpar dados e filtros quando modal fechar
+      setEstatisticas(null);
+      setFiltroBusca('');
+      setFiltroDataColheita(null);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (estatisticas && estatisticas.detalhes) {
@@ -115,6 +132,11 @@ const EstatisticasTurmaModal = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Função para lidar com geração de PDF (em desenvolvimento)
+  const handleGerarPDF = () => {
+    showNotification('info', 'Em Desenvolvimento', 'A funcionalidade de gerar PDF ainda está em desenvolvimento.');
   };
 
   const processarDadosGrafico = () => {
@@ -174,15 +196,68 @@ const EstatisticasTurmaModal = ({
     });
   };
 
+  // Filtrar detalhes baseado nos filtros de busca e data
+  const detalhesFiltrados = useMemo(() => {
+    if (!estatisticas?.detalhes) return [];
+
+    let lista = [...estatisticas.detalhes];
+
+    // Filtro de busca por fruta e pedido
+    if (filtroBusca.trim()) {
+      const termo = filtroBusca.trim().toLowerCase();
+      lista = lista.filter(item => {
+        const nomeFruta = (item.fruta || '').toLowerCase();
+        const numeroPedido = (item.pedido || '').toLowerCase();
+
+        return (
+          nomeFruta.includes(termo) ||
+          numeroPedido.includes(termo)
+        );
+      });
+    }
+
+    // Filtro por range de data de colheita
+    if (filtroDataColheita && filtroDataColheita.length === 2 && filtroDataColheita[0] && filtroDataColheita[1]) {
+      const [inicio, fim] = filtroDataColheita;
+      lista = lista.filter(item => {
+        if (!item.dataColheita) return false;
+        const data = moment(item.dataColheita);
+        return data.isSameOrAfter(inicio, 'day') && data.isSameOrBefore(fim, 'day');
+      });
+    }
+
+    return lista;
+  }, [estatisticas, filtroBusca, filtroDataColheita]);
+
+  // Verificar se há filtros ativos
+  const filtrosAtivos = useMemo(() => (
+    Boolean(
+      filtroBusca.trim() ||
+      (filtroDataColheita && filtroDataColheita.length === 2 && filtroDataColheita[0] && filtroDataColheita[1])
+    )
+  ), [filtroBusca, filtroDataColheita]);
+
+  // Função para limpar filtros
+  const limparFiltros = () => {
+    setFiltroBusca('');
+    setFiltroDataColheita(null);
+  };
+
   const columns = [
     {
       title: "Pedido",
       dataIndex: "pedido",
       key: "pedido",
-      render: (text) => <Text code>{text}</Text>,
+      render: (text) => (
+        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+          {text}
+        </Text>
+      ),
+      width: 140,
+      sorter: (a, b) => (a.pedido || "").localeCompare(b.pedido || ""),
     },
     {
-      title: "Data",
+      title: "Data Colheita",
       dataIndex: "dataColheita",
       key: "dataColheita",
       render: (date) => (
@@ -207,6 +282,7 @@ const EstatisticasTurmaModal = ({
       title: "Quantidade",
       dataIndex: "quantidade",
       key: "quantidade",
+      width: 90,
       render: (value, record) => (
         <Text strong>
           {value.toLocaleString('pt-BR')} {record.unidade}
@@ -217,6 +293,7 @@ const EstatisticasTurmaModal = ({
       title: "Valor",
       dataIndex: "valor",
       key: "valor",
+      width: 90,
       render: (value) => (
         <Text style={{ color: "#059669" }}>
           R$ {formatCurrency(value || 0)}
@@ -225,21 +302,55 @@ const EstatisticasTurmaModal = ({
     },
     {
       title: "Status",
-      dataIndex: "pagamentoEfetuado",
-      key: "pagamentoEfetuado",
-      render: (pago) => (
-        <Tag 
-          color={pago ? "green" : "orange"} 
-          icon={pago ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
-        >
-          {pago ? "Pago" : "Pendente"}
-        </Tag>
-      ),
+      key: "statusPagamento",
+      width: 110,
+      render: (_, record) => {
+        // Compatibilidade: se não houver statusPagamento, usar pagamentoEfetuado
+        const statusRaw = record.statusPagamento || (record.pagamentoEfetuado ? 'PAGO' : 'PENDENTE');
+        const status = statusRaw.toUpperCase();
+
+        let color = 'orange';
+        let icon = <ClockCircleOutlined />;
+        let label = 'Pendente';
+
+        if (status === 'PROCESSANDO') {
+          color = 'gold';
+          icon = <ClockCircleOutlined />;
+          label = 'Processando';
+        } else if (status === 'PAGO') {
+          color = 'green';
+          icon = <CheckCircleOutlined />;
+          label = 'Pago';
+        } else {
+          color = 'orange';
+          icon = <ClockCircleOutlined />;
+          label = 'Pendente';
+        }
+
+        return (
+          <Tag color={color} icon={icon}>
+            {label.toUpperCase()}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Forma Pagamento",
+      dataIndex: "formaPagamento",
+      key: "formaPagamento",
+      width: 140,
+      render: (value) =>
+        value ? (
+          <Tag color="#059669">{value}</Tag>
+        ) : (
+          <Text type="secondary">-</Text>
+        ),
     },
     {
       title: "Obs",
       key: "observacoes",
-      width: 60,
+      width: 150,
+      align: "center",
       render: (_, record) => {
         if (!record.observacoes || record.observacoes.trim() === '') {
           return null;
@@ -262,6 +373,30 @@ const EstatisticasTurmaModal = ({
         );
       },
     },
+    {
+      title: "PDF",
+      key: "pdf",
+      width: 60,
+      align: "center",
+      render: (_, record) => {
+        const handleGerarPDFItem = () => {
+          showNotification(
+            'info', 
+            'Em Desenvolvimento', 
+            `A funcionalidade de gerar PDF para a colheita ${record.id} ainda está em desenvolvimento.`
+          );
+        };
+
+        return (
+          <PDFIcon
+            onClick={handleGerarPDFItem}
+            tooltip="Gerar PDF desta colheita"
+            fontSize={18}
+            color="#dc2626"
+          />
+        );
+      },
+    },
   ];
 
   if (loading) {
@@ -279,17 +414,46 @@ const EstatisticasTurmaModal = ({
             borderRadius: "8px 8px 0 0",
           }}>
             <BarChartOutlined style={{ marginRight: 8 }} />
-            Carregando estatísticas...
+            Carregando detalhes das colheitas...
           </span>
         }
         open={open}
         onCancel={onClose}
-        footer={[
-          <Button key="close" onClick={onClose}>
-            Fechar
-          </Button>
-        ]}
-        width={1000}
+        footer={
+          <div style={{ 
+            display: "flex", 
+            justifyContent: "space-between", 
+            alignItems: "center",
+            gap: isMobile ? "8px" : "12px",
+            flexWrap: isMobile ? "wrap" : "nowrap"
+          }}>
+            <PDFButton
+              onClick={handleGerarPDF}
+              size={isMobile ? "small" : "large"}
+              tooltip="Gerar PDF"
+              style={{
+                height: isMobile ? "32px" : "40px",
+                padding: isMobile ? "0 12px" : "0 16px",
+                fontSize: isMobile ? "0.75rem" : undefined,
+              }}
+            >
+              Gerar PDF
+            </PDFButton>
+            <div style={{ marginLeft: "auto" }}>
+              <Button 
+                onClick={onClose} 
+                size={isMobile ? "small" : "large"}
+                style={{
+                  height: isMobile ? "32px" : "40px",
+                  padding: isMobile ? "0 12px" : "0 16px",
+                }}
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
+        }
+        width={isMobile ? '95vw' : 1400}
         styles={{
           body: {
             maxHeight: "calc(100vh - 200px)",
@@ -328,17 +492,46 @@ const EstatisticasTurmaModal = ({
             borderRadius: "8px 8px 0 0",
           }}>
             <BarChartOutlined style={{ marginRight: 8 }} />
-            Estatísticas da Turma
+            Detalhe das colheitas realizadas - {turmaNome}
           </span>
         }
         open={open}
         onCancel={onClose}
-        footer={[
-          <Button key="close" onClick={onClose}>
-            Fechar
-          </Button>
-        ]}
-        width={1000}
+        footer={
+          <div style={{ 
+            display: "flex", 
+            justifyContent: "space-between", 
+            alignItems: "center",
+            gap: isMobile ? "8px" : "12px",
+            flexWrap: isMobile ? "wrap" : "nowrap"
+          }}>
+            <PDFButton
+              onClick={handleGerarPDF}
+              size={isMobile ? "small" : "large"}
+              tooltip="Gerar PDF"
+              style={{
+                height: isMobile ? "32px" : "40px",
+                padding: isMobile ? "0 12px" : "0 16px",
+                fontSize: isMobile ? "0.75rem" : undefined,
+              }}
+            >
+              Gerar PDF
+            </PDFButton>
+            <div style={{ marginLeft: "auto" }}>
+              <Button 
+                onClick={onClose} 
+                size={isMobile ? "small" : "large"}
+                style={{
+                  height: isMobile ? "32px" : "40px",
+                  padding: isMobile ? "0 12px" : "0 16px",
+                }}
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
+        }
+        width={isMobile ? '95vw' : 1400}
         styles={{
           body: {
             maxHeight: "calc(100vh - 200px)",
@@ -511,17 +704,46 @@ const EstatisticasTurmaModal = ({
           borderRadius: "8px 8px 0 0",
         }}>
           <BarChartOutlined style={{ marginRight: 8 }} />
-          Estatísticas - {turmaNome}
+          Detalhe das colheitas realizadas - {turmaNome}
         </span>
       }
       open={open}
       onCancel={onClose}
-      footer={[
-        <Button key="close" onClick={onClose}>
-          Fechar
-        </Button>
-      ]}
-      width={1000}
+      footer={
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center",
+          gap: isMobile ? "8px" : "12px",
+          flexWrap: isMobile ? "wrap" : "nowrap"
+        }}>
+          <PDFButton
+            onClick={handleGerarPDF}
+            size={isMobile ? "small" : "large"}
+            tooltip="Gerar PDF"
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+              fontSize: isMobile ? "0.75rem" : undefined,
+            }}
+          >
+            Gerar PDF
+          </PDFButton>
+          <div style={{ marginLeft: "auto" }}>
+            <Button 
+              onClick={onClose} 
+              size={isMobile ? "small" : "large"}
+              style={{
+                height: isMobile ? "32px" : "40px",
+                padding: isMobile ? "0 12px" : "0 16px",
+              }}
+            >
+              Fechar
+            </Button>
+          </div>
+        </div>
+      }
+      width={isMobile ? '95vw' : 1400}
       styles={{
         body: {
           maxHeight: "calc(100vh - 200px)",
@@ -728,6 +950,75 @@ const EstatisticasTurmaModal = ({
         </Card>
       )}
 
+      {/* Busca e Filtros */}
+      {detalhes && detalhes.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <FilterOutlined style={{ color: "#ffffff" }} />
+              <span style={{
+                color: "#ffffff",
+                fontWeight: "600",
+                fontSize: isMobile ? "14px" : "16px"
+              }}>
+                {isMobile ? "Buscar" : "Busca e Filtros"}
+              </span>
+            </Space>
+          }
+          style={{
+            marginBottom: isMobile ? 12 : 16,
+            border: "1px solid #e8e8e8",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9",
+          }}
+          headStyle={{
+            backgroundColor: "#059669",
+            borderBottom: "2px solid #047857",
+            color: "#ffffff",
+            borderRadius: "8px 8px 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          }}
+          bodyStyle={{ padding: isMobile ? "12px" : "16px" }}
+        >
+          <Row gutter={[isMobile ? 8 : 16, 16]} wrap={isMobile}>
+            <Col xs={24} sm={24} md={15}>
+              <Input
+                value={filtroBusca}
+                onChange={(e) => setFiltroBusca(e.target.value)}
+                placeholder="Buscar por fruta ou pedido"
+                allowClear
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+                prefix={<FilterOutlined style={{ color: "#059669" }} />}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <RangePicker
+                value={filtroDataColheita}
+                onChange={(value) => setFiltroDataColheita(value)}
+                allowClear
+                format="DD/MM/YYYY"
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+                disabledDate={(current) => current && current > moment().endOf('day')}
+                placeholder={['Data Início', 'Data Fim']}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={3}>
+              <SecondaryButton
+                icon={<FilterOutlined />}
+                onClick={limparFiltros}
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+                disabled={!filtrosAtivos}
+              >
+                Limpar
+              </SecondaryButton>
+            </Col>
+          </Row>
+        </Card>
+      )}
+
       {/* Tabela de Detalhes */}
       {detalhes && detalhes.length > 0 && (
         <Card
@@ -750,15 +1041,28 @@ const EstatisticasTurmaModal = ({
             borderRadius: "8px 8px 0 0",
           }}
         >
-          <StyledTable
-            columns={columns}
-            dataSource={detalhes}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-            size="middle"
-            bordered={true}
-            scroll={{ x: 600 }}
-          />
+          {detalhesFiltrados.length > 0 ? (
+            <StyledTable
+              columns={columns}
+              dataSource={detalhesFiltrados}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+              size="middle"
+              bordered={true}
+              scroll={{ x: 'max-content' }}
+            />
+          ) : (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  filtrosAtivos 
+                    ? "Nenhuma colheita encontrada com os filtros aplicados" 
+                    : "Nenhuma colheita encontrada"
+                }
+              />
+            </div>
+          )}
         </Card>
       )}
 

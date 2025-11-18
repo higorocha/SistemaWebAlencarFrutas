@@ -1408,6 +1408,7 @@ export class LancamentoExtratoService {
       nomeContrapartida: lancamento.nomeContrapartida || undefined,
       clienteId: lancamento.clienteId ?? undefined,
       pedidoId: lancamento.pedidoId || undefined,
+      contaCorrenteId: lancamento.contaCorrenteId ?? undefined,
       processado: lancamento.processado,
       vinculadoPedido: lancamento.vinculadoPedido,
       vinculadoPagamento: lancamento.vinculadoPagamento,

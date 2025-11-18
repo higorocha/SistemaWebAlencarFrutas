@@ -46,6 +46,123 @@ export class NotificacoesService {
     return '🍎';
   }
 
+  /**
+   * Cria notificações para administradores quando um lote de pagamentos
+   * é criado com sucesso no Banco do Brasil e está pronto para liberação.
+   *
+   * Observações:
+   * - Tipo técnico da notificação permanece SISTEMA (sem novo enum);
+   * - O tipo de negócio é identificado em dadosAdicionais.tipoNegocio = 'liberar_pagamento';
+   * - O layout é genérico o suficiente para futuras origens (turma/colhedor, fornecedor, funcionário, etc).
+   *
+   * @param lote Dados do lote recém-atualizado com resposta do BB.
+   *             Deve conter pelo menos: id, numeroRequisicao, valorTotalEnviado,
+   *             valorTotalValido (se houver), tipoPagamento, tipoPagamentoApi e contaCorrente (agência/conta).
+   *             Opcionalmente pode conter origemTipo e origemNome para exibição no frontend.
+   */
+  async criarNotificacoesLiberarPagamentoParaAdministradores(lote: any): Promise<void> {
+    try {
+      if (!lote || !lote.id || !lote.numeroRequisicao) {
+        console.warn('[Notificações] Lote inválido ao criar notificação de liberação de pagamentos');
+        return;
+      }
+
+      // Buscar administradores
+      const administradores = await this.prisma.usuario.findMany({
+        where: {
+          nivel: 'ADMINISTRADOR',
+        },
+        select: {
+          id: true,
+          nome: true,
+        },
+      });
+
+      if (!administradores || administradores.length === 0) {
+        console.log('[Notificações] Nenhum ADMINISTRADOR encontrado para notificar sobre lote de pagamentos');
+        return;
+      }
+
+      const numeroRequisicao = lote.numeroRequisicao;
+
+      // Valor total preferencialmente validado; se não houver, usar valor enviado
+      const valorTotalBase =
+        (lote.valorTotalValido !== null && lote.valorTotalValido !== undefined
+          ? Number(lote.valorTotalValido)
+          : Number(lote.valorTotalEnviado)) || 0;
+
+      const valorTotalFormatado = valorTotalBase.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      const conta = lote.contaCorrente
+        ? `${lote.contaCorrente.agencia} / ${lote.contaCorrente.contaCorrente}`
+        : undefined;
+
+      // Origem preparada para múltiplos tipos (turma/colhedor, fornecedor, funcionário, etc)
+      const origemTipo: string | undefined = lote.origemTipo || undefined;
+      const origemNome: string | undefined = lote.origemNome || undefined;
+
+      const titulo = 'Pagamentos Pendentes';
+      const conteudo = `Lote ${numeroRequisicao} criado com sucesso. Valor total: R$ ${valorTotalFormatado}`;
+
+      const dadosAdicionaisBase = {
+        tipoNegocio: 'liberar_pagamento',
+        loteId: lote.id,
+        numeroRequisicao,
+        tipoPagamento: lote.tipoPagamento,
+        tipoPagamentoApi: lote.tipoPagamentoApi,
+        valorTotalEnviado: Number(lote.valorTotalEnviado) || 0,
+        valorTotalValido: lote.valorTotalValido
+          ? Number(lote.valorTotalValido)
+          : undefined,
+        contaCorrente: lote.contaCorrente
+          ? {
+              id: lote.contaCorrente.id,
+              bancoCodigo: lote.contaCorrente.bancoCodigo,
+              agencia: lote.contaCorrente.agencia,
+              contaCorrente: lote.contaCorrente.contaCorrente,
+            }
+          : undefined,
+        origemTipo,
+        origemNome,
+        toast: {
+          titulo: 'Lote de pagamentos criado',
+          conteudo,
+          tipo: 'info' as const,
+        },
+      };
+
+      await Promise.all(
+        administradores.map((admin) =>
+          this.create(
+            {
+              titulo,
+              conteudo,
+              tipo: TipoNotificacao.SISTEMA,
+              prioridade: PrioridadeNotificacao.ALTA,
+              usuarioId: admin.id,
+              dadosAdicionais: dadosAdicionaisBase,
+            },
+            admin.id,
+          ).catch((error) => {
+            console.error(
+              `[Notificações] Erro ao criar notificação de liberação de pagamento para administrador ${admin.id} (${admin.nome}):`,
+              error,
+            );
+            return null;
+          }),
+        ),
+      );
+    } catch (error) {
+      console.error(
+        '[Notificações] Erro ao criar notificações de liberação de lote de pagamentos:',
+        error,
+      );
+    }
+  }
+
   async create(createNotificacaoDto: CreateNotificacaoDto, userId?: number): Promise<NotificacaoResponseDto> {
     const data = {
       ...createNotificacaoDto,

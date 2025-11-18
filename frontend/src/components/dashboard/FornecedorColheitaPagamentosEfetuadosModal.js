@@ -61,7 +61,8 @@ const FornecedorColheitaPagamentosEfetuadosModal = ({
   open,
   onClose,
   fornecedorId,
-  fornecedorNome
+  fornecedorNome,
+  dataPagamento
 }) => {
   const { isMobile, isTablet } = useResponsive();
   const [loading, setLoading] = useState(false);
@@ -71,7 +72,7 @@ const FornecedorColheitaPagamentosEfetuadosModal = ({
     if (open && fornecedorId) {
       fetchDados();
     }
-  }, [open, fornecedorId]);
+  }, [open, fornecedorId, dataPagamento]);
 
   useEffect(() => {
     if (!open) {
@@ -80,11 +81,86 @@ const FornecedorColheitaPagamentosEfetuadosModal = ({
     }
   }, [open]);
 
+  // Função para normalizar data (remover hora, manter apenas dia/mês/ano no formato YYYY-MM-DD)
+  const normalizarData = (dataInput) => {
+    if (!dataInput) return null;
+    
+    let dataString = dataInput;
+    
+    // Se for um objeto Date, converter para ISO string
+    if (dataInput instanceof Date) {
+      dataString = dataInput.toISOString();
+    }
+    
+    // Se for string, pode ser ISO (YYYY-MM-DDTHH:mm:ss.sssZ) ou formato de data (YYYY-MM-DD)
+    // Extrair apenas a parte da data (YYYY-MM-DD)
+    if (typeof dataString === 'string') {
+      // Se tiver 'T', pegar a parte antes do T
+      if (dataString.includes('T')) {
+        return dataString.split('T')[0];
+      }
+      // Se tiver espaço, pegar a parte antes do espaço
+      if (dataString.includes(' ')) {
+        return dataString.split(' ')[0];
+      }
+      // Se já estiver no formato YYYY-MM-DD, retornar como está
+      return dataString;
+    }
+    
+    return null;
+  };
+
   const fetchDados = async () => {
     try {
       setLoading(true);
       const response = await axiosInstance.get(`/api/fornecedores/${fornecedorId}/pagamentos-efetuados`);
-      setDados(response.data);
+      let dadosCompletos = response.data;
+
+      // Se dataPagamento foi fornecido, filtrar apenas os pagamentos daquela data
+      if (dataPagamento && dadosCompletos?.colheitas && Array.isArray(dadosCompletos.colheitas) && dadosCompletos.colheitas.length > 0) {
+        const dataFiltro = normalizarData(dataPagamento);
+        
+        if (dataFiltro) {
+          // Filtrar colheitas apenas daquela data
+          // O backend retorna dataPagamento no formato "YYYY-MM-DD" no objeto agrupado
+          const colheitasFiltradas = dadosCompletos.colheitas.filter((pagamento) => {
+            // pagamento.dataPagamento já vem como "YYYY-MM-DD" do backend (linha 1168 do service)
+            const dataPagamentoNormalizada = normalizarData(pagamento.dataPagamento);
+            return dataPagamentoNormalizada === dataFiltro;
+          });
+
+          // Se encontrou colheitas filtradas, aplicar o filtro e recalcular resumo
+          if (colheitasFiltradas.length > 0) {
+            // Recalcular resumo apenas com os pagamentos filtrados
+            const resumoFiltrado = {
+              totalPago: colheitasFiltradas.reduce((acc, pag) => acc + (pag.totalPago || 0), 0),
+              quantidadeColheitas: colheitasFiltradas.reduce((acc, pag) => acc + (pag.detalhes?.length || 0), 0),
+              quantidadePedidos: new Set(colheitasFiltradas.flatMap(pag => pag.detalhes?.map(d => d.pedidoNumero) || [])).size,
+              quantidadeFrutas: new Set(colheitasFiltradas.flatMap(pag => pag.detalhes?.map(d => d.fruta) || [])).size,
+            };
+
+            dadosCompletos = {
+              ...dadosCompletos,
+              colheitas: colheitasFiltradas,
+              resumo: resumoFiltrado,
+            };
+          } else {
+            // Se não encontrou nenhuma colheita, manter estrutura mas com array vazio
+            dadosCompletos = {
+              ...dadosCompletos,
+              colheitas: [],
+              resumo: {
+                totalPago: 0,
+                quantidadeColheitas: 0,
+                quantidadePedidos: 0,
+                quantidadeFrutas: 0,
+              },
+            };
+          }
+        }
+      }
+
+      setDados(dadosCompletos);
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
       showNotification('error', 'Erro', 'Erro ao carregar pagamentos efetuados');
@@ -600,6 +676,7 @@ FornecedorColheitaPagamentosEfetuadosModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   fornecedorId: PropTypes.number,
   fornecedorNome: PropTypes.string,
+  dataPagamento: PropTypes.string,
 };
 
 export default FornecedorColheitaPagamentosEfetuadosModal;

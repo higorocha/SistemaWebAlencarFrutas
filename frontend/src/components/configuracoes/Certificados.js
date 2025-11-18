@@ -458,15 +458,32 @@ const Certificados = () => {
                 {(() => {
                   const tableData = [];
                   
-                  // Adicionar certificado da empresa
-                  if (certificateStatus.certificates.EMPRESA) {
-                    const empresa = certificateStatus.certificates.EMPRESA;
+                  // Adicionar certificado bestnet (PIX e EXTRATOS)
+                  if (certificateStatus.certificates.EMPRESA_BESTNET) {
+                    const empresa = certificateStatus.certificates.EMPRESA_BESTNET;
                     const cert = empresa.certificado;
                     tableData.push({
-                      key: 'EMPRESA',
-                      nome: empresa.nome || 'Empresa',
-                      tipo: 'Certificado da Empresa',
+                      key: 'EMPRESA_BESTNET',
+                      nome: empresa.nome || 'Empresa (Bestnet)',
+                      tipo: 'Certificado da Empresa (Bestnet)',
                       usadoPor: empresa.usadoPor?.join(', ') || 'PIX, EXTRATOS',
+                      validade: cert.expiryInfo?.isExpired ? 'Vencido' :
+                               cert.expiryInfo?.isExpiringSoon ? 'Vence em Breve' : 'Válido',
+                      dataVencimento: cert.expiryInfo?.expiryDate ? 
+                        new Date(cert.expiryInfo.expiryDate).toLocaleDateString('pt-BR') : 'N/A',
+                      diasRestantes: cert.expiryInfo?.daysUntilExpiry || 0
+                    });
+                  }
+                  
+                  // Adicionar certificado alencar (PAGAMENTOS)
+                  if (certificateStatus.certificates.EMPRESA_ALENCAR) {
+                    const empresa = certificateStatus.certificates.EMPRESA_ALENCAR;
+                    const cert = empresa.certificado;
+                    tableData.push({
+                      key: 'EMPRESA_ALENCAR',
+                      nome: empresa.nome || 'Empresa (Alencar)',
+                      tipo: 'Certificado da Empresa (Alencar)',
+                      usadoPor: empresa.usadoPor?.join(', ') || 'PAGAMENTOS',
                       validade: cert.expiryInfo?.isExpired ? 'Vencido' :
                                cert.expiryInfo?.isExpiringSoon ? 'Vence em Breve' : 'Válido',
                       dataVencimento: cert.expiryInfo?.expiryDate ? 

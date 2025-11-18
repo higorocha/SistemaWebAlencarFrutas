@@ -288,6 +288,97 @@ export const formatarChavePix = (chavePix) => {
 };
 
 /**
+ * Formata uma chave PIX baseado no tipo informado pelo backend
+ * @param {string} chavePix - Chave PIX a ser formatada
+ * @param {number|null|undefined} tipoChavePix - Tipo da chave: 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória
+ * @returns {string} - Chave PIX formatada
+ */
+export const formatarChavePixPorTipo = (chavePix, tipoChavePix) => {
+  if (!chavePix) return 'Não informado';
+  
+  // Se não tiver tipoChavePix, usa a função de detecção automática como fallback
+  if (!tipoChavePix) {
+    return formatarChavePix(chavePix);
+  }
+  
+  // Remove espaços e caracteres especiais para análise
+  const chaveLimpa = chavePix.replace(/\s/g, '');
+  
+  switch (tipoChavePix) {
+    case 1: // Telefone
+      return formatarTelefone(chaveLimpa);
+    
+    case 2: // Email
+      return chaveLimpa; // Email não precisa de formatação especial
+    
+    case 3: // CPF/CNPJ
+      {
+        const numeros = chaveLimpa.replace(/\D/g, '');
+        if (numeros.length === 11) {
+          return formatarCPF(numeros);
+        } else if (numeros.length === 14) {
+          return formatarCNPJ(numeros);
+        }
+        // Se não tiver 11 ou 14 dígitos, retorna como está
+        return chavePix;
+      }
+    
+    case 4: // Chave Aleatória
+      // Chave aleatória geralmente tem 32 caracteres (UUID sem hífens)
+      // Pode formatar visualmente se necessário, mas por enquanto retorna como está
+      return chavePix;
+    
+    default:
+      // Tipo desconhecido, usa detecção automática como fallback
+      return formatarChavePix(chavePix);
+  }
+};
+
+/**
+ * Formata data para o formato ddmmaaaa usado pela API do Banco do Brasil
+ * 
+ * Conforme documentação da API de Pagamentos:
+ * - Formato: ddmmaaaa (omitir zeros à esquerda APENAS no DIA)
+ * - Exemplo: 9012022 (9 de janeiro de 2022) - dia sem zero à esquerda
+ * - Exemplo: 19042023 (19 de abril de 2023) - dia com 2 dígitos
+ * 
+ * Regras:
+ * - DIA: 1 ou 2 dígitos (sem zero à esquerda se dia < 10)
+ * - MÊS: SEMPRE 2 dígitos (com zero à esquerda se mês < 10)
+ * - ANO: SEMPRE 4 dígitos
+ * 
+ * @param {string|Date|moment.Moment} data - Data a ser formatada (aceita string, Date ou moment)
+ * @returns {string} - Data formatada: D ou DD + MM + YYYY (mês sempre 2 dígitos)
+ */
+export const formatarDataParaAPIBB = (data) => {
+  if (!data) return null;
+  
+  // Usar moment para parsear a data
+  const momentDate = moment.isMoment(data) ? data : moment(data);
+  
+  if (!momentDate.isValid()) {
+    console.error('Data inválida para formatação:', data);
+    return null;
+  }
+  
+  // Extrair dia, mês e ano
+  const dia = momentDate.date(); // Retorna 1-31 (sem zero à esquerda)
+  const mes = momentDate.month() + 1; // month() retorna 0-11, então +1 para 1-12
+  const ano = momentDate.year();
+  
+  // Dia: sem zero à esquerda (conforme documentação)
+  const diaFormatado = dia.toString();
+  
+  // Mês: sempre 2 dígitos (com zero à esquerda se < 10)
+  const mesFormatado = mes.toString().padStart(2, '0');
+  
+  // Ano: sempre 4 dígitos
+  const anoFormatado = ano.toString();
+  
+  return `${diaFormatado}${mesFormatado}${anoFormatado}`;
+};
+
+/**
  * ⚠️ FUNÇÃO LEGADA - NÃO MAIS NECESSÁRIA (mantida apenas para referência histórica)
  *
  * Esta função era utilizada para converter valores Decimal do Prisma para número JavaScript.

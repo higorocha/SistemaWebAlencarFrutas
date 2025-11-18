@@ -18,9 +18,15 @@ const CardStyled = styled.div`
   }
 
   ${props => props.$isFullscreen ? `
-    min-height: calc(100vh - ${props.$isMobile ? '48px' : '96px'});
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    max-height: 100%;
     display: flex;
     flex-direction: column;
+    border-radius: 0;
+    padding: ${props.$isMobile ? '16px' : '24px'};
+    overflow: hidden;
   ` : ''}
 `;
 
@@ -128,6 +134,12 @@ const ProgramacaoColheitaSection = ({
     setWeekOffset(0);
   }, []);
 
+  // Calcular altura dos cards em fullscreen (mesma lógica do ProgramacaoColheitaGrid)
+  const cardHeightFullscreen = useMemo(() => {
+    if (!isFullscreen) return null;
+    return isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 180px)';
+  }, [isFullscreen, isMobile]);
+
   return (
     <Row gutter={[24, 24]} style={{ marginBottom: '32px' }}>
       <Col xs={24}>
@@ -155,12 +167,14 @@ const ProgramacaoColheitaSection = ({
             </Col>
 
             {/* Direita: Estatísticas de Frutas */}
-            <Col xs={24} lg={8} style={isFullscreen ? { height: '100%', display: 'flex', flexDirection: 'column', marginTop: 48 } : {}}>
-              <div style={isFullscreen ? { flex: 1, display: 'flex', flexDirection: 'column' } : {}}>
+            <Col xs={24} lg={8} style={isFullscreen ? { height: '100%', display: 'flex', flexDirection: 'column' } : {}}>
+              <div style={isFullscreen ? { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } : {}}>
                 <EstatisticasFrutasColheita 
                   programacaoColheita={programacaoColheita} 
                   activeTab={activeTab}
                   selectedWeek={selectedWeek}
+                  isFullscreen={isFullscreen}
+                  cardHeight={cardHeightFullscreen}
                 />
               </div>
             </Col>

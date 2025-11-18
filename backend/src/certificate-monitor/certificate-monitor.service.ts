@@ -85,7 +85,7 @@ export class CertificateMonitorService {
     
     const dto: CreateNotificacaoCompletaDto = {
       titulo: 'Certificados BB',
-      conteudo: `URGENTE! ${expiredCerts.length} certificado(s) do Banco do Brasil estão VENCIDOS. As APIs PIX e Extratos podem parar de funcionar a qualquer momento.`,
+      conteudo: `URGENTE! ${expiredCerts.length} certificado(s) do Banco do Brasil estão VENCIDOS. As APIs PIX, Extratos e Pagamentos podem parar de funcionar a qualquer momento.`,
       tipo: TipoNotificacao.SISTEMA,
       prioridade: PrioridadeNotificacao.ALTA,
       
@@ -103,7 +103,7 @@ export class CertificateMonitorService {
       
       modal: {
         titulo: 'Certificados BB',
-        conteudo: `🚨 SITUAÇÃO CRÍTICA! ${expiredCerts.length} certificado(s) do Banco do Brasil estão VENCIDOS.\n\n📋 DETALHES DOS CERTIFICADOS VENCIDOS:\n${expiredCerts.map(cert => `• ${cert}`).join('\n')}\n\n⚠️ IMPACTO NO SISTEMA:\n• APIs PIX podem parar de funcionar a qualquer momento\n• APIs de Extratos podem parar de funcionar a qualquer momento\n• Transações financeiras podem ser interrompidas\n• Clientes podem não conseguir realizar pagamentos\n\n🔧 AÇÃO NECESSÁRIA:\n• Substitua os certificados IMEDIATAMENTE\n• Entre em contato com o suporte técnico se necessário\n• Verifique se há certificados de backup disponíveis\n\n📅 Data da verificação: ${new Date().toLocaleString('pt-BR')}`,
+        conteudo: `🚨 SITUAÇÃO CRÍTICA! ${expiredCerts.length} certificado(s) do Banco do Brasil estão VENCIDOS.\n\n📋 DETALHES DOS CERTIFICADOS VENCIDOS:\n${expiredCerts.map(cert => `• ${cert}`).join('\n')}\n\n⚠️ IMPACTO NO SISTEMA:\n• APIs PIX podem parar de funcionar a qualquer momento\n• APIs de Extratos podem parar de funcionar a qualquer momento\n• APIs de Pagamentos podem parar de funcionar a qualquer momento\n• Transações financeiras podem ser interrompidas\n• Clientes podem não conseguir realizar pagamentos\n\n🔧 AÇÃO NECESSÁRIA:\n• Substitua os certificados IMEDIATAMENTE\n• Entre em contato com o suporte técnico se necessário\n• Verifique se há certificados de backup disponíveis\n\n📅 Data da verificação: ${new Date().toLocaleString('pt-BR')}`,
         acoes: [
           {
             texto: 'Verificar Certificados',
@@ -133,7 +133,7 @@ export class CertificateMonitorService {
     
     const dto: CreateNotificacaoCompletaDto = {
       titulo: 'Certificados BB',
-      conteudo: `Atenção! ${expiringSoonCerts.length} certificado(s) do Banco do Brasil vencem em breve. Recomendação: Substitua os certificados nos próximos dias para evitar interrupções nas APIs PIX e Extratos.`,
+      conteudo: `Atenção! ${expiringSoonCerts.length} certificado(s) do Banco do Brasil vencem em breve. Recomendação: Substitua os certificados nos próximos dias para evitar interrupções nas APIs PIX, Extratos e Pagamentos.`,
       tipo: TipoNotificacao.SISTEMA,
       prioridade: PrioridadeNotificacao.ALTA,
       
@@ -295,78 +295,120 @@ export class CertificateMonitorService {
 
   /**
    * Obtém informações detalhadas de todos os certificados
-   * Separa certificados da empresa dos certificados CA do BB
+   * Separa certificados bestnet (PIX/EXTRATOS) dos certificados alencar (PAGAMENTOS)
    */
   private getDetailedCertificateInfo(): any {
     const statuses = validateAllCertificates();
     const certificates: any = {};
     
-    // Extrai o nome da empresa do primeiro certificado encontrado
-    // Prioriza CN (Common Name) e remove CNPJ se presente
-    let empresaNome = 'Empresa';
-    const primeiroCert = statuses[0]?.certificates?.clientCert;
-    if (primeiroCert?.subject) {
-      // Usa CN primeiro (sem CNPJ, já removido no parseCertificateSubject)
-      empresaNome = primeiroCert.subject.commonName || 
-                    primeiroCert.subject.organization || 
-                    'Empresa';
+    // Separa status por tipo de certificado
+    const statusBestnet = statuses.filter(s => s.apiName === 'PIX' || s.apiName === 'EXTRATOS');
+    const statusPagamentos = statuses.find(s => s.apiName === 'PAGAMENTOS');
+    
+    // ===== CERTIFICADOS BESTNET (PIX e EXTRATOS) =====
+    if (statusBestnet.length > 0) {
+      const primeiroStatusBestnet = statusBestnet[0];
+      const empresaCert = primeiroStatusBestnet?.certificates?.clientCert;
+      const empresaKey = primeiroStatusBestnet?.certificates?.clientKey;
+      
+      // Extrai o nome da empresa
+      let empresaNome = 'Empresa';
+      if (empresaCert?.subject) {
+        empresaNome = empresaCert.subject.commonName || 
+                      empresaCert.subject.organization || 
+                      'Empresa';
+      }
+      
+      certificates['EMPRESA_BESTNET'] = {
+        tipo: 'empresa',
+        nome: empresaNome,
+        status: empresaCert?.exists && empresaCert?.isValid ? 'valid' : 'invalid',
+        certificado: {
+          path: empresaCert?.path || '',
+          exists: empresaCert?.exists || false,
+          size: empresaCert?.size || 0,
+          lastModified: empresaCert?.lastModified?.toISOString(),
+          subject: empresaCert?.subject,
+          expiryInfo: {
+            isExpired: empresaCert?.isExpired || false,
+            isExpiringSoon: empresaCert?.isExpiringSoon || false,
+            expiryDate: empresaCert?.expiryDate?.toISOString(),
+            daysUntilExpiry: empresaCert?.daysUntilExpiry
+          }
+        },
+        chavePrivada: {
+          path: empresaKey?.path || '',
+          exists: empresaKey?.exists || false,
+          size: empresaKey?.size || 0,
+          lastModified: empresaKey?.lastModified?.toISOString()
+        },
+        usadoPor: statusBestnet.map(s => s.apiName), // ['PIX', 'EXTRATOS']
+        issues: statusBestnet.flatMap(s => s.issues.filter(i => i.includes('Certificado cliente') || i.includes('Chave privada')))
+      };
+      
+      // Certificados CA do BB (compartilhados entre PIX e EXTRATOS)
+      if (primeiroStatusBestnet && primeiroStatusBestnet.certificates.caCerts.length > 0) {
+        certificates['CA_BB'] = {
+          tipo: 'ca_bb',
+          nome: 'Certificados CA do BB',
+          status: primeiroStatusBestnet.overallStatus,
+          certificadosCA: primeiroStatusBestnet.certificates.caCerts.map((caCert) => ({
+            nome: path.basename(caCert.path),
+            path: caCert.path,
+            exists: caCert.exists,
+            size: caCert.size,
+            lastModified: caCert.lastModified?.toISOString(),
+            expiryInfo: {
+              isExpired: caCert.isExpired || false,
+              isExpiringSoon: caCert.isExpiringSoon || false,
+              expiryDate: caCert.expiryDate?.toISOString(),
+              daysUntilExpiry: caCert.daysUntilExpiry
+            }
+          })),
+          usadoPor: statusBestnet.map(s => s.apiName), // ['PIX', 'EXTRATOS']
+          issues: primeiroStatusBestnet.issues.filter(i => i.includes('CA'))
+        };
+      }
     }
     
-    // Agrupa certificados da empresa (mesmos para todas as APIs)
-    const empresaCert = statuses[0]?.certificates?.clientCert;
-    const empresaKey = statuses[0]?.certificates?.clientKey;
-    
-    // Certificado da empresa (compartilhado entre PIX e EXTRATOS)
-    certificates['EMPRESA'] = {
-      tipo: 'empresa',
-      nome: empresaNome,
-      status: empresaCert?.exists && empresaCert?.isValid ? 'valid' : 'invalid',
-      certificado: {
-        path: empresaCert?.path || '',
-        exists: empresaCert?.exists || false,
-        size: empresaCert?.size || 0,
-        lastModified: empresaCert?.lastModified?.toISOString(),
-        subject: empresaCert?.subject,
-        expiryInfo: {
-          isExpired: empresaCert?.isExpired || false,
-          isExpiringSoon: empresaCert?.isExpiringSoon || false,
-          expiryDate: empresaCert?.expiryDate?.toISOString(),
-          daysUntilExpiry: empresaCert?.daysUntilExpiry
-        }
-      },
-      chavePrivada: {
-        path: empresaKey?.path || '',
-        exists: empresaKey?.exists || false,
-        size: empresaKey?.size || 0,
-        lastModified: empresaKey?.lastModified?.toISOString()
-      },
-      usadoPor: statuses.map(s => s.apiName), // ['PIX', 'EXTRATOS']
-      issues: statuses.flatMap(s => s.issues.filter(i => i.includes('Certificado cliente') || i.includes('Chave privada')))
-    };
-    
-    // Certificados CA do BB (compartilhados entre PIX e EXTRATOS)
-    // Usa os certificados CA do primeiro status (todos são iguais)
-    const primeiroStatus = statuses[0];
-    if (primeiroStatus && primeiroStatus.certificates.caCerts.length > 0) {
-      certificates['CA_BB'] = {
-        tipo: 'ca_bb',
-        nome: 'Certificados CA do BB',
-        status: primeiroStatus.overallStatus,
-        certificadosCA: primeiroStatus.certificates.caCerts.map((caCert) => ({
-          nome: path.basename(caCert.path),
-          path: caCert.path,
-          exists: caCert.exists,
-          size: caCert.size,
-          lastModified: caCert.lastModified?.toISOString(),
+    // ===== CERTIFICADOS ALENCAR (PAGAMENTOS) =====
+    if (statusPagamentos) {
+      const pagamentosCert = statusPagamentos.certificates?.clientCert;
+      const pagamentosKey = statusPagamentos.certificates?.clientKey;
+      
+      // Extrai o nome da empresa
+      let empresaNome = 'Empresa';
+      if (pagamentosCert?.subject) {
+        empresaNome = pagamentosCert.subject.commonName || 
+                      pagamentosCert.subject.organization || 
+                      'Empresa';
+      }
+      
+      certificates['EMPRESA_ALENCAR'] = {
+        tipo: 'empresa',
+        nome: empresaNome,
+        status: pagamentosCert?.exists && pagamentosCert?.isValid ? 'valid' : 'invalid',
+        certificado: {
+          path: pagamentosCert?.path || '',
+          exists: pagamentosCert?.exists || false,
+          size: pagamentosCert?.size || 0,
+          lastModified: pagamentosCert?.lastModified?.toISOString(),
+          subject: pagamentosCert?.subject,
           expiryInfo: {
-            isExpired: caCert.isExpired || false,
-            isExpiringSoon: caCert.isExpiringSoon || false,
-            expiryDate: caCert.expiryDate?.toISOString(),
-            daysUntilExpiry: caCert.daysUntilExpiry
+            isExpired: pagamentosCert?.isExpired || false,
+            isExpiringSoon: pagamentosCert?.isExpiringSoon || false,
+            expiryDate: pagamentosCert?.expiryDate?.toISOString(),
+            daysUntilExpiry: pagamentosCert?.daysUntilExpiry
           }
-        })),
-        usadoPor: statuses.map(s => s.apiName), // ['PIX', 'EXTRATOS']
-        issues: primeiroStatus.issues.filter(i => i.includes('CA'))
+        },
+        chavePrivada: {
+          path: pagamentosKey?.path || '',
+          exists: pagamentosKey?.exists || false,
+          size: pagamentosKey?.size || 0,
+          lastModified: pagamentosKey?.lastModified?.toISOString()
+        },
+        usadoPor: ['PAGAMENTOS'],
+        issues: statusPagamentos.issues.filter(i => i.includes('Certificado cliente') || i.includes('Chave privada'))
       };
     }
     
