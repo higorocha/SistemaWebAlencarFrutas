@@ -367,12 +367,20 @@ export class PagamentosService {
 
       console.log(`✅ [PAGAMENTOS-SERVICE] Cancelamentos aceitos: ${cancelamentosAceitos.length}`);
       console.log(`❌ [PAGAMENTOS-SERVICE] Cancelamentos rejeitados: ${cancelamentosRejeitados.length}`);
+      console.log(`👤 [PAGAMENTOS-SERVICE] Usuário que está cancelando: ID ${usuarioId || 'N/A'}`);
       
       if (cancelamentosRejeitados.length > 0) {
         console.log('⚠️ [PAGAMENTOS-SERVICE] Motivos de rejeição:');
         cancelamentosRejeitados.forEach((p: any) => {
           console.log(`  - Código ${p.codigoPagamento}: ${p.estadoCancelamento || 'Sem motivo informado'}`);
         });
+        console.log('ℹ️ [PAGAMENTOS-SERVICE] Cancelamentos rejeitados não serão processados. Aguarde o processamento do pagamento pelo BB antes de tentar cancelar novamente.');
+      }
+
+      // Se não há cancelamentos aceitos, não há nada para processar
+      if (cancelamentosAceitos.length === 0) {
+        console.log('ℹ️ [PAGAMENTOS-SERVICE] Nenhum cancelamento foi aceito pelo BB. Nenhuma atualização será realizada no banco de dados.');
+        return response.data;
       }
 
       // Reverter status das colheitas vinculadas aos pagamentos cancelados
@@ -386,6 +394,12 @@ export class PagamentosService {
           ],
         },
         include: {
+          lote: {
+            select: {
+              id: true,
+              numeroRequisicao: true,
+            },
+          },
           colheitas: {
             select: {
               turmaColheitaCustoId: true,
@@ -394,7 +408,7 @@ export class PagamentosService {
         },
       });
 
-      console.log(`🔄 [PAGAMENTOS-SERVICE] Encontrados ${itensPagamento.length} item(ns) de pagamento para reverter status`);
+      console.log(`🔄 [PAGAMENTOS-SERVICE] Encontrados ${itensPagamento.length} item(ns) de pagamento no banco para processar cancelamento`);
       
       // Log detalhado dos itens encontrados
       if (itensPagamento.length > 0) {
@@ -404,27 +418,104 @@ export class PagamentosService {
       }
 
       // Rastrear usuário e data de cancelamento nos itens cancelados
+      // Atualizar status dos itens para CANCELADO
       const dataCancelamento = new Date();
-      if (usuarioId && itensPagamento.length > 0) {
-        // Atualizar apenas os itens que foram cancelados com sucesso
-        const codigosCancelados = cancelamentosAceitos.map((p: any) => p.codigoPagamento?.toString());
-        
+      // O transformResponse já preserva codigoPagamento como string quando é número grande
+      // Garantir que sempre seja string para comparação exata
+      const codigosCancelados = cancelamentosAceitos.map((p: any) => {
+        // Se já for string (preservado pelo transformResponse), usar diretamente
+        // Se for número, converter para string
+        const codigo = String(p.codigoPagamento || '');
+        console.log(`🔍 [PAGAMENTOS-SERVICE] Código cancelado aceito pelo BB: ${codigo} (tipo: ${typeof p.codigoPagamento})`);
+        return codigo;
+      });
+      const lotesParaAtualizar = new Set<number>();
+      
+      console.log(`🔍 [PAGAMENTOS-SERVICE] Processando ${codigosCancelados.length} cancelamento(s) aceito(s) pelo BB`);
+      
+      if (itensPagamento.length > 0) {
         await Promise.all(
           itensPagamento.map(async (item) => {
             // Verificar se este item foi cancelado (comparar códigos)
             const itemCodigo = item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento;
-            if (itemCodigo && codigosCancelados.includes(itemCodigo.toString())) {
-              await this.prisma.pagamentoApiItem.update({
+            if (!itemCodigo) {
+              console.log(`⚠️ [PAGAMENTOS-SERVICE] Item ID ${item.id} não possui código de pagamento`);
+              return;
+            }
+            
+            // Garantir que seja string para comparação exata
+            const itemCodigoStr = String(itemCodigo);
+            console.log(`🔍 [PAGAMENTOS-SERVICE] Comparando item ID ${item.id}: código=${itemCodigoStr}`);
+            
+            // Comparar códigos exatos ou por prefixo (para lidar com diferenças de precisão numérica)
+            const foiCancelado = codigosCancelados.some(codigoCancelado => {
+              // Comparação exata
+              if (codigoCancelado === itemCodigoStr) {
+                console.log(`✅ [PAGAMENTOS-SERVICE] Match exato encontrado! Item ID ${item.id}: ${itemCodigoStr} === ${codigoCancelado}`);
+                return true;
+              }
+              
+              // Comparação por prefixo (primeiros 15 dígitos) para lidar com diferenças de precisão
+              // Ex: BB retorna 90000017015446000, banco tem 90000017015446001
+              if (codigoCancelado.length >= 15 && itemCodigoStr.length >= 15) {
+                const prefixoCancelado = codigoCancelado.substring(0, 15);
+                const prefixoItem = itemCodigoStr.substring(0, 15);
+                if (prefixoCancelado === prefixoItem) {
+                  console.log(`✅ [PAGAMENTOS-SERVICE] Match por prefixo encontrado! Item ID ${item.id}: ${itemCodigoStr} (prefixo: ${prefixoItem}) === ${codigoCancelado} (prefixo: ${prefixoCancelado})`);
+                  return true;
+                }
+              }
+              
+              return false;
+            });
+            
+            if (foiCancelado) {
+              // Encontrar o cancelamento correspondente para obter o estadoPagamento do BB
+              const codigoBBMatch = cancelamentosAceitos.find(p => String(p.codigoPagamento || '') === itemCodigoStr);
+              const estadoPagamentoBB = codigoBBMatch?.estadoPagamento || 'CANCELADO';
+              
+              // Atualizar item com status REJEITADO (cancelado), estadoPagamentoIndividual e rastreamento
+              console.log(`💾 [PAGAMENTOS-SERVICE] Atualizando item ID ${item.id} com usuarioCancelamentoId=${usuarioId}, dataCancelamento=${dataCancelamento.toISOString()}, estadoPagamentoIndividual=${estadoPagamentoBB}`);
+              
+              const itemAtualizado = await this.prisma.pagamentoApiItem.update({
                 where: { id: item.id },
                 data: {
-                  usuarioCancelamentoId: usuarioId,
+                  status: StatusPagamentoItem.REJEITADO,
+                  estadoPagamentoIndividual: estadoPagamentoBB, // Atualizar com o estado retornado pelo BB
+                  usuarioCancelamentoId: usuarioId || null,
                   dataCancelamento: dataCancelamento,
                 },
               });
-              console.log(`👤 [PAGAMENTOS-SERVICE] Rastreamento de cancelamento salvo para item ID ${item.id} (usuário ID ${usuarioId})`);
+              
+              console.log(`✅ [PAGAMENTOS-SERVICE] Item ID ${item.id} atualizado com sucesso!`);
+              console.log(`   - status: ${itemAtualizado.status}`);
+              console.log(`   - estadoPagamentoIndividual: ${itemAtualizado.estadoPagamentoIndividual}`);
+              console.log(`   - usuarioCancelamentoId: ${itemAtualizado.usuarioCancelamentoId}`);
+              console.log(`   - dataCancelamento: ${itemAtualizado.dataCancelamento}`);
+              
+              // Adicionar lote à lista para atualização posterior
+              if (item.lote) {
+                lotesParaAtualizar.add(item.lote.id);
+              }
+              
+              console.log(`✅ [PAGAMENTOS-SERVICE] Item ID ${item.id} atualizado para REJEITADO (cancelado) (usuário ID ${usuarioId || 'N/A'})`);
+              console.log(`   Código BB: ${codigoBBMatch?.codigoPagamento}, Código Item: ${itemCodigoStr}, Estado BB: ${estadoPagamentoBB}`);
+            } else {
+              console.log(`⚠️ [PAGAMENTOS-SERVICE] Item ID ${item.id} não corresponde a nenhum código cancelado aceito.`);
+              console.log(`   Código item: ${itemCodigoStr}`);
+              console.log(`   Códigos cancelados aceitos: ${codigosCancelados.length > 0 ? codigosCancelados.join(', ') : 'nenhum'}`);
             }
           })
         );
+      } else {
+        console.log(`⚠️ [PAGAMENTOS-SERVICE] Nenhum item encontrado no banco para os códigos: ${listaCodigosPagamento.join(', ')}`);
+      }
+      
+      // Atualizar status dos lotes que tiveram itens cancelados
+      if (lotesParaAtualizar.size > 0) {
+        for (const loteId of lotesParaAtualizar) {
+          await this.atualizarStatusLoteAposCancelamentoItem(loteId);
+        }
       }
 
       // Reverter status de todas as colheitas vinculadas
@@ -589,20 +680,20 @@ export class PagamentosService {
     }
 
     switch (estadoRequisicao) {
-      case 1: // Requisição com todos os lançamentos com dados consistentes
+      case 1: // Requisição com todos os lançamentos com dados consistentes (aguardando liberação)
+      case 4: // Requisição pendente de ação pelo Conveniado (aguardando liberação)
+        return StatusPagamentoLote.PENDENTE;
+      
       case 2: // Requisição com ao menos um dos lançamentos com dados inconsistentes
       case 5: // Requisição em processamento pelo Banco
       case 8: // Preparando remessa não liberada
-      case 9: // Requisição liberada via API
-      case 10: // Preparando remessa liberada
+      case 9: // Requisição liberada via API (liberada, mas ainda processando)
+      case 10: // Preparando remessa liberada (liberada, mas ainda processando)
         return StatusPagamentoLote.PROCESSANDO;
       
       case 3: // Requisição com todos os lançamentos com dados inconsistentes
       case 7: // Requisição Rejeitada
         return StatusPagamentoLote.REJEITADO;
-      
-      case 4: // Requisição pendente de ação pelo Conveniado
-        return StatusPagamentoLote.PENDENTE;
       
       case 6: // Requisição Processada
         return StatusPagamentoLote.CONCLUIDO;
@@ -925,6 +1016,7 @@ export class PagamentosService {
           identificadorPagamento: item.identificadorPagamento,
           valorEnviado: item.valorEnviado,
           status: item.status,
+          estadoPagamentoIndividual: item.estadoPagamentoIndividual, // Estado real do BB (BLOQUEADO, CANCELADO, Pago, etc.)
           processadoComSucesso: item.processadoComSucesso,
           // Dados PIX (quando aplicável)
           chavePixEnviada: item.chavePixEnviada,
@@ -1224,9 +1316,9 @@ export class PagamentosService {
           valorTotalValido,
           status: statusLote,
           // processadoComSucesso = true quando:
-          // - Estado 1 (dados consistentes) - pronto para liberar
+          // - Estado 1 (dados consistentes) ou 4 (aguardando liberação) - pronto para liberar
           // NÃO incluir estado 6 (processado) pois nesse caso já está concluído e não precisa mais de liberação
-          processadoComSucesso: estadoRequisicao === 1,
+          processadoComSucesso: estadoRequisicao === 1 || estadoRequisicao === 4,
           dataProcessamento: new Date(),
         },
       });
@@ -1518,9 +1610,9 @@ export class PagamentosService {
           valorTotalValido,
           status: statusLote,
           // processadoComSucesso = true quando:
-          // - Estado 1 (dados consistentes) - pronto para liberar
+          // - Estado 1 (dados consistentes) ou 4 (aguardando liberação) - pronto para liberar
           // NÃO incluir estado 6 (processado) pois nesse caso já está concluído e não precisa mais de liberação
-          processadoComSucesso: estadoRequisicao === 1,
+          processadoComSucesso: estadoRequisicao === 1 || estadoRequisicao === 4,
           dataProcessamento: new Date(),
         },
       });
@@ -1754,9 +1846,9 @@ export class PagamentosService {
           valorTotalValido,
           status: statusLote,
           // processadoComSucesso = true quando:
-          // - Estado 1 (dados consistentes) - pronto para liberar
+          // - Estado 1 (dados consistentes) ou 4 (aguardando liberação) - pronto para liberar
           // NÃO incluir estado 6 (processado) pois nesse caso já está concluído e não precisa mais de liberação
-          processadoComSucesso: estadoRequisicao === 1,
+          processadoComSucesso: estadoRequisicao === 1 || estadoRequisicao === 4,
           dataProcessamento: new Date(),
         },
       });
@@ -1838,134 +1930,8 @@ export class PagamentosService {
   }
 
   /**
-   * Consulta status de solicitação de transferência PIX
-   * Atualiza o lote e itens no banco de dados com a resposta mais recente
-   * @param numeroRequisicao Número da requisição
-   * @param contaCorrenteId ID da conta corrente (opcional, busca no banco se não informado)
-   * @returns Status da solicitação
-   */
-  async consultarStatusTransferenciaPix(
-    numeroRequisicao: number,
-    contaCorrenteId?: number
-  ): Promise<RespostaTransferenciaPixDto> {
-    try {
-      // Buscar lote no banco de dados
-      const lote = await this.prisma.pagamentoApiLote.findUnique({
-        where: { numeroRequisicao },
-        include: {
-          itensPagamento: {
-            orderBy: { indiceLote: 'asc' },
-          },
-        },
-      });
-
-      // Se lote não existe no banco, buscar em todas as contas
-      if (!lote) {
-        return await this.consultarStatusTransferenciaPixSemLote(numeroRequisicao, contaCorrenteId);
-      }
-
-      // Usar contaCorrenteId do lote se não foi informado
-      const contaId = contaCorrenteId || lote.contaCorrenteId;
-
-      // Buscar credenciais de pagamentos
-      const credenciaisPagamentos = await this.credenciaisAPIService.findByBancoAndModalidade('001', '004 - Pagamentos');
-      
-      if (!credenciaisPagamentos || credenciaisPagamentos.length === 0) {
-        throw new NotFoundException('Credencial de pagamentos não cadastrada.');
-      }
-
-      const contaCorrente = await this.contaCorrenteService.findOne(contaId);
-      const credencialPagamento = credenciaisPagamentos.find(c => c.contaCorrenteId === contaCorrente.id);
-      
-      if (!credencialPagamento) {
-        throw new NotFoundException('Credenciais de pagamentos não encontradas para esta conta.');
-      }
-
-      const token = await this.obterTokenDeAcesso(credencialPagamento, this.SCOPES_PIX_INFO);
-      const apiClient = createPagamentosApiClient(credencialPagamento.developerAppKey);
-
-      // Consultar status no BB
-      const response = await apiClient.get(
-        `/lotes-transferencias-pix/${numeroRequisicao}/solicitacao`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const respostaData = response.data as RespostaTransferenciaPixDto;
-
-      // Atualizar lote com resposta mais recente
-      const estadoRequisicao = respostaData?.estadoRequisicao;
-      const quantidadeValida = respostaData?.quantidadeTransferenciasValidas || 0;
-      const valorTotalValido = respostaData?.valorTransferenciasValidas || 0;
-      const statusLote = this.mapearStatusLote(estadoRequisicao);
-
-      await this.prisma.pagamentoApiLote.update({
-        where: { id: lote.id },
-        data: {
-          payloadRespostaAtual: respostaData as any,
-          estadoRequisicaoAtual: estadoRequisicao,
-          quantidadeValida,
-          valorTotalValido,
-          status: statusLote,
-          // processadoComSucesso = true quando:
-          // - Estado 1 (dados consistentes) - pronto para liberar
-          // NÃO incluir estado 6 (processado) pois nesse caso já está concluído e não precisa mais de liberação
-          processadoComSucesso: estadoRequisicao === 1,
-          ultimaConsultaStatus: new Date(),
-        },
-      });
-
-      // Atualizar itens com resposta mais recente
-      if (respostaData?.listaTransferencias && Array.isArray(respostaData.listaTransferencias)) {
-        await Promise.all(
-          respostaData.listaTransferencias.map(async (transferencia, index) => {
-            const item = lote.itensPagamento[index];
-            if (!item) return;
-
-            const indicadorMovimentoAceito = transferencia.indicadorMovimentoAceito;
-            const erros = transferencia.erros || [];
-            const statusItem = this.mapearStatusItem(indicadorMovimentoAceito, erros);
-
-            await this.prisma.pagamentoApiItem.update({
-              where: { id: item.id },
-              data: {
-                identificadorPagamento: transferencia.identificadorPagamento != null ? String(transferencia.identificadorPagamento) : item.identificadorPagamento,
-                indicadorMovimentoAceitoAtual: indicadorMovimentoAceito,
-                erros: erros.length > 0 ? erros as any : item.erros,
-                payloadItemRespostaAtual: transferencia as any,
-                status: statusItem,
-                ultimaAtualizacaoStatus: new Date(),
-              },
-            });
-          })
-        );
-      }
-
-      console.log(`💾 [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} atualizado com status mais recente`);
-      
-      return respostaData;
-
-    } catch (error) {
-      console.error('❌ [PAGAMENTOS-SERVICE] Erro ao consultar status de transferência PIX:', {
-        error: error.message,
-        response: error.response?.data
-      });
-
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException('Erro ao consultar status de transferência PIX');
-    }
-  }
-
-  /**
    * Consulta online a solicitação de transferência PIX diretamente na API do BB
-   * sem atualizar o banco de dados. Útil para verificar o status atual sem modificar
-   * os dados persistidos.
+   * e atualiza o status no banco de dados local com os dados mais recentes.
    * IMPORTANTE: Busca APENAS na conta vinculada ao lote, não tenta todas as contas.
    */
   async consultarSolicitacaoTransferenciaPixOnline(
@@ -1973,11 +1939,14 @@ export class PagamentosService {
     contaCorrenteId?: number
   ): Promise<RespostaTransferenciaPixDto> {
     try {
-      // Buscar lote no banco de dados para obter a conta vinculada
+      // Buscar lote no banco de dados para obter a conta vinculada e itens
       const lote = await this.prisma.pagamentoApiLote.findUnique({
         where: { numeroRequisicao },
         include: {
           contaCorrente: true,
+          itensPagamento: {
+            orderBy: { indiceLote: 'asc' },
+          },
         },
       });
 
@@ -2079,6 +2048,53 @@ export class PagamentosService {
       console.log(`✅ [PAGAMENTOS-SERVICE] Consulta online realizada com sucesso para requisição ${numeroRequisicao}`);
       console.log('═══════════════════════════════════════════════════════════════');
 
+      // Atualizar lote com resposta mais recente
+      const estadoRequisicao = respostaData?.estadoRequisicao;
+      const quantidadeValida = respostaData?.quantidadeTransferenciasValidas || 0;
+      const valorTotalValido = respostaData?.valorTransferenciasValidas || 0;
+      const statusLote = this.mapearStatusLote(estadoRequisicao);
+
+      await this.prisma.pagamentoApiLote.update({
+        where: { id: lote.id },
+        data: {
+          payloadRespostaAtual: respostaData as any,
+          estadoRequisicaoAtual: estadoRequisicao,
+          quantidadeValida,
+          valorTotalValido,
+          status: statusLote,
+          processadoComSucesso: estadoRequisicao === 1 || estadoRequisicao === 4,
+          ultimaConsultaStatus: new Date(),
+        },
+      });
+
+      // Atualizar itens com resposta mais recente
+      if (respostaData?.listaTransferencias && Array.isArray(respostaData.listaTransferencias)) {
+        await Promise.all(
+          respostaData.listaTransferencias.map(async (transferencia, index) => {
+            const item = lote.itensPagamento[index];
+            if (!item) return;
+
+            const indicadorMovimentoAceito = transferencia.indicadorMovimentoAceito;
+            const erros = transferencia.erros || [];
+            const statusItem = this.mapearStatusItem(indicadorMovimentoAceito, erros);
+
+            await this.prisma.pagamentoApiItem.update({
+              where: { id: item.id },
+              data: {
+                identificadorPagamento: transferencia.identificadorPagamento != null ? String(transferencia.identificadorPagamento) : item.identificadorPagamento,
+                indicadorMovimentoAceitoAtual: indicadorMovimentoAceito,
+                erros: erros.length > 0 ? erros as any : item.erros,
+                payloadItemRespostaAtual: transferencia as any,
+                status: statusItem,
+                ultimaAtualizacaoStatus: new Date(),
+              },
+            });
+          })
+        );
+      }
+
+      console.log(`💾 [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} atualizado no banco: estadoRequisicaoAtual=${estadoRequisicao}, status=${statusLote}`);
+
       return respostaData;
 
     } catch (error) {
@@ -2093,74 +2109,6 @@ export class PagamentosService {
 
       throw new InternalServerErrorException('Erro ao consultar solicitação online de transferência PIX');
     }
-  }
-
-  /**
-   * Consulta status de transferência PIX quando o lote não existe no banco
-   * (caso de lotes criados antes da implementação da persistência)
-   */
-  private async consultarStatusTransferenciaPixSemLote(
-    numeroRequisicao: number,
-    contaCorrenteId?: number
-  ): Promise<RespostaTransferenciaPixDto> {
-      // Buscar credenciais de pagamentos
-      const credenciaisPagamentos = await this.credenciaisAPIService.findByBancoAndModalidade('001', '004 - Pagamentos');
-      
-      if (!credenciaisPagamentos || credenciaisPagamentos.length === 0) {
-        throw new NotFoundException('Credencial de pagamentos não cadastrada.');
-      }
-
-      // Se contaCorrenteId foi informado, usar apenas essa conta
-      if (contaCorrenteId) {
-        const contaCorrente = await this.contaCorrenteService.findOne(contaCorrenteId);
-        const credencialPagamento = credenciaisPagamentos.find(c => c.contaCorrenteId === contaCorrente.id);
-        
-        if (!credencialPagamento) {
-          throw new NotFoundException('Credenciais de pagamentos não encontradas para esta conta.');
-        }
-
-        const token = await this.obterTokenDeAcesso(credencialPagamento, this.SCOPES_PIX_INFO);
-        const apiClient = createPagamentosApiClient(credencialPagamento.developerAppKey);
-
-        const response = await apiClient.get(
-          `/lotes-transferencias-pix/${numeroRequisicao}/solicitacao`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        return response.data as RespostaTransferenciaPixDto;
-      }
-
-      // Se não informou contaCorrenteId, tentar todas as contas até encontrar a requisição
-      for (const credencialPagamento of credenciaisPagamentos) {
-        try {
-          const token = await this.obterTokenDeAcesso(credencialPagamento, this.SCOPES_PIX_INFO);
-          const apiClient = createPagamentosApiClient(credencialPagamento.developerAppKey);
-
-          const response = await apiClient.get(
-            `/lotes-transferencias-pix/${numeroRequisicao}/solicitacao`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-
-          return response.data as RespostaTransferenciaPixDto;
-        } catch (error) {
-          // Se erro 404, continua tentando outras contas
-          if (error.response?.status === 404) {
-            continue;
-          }
-          // Se outro erro, propaga
-          throw error;
-        }
-      }
-
-      throw new NotFoundException(`Requisição ${numeroRequisicao} não encontrada em nenhuma conta cadastrada.`);
   }
 
   /**
@@ -2237,9 +2185,9 @@ export class PagamentosService {
           valorTotalValido,
           status: statusLote,
           // processadoComSucesso = true quando:
-          // - Estado 1 (dados consistentes) - pronto para liberar
+          // - Estado 1 (dados consistentes) ou 4 (aguardando liberação) - pronto para liberar
           // NÃO incluir estado 6 (processado) pois nesse caso já está concluído e não precisa mais de liberação
-          processadoComSucesso: estadoRequisicao === 1,
+          processadoComSucesso: estadoRequisicao === 1 || estadoRequisicao === 4,
           ultimaConsultaStatus: new Date(),
         },
       });
@@ -2430,9 +2378,9 @@ export class PagamentosService {
           valorTotalValido,
           status: statusLote,
           // processadoComSucesso = true quando:
-          // - Estado 1 (dados consistentes) - pronto para liberar
+          // - Estado 1 (dados consistentes) ou 4 (aguardando liberação) - pronto para liberar
           // NÃO incluir estado 6 (processado) pois nesse caso já está concluído e não precisa mais de liberação
-          processadoComSucesso: estadoRequisicao === 1,
+          processadoComSucesso: estadoRequisicao === 1 || estadoRequisicao === 4,
           ultimaConsultaStatus: new Date(),
         },
       });
@@ -2634,14 +2582,32 @@ export class PagamentosService {
 
           // Se item existe no banco, atualizar com resposta
           if (item) {
+            // Verificar se o estado do pagamento é CANCELADO e atualizar status
+            const estadoPagamento = respostaData?.estadoPagamento;
+            const dadosAtualizacao: any = {
+              estadoPagamentoIndividual: estadoPagamento || null,
+              payloadConsultaIndividual: respostaData || null,
+              ultimaConsultaIndividual: new Date(),
+            };
+            
+            // Se o BB retornou CANCELADO, atualizar status do item
+            if (estadoPagamento === 'CANCELADO' && item.status !== StatusPagamentoItem.REJEITADO) {
+              dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
+              console.log(`🔄 [PAGAMENTOS-SERVICE] Item ID ${item.id} atualizado para REJEITADO (cancelado) baseado na consulta individual`);
+            }
+            // BLOQUEADO: não atualizamos o status automaticamente, apenas salvamos o estadoPagamentoIndividual
+            // para referência. O status "BLOQUEADO" indica problema (falta de saldo, inconsistência, etc.)
+            // e deve ser tratado manualmente ou via webhook quando o BB atualizar o status
+            
             await this.prisma.pagamentoApiItem.update({
               where: { id: item.id },
-              data: {
-                estadoPagamentoIndividual: respostaData?.estadoPagamento || null,
-                payloadConsultaIndividual: respostaData || null,
-                ultimaConsultaIndividual: new Date(),
-              },
+              data: dadosAtualizacao,
             });
+            
+            // Se o item foi cancelado, atualizar também o lote
+            if (estadoPagamento === 'CANCELADO' && item.lote) {
+              await this.atualizarStatusLoteAposCancelamentoItem(item.lote.id);
+            }
           }
 
           return respostaData;
@@ -2683,14 +2649,32 @@ export class PagamentosService {
             const respostaData = response.data as any;
 
             if (item) {
+              // Verificar se o estado do pagamento é CANCELADO e atualizar status
+              const estadoPagamento = respostaData?.estadoPagamento;
+              const dadosAtualizacao: any = {
+                estadoPagamentoIndividual: estadoPagamento || null,
+                payloadConsultaIndividual: respostaData || null,
+                ultimaConsultaIndividual: new Date(),
+              };
+              
+              // Se o BB retornou CANCELADO, atualizar status do item
+              if (estadoPagamento === 'CANCELADO' && item.status !== StatusPagamentoItem.REJEITADO) {
+                dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
+                console.log(`🔄 [PAGAMENTOS-SERVICE] Item ID ${item.id} atualizado para REJEITADO (cancelado) baseado na consulta individual (RETRY)`);
+              }
+              // BLOQUEADO: não atualizamos o status automaticamente, apenas salvamos o estadoPagamentoIndividual
+              // para referência. O status "BLOQUEADO" indica problema (falta de saldo, inconsistência, etc.)
+              // e deve ser tratado manualmente ou via webhook quando o BB atualizar o status
+              
               await this.prisma.pagamentoApiItem.update({
                 where: { id: item.id },
-                data: {
-                  estadoPagamentoIndividual: respostaData?.estadoPagamento || null,
-                  payloadConsultaIndividual: respostaData || null,
-                  ultimaConsultaIndividual: new Date(),
-                },
+                data: dadosAtualizacao,
               });
+              
+              // Se o item foi cancelado, atualizar também o lote
+              if (estadoPagamento === 'CANCELADO' && item.lote) {
+                await this.atualizarStatusLoteAposCancelamentoItem(item.lote.id);
+              }
             }
 
             return respostaData;
@@ -2789,6 +2773,61 @@ export class PagamentosService {
         error.response?.data?.message || 'Erro ao consultar status individual de transferência PIX'
       );
     }
+  }
+
+  /**
+   * Atualiza o status do lote após cancelamento de item(s)
+   * @param loteId ID do lote a ser atualizado
+   */
+  private async atualizarStatusLoteAposCancelamentoItem(loteId: number): Promise<void> {
+    // Buscar lote com todos os itens para verificar status geral
+    const lote = await this.prisma.pagamentoApiLote.findUnique({
+      where: { id: loteId },
+      include: {
+        itensPagamento: true,
+      },
+    });
+    
+    if (!lote) {
+      console.warn(`⚠️ [PAGAMENTOS-SERVICE] Lote ID ${loteId} não encontrado para atualização de status`);
+      return;
+    }
+    
+    const totalItens = lote.itensPagamento.length;
+    const itensCancelados = lote.itensPagamento.filter(
+      (item) => item.status === StatusPagamentoItem.REJEITADO && item.dataCancelamento !== null
+    ).length;
+    const itensProcessados = lote.itensPagamento.filter(
+      (item) => item.status === StatusPagamentoItem.PROCESSADO
+    ).length;
+    const itensPendentes = lote.itensPagamento.filter(
+      (item) => item.status === StatusPagamentoItem.PENDENTE
+    ).length;
+    
+    // Determinar novo status do lote
+    let novoStatusLote: StatusPagamentoLote;
+    if (itensCancelados === totalItens) {
+      // Todos os itens foram cancelados
+      novoStatusLote = StatusPagamentoLote.REJEITADO;
+    } else if (itensCancelados > 0 && itensProcessados === 0 && itensPendentes > 0) {
+      // Alguns itens cancelados, mas ainda há pendentes
+      novoStatusLote = StatusPagamentoLote.PENDENTE;
+    } else if (itensCancelados > 0 && (itensProcessados > 0 || itensPendentes === 0)) {
+      // Alguns itens cancelados, mas há processados ou todos foram processados/cancelados
+      novoStatusLote = StatusPagamentoLote.PROCESSANDO;
+    } else {
+      // Manter status atual se não houver mudança significativa
+      novoStatusLote = lote.status;
+    }
+    
+    await this.prisma.pagamentoApiLote.update({
+      where: { id: loteId },
+      data: {
+        status: novoStatusLote,
+      },
+    });
+    
+    console.log(`💾 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) atualizado: status=${novoStatusLote} (${itensCancelados}/${totalItens} itens cancelados)`);
   }
 
   /**

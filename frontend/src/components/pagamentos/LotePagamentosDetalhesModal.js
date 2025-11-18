@@ -38,6 +38,7 @@ const { Text } = Typography;
 const LotePagamentosDetalhesModal = ({
   open,
   onClose,
+  onAfterClose,
   lote,
   onConfirmLiberacao,
   onConfirmCancelamento,
@@ -238,10 +239,20 @@ const LotePagamentosDetalhesModal = ({
   const title = mode === "cancelamento" ? "Cancelar Lote de Pagamentos" : "Detalhes do Lote de Pagamentos";
   const titleIcon = mode === "cancelamento" ? <StopOutlined /> : <UnlockOutlined />;
 
+  const handleClose = () => {
+    onClose();
+    // Chamar callback após fechar para atualizar dados
+    if (onAfterClose) {
+      setTimeout(() => {
+        onAfterClose();
+      }, 100);
+    }
+  };
+
   return (
     <Modal
       open={open}
-      onCancel={onClose}
+      onCancel={handleClose}
       footer={null}
       title={
         <span style={{
@@ -438,7 +449,7 @@ const LotePagamentosDetalhesModal = ({
             borderTop: "1px solid #e8e8e8",
           }}>
             <Button
-              onClick={onClose}
+              onClick={handleClose}
               size={isMobile ? "middle" : "large"}
               disabled={isLoading}
               style={{
@@ -499,6 +510,7 @@ const LotePagamentosDetalhesModal = ({
 LotePagamentosDetalhesModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
+  onAfterClose: PropTypes.func,
   lote: PropTypes.object,
   onConfirmLiberacao: PropTypes.func,
   onConfirmCancelamento: PropTypes.func,

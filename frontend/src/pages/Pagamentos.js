@@ -1010,10 +1010,48 @@ const Pagamentos = () => {
             },
             expandedRowRender: (record) => {
               const colheitas = record.colheitasDoItem || [];
+              // Priorizar estadoPagamentoIndividual (estado real do BB) sobre o status do enum
+              const itemStatus = record.item?.estadoPagamentoIndividual || record.item?.status;
+              
+              // Mapear status do item para exibição
+              // estadoPagamentoIndividual pode ter valores do BB: BLOQUEADO, CANCELADO, Pago, etc.
+              const mapearStatusItem = (status) => {
+                const statusMap = {
+                  // Status do enum interno
+                  'PENDENTE': { label: 'Pendente', color: 'default' },
+                  'ENVIADO': { label: 'Enviado', color: 'blue' },
+                  'ACEITO': { label: 'Aceito', color: 'green' },
+                  'REJEITADO': { label: 'Rejeitado', color: 'red' },
+                  'PROCESSADO': { label: 'Processado', color: 'green' },
+                  'ERRO': { label: 'Erro', color: 'red' },
+                  // Estados do BB (estadoPagamentoIndividual)
+                  'BLOQUEADO': { label: 'Bloqueado', color: 'orange' },
+                  'CANCELADO': { label: 'Cancelado', color: 'red' },
+                  'Pago': { label: 'Pago', color: 'green' },
+                  'Pendente': { label: 'Pendente', color: 'default' },
+                  'Agendado': { label: 'Agendado', color: 'blue' },
+                  'Rejeitado': { label: 'Rejeitado', color: 'red' },
+                  'Debitado': { label: 'Debitado', color: 'blue' },
+                  'Vencido': { label: 'Vencido', color: 'red' },
+                  'Devolvido': { label: 'Devolvido', color: 'orange' },
+                  'Aguardando débito': { label: 'Aguardando Débito', color: 'gold' },
+                  'Consistente': { label: 'Consistente', color: 'green' },
+                  'Inconsistente': { label: 'Inconsistente', color: 'red' },
+                };
+                return statusMap[status] || { label: status || 'N/A', color: 'default' };
+              };
+              
+              const statusInfo = mapearStatusItem(itemStatus);
               
               if (colheitas.length === 0) {
                 return (
                   <div style={{ padding: "16px 24px", backgroundColor: "#fafafa" }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: 4 }}>
+                        Status do Item:
+                      </Text>
+                      <Tag color={statusInfo.color}>{statusInfo.label}</Tag>
+                    </div>
                     <Text type="secondary">Nenhuma colheita vinculada a este item.</Text>
                   </div>
                 );
@@ -1021,9 +1059,17 @@ const Pagamentos = () => {
 
               return (
                 <div style={{ padding: "16px 24px", backgroundColor: "#fafafa" }}>
-                  <Text strong style={{ marginBottom: 12, display: "block", fontSize: "14px", color: "#059669" }}>
-                    Colheitas vinculadas a este item ({colheitas.length}):
-                  </Text>
+                  <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
+                    <Text strong style={{ fontSize: "14px", color: "#059669" }}>
+                      Colheitas vinculadas a este item ({colheitas.length}):
+                    </Text>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: "12px", marginRight: 8 }}>
+                        Status:
+                      </Text>
+                      <Tag color={statusInfo.color}>{statusInfo.label}</Tag>
+                    </div>
+                  </div>
                   <div style={{ display: "grid", gap: "8px" }}>
                     {colheitas.map((c, index) => (
                       <Card
@@ -1124,6 +1170,20 @@ const Pagamentos = () => {
             setLoteSelecionado(null);
           }
         }}
+        onAfterClose={() => {
+          // Atualizar dados após fechar o modal de cancelamento
+          if (dateRange && dateRange.length === 2) {
+            const inicio = dateRange[0]
+              ? moment(dateRange[0]).startOf("day").toISOString()
+              : null;
+            const fim = dateRange[1]
+              ? moment(dateRange[1]).endOf("day").toISOString()
+              : null;
+            fetchLotes(inicio, fim);
+          } else {
+            fetchLotes();
+          }
+        }}
         lote={loteSelecionado}
         onConfirmCancelamento={handleCancelarItem}
         loadingCancelamento={!!cancelandoLoteId}
@@ -1137,6 +1197,20 @@ const Pagamentos = () => {
           setModalConsultaOnlineOpen(false);
           setLoteSelecionado(null);
         }}
+        onAfterClose={() => {
+          // Atualizar dados após fechar o modal, pois a consulta online atualiza o status no banco
+          if (dateRange && dateRange.length === 2) {
+            const inicio = dateRange[0]
+              ? moment(dateRange[0]).startOf("day").toISOString()
+              : null;
+            const fim = dateRange[1]
+              ? moment(dateRange[1]).endOf("day").toISOString()
+              : null;
+            fetchLotes(inicio, fim);
+          } else {
+            fetchLotes();
+          }
+        }}
         numeroRequisicao={loteSelecionado?.numeroRequisicao}
         contaCorrenteId={loteSelecionado?.contaCorrente?.id}
       />
@@ -1147,6 +1221,20 @@ const Pagamentos = () => {
         onClose={() => {
           setModalConsultaItemIndividualOpen(false);
           setItemSelecionado(null);
+        }}
+        onAfterClose={() => {
+          // Atualizar dados após fechar o modal de consulta individual
+          if (dateRange && dateRange.length === 2) {
+            const inicio = dateRange[0]
+              ? moment(dateRange[0]).startOf("day").toISOString()
+              : null;
+            const fim = dateRange[1]
+              ? moment(dateRange[1]).endOf("day").toISOString()
+              : null;
+            fetchLotes(inicio, fim);
+          } else {
+            fetchLotes();
+          }
         }}
         identificadorPagamento={itemSelecionado?.identificadorPagamento}
         contaCorrenteId={itemSelecionado?.contaCorrenteId}

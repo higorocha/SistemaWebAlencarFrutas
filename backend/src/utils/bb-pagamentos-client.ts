@@ -72,16 +72,32 @@ export function createPagamentosApiClient(developerAppKey: string) {
         }
 
         try {
-          // ANTES do parse: substituir identificadorPagamento na string JSON
-          // para preservar números grandes como strings
-          // Regex para encontrar "identificadorPagamento": <número>
-          const modifiedData = data.replace(
+          // ANTES do parse: substituir campos com números grandes na string JSON
+          // para preservar números grandes como strings (evitar perda de precisão)
+          // Campos que podem ter números grandes: identificadorPagamento, codigoPagamento
+          let modifiedData = data;
+          
+          // Tratar identificadorPagamento
+          modifiedData = modifiedData.replace(
             /"identificadorPagamento"\s*:\s*(\d{15,})/g,
             (match, numberStr) => {
               const num = Number(numberStr);
               // Se for maior que MAX_SAFE_INTEGER, preservar como string
               if (num > Number.MAX_SAFE_INTEGER) {
                 return `"identificadorPagamento":"${numberStr}"`;
+              }
+              return match; // Manter como número se for seguro
+            }
+          );
+          
+          // Tratar codigoPagamento (usado no cancelamento)
+          modifiedData = modifiedData.replace(
+            /"codigoPagamento"\s*:\s*(\d{15,})/g,
+            (match, numberStr) => {
+              const num = Number(numberStr);
+              // Se for maior que MAX_SAFE_INTEGER, preservar como string
+              if (num > Number.MAX_SAFE_INTEGER) {
+                return `"codigoPagamento":"${numberStr}"`;
               }
               return match; // Manter como número se for seguro
             }

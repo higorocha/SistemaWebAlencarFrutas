@@ -29,6 +29,7 @@ const { Text, Title } = Typography;
 const ConsultaItemIndividualModal = ({
   open,
   onClose,
+  onAfterClose,
   identificadorPagamento,
   contaCorrenteId,
 }) => {
@@ -102,22 +103,53 @@ const ConsultaItemIndividualModal = ({
     return dataStr;
   };
 
+  /**
+   * Mapeia o estado do pagamento individual para cores e ícones
+   * Usa cores consistentes com o mapeamento de estados do BB (bbEstadoRequisicao.js)
+   * 
+   * Cores mapeadas:
+   * - green: Estados positivos (Consistente, Pago, Debitado)
+   * - gold: Estados aguardando (Pendente, Agendado)
+   * - blue: Estados em processamento (Aguardando débito)
+   * - orange: Estados com problemas parciais (Inconsistente, Devolvido)
+   * - red: Estados negativos (Rejeitado, Cancelado, Bloqueado, Vencido)
+   * - default: Estados desconhecidos
+   */
   const mapearEstadoPagamento = (estado) => {
+    // Normalizar o estado para comparação (case-insensitive)
+    const estadoNormalizado = estado ? String(estado).trim() : '';
+    
     const estados = {
+      // Estados positivos - verde (como estado 6, 9, 10 do BB)
       'Consistente': { color: 'green', icon: <CheckCircleOutlined /> },
-      'Inconsistente': { color: 'orange', icon: <CloseCircleOutlined /> },
-      'Pendente': { color: 'gold', icon: <InfoCircleOutlined /> },
-      'Agendado': { color: 'blue', icon: <CalendarOutlined /> },
-      'Rejeitado': { color: 'red', icon: <CloseCircleOutlined /> },
-      'Cancelado': { color: 'default', icon: <CloseCircleOutlined /> },
-      'Devolvido': { color: 'orange', icon: <CloseCircleOutlined /> },
-      'Bloqueado': { color: 'red', icon: <CloseCircleOutlined /> },
-      'Aguardando débito': { color: 'blue', icon: <InfoCircleOutlined /> },
-      'Debitado': { color: 'cyan', icon: <CheckCircleOutlined /> },
-      'Vencido': { color: 'red', icon: <CloseCircleOutlined /> },
       'Pago': { color: 'green', icon: <CheckCircleOutlined /> },
+      'Debitado': { color: 'green', icon: <CheckCircleOutlined /> },
+      
+      // Estados aguardando - amarelo/ouro (como estado 1, 4 do BB)
+      'Pendente': { color: 'gold', icon: <InfoCircleOutlined /> },
+      'Agendado': { color: 'gold', icon: <CalendarOutlined /> },
+      
+      // Estados em processamento - azul (como estado 5, 8 do BB)
+      'Aguardando débito': { color: 'blue', icon: <InfoCircleOutlined /> },
+      
+      // Estados com problemas parciais - laranja (como estado 2 do BB)
+      'Inconsistente': { color: 'orange', icon: <CloseCircleOutlined /> },
+      'Devolvido': { color: 'orange', icon: <CloseCircleOutlined /> },
+      
+      // Estados negativos - vermelho (como estado 3, 7 do BB)
+      'Rejeitado': { color: 'red', icon: <CloseCircleOutlined /> },
+      'CANCELADO': { color: 'red', icon: <CloseCircleOutlined /> },
+      'Cancelado': { color: 'red', icon: <CloseCircleOutlined /> },
+      'Bloqueado': { color: 'red', icon: <CloseCircleOutlined /> },
+      'Vencido': { color: 'red', icon: <CloseCircleOutlined /> },
     };
-    return estados[estado] || { color: 'default', icon: <InfoCircleOutlined /> };
+    
+    // Buscar estado exato ou case-insensitive
+    const estadoInfo = estados[estadoNormalizado] || 
+                       estados[Object.keys(estados).find(k => k.toLowerCase() === estadoNormalizado.toLowerCase())] ||
+                       { color: 'default', icon: <InfoCircleOutlined /> };
+    
+    return estadoInfo;
   };
 
   const mapearFormaIdentificacao = (forma) => {
@@ -146,10 +178,20 @@ const ConsultaItemIndividualModal = ({
     return tipo === 1 ? 'Pessoa Física' : tipo === 2 ? 'Pessoa Jurídica' : `Tipo ${tipo}`;
   };
 
+  const handleClose = () => {
+    onClose();
+    // Chamar callback após fechar para atualizar dados
+    if (onAfterClose) {
+      setTimeout(() => {
+        onAfterClose();
+      }, 100);
+    }
+  };
+
   return (
     <Modal
       open={open}
-      onCancel={onClose}
+      onCancel={handleClose}
       footer={
         <div style={{ 
           display: "flex", 
@@ -157,7 +199,7 @@ const ConsultaItemIndividualModal = ({
           gap: isMobile ? "8px" : "12px"
         }}>
           <Button 
-            onClick={onClose} 
+            onClick={handleClose} 
             size={isMobile ? "small" : "large"}
             style={{
               height: isMobile ? "32px" : "40px",
@@ -697,6 +739,7 @@ const ConsultaItemIndividualModal = ({
 ConsultaItemIndividualModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
+  onAfterClose: PropTypes.func,
   identificadorPagamento: PropTypes.string,
   contaCorrenteId: PropTypes.number,
 };

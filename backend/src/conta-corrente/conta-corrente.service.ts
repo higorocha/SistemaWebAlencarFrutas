@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { 
   CreateContaCorrenteDto, 
   UpdateContaCorrenteDto, 
@@ -209,6 +210,13 @@ export class ContaCorrenteService {
       
       if (error instanceof NotFoundException) {
         throw error;
+      }
+      
+      // Verifica se é um erro de foreign key constraint (P2003)
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new BadRequestException(
+          'Não é possível excluir esta conta corrente pois ela está vinculada a outros registros no sistema (lotes de pagamento, convênios, credenciais API, etc.). Remova primeiro os registros vinculados antes de excluir a conta.'
+        );
       }
       
       throw error;

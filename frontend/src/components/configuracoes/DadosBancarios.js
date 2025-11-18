@@ -10,7 +10,6 @@ import {
   Card,
   Select,
   List,
-  Modal,
   message,
   Tooltip,
   Switch,
@@ -43,16 +42,17 @@ import {
   RiseOutlined,
   FormOutlined,
   UnorderedListOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig"; // substituindo axios por axiosInstance
 import { showNotification } from "config/notificationConfig";
 import { getBancoDisplay, getBancosOptions } from "../../utils/bancosUtils";
 import styled from "styled-components";
 import { PrimaryButton } from "../common/buttons";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { confirm } = Modal;
 
 // Styled components para aplicar o estilo do sistema
 const PageContainer = styled.div`
@@ -212,6 +212,12 @@ const DadosBancarios = () => {
   const [multaAtiva, setMultaAtiva] = useState(false);
   const [layoutBoletoFundoBranco, setLayoutBoletoFundoBranco] = useState(false);
   const [loadingConvenios, setLoadingConvenios] = useState(false);
+  
+  // Estados para modais de exclusão
+  const [deleteContaCorrenteModalOpen, setDeleteContaCorrenteModalOpen] = useState(false);
+  const [contaCorrenteToDelete, setContaCorrenteToDelete] = useState(null);
+  const [deleteCredencialModalOpen, setDeleteCredencialModalOpen] = useState(false);
+  const [credencialToDelete, setCredencialToDelete] = useState(null);
 
   // URL dos endpoints do backend
   const API_URL = {
@@ -388,34 +394,49 @@ const DadosBancarios = () => {
   };
 
   const handleDeleteContaCorrente = (id) => {
-    confirm({
-      title: "Confirmação de Exclusão",
-      content: "Você tem certeza que deseja excluir esta conta corrente? Essa ação é irreversível.",
-      okText: "Sim, excluir",
-      okType: "danger",
-      cancelText: "Cancelar",
-      onOk: async () => {
-        try {
-          await axiosInstance.delete(`${API_URL.contaCorrente}/${id}`);
-          setContaCorrenteRecords(prev => prev.filter(item => item.id !== id));
-          if (editingContaCorrente && editingContaCorrente.id === id) {
-            setEditingContaCorrente(null);
-            form.resetFields();
-          }
-          showNotification(
-            "success",
-            "Dados Bancários",
-            "Conta corrente excluída com sucesso!"
-          );
-        } catch (error) {
-          showNotification(
-            "error",
-            "Dados Bancários",
-            "Erro ao excluir conta corrente!"
-          );
+    setContaCorrenteToDelete(id);
+    setDeleteContaCorrenteModalOpen(true);
+  };
+
+  const confirmDeleteContaCorrente = async () => {
+    if (!contaCorrenteToDelete) return;
+    
+    try {
+      await axiosInstance.delete(`${API_URL.contaCorrente}/${contaCorrenteToDelete}`);
+      setContaCorrenteRecords(prev => prev.filter(item => item.id !== contaCorrenteToDelete));
+      if (editingContaCorrente && editingContaCorrente.id === contaCorrenteToDelete) {
+        setEditingContaCorrente(null);
+        form.resetFields();
+      }
+      showNotification(
+        "success",
+        "Dados Bancários",
+        "Conta corrente excluída com sucesso!"
+      );
+      setDeleteContaCorrenteModalOpen(false);
+      setContaCorrenteToDelete(null);
+    } catch (error) {
+      console.error('❌ Erro ao excluir conta corrente:', error);
+      
+      // Extrair mensagem de erro mais específica
+      let errorMessage = "Erro ao excluir conta corrente!";
+      
+      if (error.response?.data?.message) {
+        if (Array.isArray(error.response.data.message)) {
+          errorMessage = error.response.data.message.join(", ");
+        } else {
+          errorMessage = error.response.data.message;
         }
-      },
-    });
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      showNotification(
+        "error",
+        "❌ Erro ao Excluir Conta Corrente",
+        errorMessage
+      );
+    }
   };
 
   const onFinishAPICredentials = async (values) => {
@@ -521,52 +542,49 @@ const DadosBancarios = () => {
   };
 
   const handleDelete = (id) => {
-    confirm({
-      title: "Confirmação de Exclusão",
-      content: "Você tem certeza que deseja excluir esta credencial API?",
-      okText: "Sim, excluir",
-      okType: "danger",
-      cancelText: "Cancelar",
-      onOk: async () => {
-        try {
-          await axiosInstance.delete(`${API_URL.credenciaisAPI}/${id}`);
-          setCredenciaisRecords(prev => prev.filter(item => item.id !== id));
-          if (editingCredential && editingCredential.id === id) {
-            setEditingCredential(null);
-            apiForm.resetFields();
-          }
-          showNotification(
-            "success",
-            "API",
-            "Credencial API excluída com sucesso!"
-          );
-        } catch (error) {
-          console.error('❌ Erro ao excluir credencial API:', error);
-          
-          // Extrair mensagem de erro mais específica
-          let errorMessage = "Erro ao excluir a Credencial API!";
-          
-          if (error.response?.data?.message) {
-            if (Array.isArray(error.response.data.message)) {
-              errorMessage = error.response.data.message.join(", ");
-            } else {
-              errorMessage = error.response.data.message;
-            }
-          } else if (error.response?.data?.error) {
-            errorMessage = error.response.data.error;
-          }
-          
-          showNotification(
-            "error",
-            "❌ Erro nas Credenciais API",
-            errorMessage
-          );
+    setCredencialToDelete(id);
+    setDeleteCredencialModalOpen(true);
+  };
+
+  const confirmDeleteCredencial = async () => {
+    if (!credencialToDelete) return;
+    
+    try {
+      await axiosInstance.delete(`${API_URL.credenciaisAPI}/${credencialToDelete}`);
+      setCredenciaisRecords(prev => prev.filter(item => item.id !== credencialToDelete));
+      if (editingCredential && editingCredential.id === credencialToDelete) {
+        setEditingCredential(null);
+        apiForm.resetFields();
+      }
+      showNotification(
+        "success",
+        "API",
+        "Credencial API excluída com sucesso!"
+      );
+      setDeleteCredencialModalOpen(false);
+      setCredencialToDelete(null);
+    } catch (error) {
+      console.error('❌ Erro ao excluir credencial API:', error);
+      
+      // Extrair mensagem de erro mais específica
+      let errorMessage = "Erro ao excluir a Credencial API!";
+      
+      if (error.response?.data?.message) {
+        if (Array.isArray(error.response.data.message)) {
+          errorMessage = error.response.data.message.join(", ");
+        } else {
+          errorMessage = error.response.data.message;
         }
-      },
-      onCancel() {
-        message.info("Exclusão cancelada.");
-      },
-    });
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      showNotification(
+        "error",
+        "❌ Erro nas Credenciais API",
+        errorMessage
+      );
+    }
   };
 
   // Funções para Convênios
@@ -797,12 +815,13 @@ const DadosBancarios = () => {
                           message: "⚠️ Dígito da conta deve ter no máximo 2 caracteres",
                         },
                         {
-                          pattern: /^[0-9]+$/,
-                          message: "⚠️ Dígito da conta deve conter apenas números",
+                          pattern: /^[0-9Xx]+$/,
+                          message: "⚠️ Dígito da conta deve conter apenas números ou X",
                         },
                       ]}
+                      normalize={(value) => value ? value.toUpperCase() : value}
                     >
-                      <Input size="large" placeholder="Ex: 1" />
+                      <Input size="large" placeholder="Ex: 1 ou X" />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -816,6 +835,19 @@ const DadosBancarios = () => {
                         <Text strong>
                           <NumberOutlined style={{ marginRight: 8 }} />
                           Número do Contrato de Pagamentos (opcional)
+                          <Tooltip 
+                            title="Este campo é necessário para operações de pagamento. Sem essa configuração, a conta não aparecerá para seleção nas operações de pagamento."
+                            placement="top"
+                          >
+                            <InfoCircleOutlined 
+                              style={{ 
+                                marginLeft: 8, 
+                                color: "#059669", 
+                                cursor: "help",
+                                fontSize: "14px"
+                              }} 
+                            />
+                          </Tooltip>
                         </Text>
                       }
                       rules={[
@@ -1491,6 +1523,40 @@ const DadosBancarios = () => {
           </Form.Item>
         </StyledForm>
         </StyledCard>
+
+      {/* Modal de Confirmação - Exclusão de Conta Corrente */}
+      <ConfirmActionModal
+        open={deleteContaCorrenteModalOpen}
+        onConfirm={confirmDeleteContaCorrente}
+        onCancel={() => {
+          setDeleteContaCorrenteModalOpen(false);
+          setContaCorrenteToDelete(null);
+        }}
+        title="Confirmação de Exclusão"
+        message="Você tem certeza que deseja excluir esta conta corrente? Essa ação é irreversível."
+        confirmText="Sim, excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+      />
+
+      {/* Modal de Confirmação - Exclusão de Credencial API */}
+      <ConfirmActionModal
+        open={deleteCredencialModalOpen}
+        onConfirm={confirmDeleteCredencial}
+        onCancel={() => {
+          setDeleteCredencialModalOpen(false);
+          setCredencialToDelete(null);
+        }}
+        title="Confirmação de Exclusão"
+        message="Você tem certeza que deseja excluir esta credencial API?"
+        confirmText="Sim, excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+      />
     </PageContainer>
    );
  };

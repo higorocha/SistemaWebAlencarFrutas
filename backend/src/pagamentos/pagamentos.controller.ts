@@ -60,30 +60,6 @@ export class PagamentosController {
   }
 
   /**
-   * Consulta status de transferência PIX (lote)
-   */
-  @Get('transferencias-pix/:numeroRequisicao')
-  @ApiOperation({ summary: 'Consultar status de lote de transferência PIX' })
-  @ApiParam({ name: 'numeroRequisicao', description: 'Número da requisição', example: 1234567 })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Status da transferência PIX',
-    type: RespostaTransferenciaPixDto,
-  })
-  @ApiQuery({ 
-    name: 'contaCorrenteId', 
-    required: false, 
-    description: 'ID da conta corrente. Se não informado, busca no banco de dados ou tenta todas as contas.',
-    type: Number
-  })
-  async consultarStatusTransferenciaPix(
-    @Param('numeroRequisicao', ParseIntPipe) numeroRequisicao: number,
-    @Query('contaCorrenteId') contaCorrenteId?: number
-  ): Promise<RespostaTransferenciaPixDto> {
-    return this.pagamentosService.consultarStatusTransferenciaPix(numeroRequisicao, contaCorrenteId);
-  }
-
-  /**
    * Consulta status individual de transferência PIX
    */
   @Get('pix/:identificadorPagamento/individual')
@@ -108,12 +84,12 @@ export class PagamentosController {
 
   /**
    * Consulta online a solicitação de transferência PIX diretamente na API do BB
-   * sem atualizar o banco de dados
+   * e atualiza o status no banco de dados local
    */
   @Get('transferencias-pix/:numeroRequisicao/consulta-online')
   @ApiOperation({ 
-    summary: 'Consultar solicitação de transferência PIX online (sem atualizar banco)',
-    description: 'Consulta a solicitação de transferência PIX diretamente na API do BB sem atualizar o banco de dados. Útil para verificar o status atual sem modificar os dados persistidos.'
+    summary: 'Consultar solicitação de transferência PIX online',
+    description: 'Consulta a solicitação de transferência PIX diretamente na API do BB e atualiza o status no banco de dados local com os dados mais recentes.'
   })
   @ApiParam({ name: 'numeroRequisicao', description: 'Número do lote de transferências', example: 1234567 })
   @ApiResponse({

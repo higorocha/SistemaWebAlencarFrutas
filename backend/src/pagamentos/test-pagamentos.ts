@@ -177,7 +177,7 @@ async function executarTestes() {
     if (resultadoPix?.numeroRequisicao) {
       console.log(`\n🔍 [TEST-PAGAMENTOS] Consultando status da solicitação PIX: ${resultadoPix.numeroRequisicao}...`);
       await new Promise(resolve => setTimeout(resolve, 2000));
-      const statusPix = await pagamentosService.consultarStatusTransferenciaPix(resultadoPix.numeroRequisicao);
+      const statusPix = await pagamentosService.consultarSolicitacaoTransferenciaPixOnline(resultadoPix.numeroRequisicao);
       console.log('✅ [TEST-PAGAMENTOS] Status da solicitação PIX consultado com sucesso!');
       console.log('📄 [TEST-PAGAMENTOS] Número da requisição:', statusPix.numeroRequisicao);
     }

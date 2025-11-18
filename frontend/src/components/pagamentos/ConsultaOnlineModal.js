@@ -28,6 +28,7 @@ const { Text, Title } = Typography;
 const ConsultaOnlineModal = ({
   open,
   onClose,
+  onAfterClose,
   numeroRequisicao,
   contaCorrenteId,
 }) => {
@@ -140,7 +141,16 @@ const ConsultaOnlineModal = ({
   return (
     <Modal
       open={open}
-      onCancel={onClose}
+      onCancel={() => {
+        onClose();
+        // Chamar callback após fechar para atualizar dados
+        if (onAfterClose) {
+          // Usar setTimeout para garantir que o modal feche antes de atualizar
+          setTimeout(() => {
+            onAfterClose();
+          }, 100);
+        }
+      }}
       footer={
         <div style={{ 
           display: "flex", 
@@ -148,7 +158,16 @@ const ConsultaOnlineModal = ({
           gap: isMobile ? "8px" : "12px"
         }}>
           <Button 
-            onClick={onClose} 
+            onClick={() => {
+              onClose();
+              // Chamar callback após fechar para atualizar dados
+              if (onAfterClose) {
+                // Usar setTimeout para garantir que o modal feche antes de atualizar
+                setTimeout(() => {
+                  onAfterClose();
+                }, 100);
+              }
+            }} 
             size={isMobile ? "small" : "large"}
             style={{
               height: isMobile ? "32px" : "40px",
@@ -367,8 +386,8 @@ const ConsultaOnlineModal = ({
                   const movimento = mapearIndicadorMovimento(transferencia.indicadorMovimentoAceito);
                   const temFormaIdentificacao = temValor(transferencia.formaIdentificacao);
                   const formaIdentificacao = transferencia.formaIdentificacao;
-                  const temCPF = temValor(transferencia.cpf) && formatarCPF(transferencia.cpf);
-                  const temCNPJ = temValor(transferencia.cnpj) && formatarCNPJ(transferencia.cnpj);
+                  const temCPF = temValor(transferencia.cpf) && formatarCPF(String(transferencia.cpf).replace(/\D/g, ''));
+                  const temCNPJ = temValor(transferencia.cnpj) && formatarCNPJ(String(transferencia.cnpj).replace(/\D/g, ''));
                   const temIdentificacaoAleatoria = temValor(transferencia.identificacaoAleatoria) && 
                                                    transferencia.identificacaoAleatoria !== "000000";
                   const temTelefone = temValor(transferencia.dddTelefone) && temValor(transferencia.telefone);
@@ -416,7 +435,7 @@ const ConsultaOnlineModal = ({
                           </Text>
                           <br />
                           <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem", fontFamily: "monospace" }}>
-                            {formatarCPF(transferencia.cpf)}
+                            {formatarCPF(String(transferencia.cpf).replace(/\D/g, ''))}
                           </Text>
                         </>
                       );
@@ -429,7 +448,7 @@ const ConsultaOnlineModal = ({
                           </Text>
                           <br />
                           <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem", fontFamily: "monospace" }}>
-                            {formatarCNPJ(transferencia.cnpj)}
+                            {formatarCNPJ(String(transferencia.cnpj).replace(/\D/g, ''))}
                           </Text>
                         </>
                       );
@@ -754,6 +773,7 @@ const ConsultaOnlineModal = ({
 ConsultaOnlineModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
+  onAfterClose: PropTypes.func,
   numeroRequisicao: PropTypes.number,
   contaCorrenteId: PropTypes.number,
 };
