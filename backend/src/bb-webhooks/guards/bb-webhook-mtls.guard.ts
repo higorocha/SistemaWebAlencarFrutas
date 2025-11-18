@@ -20,6 +20,7 @@ interface BbWebhookCertInfo {
 export class BbWebhookMtlsGuard implements CanActivate {
   private readonly logger = new Logger(BbWebhookMtlsGuard.name);
   private readonly allowedSubjects: string[];
+  private readonly enforceMtls: boolean;
 
   constructor() {
     const allowedSubjectEnv = process.env.BB_WEBHOOK_ALLOWED_SUBJECTS || '';
@@ -27,6 +28,9 @@ export class BbWebhookMtlsGuard implements CanActivate {
       .split(',')
       .map((value) => value.trim())
       .filter((value) => value.length > 0);
+
+    this.enforceMtls =
+      (process.env.BB_WEBHOOK_ENFORCE_MTLS || '').toLowerCase() === 'true';
 
     if (this.allowedSubjects.length === 0) {
       this.logger.warn(
@@ -49,6 +53,13 @@ export class BbWebhookMtlsGuard implements CanActivate {
     const isProdRange = ip.startsWith('170.66.');
     const isSandboxRange = ip.startsWith('201.33.144.');
     const isBBIP = isProdRange || isSandboxRange;
+
+    if (!this.enforceMtls) {
+      this.logger.warn(
+        `[WEBHOOK-MTLS] Modo monitoramento (BB_WEBHOOK_ENFORCE_MTLS=false). TLS não será exigido. IP: ${ip}`,
+      );
+      return true;
+    }
 
     // Tentar validar mTLS se disponível
     if (socket && typeof socket.authorized !== 'undefined') {
