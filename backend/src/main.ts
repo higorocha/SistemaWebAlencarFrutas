@@ -51,9 +51,11 @@ function getLocalNetworkIP(): string {
 async function bootstrap() {
   // Detectar IP da rede local automaticamente
   const localIP = getLocalNetworkIP();
-  
+
+  const environment = process.env.NODE_ENV || 'development';
+
   const app = await NestFactory.create(AppModule, {
-    logger: ['error'] // Apenas erros críticos
+    logger: ['error'], // Apenas erros críticos - logs detalhados bloqueados intencionalmente
   });
   
   // Configurar validação global
@@ -67,7 +69,6 @@ async function bootstrap() {
   // CONFIGURAÇÃO CORS - SEGURA
   // ============================================
 
-  const environment = process.env.NODE_ENV || 'development';
   const isDevelopment = environment === 'development';
 
   // Lista de origens permitidas por ambiente

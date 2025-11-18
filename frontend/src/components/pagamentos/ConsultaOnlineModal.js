@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Modal, Card, Row, Col, Typography, Tag, Space, Spin, Alert, Divider, Button } from "antd";
+import { Modal, Card, Row, Col, Typography, Tag, Space, Spin, Alert, Divider, Button, Empty } from "antd";
 import { 
   EyeOutlined, 
   InfoCircleOutlined, 
@@ -10,11 +10,17 @@ import {
   CloseCircleOutlined,
   DollarOutlined,
   CalendarOutlined,
-  BankOutlined
+  BankOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  IdcardOutlined,
+  SafetyOutlined,
+  KeyOutlined,
+  FileTextOutlined
 } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
-import { formatCurrency, formatarValorMonetario } from "../../utils/formatters";
+import { formatCurrency, formatarValorMonetario, formatarCPF, formatarCNPJ, formatarTelefone } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 
 const { Text, Title } = Typography;
@@ -108,36 +114,6 @@ const ConsultaOnlineModal = ({
     return dataStr;
   };
 
-  const formatarCPF = (cpf) => {
-    if (!cpf || cpf === 0) return null;
-    const cpfStr = cpf.toString().padStart(11, "0");
-    return cpfStr.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-  };
-
-  const formatarCNPJ = (cnpj) => {
-    // Se for 0, null, undefined ou string vazia, retorna null
-    if (!cnpj || cnpj === 0 || cnpj === "0" || String(cnpj).trim() === "" || Number(cnpj) === 0) {
-      return null;
-    }
-    const cnpjStr = String(cnpj).trim();
-    const cnpjPadded = cnpjStr.padStart(14, "0");
-    // Se após padStart for apenas zeros, retorna null
-    if (cnpjPadded === "00000000000000") return null;
-    return cnpjPadded.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-  };
-
-  const formatarTelefone = (ddd, telefone) => {
-    // Usa temValor para garantir que ambos os valores sejam válidos
-    if (!temValor(ddd) || !temValor(telefone)) return "-";
-    const telStr = telefone.toString();
-    if (telStr.length === 8) {
-      return `(${ddd}) ${telStr.substring(0, 4)}-${telStr.substring(4)}`;
-    } else if (telStr.length === 9) {
-      return `(${ddd}) ${telStr.substring(0, 5)}-${telStr.substring(5)}`;
-    }
-    return `(${ddd}) ${telStr}`;
-  };
-
   const mapearFormaIdentificacao = (forma) => {
     const formas = {
       1: "Telefone",
@@ -157,6 +133,9 @@ const ConsultaOnlineModal = ({
     }
     return { label: indicador || "N/A", color: "default", icon: null };
   };
+
+  // Acessa listaTransferencias ou listaPix (dependendo da estrutura retornada)
+  const listaTransferencias = dadosConsulta?.listaTransferencias || dadosConsulta?.listaPix || [];
 
   return (
     <Modal
@@ -239,7 +218,7 @@ const ConsultaOnlineModal = ({
 
       {!loading && !error && dadosConsulta && (
         <>
-          {/* Resumo Geral */}
+          {/* Seção 1: Resumo Geral */}
           <Card
             title={
               <Space>
@@ -355,14 +334,14 @@ const ConsultaOnlineModal = ({
             </Row>
           </Card>
 
-          {/* Lista de Transferências */}
-          {dadosConsulta.listaTransferencias && dadosConsulta.listaTransferencias.length > 0 && (
+          {/* Seção 2: Detalhes das Transferências */}
+          {listaTransferencias && listaTransferencias.length > 0 ? (
             <Card
               title={
                 <Space>
                   <InfoCircleOutlined style={{ color: "#ffffff" }} />
                   <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
-                    Detalhes das Transferências ({dadosConsulta.listaTransferencias.length})
+                    Detalhes das Transferências ({listaTransferencias.length})
                   </span>
                 </Space>
               }
@@ -384,8 +363,93 @@ const ConsultaOnlineModal = ({
               }}
             >
               <div style={{ display: "grid", gap: isMobile ? "12px" : "16px" }}>
-                {dadosConsulta.listaTransferencias.map((transferencia, index) => {
+                {listaTransferencias.map((transferencia, index) => {
                   const movimento = mapearIndicadorMovimento(transferencia.indicadorMovimentoAceito);
+                  const temFormaIdentificacao = temValor(transferencia.formaIdentificacao);
+                  const formaIdentificacao = transferencia.formaIdentificacao;
+                  const temCPF = temValor(transferencia.cpf) && formatarCPF(transferencia.cpf);
+                  const temCNPJ = temValor(transferencia.cnpj) && formatarCNPJ(transferencia.cnpj);
+                  const temIdentificacaoAleatoria = temValor(transferencia.identificacaoAleatoria) && 
+                                                   transferencia.identificacaoAleatoria !== "000000";
+                  const temTelefone = temValor(transferencia.dddTelefone) && temValor(transferencia.telefone);
+                  const temEmail = temValor(transferencia.email);
+                  
+                  // Determina qual valor mostrar baseado na forma de identificação
+                  const renderizarValorIdentificacao = () => {
+                    if (formaIdentificacao === 1 && temTelefone) {
+                      // Telefone
+                      return (
+                        <>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Telefone:
+                          </Text>
+                          <br />
+                          <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem" }}>
+                            {(() => {
+                              const dddStr = temValor(transferencia.dddTelefone) ? String(transferencia.dddTelefone).replace(/\D/g, '') : '';
+                              const telefoneStr = String(transferencia.telefone).replace(/\D/g, '');
+                              const telefoneCompleto = dddStr + telefoneStr;
+                              return formatarTelefone(telefoneCompleto);
+                            })()}
+                          </Text>
+                        </>
+                      );
+                    } else if (formaIdentificacao === 2 && temEmail) {
+                      // Email
+                      return (
+                        <>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Email:
+                          </Text>
+                          <br />
+                          <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem" }}>
+                            {transferencia.email}
+                          </Text>
+                        </>
+                      );
+                    } else if (formaIdentificacao === 3 && temCPF) {
+                      // CPF
+                      return (
+                        <>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            CPF:
+                          </Text>
+                          <br />
+                          <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem", fontFamily: "monospace" }}>
+                            {formatarCPF(transferencia.cpf)}
+                          </Text>
+                        </>
+                      );
+                    } else if (formaIdentificacao === 3 && temCNPJ) {
+                      // CNPJ
+                      return (
+                        <>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            CNPJ:
+                          </Text>
+                          <br />
+                          <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem", fontFamily: "monospace" }}>
+                            {formatarCNPJ(transferencia.cnpj)}
+                          </Text>
+                        </>
+                      );
+                    } else if (formaIdentificacao === 4 && temIdentificacaoAleatoria) {
+                      // Chave Aleatória
+                      return (
+                        <>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Chave Aleatória:
+                          </Text>
+                          <br />
+                          <Text code style={{ fontSize: "0.875rem", marginTop: "4px", display: "block", wordBreak: "break-all" }}>
+                            {transferencia.identificacaoAleatoria}
+                          </Text>
+                        </>
+                      );
+                    }
+                    return null;
+                  };
+
                   return (
                     <div
                       key={index}
@@ -396,6 +460,17 @@ const ConsultaOnlineModal = ({
                         padding: isMobile ? "12px" : "16px",
                       }}
                     >
+                      {/* Subseção: Informações Principais */}
+                      <Title level={5} style={{ 
+                        color: "#059669", 
+                        marginBottom: "12px", 
+                        marginTop: 0,
+                        fontSize: "0.875rem"
+                      }}>
+                        Transferência #{index + 1}
+                      </Title>
+                      <Divider style={{ margin: "0 0 12px 0", borderColor: "#e8e8e8" }} />
+                      
                       <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
                         {/* Primeira linha - Informações principais em destaque */}
                         <Col xs={24} sm={12} md={8}>
@@ -520,112 +595,26 @@ const ConsultaOnlineModal = ({
                         })()}
 
                         {/* Terceira linha - Forma de Identificação e Dados do Favorecido */}
-                        {(() => {
-                          const temFormaIdentificacao = temValor(transferencia.formaIdentificacao);
-                          const formaIdentificacao = transferencia.formaIdentificacao;
-                          const temCPF = temValor(transferencia.cpf) && formatarCPF(transferencia.cpf);
-                          const temCNPJ = temValor(transferencia.cnpj) && formatarCNPJ(transferencia.cnpj);
-                          const temIdentificacaoAleatoria = temValor(transferencia.identificacaoAleatoria) && 
-                                                           transferencia.identificacaoAleatoria !== "000000";
-                          const temTelefone = temValor(transferencia.dddTelefone) && temValor(transferencia.telefone);
-                          const temEmail = temValor(transferencia.email);
-                          
-                          if (!temFormaIdentificacao) {
-                            return null;
-                          }
-                          
-                          // Determina qual valor mostrar baseado na forma de identificação
-                          const renderizarValor = () => {
-                            if (formaIdentificacao === 1 && temTelefone) {
-                              // Telefone
-                              return (
-                                <>
-                                  <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                                    Telefone:
-                                  </Text>
-                                  <br />
-                                  <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem" }}>
-                                    {formatarTelefone(transferencia.dddTelefone, transferencia.telefone)}
-                                  </Text>
-                                </>
-                              );
-                            } else if (formaIdentificacao === 2 && temEmail) {
-                              // Email
-                              return (
-                                <>
-                                  <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                                    Email:
-                                  </Text>
-                                  <br />
-                                  <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem" }}>
-                                    {transferencia.email}
-                                  </Text>
-                                </>
-                              );
-                            } else if (formaIdentificacao === 3 && temCPF) {
-                              // CPF
-                              return (
-                                <>
-                                  <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                                    CPF:
-                                  </Text>
-                                  <br />
-                                  <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem", fontFamily: "monospace" }}>
-                                    {formatarCPF(transferencia.cpf)}
-                                  </Text>
-                                </>
-                              );
-                            } else if (formaIdentificacao === 3 && temCNPJ) {
-                              // CNPJ
-                              return (
-                                <>
-                                  <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                                    CNPJ:
-                                  </Text>
-                                  <br />
-                                  <Text style={{ marginTop: "4px", display: "block", fontSize: "0.875rem", fontFamily: "monospace" }}>
-                                    {formatarCNPJ(transferencia.cnpj)}
-                                  </Text>
-                                </>
-                              );
-                            } else if (formaIdentificacao === 4 && temIdentificacaoAleatoria) {
-                              // Chave Aleatória
-                              return (
-                                <>
-                                  <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                                    Chave Aleatória:
-                                  </Text>
-                                  <br />
-                                  <Text code style={{ fontSize: "0.875rem", marginTop: "4px", display: "block", wordBreak: "break-all" }}>
-                                    {transferencia.identificacaoAleatoria}
-                                  </Text>
-                                </>
-                              );
-                            }
-                            return null;
-                          };
-                          
-                          return (
-                            <>
-                              <Divider style={{ margin: isMobile ? "8px 0" : "12px 0" }} />
-                              <Col xs={24} sm={12} md={6}>
-                                <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                                  Forma Identificação:
-                                </Text>
-                                <br />
-                                <Tag color="blue" style={{ marginTop: "4px", fontSize: "0.75rem", padding: "4px 10px", fontWeight: "500" }}>
-                                  {mapearFormaIdentificacao(transferencia.formaIdentificacao)}
-                                </Tag>
-                              </Col>
-                              <Col xs={24} sm={12} md={6}>
-                                {renderizarValor()}
-                              </Col>
-                            </>
-                          );
-                        })()}
+                        {temFormaIdentificacao && (
+                          <>
+                            <Divider style={{ margin: isMobile ? "8px 0" : "12px 0" }} />
+                            <Col xs={24} sm={12} md={6}>
+                              <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                                <KeyOutlined style={{ marginRight: 4 }} />
+                                Forma Identificação:
+                              </Text>
+                              <br />
+                              <Tag color="blue" style={{ marginTop: "4px", fontSize: "0.75rem", padding: "4px 10px", fontWeight: "500" }}>
+                                {mapearFormaIdentificacao(transferencia.formaIdentificacao)}
+                              </Tag>
+                            </Col>
+                            <Col xs={24} sm={12} md={6}>
+                              {renderizarValorIdentificacao()}
+                            </Col>
+                          </>
+                        )}
 
-
-                        {/* Quinta linha - Dados Bancários (se aplicável) - Só renderiza se houver pelo menos um campo válido */}
+                        {/* Quarta linha - Dados Bancários (se aplicável) */}
                         {(() => {
                           const temAgencia = temValor(transferencia.agencia);
                           const temConta = temValor(transferencia.conta);
@@ -641,6 +630,7 @@ const ConsultaOnlineModal = ({
                               {temAgencia && (
                                 <Col xs={24} sm={12} md={6}>
                                   <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                                    <BankOutlined style={{ marginRight: 4 }} />
                                     Agência:
                                   </Text>
                                   <br />
@@ -679,13 +669,14 @@ const ConsultaOnlineModal = ({
                           );
                         })()}
 
-                        {/* Sexta linha - Documentos */}
+                        {/* Quinta linha - Documentos */}
                         {(temValor(transferencia.documentoDebito) || temValor(transferencia.documentoCredito)) && (
                           <>
                             <Divider style={{ margin: isMobile ? "8px 0" : "12px 0" }} />
                             {temValor(transferencia.documentoDebito) && (
                               <Col xs={24} sm={12} md={6}>
                                 <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                                  <FileTextOutlined style={{ marginRight: 4 }} />
                                   Documento Débito:
                                 </Text>
                                 <br />
@@ -697,6 +688,7 @@ const ConsultaOnlineModal = ({
                             {temValor(transferencia.documentoCredito) && (
                               <Col xs={24} sm={12} md={6}>
                                 <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                                  <FileTextOutlined style={{ marginRight: 4 }} />
                                   Documento Crédito:
                                 </Text>
                                 <br />
@@ -708,7 +700,7 @@ const ConsultaOnlineModal = ({
                           </>
                         )}
 
-                        {/* Erros */}
+                        {/* Sexta linha - Erros */}
                         {transferencia.erros && transferencia.erros.length > 0 && (
                           <>
                             <Divider style={{ margin: isMobile ? "8px 0" : "12px 0" }} />
@@ -720,6 +712,7 @@ const ConsultaOnlineModal = ({
                                 border: "1px solid #fecaca"
                               }}>
                                 <Text strong style={{ color: "#dc2626", fontSize: "0.8125rem", display: "block", marginBottom: "8px" }}>
+                                  <CloseCircleOutlined style={{ marginRight: 4 }} />
                                   Erros:
                                 </Text>
                                 <div style={{ marginTop: "4px" }}>
@@ -739,6 +732,18 @@ const ConsultaOnlineModal = ({
                 })}
               </div>
             </Card>
+          ) : (
+            <Card
+              style={{
+                border: "0.0625rem solid #e8e8e8",
+                borderRadius: "0.5rem",
+              }}
+            >
+              <Empty
+                description="Nenhuma transferência encontrada"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            </Card>
           )}
         </>
       )}
@@ -754,4 +759,3 @@ ConsultaOnlineModal.propTypes = {
 };
 
 export default ConsultaOnlineModal;
-

@@ -63,6 +63,39 @@ export function createPagamentosApiClient(developerAppKey: string) {
     headers: {
       'Content-Type': 'application/json',
     },
+    // Transformador customizado para preservar números grandes como strings
+    transformResponse: [
+      function (data) {
+        // Se não for string, já foi parseado (não deveria acontecer, mas por segurança)
+        if (typeof data !== 'string') {
+          return data;
+        }
+
+        try {
+          // ANTES do parse: substituir identificadorPagamento na string JSON
+          // para preservar números grandes como strings
+          // Regex para encontrar "identificadorPagamento": <número>
+          const modifiedData = data.replace(
+            /"identificadorPagamento"\s*:\s*(\d{15,})/g,
+            (match, numberStr) => {
+              const num = Number(numberStr);
+              // Se for maior que MAX_SAFE_INTEGER, preservar como string
+              if (num > Number.MAX_SAFE_INTEGER) {
+                return `"identificadorPagamento":"${numberStr}"`;
+              }
+              return match; // Manter como número se for seguro
+            }
+          );
+
+          // Agora fazer o parse do JSON modificado
+          return JSON.parse(modifiedData);
+        } catch (e) {
+          console.error('❌ [BB-PAGAMENTOS-CLIENT] Erro ao processar resposta JSON:', e);
+          // Se falhar, tentar parse padrão
+          return JSON.parse(data);
+        }
+      },
+    ],
   } as any);
 
   // Interceptor para adicionar gw-dev-app-key como query param em todas as requisições

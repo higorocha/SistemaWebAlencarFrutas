@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BbWebhookEvent, $Enums } from '@prisma/client';
 
@@ -18,7 +18,6 @@ interface WebhookPagamentoItem {
 
 @Injectable()
 export class PagamentosWebhookService {
-  private readonly logger = new Logger(PagamentosWebhookService.name);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -35,7 +34,7 @@ export class PagamentosWebhookService {
     descartados: number;
     erros: any[];
   }> {
-    this.logger.log(
+    console.log(
       `[PAGAMENTOS-WEBHOOK] Processando evento ${evento.id} com ${payloadArray.length} item(ns)`,
     );
 
@@ -51,7 +50,7 @@ export class PagamentosWebhookService {
         } else {
           quantidadeDescartados++;
           if (resultado.motivo) {
-            this.logger.log(
+            console.log(
               `[PAGAMENTOS-WEBHOOK] Item descartado: ${resultado.motivo}`,
             );
           }
@@ -63,7 +62,7 @@ export class PagamentosWebhookService {
           erro: error.message,
           stack: error.stack,
         });
-        this.logger.error(
+        console.error(
           `[PAGAMENTOS-WEBHOOK] Erro ao processar item ${item.codigoIdentificadorPagamento}: ${error.message}`,
         );
       }
@@ -82,13 +81,13 @@ export class PagamentosWebhookService {
   private async processarItem(
     item: WebhookPagamentoItem,
   ): Promise<{ processado: boolean; motivo?: string }> {
-    this.logger.log(
+    console.log(
       `[PAGAMENTOS-WEBHOOK] Recebido item: ${item.codigoIdentificadorPagamento} (Requisicao: ${item.numeroRequisicaoPagamento}, Estado: ${item.textoEstado})`,
     );
 
     // Verificar se o estado é "Pago" (codigoTextoEstado = 1)
     if (item.codigoTextoEstado !== 1) {
-      this.logger.log(
+      console.log(
         `[PAGAMENTOS-WEBHOOK] Item ${item.codigoIdentificadorPagamento} não está pago (estado: ${item.codigoTextoEstado}). Ignorando.`,
       );
       return {
@@ -103,7 +102,7 @@ export class PagamentosWebhookService {
     });
 
     if (!lote) {
-      this.logger.log(
+      console.log(
         `[PAGAMENTOS-WEBHOOK] Lote ${item.numeroRequisicaoPagamento} não encontrado. Descartando item.`,
       );
       return {
@@ -132,7 +131,7 @@ export class PagamentosWebhookService {
     });
 
     if (!itemPagamento) {
-      this.logger.log(
+      console.log(
         `[PAGAMENTOS-WEBHOOK] Item ${item.codigoIdentificadorPagamento} não encontrado no lote ${item.numeroRequisicaoPagamento}. Descartando.`,
       );
       return {
@@ -168,7 +167,7 @@ export class PagamentosWebhookService {
       },
     });
 
-    this.logger.log(
+    console.log(
       `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} atualizado como PAGO`,
     );
 
@@ -176,7 +175,7 @@ export class PagamentosWebhookService {
     if (itemPagamento.colheitas && itemPagamento.colheitas.length > 0) {
       await this.atualizarColheitas(itemPagamento.id, dataPagamentoEfetivo);
     } else {
-      this.logger.log(
+      console.log(
         `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} não possui colheitas vinculadas (não é pagamento de colheitas)`,
       );
     }
@@ -195,7 +194,7 @@ export class PagamentosWebhookService {
     itemId: number,
     dataPagamento: Date,
   ): Promise<void> {
-    this.logger.log(
+    console.log(
       `[PAGAMENTOS-WEBHOOK] Atualizando colheitas do item ${itemId}`,
     );
 
@@ -222,7 +221,7 @@ export class PagamentosWebhookService {
         },
       });
 
-      this.logger.log(
+      console.log(
         `[PAGAMENTOS-WEBHOOK] Colheita ${colheitaRel.turmaColheitaCustoId} marcada como PAGO`,
       );
     }
@@ -252,7 +251,7 @@ export class PagamentosWebhookService {
       });
 
       if (colheitasPagas === totalColheitas) {
-        this.logger.log(
+        console.log(
           `[PAGAMENTOS-WEBHOOK] Todas as colheitas da turma ${turmaId} foram pagas`,
         );
         // Aqui você pode adicionar lógica adicional se necessário
@@ -260,7 +259,7 @@ export class PagamentosWebhookService {
       }
     }
 
-    this.logger.log(
+    console.log(
       `[PAGAMENTOS-WEBHOOK] ${colheitas.length} colheita(s) atualizada(s)`,
     );
   }
@@ -290,7 +289,7 @@ export class PagamentosWebhookService {
         },
       });
 
-      this.logger.log(
+      console.log(
         `[PAGAMENTOS-WEBHOOK] Lote ${loteId} atualizado: todos os itens foram pagos`,
       );
     } else {

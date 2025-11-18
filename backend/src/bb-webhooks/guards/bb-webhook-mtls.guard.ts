@@ -3,7 +3,6 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
-  Logger,
 } from '@nestjs/common';
 import { TLSSocket } from 'tls';
 
@@ -18,7 +17,6 @@ interface BbWebhookCertInfo {
 
 @Injectable()
 export class BbWebhookMtlsGuard implements CanActivate {
-  private readonly logger = new Logger(BbWebhookMtlsGuard.name);
   private readonly allowedSubjects: string[];
   private readonly enforceMtls: boolean;
 
@@ -33,7 +31,7 @@ export class BbWebhookMtlsGuard implements CanActivate {
       (process.env.BB_WEBHOOK_ENFORCE_MTLS || '').toLowerCase() === 'true';
 
     if (this.allowedSubjects.length === 0) {
-      this.logger.warn(
+      console.warn(
         '[WEBHOOK-MTLS] Nenhum subject permitido configurado em BB_WEBHOOK_ALLOWED_SUBJECTS. Permitindo qualquer certificado válido emitido pelo BB.',
       );
     }
@@ -55,7 +53,7 @@ export class BbWebhookMtlsGuard implements CanActivate {
     const isBBIP = isProdRange || isSandboxRange;
 
     if (!this.enforceMtls) {
-      this.logger.warn(
+      console.warn(
         `[WEBHOOK-MTLS] Modo monitoramento (BB_WEBHOOK_ENFORCE_MTLS=false). TLS não será exigido. IP: ${ip}`,
       );
       return true;
@@ -64,7 +62,7 @@ export class BbWebhookMtlsGuard implements CanActivate {
     // Tentar validar mTLS se disponível
     if (socket && typeof socket.authorized !== 'undefined') {
       if (!socket.authorized) {
-        this.logger.warn(
+        console.warn(
           `[WEBHOOK-MTLS] Conexão TLS não autorizada. Motivo: ${socket.authorizationError}. IP: ${ip}`,
         );
         // Se não é IP do BB, bloquear
@@ -74,7 +72,7 @@ export class BbWebhookMtlsGuard implements CanActivate {
           );
         }
         // Se é IP do BB mas não autorizado, permitir mas logar (pode ser problema de configuração)
-        this.logger.warn(
+        console.warn(
           `[WEBHOOK-MTLS] IP do BB detectado mas TLS não autorizado. Permitindo mas investigar configuração.`,
         );
         return true;
@@ -114,7 +112,7 @@ export class BbWebhookMtlsGuard implements CanActivate {
           subjectCN &&
           !this.allowedSubjects.includes(subjectCN)
         ) {
-          this.logger.error(
+          console.error(
             `[WEBHOOK-MTLS] Subject CN "${subjectCN}" não está na lista permitida (${this.allowedSubjects.join(
               ', ',
             )}).`,
@@ -135,7 +133,7 @@ export class BbWebhookMtlsGuard implements CanActivate {
 
         req.bbWebhookClientCert = certInfo;
 
-        this.logger.log(
+        console.log(
           `[WEBHOOK-MTLS] Certificado válido recebido. Subject CN: ${subjectCN}, Serial: ${certInfo.serialNumber}, IP: ${ip}`,
         );
         return true;
@@ -145,14 +143,14 @@ export class BbWebhookMtlsGuard implements CanActivate {
     // Se não tem informações de TLS (proxy não configurado para mTLS)
     // Permitir apenas se for IP do BB (como no exemplo)
     if (isBBIP) {
-      this.logger.warn(
+      console.warn(
         `[WEBHOOK-MTLS] Requisição sem informações de TLS, mas IP do BB detectado (${ip}). Permitindo. Configure o proxy para mTLS em produção.`,
       );
       return true;
     }
 
     // Se não tem TLS e não é IP do BB, bloquear
-    this.logger.error(
+    console.error(
       `[WEBHOOK-MTLS] Requisição sem informações de TLS e IP não é do BB (${ip}). Bloqueando.`,
     );
     throw new ForbiddenException(

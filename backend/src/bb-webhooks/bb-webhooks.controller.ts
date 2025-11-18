@@ -6,7 +6,6 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
-  Logger,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,7 +16,6 @@ import { BbWebhookMtlsGuard } from './guards/bb-webhook-mtls.guard';
 @UseGuards(BbWebhookMtlsGuard)
 @Controller('api/webhooks/bb')
 export class BbWebhooksController {
-  private readonly logger = new Logger(BbWebhooksController.name);
 
   constructor(
     private readonly bbWebhooksService: BbWebhooksService,
@@ -32,12 +30,12 @@ export class BbWebhooksController {
     @Headers() headers: Record<string, string>,
     @Req() req: any,
   ) {
-    this.logger.log(`[WEBHOOK] Recebido webhook para recurso: ${recurso}`);
-    this.logger.debug(`[WEBHOOK] Payload: ${JSON.stringify(payload)}`);
+    console.log(`[WEBHOOK] Recebido webhook para recurso: ${recurso}`);
+    console.log(`[WEBHOOK] Payload: ${JSON.stringify(payload)}`);
 
     // Validar IP de origem (monitoramento - não bloqueia em desenvolvimento)
     const clientIP = this.extrairIP(req);
-    this.logger.log(`[WEBHOOK] IP de origem: ${clientIP}`);
+    console.log(`[WEBHOOK] IP de origem: ${clientIP}`);
 
     // Registrar evento no banco
     const clientCertificate = req.bbWebhookClientCert;

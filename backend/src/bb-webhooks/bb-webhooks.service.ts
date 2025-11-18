@@ -1,10 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PagamentosWebhookService } from './handlers/pagamentos-webhook.service';
 
 @Injectable()
 export class BbWebhooksService {
-  private readonly logger = new Logger(BbWebhooksService.name);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -41,7 +40,7 @@ export class BbWebhooksService {
       },
     });
 
-    this.logger.log(
+    console.log(
       `[WEBHOOK] Evento ${evento.id} registrado: ${tipoRecurso} com ${quantidadeItens} item(ns)`,
     );
 
@@ -57,7 +56,7 @@ export class BbWebhooksService {
       try {
         await this.processarEvento(eventoId, tipoRecurso);
       } catch (error) {
-        this.logger.error(
+        console.error(
           `[WEBHOOK] Erro ao processar evento ${eventoId}: ${error.message}`,
           error.stack,
         );
@@ -69,14 +68,14 @@ export class BbWebhooksService {
    * Processa um evento de webhook
    */
   private async processarEvento(eventoId: number, tipoRecurso: string) {
-    this.logger.log(`[WEBHOOK] Iniciando processamento do evento ${eventoId}`);
+    console.log(`[WEBHOOK] Iniciando processamento do evento ${eventoId}`);
 
     const evento = await this.prisma.bbWebhookEvent.findUnique({
       where: { id: eventoId },
     });
 
     if (!evento) {
-      this.logger.error(`[WEBHOOK] Evento ${eventoId} não encontrado`);
+      console.error(`[WEBHOOK] Evento ${eventoId} não encontrado`);
       return;
     }
 
@@ -103,7 +102,7 @@ export class BbWebhooksService {
           break;
 
         default:
-          this.logger.warn(
+          console.warn(
             `[WEBHOOK] Handler não encontrado para recurso: ${tipoRecurso}`,
           );
           await this.prisma.bbWebhookEvent.update({
@@ -139,11 +138,11 @@ export class BbWebhooksService {
         },
       });
 
-      this.logger.log(
+      console.log(
         `[WEBHOOK] Evento ${eventoId} processado: ${statusProcessamento} (${quantidadeProcessados} processados, ${quantidadeDescartados} descartados)`,
       );
     } catch (error) {
-      this.logger.error(
+      console.error(
         `[WEBHOOK] Erro ao processar evento ${eventoId}: ${error.message}`,
         error.stack,
       );

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Modal, Card, Row, Col, Typography, Tag, Space, Spin, Alert, Divider } from "antd";
+import { Modal, Card, Row, Col, Typography, Tag, Space, Spin, Alert, Divider, Button } from "antd";
 import { 
   EyeOutlined, 
   InfoCircleOutlined, 
@@ -150,7 +150,24 @@ const ConsultaItemIndividualModal = ({
     <Modal
       open={open}
       onCancel={onClose}
-      footer={null}
+      footer={
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "flex-end", 
+          gap: isMobile ? "8px" : "12px"
+        }}>
+          <Button 
+            onClick={onClose} 
+            size={isMobile ? "small" : "large"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
+          >
+            Fechar
+          </Button>
+        </div>
+      }
       title={
         <span style={{
           color: "#ffffff",
@@ -337,19 +354,8 @@ const ConsultaItemIndividualModal = ({
                     Quantidade Ocorrência PIX:
                   </Text>
                   <br />
-                  <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                    {dadosConsulta.quantidadeOcorrenciaPix === 1 ? 'Pagamento Instantâneo' : 'Não é Pagamento Instantâneo'}
-                  </Text>
-                </Col>
-              )}
-              {temValor(dadosConsulta.arquivoPagamento) && (
-                <Col xs={24} sm={12} md={8}>
-                  <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                    Arquivo de Pagamento:
-                  </Text>
-                  <br />
-                  <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                    {dadosConsulta.arquivoPagamento}
+                  <Text style={{ fontSize: "0.875rem", marginTop: "4px", color: "#059669", fontWeight: "600" }}>
+                    {dadosConsulta.quantidadeOcorrenciaPix || 0} ocorrência(s)
                   </Text>
                 </Col>
               )}
@@ -457,208 +463,227 @@ const ConsultaItemIndividualModal = ({
               }}
             >
               <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
-                {/* Beneficiário */}
-                <Col xs={24}>
-                  <Divider orientation="left" style={{ marginTop: 0, marginBottom: 12 }}>
-                    <Text strong style={{ color: "#059669" }}>Beneficiário</Text>
-                  </Divider>
+                {/* Primeira linha: Beneficiário e Conta de Crédito lado a lado */}
+                <Col xs={24} sm={24} md={12}>
+                  {/* Beneficiário */}
+                  <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: 0 }}>
+                    <UserOutlined style={{ marginRight: 8 }} />
+                    Beneficiário
+                  </Title>
+                  <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
+                    {temValor(pix.nomeBeneficiario) && (
+                      <Col xs={24}>
+                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                          <UserOutlined style={{ marginRight: 4 }} />
+                          Nome:
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                          {pix.nomeBeneficiario}
+                        </Text>
+                      </Col>
+                    )}
+                    {temValor(pix.cpfCnpjBeneficiario) && (
+                      <Col xs={24}>
+                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                          <IdcardOutlined style={{ marginRight: 4 }} />
+                          CPF/CNPJ:
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                          {(() => {
+                            const cpfCnpjStr = String(pix.cpfCnpjBeneficiario).replace(/\D/g, '');
+                            return cpfCnpjStr.length === 11 
+                              ? formatarCPF(cpfCnpjStr)
+                              : formatarCNPJ(cpfCnpjStr);
+                          })()}
+                        </Text>
+                      </Col>
+                    )}
+                    {temValor(pix.tipoBeneficiario) && (
+                      <Col xs={24}>
+                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                          Tipo:
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                          {mapearTipoBeneficiario(pix.tipoBeneficiario)}
+                        </Text>
+                      </Col>
+                    )}
+                  </Row>
                 </Col>
-                {temValor(pix.nomeBeneficiario) && (
-                  <Col xs={24} sm={12} md={8}>
-                    <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                      <UserOutlined style={{ marginRight: 4 }} />
-                      Nome:
-                    </Text>
-                    <br />
-                    <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                      {pix.nomeBeneficiario}
-                    </Text>
-                  </Col>
-                )}
-                {temValor(pix.cpfCnpjBeneficiario) && (
-                  <Col xs={24} sm={12} md={8}>
-                    <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                      <IdcardOutlined style={{ marginRight: 4 }} />
-                      CPF/CNPJ:
-                    </Text>
-                    <br />
-                    <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
-                      {pix.cpfCnpjBeneficiario.length === 11 
-                        ? formatarCPF(pix.cpfCnpjBeneficiario)
-                        : formatarCNPJ(pix.cpfCnpjBeneficiario)}
-                    </Text>
-                  </Col>
-                )}
-                {temValor(pix.tipoBeneficiario) && (
-                  <Col xs={24} sm={12} md={8}>
-                    <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                      Tipo:
-                    </Text>
-                    <br />
-                    <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                      {mapearTipoBeneficiario(pix.tipoBeneficiario)}
-                    </Text>
-                  </Col>
-                )}
 
                 {/* Conta de Crédito */}
                 {(temValor(pix.agenciaCredito) || temValor(pix.contaCorrenteCredito) || temValor(pix.numeroContaPagamentoCredito)) && (
-                  <>
-                    <Col xs={24}>
-                      <Divider orientation="left" style={{ marginTop: 12, marginBottom: 12 }}>
-                        <Text strong style={{ color: "#059669" }}>Conta de Crédito</Text>
-                      </Divider>
-                    </Col>
-                    {temValor(pix.agenciaCredito) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          Agência:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                          {pix.agenciaCredito}
-                        </Text>
-                      </Col>
-                    )}
-                    {temValor(pix.contaCorrenteCredito) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          Conta Corrente:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
-                          {pix.contaCorrenteCredito}
-                          {temValor(pix.digitoVerificadorContaCorrente) && `-${pix.digitoVerificadorContaCorrente}`}
-                        </Text>
-                      </Col>
-                    )}
-                    {temValor(pix.numeroContaPagamentoCredito) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          Conta Pagamento:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
-                          {pix.numeroContaPagamentoCredito}
-                        </Text>
-                      </Col>
-                    )}
-                    {temValor(pix.tipoConta) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          Tipo de Conta:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                          {mapearTipoConta(pix.tipoConta)}
-                        </Text>
-                      </Col>
-                    )}
-                  </>
+                  <Col xs={24} sm={24} md={12}>
+                    <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: 0 }}>
+                      <BankOutlined style={{ marginRight: 8 }} />
+                      Conta de Crédito
+                    </Title>
+                    <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+                    <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
+                      {temValor(pix.agenciaCredito) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Agência:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                            {pix.agenciaCredito}
+                          </Text>
+                        </Col>
+                      )}
+                      {temValor(pix.contaCorrenteCredito) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Conta Corrente:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                            {pix.contaCorrenteCredito}
+                            {temValor(pix.digitoVerificadorContaCorrente) && `-${pix.digitoVerificadorContaCorrente}`}
+                          </Text>
+                        </Col>
+                      )}
+                      {temValor(pix.numeroContaPagamentoCredito) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Conta Pagamento:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                            {pix.numeroContaPagamentoCredito}
+                          </Text>
+                        </Col>
+                      )}
+                      {temValor(pix.tipoConta) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Tipo de Conta:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                            {mapearTipoConta(pix.tipoConta)}
+                          </Text>
+                        </Col>
+                      )}
+                    </Row>
+                  </Col>
                 )}
 
-                {/* Chave PIX */}
+                {/* Segunda linha: Chave PIX e Outras Informações lado a lado */}
                 {(temValor(pix.formaIdentificacao) || temValor(pix.telefone) || temValor(pix.email) || temValor(pix.identificacaoAleatoria)) && (
-                  <>
-                    <Col xs={24}>
-                      <Divider orientation="left" style={{ marginTop: 12, marginBottom: 12 }}>
-                        <Text strong style={{ color: "#059669" }}>Chave PIX</Text>
-                      </Divider>
-                    </Col>
-                    {temValor(pix.formaIdentificacao) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          <KeyOutlined style={{ marginRight: 4 }} />
-                          Forma de Identificação:
-                        </Text>
-                        <br />
-                        <Tag color="blue" style={{ marginTop: "4px" }}>
-                          {mapearFormaIdentificacao(pix.formaIdentificacao)}
-                        </Tag>
-                      </Col>
-                    )}
-                    {(pix.formaIdentificacao === 1 || pix.formaIdentificacao === '1') && temValor(pix.telefone) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          <PhoneOutlined style={{ marginRight: 4 }} />
-                          Telefone:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
-                          {temValor(pix.dddTelefone) && `(${pix.dddTelefone}) `}
-                          {formatarTelefone(pix.telefone)}
-                        </Text>
-                      </Col>
-                    )}
-                    {(pix.formaIdentificacao === 2 || pix.formaIdentificacao === '2') && temValor(pix.email) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          <MailOutlined style={{ marginRight: 4 }} />
-                          Email:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                          {pix.email}
-                        </Text>
-                      </Col>
-                    )}
-                    {(pix.formaIdentificacao === 4 || pix.formaIdentificacao === '4') && temValor(pix.identificacaoAleatoria) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          <SafetyOutlined style={{ marginRight: 4 }} />
-                          Chave Aleatória:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
-                          {pix.identificacaoAleatoria}
-                        </Text>
-                      </Col>
-                    )}
-                  </>
+                  <Col xs={24} sm={24} md={12}>
+                    <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "16px" }}>
+                      <KeyOutlined style={{ marginRight: 8 }} />
+                      Chave PIX
+                    </Title>
+                    <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+                    <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
+                      {temValor(pix.formaIdentificacao) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            <KeyOutlined style={{ marginRight: 4 }} />
+                            Forma de Identificação:
+                          </Text>
+                          <br />
+                          <Tag color="blue" style={{ marginTop: "4px" }}>
+                            {mapearFormaIdentificacao(pix.formaIdentificacao)}
+                          </Tag>
+                        </Col>
+                      )}
+                      {(pix.formaIdentificacao === 1 || pix.formaIdentificacao === '1') && temValor(pix.telefone) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            <PhoneOutlined style={{ marginRight: 4 }} />
+                            Telefone:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                            {(() => {
+                              // Converte DDD e telefone para string e concatena
+                              const dddStr = temValor(pix.dddTelefone) ? String(pix.dddTelefone).replace(/\D/g, '') : '';
+                              const telefoneStr = String(pix.telefone).replace(/\D/g, '');
+                              const telefoneCompleto = dddStr + telefoneStr;
+                              return formatarTelefone(telefoneCompleto);
+                            })()}
+                          </Text>
+                        </Col>
+                      )}
+                      {(pix.formaIdentificacao === 2 || pix.formaIdentificacao === '2') && temValor(pix.email) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            <MailOutlined style={{ marginRight: 4 }} />
+                            Email:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                            {pix.email}
+                          </Text>
+                        </Col>
+                      )}
+                      {(pix.formaIdentificacao === 4 || pix.formaIdentificacao === '4') && temValor(pix.identificacaoAleatoria) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            <SafetyOutlined style={{ marginRight: 4 }} />
+                            Chave Aleatória:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                            {pix.identificacaoAleatoria}
+                          </Text>
+                        </Col>
+                      )}
+                    </Row>
+                  </Col>
                 )}
 
                 {/* Outras Informações */}
                 {(temValor(pix.documentoCredito) || temValor(pix.descricaoPagamentoInstantaneo) || temValor(pix.textoPix)) && (
-                  <>
-                    <Col xs={24}>
-                      <Divider orientation="left" style={{ marginTop: 12, marginBottom: 12 }}>
-                        <Text strong style={{ color: "#059669" }}>Outras Informações</Text>
-                      </Divider>
-                    </Col>
-                    {temValor(pix.documentoCredito) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          Documento de Crédito:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                          {pix.documentoCredito}
-                        </Text>
-                      </Col>
-                    )}
-                    {temValor(pix.descricaoPagamentoInstantaneo) && (
-                      <Col xs={24} sm={12} md={8}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          Descrição Pagamento Instantâneo:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                          {pix.descricaoPagamentoInstantaneo}
-                        </Text>
-                      </Col>
-                    )}
-                    {temValor(pix.textoPix) && (
-                      <Col xs={24}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          Texto PIX:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                          {pix.textoPix}
-                        </Text>
-                      </Col>
-                    )}
-                  </>
+                  <Col xs={24} sm={24} md={12}>
+                    <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "16px" }}>
+                      <InfoCircleOutlined style={{ marginRight: 8 }} />
+                      Outras Informações
+                    </Title>
+                    <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+                    <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
+                      {temValor(pix.documentoCredito) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Documento de Crédito:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                            {pix.documentoCredito}
+                          </Text>
+                        </Col>
+                      )}
+                      {temValor(pix.descricaoPagamentoInstantaneo) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Descrição Pagamento Instantâneo:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                            {pix.descricaoPagamentoInstantaneo}
+                          </Text>
+                        </Col>
+                      )}
+                      {temValor(pix.textoPix) && (
+                        <Col xs={24}>
+                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                            Texto PIX:
+                          </Text>
+                          <br />
+                          <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                            {pix.textoPix}
+                          </Text>
+                        </Col>
+                      )}
+                    </Row>
+                  </Col>
                 )}
               </Row>
             </Card>

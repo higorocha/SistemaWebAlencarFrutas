@@ -1,7 +1,7 @@
 // src/pages/Pagamentos.js
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Card, Tag, Space, Typography, Tooltip, Select, DatePicker, Button, Modal, Popconfirm } from "antd";
-import { DollarOutlined, BankOutlined, ClockCircleOutlined, CheckCircleOutlined, FilterOutlined, CloseCircleOutlined, UnlockOutlined, StopOutlined, UpOutlined, DownOutlined, EyeOutlined, KeyOutlined, PhoneOutlined, MailOutlined, IdcardOutlined, SafetyOutlined } from "@ant-design/icons";
+import { Card, Tag, Space, Typography, Tooltip, Select, DatePicker, Button, Modal, Popconfirm, Dropdown } from "antd";
+import { DollarOutlined, BankOutlined, ClockCircleOutlined, CheckCircleOutlined, FilterOutlined, CloseCircleOutlined, UnlockOutlined, StopOutlined, UpOutlined, DownOutlined, EyeOutlined, KeyOutlined, PhoneOutlined, MailOutlined, IdcardOutlined, SafetyOutlined, MoreOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import axiosInstance from "../api/axiosConfig";
 import ResponsiveTable from "../components/common/ResponsiveTable";
 import { showNotification } from "../config/notificationConfig";
@@ -662,75 +662,68 @@ const Pagamentos = () => {
           estadoRequisicao !== 9 &&
           estadoRequisicao !== 6;
 
+        // Função para criar o menu de ações de visualização
+        const getMenuContent = (record) => {
+          const menuItems = [];
+          
+          // Opção: Consultar lote online
+          menuItems.push({
+            key: "consulta-online",
+            label: (
+              <Space>
+                <EyeOutlined style={{ color: "#1890ff" }} />
+                <span style={{ color: "#333" }}>Consultar Lote Online</span>
+              </Space>
+            ),
+            onClick: () => {
+              setLoteSelecionado(record);
+              setModalConsultaOnlineOpen(true);
+            },
+          });
+
+          // Opção: Consultar item online (apenas se for PIX)
+          if (record.item) {
+            const item = record.item;
+            const tipoPagamento = record.tipoPagamentoApi || record.tipoPagamento;
+            let identificadorPagamento = null;
+            
+            if (tipoPagamento === 'PIX' || tipoPagamento === 'pix') {
+              identificadorPagamento = item.identificadorPagamento;
+            } else if (tipoPagamento === 'BOLETO' || tipoPagamento === 'boleto') {
+              identificadorPagamento = item.codigoIdentificadorPagamento;
+            } else if (tipoPagamento === 'GUIA' || tipoPagamento === 'guia') {
+              identificadorPagamento = item.codigoPagamento;
+            } else {
+              identificadorPagamento = item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento;
+            }
+            
+            // Só mostrar opção se for PIX (por enquanto, pois a API é GET /pix/:id)
+            if (tipoPagamento === 'PIX' && identificadorPagamento) {
+              menuItems.push({
+                key: "consulta-individual",
+                label: (
+                  <Space>
+                    <EyeOutlined style={{ color: "#722ed1" }} />
+                    <span style={{ color: "#333" }}>Consultar Item Online</span>
+                  </Space>
+                ),
+                onClick: () => {
+                  setItemSelecionado({
+                    identificadorPagamento: identificadorPagamento.toString(),
+                    contaCorrenteId: record.contaCorrente?.id,
+                  });
+                  setModalConsultaItemIndividualOpen(true);
+                },
+              });
+            }
+          }
+
+          return { items: menuItems };
+        };
+
         return (
           <Space size="small">
-            <Tooltip title="Consultar lote online">
-              <Button
-                size="small"
-                icon={<EyeOutlined />}
-                onClick={() => {
-                  setLoteSelecionado(record);
-                  setModalConsultaOnlineOpen(true);
-                }}
-                style={{
-                  backgroundColor: "#1890ff",
-                  borderColor: "#1890ff",
-                  color: "#ffffff",
-                  minWidth: "32px",
-                  height: "32px",
-                  padding: "0",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              />
-            </Tooltip>
-            {record.item && (() => {
-              const item = record.item;
-              const tipoPagamento = record.tipoPagamentoApi || record.tipoPagamento;
-              let identificadorPagamento = null;
-              
-              if (tipoPagamento === 'PIX' || tipoPagamento === 'pix') {
-                identificadorPagamento = item.identificadorPagamento;
-              } else if (tipoPagamento === 'BOLETO' || tipoPagamento === 'boleto') {
-                identificadorPagamento = item.codigoIdentificadorPagamento;
-              } else if (tipoPagamento === 'GUIA' || tipoPagamento === 'guia') {
-                identificadorPagamento = item.codigoPagamento;
-              } else {
-                identificadorPagamento = item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento;
-              }
-              
-              // Só mostrar botão se for PIX (por enquanto, pois a API é GET /pix/:id)
-              if (tipoPagamento === 'PIX' && identificadorPagamento) {
-                return (
-                  <Tooltip title="Consultar item individual">
-                    <Button
-                      size="small"
-                      icon={<EyeOutlined />}
-                      onClick={() => {
-                        setItemSelecionado({
-                          identificadorPagamento: identificadorPagamento.toString(),
-                          contaCorrenteId: record.contaCorrente?.id,
-                        });
-                        setModalConsultaItemIndividualOpen(true);
-                      }}
-                      style={{
-                        backgroundColor: "#722ed1",
-                        borderColor: "#722ed1",
-                        color: "#ffffff",
-                        minWidth: "32px",
-                        height: "32px",
-                        padding: "0",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    />
-                  </Tooltip>
-                );
-              }
-              return null;
-            })()}
+            {/* Botões de ação diretos */}
             {podeLiberar && (
               <Tooltip title="Liberar pagamento">
                 <Button
@@ -779,6 +772,24 @@ const Pagamentos = () => {
                 />
               </Tooltip>
             )}
+            
+            {/* Menu dropdown para opções de visualização */}
+            <Dropdown
+              menu={getMenuContent(record)}
+              trigger={["click"]}
+              placement="bottomRight"
+            >
+              <Button
+                type="text"
+                icon={<MoreOutlined />}
+                size="small"
+                style={{
+                  color: "#666666",
+                  border: "none",
+                  boxShadow: "none",
+                }}
+              />
+            </Dropdown>
           </Space>
         );
       },

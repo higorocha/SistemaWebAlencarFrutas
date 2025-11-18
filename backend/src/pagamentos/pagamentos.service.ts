@@ -1008,14 +1008,7 @@ export class PagamentosService {
     const numeroRequisicao = await this.obterProximoNumeroRequisicao(contaCorrente.id);
 
     try {
-      // ========================================
-      // LOG DO PAYLOAD RECEBIDO
-      // ========================================
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log('📥 [PAGAMENTOS-SERVICE] PAYLOAD RECEBIDO (Transferência PIX):');
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log(JSON.stringify({ ...dto, numeroRequisicao }, null, 2));
-      console.log('═══════════════════════════════════════════════════════════════');
+      console.log(`📥 [PAGAMENTOS-SERVICE] Criando lote de pagamento: numeroRequisicao=${numeroRequisicao}, ${dto.listaTransferencias.length} transferência(s)`);
 
       // Buscar conta corrente pelo ID
       const contaCorrente = await this.contaCorrenteService.findOne(dto.contaCorrenteId);
@@ -1200,12 +1193,7 @@ export class PagamentosService {
       const apiClient = createPagamentosApiClient(credencialPagamento.developerAppKey);
 
       // Fazer requisição ao BB
-      console.log(`🌐 [PAGAMENTOS-SERVICE] Enviando requisição para API BB: POST /lotes-transferencias-pix`);
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log('📤 [PAGAMENTOS-SERVICE] PAYLOAD ENVIADO AO BB:');
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log(JSON.stringify(payloadBB, null, 2));
-      console.log('═══════════════════════════════════════════════════════════════');
+      console.log(`🌐 [PAGAMENTOS-SERVICE] Enviando requisição ao BB: numeroRequisicao=${numeroRequisicao}, valorTotal=${valorTotalEnviado}`);
       
       const response = await apiClient.post(
         '/lotes-transferencias-pix',
@@ -1217,17 +1205,9 @@ export class PagamentosService {
         }
       );
 
-      // ========================================
-      // LOG DA RESPOSTA COMPLETA DA API BB
-      // ========================================
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log('✅ [PAGAMENTOS-SERVICE] RESPOSTA COMPLETA DA API BB:');
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log('Status HTTP:', response.status, response.statusText);
-      console.log('Body:', JSON.stringify(response.data, null, 2));
-      console.log('═══════════════════════════════════════════════════════════════');
-
       const respostaData = response.data as RespostaTransferenciaPixDto;
+      
+      console.log(`✅ [PAGAMENTOS-SERVICE] Resposta BB recebida: estadoRequisicao=${respostaData?.estadoRequisicao}, ${respostaData?.quantidadeTransferenciasValidas || 0} transferência(s) válida(s)`);
 
       // Atualizar lote com resposta do BB
       const estadoRequisicao = respostaData?.estadoRequisicao;
@@ -1291,10 +1271,14 @@ export class PagamentosService {
             const erros = transferencia.erros || [];
             const statusItem = this.mapearStatusItem(indicadorMovimentoAceito, erros);
 
+            // O identificadorPagamento agora vem como string do transformador (se for número grande)
+            // ou como number (se for número pequeno). Sempre converter para string para garantir precisão.
+            const identificadorParaSalvar = transferencia.identificadorPagamento != null ? String(transferencia.identificadorPagamento) : null;
+
             await this.prisma.pagamentoApiItem.update({
               where: { id: item.id },
               data: {
-                identificadorPagamento: transferencia.identificadorPagamento?.toString() || null,
+                identificadorPagamento: identificadorParaSalvar,
                 indicadorMovimentoAceito,
                 indicadorMovimentoAceitoAtual: indicadorMovimentoAceito,
                 erros: erros.length > 0 ? erros as any : null,
@@ -1304,63 +1288,29 @@ export class PagamentosService {
                 ultimaAtualizacaoStatus: new Date(),
               },
             });
+
+            console.log(`💾 [PAGAMENTOS-SERVICE] Item ${item.id} atualizado: identificadorPagamento=${identificadorParaSalvar}`);
           })
         );
 
-        console.log(`💾 [PAGAMENTOS-SERVICE] ${respostaData.listaTransferencias.length} item(ns) atualizado(s) com resposta do BB`);
+        console.log(`💾 [PAGAMENTOS-SERVICE] ${respostaData.listaTransferencias.length} item(ns) atualizado(s)`);
       }
 
-      // Log resumido
-      console.log(`✅ [PAGAMENTOS-SERVICE] Transferência PIX solicitada com sucesso!`);
-      console.log(`  📋 Requisição: ${numeroRequisicao}`);
-      console.log(`  📊 Estado: ${estadoRequisicao || 'N/A'}`);
-      console.log(`  💰 Quantidade de transferências: ${respostaData?.quantidadeTransferencias || 0}`);
-      console.log(`  💵 Valor total: ${respostaData?.valorTransferencias || '0.00'}`);
-      console.log(`  ✅ Transferências válidas: ${quantidadeValida}`);
-      console.log(`  💵 Valor válido: ${valorTotalValido}`);
-      
-      if (respostaData?.listaTransferencias) {
-        console.log(`  📋 Detalhes das transferências:`);
-        respostaData.listaTransferencias.forEach((transferencia, index) => {
-          console.log(`    ${index + 1}. Identificador: ${transferencia.identificadorPagamento || 'N/A'}, Aceito: ${transferencia.indicadorMovimentoAceito || 'N/A'}`);
-          if (transferencia.erros && transferencia.erros.length > 0) {
-            console.log(`       ⚠️ Erros: ${JSON.stringify(transferencia.erros)}`);
-          }
-        });
-      }
+      console.log(`✅ [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} criado com sucesso: ${quantidadeValida} transferência(s) válida(s), valor=${valorTotalValido}`);
       
       return respostaData;
 
     } catch (error) {
-      // Log detalhado do erro
-      console.error('═══════════════════════════════════════════════════════════════');
-      console.error('❌ [PAGAMENTOS-SERVICE] ERRO AO SOLICITAR TRANSFERÊNCIA PIX:');
-      console.error('═══════════════════════════════════════════════════════════════');
-      console.error('Mensagem de erro:', error.message);
-      console.error('Stack:', error.stack);
+      console.error(`❌ [PAGAMENTOS-SERVICE] Erro ao criar lote ${numeroRequisicao}:`, error.message);
       
       if (error.response) {
-        console.error('Status HTTP:', error.response.status, error.response.statusText);
-        console.error('Headers da resposta:', JSON.stringify(error.response.headers, null, 2));
-        console.error('═══════════════════════════════════════════════════════════════');
-        console.error('📥 RESPOSTA COMPLETA DE ERRO DO BB:');
-        console.error('═══════════════════════════════════════════════════════════════');
-        console.error(JSON.stringify(error.response.data, null, 2));
-        console.error('═══════════════════════════════════════════════════════════════');
-        
-        // Extrair erros detalhados do BB
+        console.error(`   Status HTTP: ${error.response.status} ${error.response.statusText}`);
         if (error.response.data?.erros) {
-          console.error('🔍 Erros detalhados do BB:');
-          error.response.data.erros.forEach((erro: any, index: number) => {
-            console.error(`  Erro ${index + 1}:`, JSON.stringify(erro, null, 2));
-          });
+          console.error(`   Erros BB:`, JSON.stringify(error.response.data.erros));
+        } else {
+          console.error(`   Resposta:`, JSON.stringify(error.response.data));
         }
-      } else if (error.request) {
-        console.error('Erro na requisição (sem resposta do servidor):', error.request);
-      } else {
-        console.error('Erro ao configurar requisição:', error.message);
       }
-      console.error('═══════════════════════════════════════════════════════════════');
 
       // Se o lote foi criado, atualizar com erro
       // Nota: O lote pode não existir se o erro ocorreu antes de criá-lo
@@ -1982,7 +1932,7 @@ export class PagamentosService {
             await this.prisma.pagamentoApiItem.update({
               where: { id: item.id },
               data: {
-                identificadorPagamento: transferencia.identificadorPagamento?.toString() || item.identificadorPagamento,
+                identificadorPagamento: transferencia.identificadorPagamento != null ? String(transferencia.identificadorPagamento) : item.identificadorPagamento,
                 indicadorMovimentoAceitoAtual: indicadorMovimentoAceito,
                 erros: erros.length > 0 ? erros as any : item.erros,
                 payloadItemRespostaAtual: transferencia as any,
@@ -2087,9 +2037,13 @@ export class PagamentosService {
       console.log('Status HTTP:', response.status, response.statusText);
       console.log('Headers:', JSON.stringify(response.headers, null, 2));
       console.log('═══════════════════════════════════════════════════════════════');
-      console.log('📦 BODY COMPLETO DA RESPOSTA:');
+      console.log('📦 JSON COMPLETO RETORNADO PELA API DO BB:');
       console.log('═══════════════════════════════════════════════════════════════');
       console.log(JSON.stringify(response.data, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+      // Log adicional para facilitar cópia do JSON
+      console.log('📋 [JSON RAW - Pode copiar diretamente]:');
+      console.log(JSON.stringify(response.data));
       console.log('═══════════════════════════════════════════════════════════════');
       
       const respostaData = response.data as RespostaTransferenciaPixDto;
@@ -2644,7 +2598,7 @@ export class PagamentosService {
         // Segundo a documentação, agencia, contaCorrente e digitoVerificador são opcionais
         // quando a solicitação é acessada pelo código de autorização no fluxo do OAuth.
         // Como estamos usando OAuth, não precisamos enviar esses parâmetros.
-        const identificadorParaURL = identificadorPagamento?.toString().trim();
+        const identificadorParaURL = identificadorPagamento != null ? String(identificadorPagamento).trim() : null;
         
         console.log(`🌐 [PAGAMENTOS-SERVICE] Consultando item individual PIX: GET /pix/${identificadorParaURL}`);
 
@@ -2657,6 +2611,24 @@ export class PagamentosService {
               },
             }
           );
+
+          // ========================================
+          // LOG DETALHADO DA RESPOSTA COMPLETA DA API BB
+          // ========================================
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('✅ [PAGAMENTOS-SERVICE] CONSULTA INDIVIDUAL PIX - RESPOSTA COMPLETA DA API BB:');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('Status HTTP:', response.status, response.statusText);
+          console.log('Headers:', JSON.stringify(response.headers, null, 2));
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('📦 JSON COMPLETO RETORNADO PELA API DO BB:');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log(JSON.stringify(response.data, null, 2));
+          console.log('═══════════════════════════════════════════════════════════════');
+          // Log adicional para facilitar cópia do JSON
+          console.log('📋 [JSON RAW - Pode copiar diretamente]:');
+          console.log(JSON.stringify(response.data));
+          console.log('═══════════════════════════════════════════════════════════════');
 
           const respostaData = response.data as any;
 
@@ -2691,6 +2663,22 @@ export class PagamentosService {
                 },
               }
             );
+
+            // ========================================
+            // LOG DETALHADO DA RESPOSTA COMPLETA DA API BB (RETRY)
+            // ========================================
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log('✅ [PAGAMENTOS-SERVICE] CONSULTA INDIVIDUAL PIX - RESPOSTA COMPLETA DA API BB (RETRY):');
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log('Status HTTP:', response.status, response.statusText);
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log('📦 JSON COMPLETO RETORNADO PELA API DO BB:');
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log(JSON.stringify(response.data, null, 2));
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log('📋 [JSON RAW - Pode copiar diretamente]:');
+            console.log(JSON.stringify(response.data));
+            console.log('═══════════════════════════════════════════════════════════════');
 
             const respostaData = response.data as any;
 
@@ -2731,7 +2719,7 @@ export class PagamentosService {
           const contaCorrente = await this.contaCorrenteService.findOne(credencialPagamento.contaCorrenteId);
           const token = await this.obterTokenDeAcesso(credencialPagamento, this.SCOPES_PIX_INFO);
           const apiClient = createPagamentosApiClient(credencialPagamento.developerAppKey);
-          const identificadorParaURL = identificadorPagamento?.toString().trim();
+          const identificadorParaURL = identificadorPagamento != null ? String(identificadorPagamento).trim() : null;
 
           const response = await apiClient.get(
             `/pix/${identificadorParaURL}`,
@@ -2741,6 +2729,22 @@ export class PagamentosService {
               },
             }
           );
+
+          // ========================================
+          // LOG DETALHADO DA RESPOSTA COMPLETA DA API BB (TENTATIVA EM TODAS AS CONTAS)
+          // ========================================
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('✅ [PAGAMENTOS-SERVICE] CONSULTA INDIVIDUAL PIX - RESPOSTA COMPLETA DA API BB (TENTATIVA EM TODAS AS CONTAS):');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('Status HTTP:', response.status, response.statusText);
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('📦 JSON COMPLETO RETORNADO PELA API DO BB:');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log(JSON.stringify(response.data, null, 2));
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('📋 [JSON RAW - Pode copiar diretamente]:');
+          console.log(JSON.stringify(response.data));
+          console.log('═══════════════════════════════════════════════════════════════');
 
           return response.data as any;
         } catch (error) {
