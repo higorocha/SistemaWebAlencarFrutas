@@ -3,6 +3,7 @@ import puppeteer, { Browser, Page } from 'puppeteer';
 import * as fs from 'fs/promises';
 import * as hbs from 'handlebars';
 import * as path from 'path';
+import { execSync } from 'child_process';
 
 @Injectable()
 export class PdfService {
@@ -10,6 +11,7 @@ export class PdfService {
   private readonly templatesPath = path.join(process.cwd(), 'src', 'pdf', 'templates');
   private readonly partialsPath = path.join(this.templatesPath, 'partials');
   private partialsRegistered = false;
+  private chromeInstallAttempted = false; // Evitar múltiplas tentativas de instalação
 
   /**
    * Registra os partials do Handlebars (cabeçalho e rodapé reutilizáveis)
@@ -85,14 +87,38 @@ export class PdfService {
       try {
         browser = await puppeteer.launch(launchOptions);
       } catch (chromeError: any) {
-        // Se falhar e for erro de Chrome não encontrado, dar instruções
-        if (chromeError.message?.includes('Could not find Chrome') || chromeError.message?.includes('chrome')) {
-          this.logger.error('Chrome não encontrado. Para produção, execute: npm run puppeteer:install');
+        // Se falhar e for erro de Chrome não encontrado, tentar instalar automaticamente (apenas uma vez)
+        if ((chromeError.message?.includes('Could not find Chrome') || chromeError.message?.includes('chrome')) && !this.chromeInstallAttempted) {
+          this.chromeInstallAttempted = true;
+          this.logger.warn('Chrome não encontrado. Tentando instalar automaticamente (isso pode levar alguns minutos na primeira vez)...');
+          
+          try {
+            // Tentar instalar Chrome automaticamente
+            execSync('npx puppeteer browsers install chrome', {
+              stdio: 'inherit', // Mostrar progresso da instalação
+              timeout: 300000, // 5 minutos de timeout (instalação pode ser lenta)
+              env: { ...process.env, PUPPETEER_SKIP_DOWNLOAD: 'false' }
+            });
+            
+            this.logger.log('✅ Chrome instalado com sucesso. Tentando iniciar novamente...');
+            
+            // Tentar novamente após instalação
+            browser = await puppeteer.launch(launchOptions);
+            this.logger.log('✅ Puppeteer iniciado com sucesso após instalação do Chrome');
+          } catch (installError: any) {
+            this.logger.error(`❌ Falha ao instalar Chrome automaticamente: ${installError.message}`);
+            throw new Error(
+              'Chrome não encontrado e não foi possível instalar automaticamente. Verifique os logs do servidor para mais detalhes.'
+            );
+          }
+        } else if (chromeError.message?.includes('Could not find Chrome') || chromeError.message?.includes('chrome')) {
+          // Se já tentou instalar e ainda falhou, dar erro claro
           throw new Error(
-            'Chrome não encontrado. Em produção (Render.com), certifique-se de que o Build Command inclui: npm run puppeteer:install'
+            'Chrome não encontrado. A instalação automática já foi tentada. Verifique os logs do servidor.'
           );
+        } else {
+          throw chromeError;
         }
-        throw chromeError;
       }
       page = await browser.newPage();
 
