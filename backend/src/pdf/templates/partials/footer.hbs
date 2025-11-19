@@ -1,0 +1,26 @@
+{{!-- Partial de Rodapé Reutilizável --}}
+<div class="pdf-footer">
+  <div class="footer-content">
+    <div class="footer-left">
+      {{#if empresa}}
+      <p class="footer-empresa">{{empresa.nome_fantasia}}</p>
+      {{#if empresa.cnpj}}
+      <p class="footer-cnpj">CNPJ: {{empresa.cnpj}}</p>
+      {{/if}}
+      {{else}}
+      <p class="footer-empresa">Alencar Frutas</p>
+      {{/if}}
+    </div>
+    <div class="footer-center">
+      {{#if dataGeracaoFormatada}}
+      <p class="footer-data">Gerado em: {{dataGeracaoFormatada}}</p>
+      {{/if}}
+    </div>
+    <div class="footer-right">
+      {{#if paginaAtual}}
+      <p class="footer-pagina">Página {{paginaAtual}}{{#if totalPaginas}} de {{totalPaginas}}{{/if}}</p>
+      {{/if}}
+    </div>
+  </div>
+</div>
+

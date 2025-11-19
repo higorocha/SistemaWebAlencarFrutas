@@ -8,6 +8,31 @@ import * as path from 'path';
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
   private readonly templatesPath = path.join(process.cwd(), 'src', 'pdf', 'templates');
+  private readonly partialsPath = path.join(this.templatesPath, 'partials');
+  private partialsRegistered = false;
+
+  /**
+   * Registra os partials do Handlebars (cabeçalho e rodapé reutilizáveis)
+   */
+  private async registrarPartials() {
+    if (this.partialsRegistered) return;
+
+    try {
+      const headerPath = path.join(this.partialsPath, 'header.hbs');
+      const footerPath = path.join(this.partialsPath, 'footer.hbs');
+
+      const headerTemplate = await fs.readFile(headerPath, 'utf-8');
+      const footerTemplate = await fs.readFile(footerPath, 'utf-8');
+
+      hbs.registerPartial('header', headerTemplate);
+      hbs.registerPartial('footer', footerTemplate);
+
+      this.partialsRegistered = true;
+      this.logger.debug('Partials do Handlebars registrados com sucesso');
+    } catch (error: any) {
+      this.logger.warn(`Erro ao registrar partials: ${error.message}. Continuando sem partials.`);
+    }
+  }
 
   /**
    * Gera um PDF a partir de um template Handlebars
@@ -20,6 +45,9 @@ export class PdfService {
     let page: Page | null = null;
 
     try {
+      // 0. Registrar partials (cabeçalho e rodapé reutilizáveis)
+      await this.registrarPartials();
+
       // 1. Compilar o Template HTML
       const templatePath = path.join(this.templatesPath, `${templateName}.hbs`);
       
@@ -32,21 +60,40 @@ export class PdfService {
       // Injeta os dados no HTML
       const htmlContent = compiledTemplate(data);
 
-      // 2. Iniciar o Browser (Puppeteer) - Configuração simples e funcional
+      // 2. Iniciar o Browser (Puppeteer) - Configuração para desenvolvimento e produção
       this.logger.debug('Iniciando Puppeteer...');
       
-      const launchOptions = {
+      const launchOptions: any = {
         headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-extensions',
         ],
         timeout: 30000,
       };
 
-      browser = await puppeteer.launch(launchOptions);
+      // Se PUPPETEER_EXECUTABLE_PATH estiver definido (útil para produção/Render)
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+        this.logger.debug(`Usando Chrome executável customizado: ${launchOptions.executablePath}`);
+      }
+
+      try {
+        browser = await puppeteer.launch(launchOptions);
+      } catch (chromeError: any) {
+        // Se falhar e for erro de Chrome não encontrado, dar instruções
+        if (chromeError.message?.includes('Could not find Chrome') || chromeError.message?.includes('chrome')) {
+          this.logger.error('Chrome não encontrado. Para produção, execute: npm run puppeteer:install');
+          throw new Error(
+            'Chrome não encontrado. Em produção (Render.com), certifique-se de que o Build Command inclui: npm run puppeteer:install'
+          );
+        }
+        throw chromeError;
+      }
       page = await browser.newPage();
 
       // Configurar timeout da página

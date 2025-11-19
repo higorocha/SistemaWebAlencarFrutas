@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { PdfService } from './pdf.service';
 import { PedidosService } from '../pedidos/pedidos.service';
+import { ConfigService } from '../config/config.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { formatCurrencyBR, formatDateBR, formatNumber } from '../utils/formatters';
 
@@ -14,6 +15,7 @@ export class PdfController {
   constructor(
     private readonly pdfService: PdfService,
     private readonly pedidosService: PedidosService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Get('pedido/:id')
@@ -39,20 +41,23 @@ export class PdfController {
     // 1. Busca dados usando o Service existente (reaproveita lógica)
     const pedido = await this.pedidosService.findOne(+id, usuarioNivel, usuarioCulturaId);
 
-    // 2. Prepara dados para o template (formatação)
-    const dadosTemplate = this.prepararDadosTemplate(pedido);
+    // 2. Buscar dados da empresa para o cabeçalho/rodapé
+    const dadosEmpresa = await this.configService.findDadosEmpresa();
 
-    // 3. Gera o PDF
+    // 3. Prepara dados para o template (formatação)
+    const dadosTemplate = this.prepararDadosTemplate(pedido, dadosEmpresa);
+
+    // 4. Gera o PDF
     const buffer = await this.pdfService.gerarPdf('relatorio-pedidos', dadosTemplate);
 
-    // 4. Configura Headers para download ou visualização
+    // 5. Configura Headers para download ou visualização
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename=pedido-${pedido.numeroPedido}.pdf`,
       'Content-Length': buffer.length.toString(),
     });
 
-    // 5. Envia o stream
+    // 6. Envia o stream
     res.end(buffer);
   }
 
@@ -60,7 +65,7 @@ export class PdfController {
    * Prepara os dados do pedido para o template Handlebars
    * Formata valores monetários, datas e status
    */
-  private prepararDadosTemplate(pedido: any): any {
+  private prepararDadosTemplate(pedido: any, dadosEmpresa: any): any {
     // Formatar status
     const statusMap: { [key: string]: string } = {
       PEDIDO_CRIADO: 'Pedido Criado',
@@ -137,6 +142,11 @@ export class PdfController {
 
     return {
       ...pedido,
+      // Dados da empresa (para header/footer)
+      empresa: dadosEmpresa,
+      // Título do documento
+      titulo: 'Pedido',
+      subtitulo: `#${pedido.numeroPedido}`,
       // Status
       statusFormatado,
       statusLower,
