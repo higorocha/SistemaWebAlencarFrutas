@@ -1014,31 +1014,51 @@ const Pagamentos = () => {
               const itemStatus = record.item?.estadoPagamentoIndividual || record.item?.status;
               
               // Mapear status do item para exibição
+              // Usa cores consistentes com o mapeamento de estados do BB (bbEstadoRequisicao.js)
               // estadoPagamentoIndividual pode ter valores do BB: BLOQUEADO, CANCELADO, Pago, etc.
               const mapearStatusItem = (status) => {
+                // Normalizar o status para comparação (case-insensitive)
+                const statusNormalizado = status ? String(status).trim() : '';
+                
                 const statusMap = {
-                  // Status do enum interno
-                  'PENDENTE': { label: 'Pendente', color: 'default' },
-                  'ENVIADO': { label: 'Enviado', color: 'blue' },
-                  'ACEITO': { label: 'Aceito', color: 'green' },
-                  'REJEITADO': { label: 'Rejeitado', color: 'red' },
-                  'PROCESSADO': { label: 'Processado', color: 'green' },
-                  'ERRO': { label: 'Erro', color: 'red' },
-                  // Estados do BB (estadoPagamentoIndividual)
-                  'BLOQUEADO': { label: 'Bloqueado', color: 'orange' },
-                  'CANCELADO': { label: 'Cancelado', color: 'red' },
-                  'Pago': { label: 'Pago', color: 'green' },
-                  'Pendente': { label: 'Pendente', color: 'default' },
-                  'Agendado': { label: 'Agendado', color: 'blue' },
-                  'Rejeitado': { label: 'Rejeitado', color: 'red' },
-                  'Debitado': { label: 'Debitado', color: 'blue' },
-                  'Vencido': { label: 'Vencido', color: 'red' },
-                  'Devolvido': { label: 'Devolvido', color: 'orange' },
-                  'Aguardando débito': { label: 'Aguardando Débito', color: 'gold' },
+                  // Estados positivos - verde (como estado 6, 9, 10 do BB)
                   'Consistente': { label: 'Consistente', color: 'green' },
-                  'Inconsistente': { label: 'Inconsistente', color: 'red' },
+                  'Pago': { label: 'Pago', color: 'green' },
+                  'PAGO': { label: 'Pago', color: 'green' },
+                  'Debitado': { label: 'Debitado', color: 'green' },
+                  'ACEITO': { label: 'Aceito', color: 'green' },
+                  'PROCESSADO': { label: 'Processado', color: 'green' },
+                  
+                  // Estados aguardando - amarelo/ouro (como estado 1, 4 do BB)
+                  'Pendente': { label: 'Pendente', color: 'gold' },
+                  'PENDENTE': { label: 'Pendente', color: 'gold' },
+                  'Agendado': { label: 'Agendado', color: 'gold' },
+                  'Aguardando débito': { label: 'Aguardando Débito', color: 'gold' },
+                  
+                  // Estados em processamento - azul (como estado 5, 8 do BB)
+                  'ENVIADO': { label: 'Enviado', color: 'blue' },
+                  
+                  // Estados com problemas parciais - laranja (como estado 2 do BB)
+                  'Inconsistente': { label: 'Inconsistente', color: 'orange' },
+                  'Devolvido': { label: 'Devolvido', color: 'orange' },
+                  'BLOQUEADO': { label: 'Bloqueado', color: 'orange' },
+                  'Bloqueado': { label: 'Bloqueado', color: 'orange' },
+                  
+                  // Estados negativos - vermelho (como estado 3, 7 do BB)
+                  'Rejeitado': { label: 'Rejeitado', color: 'red' },
+                  'REJEITADO': { label: 'Rejeitado', color: 'red' },
+                  'CANCELADO': { label: 'Cancelado', color: 'red' },
+                  'Cancelado': { label: 'Cancelado', color: 'red' },
+                  'Vencido': { label: 'Vencido', color: 'red' },
+                  'ERRO': { label: 'Erro', color: 'red' },
                 };
-                return statusMap[status] || { label: status || 'N/A', color: 'default' };
+                
+                // Buscar status exato ou case-insensitive
+                const statusInfo = statusMap[statusNormalizado] || 
+                                   statusMap[Object.keys(statusMap).find(k => k.toLowerCase() === statusNormalizado.toLowerCase())] ||
+                                   { label: status || 'N/A', color: 'default' };
+                
+                return statusInfo;
               };
               
               const statusInfo = mapearStatusItem(itemStatus);

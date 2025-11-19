@@ -41,6 +41,7 @@ import { PDFButton } from "../common/buttons";
 import HistoricoPedidoModal from "./HistoricoPedidoModal";
 import moment from "moment";
 import { showNotification } from "../../config/notificationConfig";
+import axiosInstance from "../../api/axiosConfig";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
@@ -64,6 +65,9 @@ const VisualizarPedidoModal = ({
 
   // Estado para controlar modal de histórico
   const [historicoModalOpen, setHistoricoModalOpen] = useState(false);
+  
+  // Estado para controlar loading do PDF
+  const [loadingPDF, setLoadingPDF] = useState(false);
 
   // Função para formatar datas
   const formatarData = (data) => {
@@ -78,8 +82,65 @@ const VisualizarPedidoModal = ({
   };
 
   // Função para lidar com exportação PDF
-  const handleExportPDF = () => {
-    showNotification("info", "Em Desenvolvimento", "A funcionalidade de exportação PDF ainda está em desenvolvimento.");
+  const handleExportPDF = async () => {
+    if (!pedido?.id) {
+      showNotification("error", "Erro", "Pedido não encontrado para gerar PDF.");
+      return;
+    }
+
+    try {
+      setLoadingPDF(true);
+      
+      // Fazer requisição para o endpoint de PDF
+      const response = await axiosInstance.get(`/api/pdf/pedido/${pedido.id}`, {
+        responseType: 'blob', // Importante para receber o arquivo binário
+      });
+
+      // Criar blob do PDF
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      
+      // Criar URL temporária para o blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Criar elemento <a> para download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `pedido-${pedido.numeroPedido}.pdf`;
+      
+      // Adicionar ao DOM, clicar e remover
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Limpar URL temporária
+      window.URL.revokeObjectURL(url);
+      
+      showNotification("success", "PDF Gerado", "O PDF do pedido foi gerado e baixado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      
+      // Tentar extrair mensagem de erro do response
+      let errorMessage = "Erro ao gerar PDF do pedido.";
+      
+      if (error.response?.status === 404) {
+        errorMessage = "Pedido não encontrado.";
+      } else if (error.response?.status === 401) {
+        errorMessage = "Sessão expirada. Por favor, faça login novamente.";
+      } else if (error.response?.data) {
+        // Se o erro vier como blob, tentar converter para texto
+        try {
+          const text = await error.response.data.text();
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // Se não conseguir parsear, usar mensagem padrão
+        }
+      }
+      
+      showNotification("error", "Erro ao Gerar PDF", errorMessage);
+    } finally {
+      setLoadingPDF(false);
+    }
   };
 
   // Colunas da tabela de valores das frutas
@@ -536,6 +597,8 @@ const VisualizarPedidoModal = ({
           }}>
             <PDFButton
               onClick={handleExportPDF}
+              loading={loadingPDF}
+              disabled={loadingPDF || !pedido?.id}
               size={isMobile ? "small" : "large"}
               tooltip="Exportar pedido para PDF"
               style={{

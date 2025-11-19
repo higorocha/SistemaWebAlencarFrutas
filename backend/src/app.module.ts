@@ -32,6 +32,7 @@ import { CertificateMonitorModule } from './certificate-monitor/certificate-moni
 import { ExtratosMonitorModule } from './extratos-monitor/extratos-monitor.module';
 import { MobileModule } from './mobile/mobile.module';
 import { BbWebhooksModule } from './bb-webhooks/bb-webhooks.module';
+import { PdfModule } from './pdf/pdf.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { BbWebhooksModule } from './bb-webhooks/bb-webhooks.module';
     ExtratosMonitorModule,
     MobileModule, // Módulo para API mobile
     BbWebhooksModule, // Módulo para webhooks do Banco do Brasil
+    PdfModule, // Módulo para geração de PDFs
   ],
   controllers: [AppController],
   providers: [AppService],

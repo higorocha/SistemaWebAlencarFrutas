@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedido {{numeroPedido}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      color: #333;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .header {
+      background-color: #059669;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .pedido-info {
+      margin: 20px 0;
+      padding: 15px;
+      background-color: #f9fafb;
+      border-left: 4px solid #059669;
+      border-radius: 4px;
+    }
+
+    .pedido-info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .pedido-info-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .pedido-info-label {
+      font-weight: bold;
+      color: #059669;
+      min-width: 150px;
+    }
+
+    .pedido-info-value {
+      flex: 1;
+      text-align: right;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      color: white;
+      text-transform: uppercase;
+    }
+
+    .status-pedido-criado { background-color: #6b7280; }
+    .status-aguardando-colheita { background-color: #f59e0b; }
+    .status-colheita-parcial { background-color: #3b82f6; }
+    .status-colheita-realizada { background-color: #8b5cf6; }
+    .status-aguardando-precificacao { background-color: #ec4899; }
+    .status-precificacao-realizada { background-color: #14b8a6; }
+    .status-aguardando-pagamento { background-color: #f97316; }
+    .status-pagamento-parcial { background-color: #eab308; }
+    .status-pedido-finalizado { background-color: #059669; }
+    .status-cancelado { background-color: #dc2626; }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #059669;
+      margin: 25px 0 15px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #059669;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      margin-bottom: 20px;
+    }
+
+    thead {
+      background-color: #059669;
+      color: white;
+    }
+
+    th {
+      padding: 10px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 11px;
+    }
+
+    tbody tr:hover {
+      background-color: #f9fafb;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .totals-section {
+      margin-top: 30px;
+      padding: 15px;
+      background-color: #f9fafb;
+      border-radius: 4px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .total-row:last-child {
+      border-bottom: none;
+      border-top: 2px solid #059669;
+      margin-top: 10px;
+      padding-top: 15px;
+      font-weight: bold;
+      font-size: 14px;
+      color: #059669;
+    }
+
+    .total-label {
+      font-weight: bold;
+    }
+
+    .total-value {
+      font-weight: bold;
+    }
+
+    .observacoes {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      border-radius: 4px;
+    }
+
+    .observacoes-title {
+      font-weight: bold;
+      color: #92400e;
+      margin-bottom: 8px;
+    }
+
+    .observacoes-content {
+      color: #78350f;
+      font-size: 11px;
+    }
+
+    .footer {
+      margin-top: 30px;
+      padding-top: 15px;
+      border-top: 1px solid #e5e7eb;
+      text-align: center;
+      color: #6b7280;
+      font-size: 10px;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 20px;
+      color: #6b7280;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Pedido #{{numeroPedido}}</h1>
+    <p>{{cliente.nome}}</p>
+  </div>
+
+  <div class="pedido-info">
+    <div class="pedido-info-row">
+      <span class="pedido-info-label">Data do Pedido:</span>
+      <span class="pedido-info-value">{{dataPedidoFormatada}}</span>
+    </div>
+    <div class="pedido-info-row">
+      <span class="pedido-info-label">Data Prevista Colheita:</span>
+      <span class="pedido-info-value">{{dataPrevistaColheitaFormatada}}</span>
+    </div>
+    {{#if dataColheitaFormatada}}
+    <div class="pedido-info-row">
+      <span class="pedido-info-label">Data da Colheita:</span>
+      <span class="pedido-info-value">{{dataColheitaFormatada}}</span>
+    </div>
+    {{/if}}
+    <div class="pedido-info-row">
+      <span class="pedido-info-label">Status:</span>
+      <span class="pedido-info-value">
+        <span class="status-badge status-{{statusLower}}">{{statusFormatado}}</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="section-title">Frutas do Pedido</div>
+  
+  {{#if frutasPedidos}}
+  <table>
+    <thead>
+      <tr>
+        <th>Fruta</th>
+        <th class="text-right">Qtd. Prevista</th>
+        {{#if temQuantidadeReal}}
+        <th class="text-right">Qtd. Real</th>
+        {{/if}}
+        {{#if temValorUnitario}}
+        <th class="text-right">Valor Unit.</th>
+        <th class="text-right">Total</th>
+        {{/if}}
+      </tr>
+    </thead>
+    <tbody>
+      {{#each frutasPedidos}}
+      <tr>
+        <td>
+          <strong>{{fruta.nome}}</strong>
+          {{#if fruta.dePrimeira}}
+          <span style="color: #059669; font-size: 10px;">(1ª)</span>
+          {{/if}}
+          {{#if fruta.cultura}}
+          <br><span style="color: #6b7280; font-size: 10px;">{{fruta.cultura.descricao}}</span>
+          {{/if}}
+        </td>
+        <td class="text-right">
+          {{quantidadePrevistaFormatada}} {{unidadeMedida1}}
+          {{#if unidadeMedida2}}
+          <br><span style="color: #6b7280; font-size: 10px;">{{quantidadePrevistaFormatada2}} {{unidadeMedida2}}</span>
+          {{/if}}
+        </td>
+        {{#if ../temQuantidadeReal}}
+        <td class="text-right">
+          {{#if quantidadeRealFormatada}}
+          {{quantidadeRealFormatada}} {{unidadeMedida1}}
+          {{#if quantidadeReal2Formatada}}
+          <br><span style="color: #6b7280; font-size: 10px;">{{quantidadeReal2Formatada}} {{unidadeMedida2}}</span>
+          {{/if}}
+          {{else}}
+          <span style="color: #9ca3af;">-</span>
+          {{/if}}
+        </td>
+        {{/if}}
+        {{#if ../temValorUnitario}}
+        <td class="text-right">
+          {{#if valorUnitarioFormatado}}
+          {{valorUnitarioFormatado}}
+          {{else}}
+          <span style="color: #9ca3af;">-</span>
+          {{/if}}
+        </td>
+        <td class="text-right">
+          {{#if valorTotalFormatado}}
+          <strong>{{valorTotalFormatado}}</strong>
+          {{else}}
+          <span style="color: #9ca3af;">-</span>
+          {{/if}}
+        </td>
+        {{/if}}
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="no-data">Nenhuma fruta cadastrada neste pedido.</div>
+  {{/if}}
+
+  {{#if temValores}}
+  <div class="totals-section">
+    {{#if freteFormatado}}
+    <div class="total-row">
+      <span class="total-label">Frete:</span>
+      <span class="total-value">{{freteFormatado}}</span>
+    </div>
+    {{/if}}
+    {{#if icmsFormatado}}
+    <div class="total-row">
+      <span class="total-label">ICMS:</span>
+      <span class="total-value">{{icmsFormatado}}</span>
+    </div>
+    {{/if}}
+    {{#if descontoFormatado}}
+    <div class="total-row">
+      <span class="total-label">Desconto:</span>
+      <span class="total-value">{{descontoFormatado}}</span>
+    </div>
+    {{/if}}
+    {{#if avariaFormatada}}
+    <div class="total-row">
+      <span class="total-label">Avaria:</span>
+      <span class="total-value">{{avariaFormatada}}</span>
+    </div>
+    {{/if}}
+    {{#if valorFinalFormatado}}
+    <div class="total-row">
+      <span class="total-label">Total Geral:</span>
+      <span class="total-value">{{valorFinalFormatado}}</span>
+    </div>
+    {{/if}}
+    {{#if valorRecebidoFormatado}}
+    <div class="total-row">
+      <span class="total-label">Valor Recebido:</span>
+      <span class="total-value">{{valorRecebidoFormatado}}</span>
+    </div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{#if observacoes}}
+  <div class="observacoes">
+    <div class="observacoes-title">Observações:</div>
+    <div class="observacoes-content">{{observacoes}}</div>
+  </div>
+  {{/if}}
+
+  {{#if observacoesColheita}}
+  <div class="observacoes">
+    <div class="observacoes-title">Observações da Colheita:</div>
+    <div class="observacoes-content">{{observacoesColheita}}</div>
+  </div>
+  {{/if}}
+
+  <div class="footer">
+    <p>Documento gerado em {{dataGeracaoFormatada}}</p>
+  </div>
+</body>
+</html>
+
