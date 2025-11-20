@@ -2116,14 +2116,24 @@ export class PagamentosService {
 
       // Atualizar lote com resposta mais recente
       const estadoAnterior =
-        lote.estadoRequisicaoAtual ?? lote.estadoRequisicao ?? null;
-      const estadoRequisicaoApi = respostaData?.estadoRequisicao ?? null;
+        typeof lote.estadoRequisicaoAtual === 'number'
+          ? lote.estadoRequisicaoAtual
+          : typeof lote.estadoRequisicao === 'number'
+            ? lote.estadoRequisicao
+            : null;
+      const estadoRequisicaoApi =
+        typeof respostaData?.estadoRequisicao === 'number'
+          ? respostaData.estadoRequisicao
+          : null;
+      const isEstadoFinal = (estado?: number | null) =>
+        estado === 6 || estado === 7;
       let estadoRequisicao = estadoRequisicaoApi ?? estadoAnterior;
 
       if (
         typeof estadoAnterior === 'number' &&
         typeof estadoRequisicao === 'number' &&
-        estadoAnterior > estadoRequisicao
+        estadoAnterior > estadoRequisicao &&
+        !isEstadoFinal(estadoRequisicao)
       ) {
         // Não permitir retroceder para estados anteriores (ex: voltar para 1 ou 4 após avançar)
         estadoRequisicao = estadoAnterior;

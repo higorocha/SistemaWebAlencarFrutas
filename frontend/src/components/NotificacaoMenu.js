@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Popover, Tooltip } from "antd";
 import {
   Badge,
@@ -8,6 +8,7 @@ import {
   Divider,
   CircularProgress,
   useTheme,
+  Button,
 } from "@mui/material";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
@@ -56,10 +57,23 @@ const NotificacaoMenu = () => {
   const [loadingLoteLiberacao, setLoadingLoteLiberacao] = useState(false);
   const [liberandoLoteId, setLiberandoLoteId] = useState(null);
 
+  // Estado para controlar quantas notificações estão sendo exibidas
+  const [limiteExibicao, setLimiteExibicao] = useState(50);
+  const [popoverAberto, setPopoverAberto] = useState(false);
+
+  // Resetar limite quando o popover fechar ou quando as notificações mudarem significativamente
+  useEffect(() => {
+    if (!popoverAberto) {
+      setLimiteExibicao(50);
+    }
+  }, [popoverAberto]);
+
   // Função para carregar notificações ao clicar no ícone
   const handleIconClick = (e) => {
     e.stopPropagation();
-    buscarNotificacoes();
+    if (!popoverAberto) {
+      buscarNotificacoes();
+    }
   };
 
   const obterDadosAdicionais = (notificacao) => {
@@ -950,6 +964,15 @@ const NotificacaoMenu = () => {
     (n) => n && n.status !== "descartada"
   );
 
+  // Notificações a serem exibidas (limitadas)
+  const notificacoesExibidas = notificacoesAtivas.slice(0, limiteExibicao);
+  const temMaisNotificacoes = notificacoesAtivas.length > limiteExibicao;
+
+  // Função para carregar mais notificações
+  const handleCarregarMais = () => {
+    setLimiteExibicao((prev) => prev + 50);
+  };
+
   const content = (
     <Box
       sx={{
@@ -988,7 +1011,8 @@ const NotificacaoMenu = () => {
           <CircularProgress size={24} />
         </Box>
       ) : notificacoesAtivas.length > 0 ? (
-        notificacoesAtivas.slice(0, 10).map((item) => {
+        <>
+          {notificacoesExibidas.map((item) => {
           // Renderizar notificação de liberação de lote de pagamentos (tipoNegocio = liberar_pagamento)
           if (isNotificacaoLiberarPagamento(item)) {
             return (
@@ -1086,7 +1110,30 @@ const NotificacaoMenu = () => {
               </Typography>
             </Box>
           );
-        })
+          })}
+          
+          {/* Botão "Carregar mais" */}
+          {temMaisNotificacoes && (
+            <Box sx={{ display: "flex", justifyContent: "center", mt: 2, mb: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleCarregarMais}
+                sx={{
+                  textTransform: "none",
+                  color: theme.palette.primary.main,
+                  borderColor: theme.palette.primary.main,
+                  "&:hover": {
+                    borderColor: theme.palette.primary.dark,
+                    backgroundColor: theme.palette.action.hover,
+                  },
+                }}
+              >
+                Carregar mais ({notificacoesAtivas.length - limiteExibicao} restantes)
+              </Button>
+            </Box>
+          )}
+        </>
       ) : (
         <Box
           sx={{
@@ -1115,6 +1162,13 @@ const NotificacaoMenu = () => {
         trigger="click"
         placement="bottomRight"
         overlayStyle={{ width: isMobile ? 280 : 350 }}
+        open={popoverAberto}
+        onOpenChange={(open) => {
+          setPopoverAberto(open);
+          if (open) {
+            buscarNotificacoes();
+          }
+        }}
       >
         <IconButton
           color="inherit"

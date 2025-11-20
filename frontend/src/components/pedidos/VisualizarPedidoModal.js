@@ -92,19 +92,46 @@ const VisualizarPedidoModal = ({
       setLoadingPDF(true);
       
       // Fazer requisição para o endpoint de PDF
+      // IMPORTANTE: Para ler headers com blob, precisamos garantir que o axios os exponha
       const response = await axiosInstance.get(`/api/pdf/pedido/${pedido.id}`, {
         responseType: 'blob', // Importante para receber o arquivo binário
+        // Garantir que os headers sejam expostos
+        transformResponse: [(data) => data], // Não transforma a resposta
       });
 
       // Extrair nome do arquivo do header Content-Disposition do backend
       let nomeArquivo = `pedido-${pedido.numeroPedido}.pdf`; // Fallback
-      const contentDisposition = response.headers['content-disposition'];
+      
+      // Tentar diferentes formas de acessar o header
+      const contentDisposition = 
+        response.headers['content-disposition'] || 
+        response.headers['Content-Disposition'];
+      
+      console.log('[Frontend PDF] Content-Disposition header:', contentDisposition);
+      console.log('[Frontend PDF] Todos os headers disponíveis:', Object.keys(response.headers));
+      
       if (contentDisposition) {
-        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        // Primeiro tenta o formato RFC 5987 (filename*=UTF-8''...)
+        let match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
         if (match && match[1]) {
-          nomeArquivo = match[1].replace(/['"]/g, ''); // Remove aspas se houver
+          nomeArquivo = decodeURIComponent(match[1]);
+          console.log('[Frontend PDF] Nome extraído do filename*:', nomeArquivo);
+        } else {
+          // Fallback para o formato padrão (filename="...")
+          match = contentDisposition.match(/filename="([^"]+)"/);
+          if (!match) {
+            match = contentDisposition.match(/filename=([^;]+)/);
+          }
+          if (match && match[1]) {
+            nomeArquivo = match[1].replace(/['"]/g, '').trim();
+            console.log('[Frontend PDF] Nome extraído do filename:', nomeArquivo);
+          }
         }
+      } else {
+        console.warn('[Frontend PDF] Content-Disposition header não encontrado! Usando fallback.');
       }
+      
+      console.log('[Frontend PDF] Nome do arquivo final que será usado:', nomeArquivo);
 
       // Criar blob do PDF
       const blob = new Blob([response.data], { type: 'application/pdf' });

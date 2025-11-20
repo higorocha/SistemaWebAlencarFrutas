@@ -329,11 +329,11 @@
     }
 
     .table-qty {
-      width: 80px;
+      width: 100px;
     }
 
     .table-desc {
-      min-width: 220px;
+      min-width: 180px;
     }
 
     .produto-nome {
@@ -685,8 +685,29 @@
                 {{/each}}
                 {{#if valorFinalFormatado}}
                 <tr class="table-total-row">
-                  <td colspan="4" class="text-right table-total-label">Total Geral</td>
-                  <td colspan="2" class="text-right">
+                  <td colspan="2" class="text-right table-qty" style="white-space: nowrap;">
+                    {{#if totalCxFormatado}}
+                      <strong>{{totalCxFormatado}}</strong>
+                      <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">CX</span>
+                    {{/if}}
+                    {{#if totalCxFormatado}}{{#if totalUndFormatado}}<span style="margin: 0 4px; color: #9ca3af;">|</span>{{/if}}{{/if}}
+                    {{#if totalUndFormatado}}
+                      <strong>{{totalUndFormatado}}</strong>
+                      <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">UND</span>
+                    {{/if}}
+                    {{#unless totalCxFormatado}}{{#unless totalUndFormatado}}<span class="text-muted">-</span>{{/unless}}{{/unless}}
+                  </td>
+                  <td class="text-right table-qty" style="white-space: nowrap;">
+                    {{#if totalKgFormatado}}
+                      <strong>{{totalKgFormatado}}</strong>
+                      <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">KG</span>
+                    {{else}}
+                      <span class="text-muted">-</span>
+                    {{/if}}
+                  </td>
+                  <td class="text-right table-total-label">Total Geral</td>
+                  <td class="text-right">-</td>
+                  <td class="text-right">
                     <strong>{{valorFinalFormatado}}</strong>
                   </td>
                 </tr>

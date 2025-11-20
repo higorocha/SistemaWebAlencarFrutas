@@ -101,28 +101,64 @@ export class PdfController {
       console.log('[PDF Controller] AVISO: pedido.numeroPedido está vazio ou undefined!');
     }
     
-    const nomeClienteFormatado = clienteCompleto?.nome 
+    const nomeClienteArquivo = clienteCompleto?.nome 
       ? capitalizeNameShort(clienteCompleto.nome)
-          .replace(/[^a-zA-Z0-9\s]/g, '') // Remove caracteres especiais
-          .replace(/\s+/g, '-') // Substitui espaços por hífen
-          .toLowerCase()
       : 'cliente';
     
-    const nomeArquivo = `pedido-${numeroPedidoFormatado}-${nomeClienteFormatado}.pdf`;
+    const nomeArquivo = this.gerarNomeArquivo({
+      tipo: 'pedido',
+      identificador: numeroPedidoFormatado || pedido.id?.toString(),
+      cliente: nomeClienteArquivo,
+    });
     console.log('[PDF Controller] Nome do arquivo final:', nomeArquivo);
 
     // 6. Configura Headers para download ou visualização
     console.log('[PDF Controller] Configurando headers com nome do arquivo:', nomeArquivo);
+    
+    // Usa RFC 5987 para encoding correto do nome do arquivo (suporta caracteres especiais)
+    // Formato: attachment; filename="nome.pdf"; filename*=UTF-8''nome.pdf
+    const contentDisposition = `attachment; filename="${nomeArquivo}"; filename*=UTF-8''${encodeURIComponent(nomeArquivo)}`;
+    
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${nomeArquivo}"`, // Adiciona aspas para garantir que espaços sejam tratados corretamente
+      'Content-Disposition': contentDisposition,
+      'Access-Control-Expose-Headers': 'Content-Disposition',
       'Content-Length': buffer.length.toString(),
     });
+    
+    console.log('[PDF Controller] Content-Disposition header:', contentDisposition);
     console.log('[PDF Controller] Headers configurados. Enviando PDF...');
 
     // 7. Envia o stream
     res.end(buffer);
     console.log('[PDF Controller] PDF enviado com sucesso!');
+  }
+
+  private gerarNomeArquivo({
+    tipo,
+    identificador,
+    cliente,
+    extensao = 'pdf',
+  }: {
+    tipo: string;
+    identificador?: string | number;
+    cliente?: string;
+    extensao?: string;
+  }): string {
+    const sanitize = (valor?: string | number) => {
+      if (!valor && valor !== 0) return null;
+      return String(valor)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .toLowerCase();
+    };
+
+    const partes = [tipo, identificador, cliente].map(sanitize).filter(Boolean);
+    const base = partes.length > 0 ? partes.join('-') : 'documento';
+    return `${base}.${extensao}`;
   }
 
   /**
@@ -320,10 +356,36 @@ export class PdfController {
         valorTotalFormatado,
         quantidadeCxUndFormatada: formatarQuantidade(dadosCxUnd.quantidade),
         unidadeCxUnd: dadosCxUnd.unidade,
+        quantidadeCxUnd: dadosCxUnd.quantidade, // Valor numérico para cálculo
         quantidadeKgFormatada: formatarQuantidade(dadosKg.quantidade),
         unidadeKg: dadosKg.unidade,
+        quantidadeKg: dadosKg.quantidade, // Valor numérico para cálculo
       };
     }) || [];
+
+    // Calcular totais agrupados por unidade
+    let totalCx = 0;
+    let totalUnd = 0;
+    let totalKg = 0;
+
+    frutasPedidosFormatadas.forEach((fruta: any) => {
+      if (fruta.unidadeCxUnd === 'CX' && fruta.quantidadeCxUnd !== null && fruta.quantidadeCxUnd !== undefined) {
+        totalCx += fruta.quantidadeCxUnd;
+      } else if (fruta.unidadeCxUnd === 'UND' && fruta.quantidadeCxUnd !== null && fruta.quantidadeCxUnd !== undefined) {
+        totalUnd += fruta.quantidadeCxUnd;
+      }
+      
+      if (fruta.unidadeKg === 'KG' && fruta.quantidadeKg !== null && fruta.quantidadeKg !== undefined) {
+        totalKg += fruta.quantidadeKg;
+      }
+    });
+
+    // Formatar totais de CX/UND separadamente (para renderização inline)
+    const totalCxFormatado = totalCx > 0 ? formatNumber(totalCx) : null;
+    const totalUndFormatado = totalUnd > 0 ? formatNumber(totalUnd) : null;
+    
+    // Formatar total de KG separadamente
+    const totalKgFormatado = totalKg > 0 ? formatNumber(totalKg) : null;
 
     // Verificar se há quantidades reais ou valores unitários
     const temQuantidadeReal = frutasPedidosFormatadas.some(
@@ -388,6 +450,10 @@ export class PdfController {
       frutasPedidos: frutasPedidosFormatadas,
       temQuantidadeReal,
       temValorUnitario,
+      // Totais agrupados por unidade (valores separados para renderização inline)
+      totalCxFormatado,
+      totalUndFormatado,
+      totalKgFormatado,
     };
   }
 }
