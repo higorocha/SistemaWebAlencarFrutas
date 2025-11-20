@@ -15,10 +15,9 @@ export class PdfService {
 
   /**
    * Registra os partials do Handlebars (cabeçalho e rodapé reutilizáveis)
+   * Sempre recarrega para evitar cache e garantir que mudanças sejam aplicadas
    */
   private async registrarPartials() {
-    if (this.partialsRegistered) return;
-
     try {
       const headerPath = path.join(this.partialsPath, 'header.hbs');
       const footerPath = path.join(this.partialsPath, 'footer.hbs');
@@ -26,11 +25,14 @@ export class PdfService {
       const headerTemplate = await fs.readFile(headerPath, 'utf-8');
       const footerTemplate = await fs.readFile(footerPath, 'utf-8');
 
+      // Sempre re-registra os partials (sem cache) para garantir que mudanças sejam aplicadas
+      hbs.unregisterPartial('header');
+      hbs.unregisterPartial('footer');
       hbs.registerPartial('header', headerTemplate);
       hbs.registerPartial('footer', footerTemplate);
 
       this.partialsRegistered = true;
-      this.logger.debug('Partials do Handlebars registrados com sucesso');
+      this.logger.debug('Partials do Handlebars recarregados (sem cache)');
     } catch (error: any) {
       this.logger.warn(`Erro ao registrar partials: ${error.message}. Continuando sem partials.`);
     }
@@ -38,7 +40,7 @@ export class PdfService {
 
   /**
    * Gera um PDF a partir de um template Handlebars
-   * @param templateName Nome do template sem extensão (ex: 'relatorio-pedidos')
+   * @param templateName Nome do template sem extensão (ex: 'pedido-criado')
    * @param data Dados a serem injetados no template
    * @returns Buffer do PDF gerado
    */
@@ -47,10 +49,16 @@ export class PdfService {
     let page: Page | null = null;
 
     try {
-      // 0. Registrar partials (cabeçalho e rodapé reutilizáveis)
+      // 0. Extrair dados da empresa para o footer do Puppeteer
+      const empresa = data.empresa || {};
+      const razaoSocial = empresa.razao_social || empresa.nome_fantasia || 'Alencar Frutas';
+      const cnpj = empresa.cnpj || '';
+      const dataGeracao = data.dataGeracaoFormatada || new Date().toLocaleDateString('pt-BR');
+
+      // 1. Registrar partials (cabeçalho e rodapé reutilizáveis)
       await this.registrarPartials();
 
-      // 1. Compilar o Template HTML
+      // 2. Compilar o Template HTML
       const templatePath = path.join(this.templatesPath, `${templateName}.hbs`);
       
       this.logger.debug(`Carregando template: ${templatePath}`);
@@ -128,24 +136,59 @@ export class PdfService {
 
       // 3. Renderizar o HTML
       this.logger.debug('Renderizando HTML...');
-      await page.setContent(htmlContent, { 
+      await page.setContent(htmlContent, {
         waitUntil: 'load',
         timeout: 30000 
+      });
+
+      // Adicionar CSS para forçar renderização de cores no PDF
+      await page.addStyleTag({
+        content: `
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+        `
       });
 
       // Aguardar um pouco para garantir renderização completa
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // 4. Gerar o PDF
+      // 4. Gerar o PDF com footer customizado usando displayHeaderFooter
       this.logger.debug('Gerando PDF...');
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
+        displayHeaderFooter: true,
+        headerTemplate: '<div></div>',
+        footerTemplate: `
+          <style>
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+          </style>
+          <div style="width: 100%; padding: 10px 20px; border-top: 2px solid #059669; background-color: #f9fafb; display: flex; justify-content: space-between; align-items: center; font-size: 10px;">
+            <div style="flex: 1; text-align: left;">
+              <div style="font-weight: bold; color: #059669 !important; font-size: 10px; margin-bottom: 3px; display: block; -webkit-print-color-adjust: exact;">${razaoSocial}</div>
+              ${cnpj ? `<div style="font-size: 10px; color: #6b7280 !important; font-weight: normal; display: block; -webkit-print-color-adjust: exact;">${cnpj}</div>` : ''}
+            </div>
+            <div style="flex: 1; text-align: center; font-size: 10px; color: #6b7280 !important; font-weight: normal; -webkit-print-color-adjust: exact;">
+              Sistemas de Informações - AlencarFrutas
+            </div>
+            <div style="flex: 1; text-align: right;">
+              <div style="margin-bottom: 3px; font-size: 10px; color: #6b7280 !important; font-weight: normal; display: block; -webkit-print-color-adjust: exact;">Página <span class="pageNumber" style="color: #6b7280 !important; -webkit-print-color-adjust: exact;"></span> de <span class="totalPages" style="color: #6b7280 !important; -webkit-print-color-adjust: exact;"></span></div>
+              <div style="font-size: 10px; color: #6b7280 !important; font-weight: normal; display: block; -webkit-print-color-adjust: exact;">Gerado em: <span style="color: #6b7280 !important; -webkit-print-color-adjust: exact;">${dataGeracao}</span></div>
+            </div>
+          </div>
+        `,
         margin: {
           top: '20px',
-          bottom: '20px',
-          left: '20px',
-          right: '20px',
+          bottom: '80px', // Espaço para o footer
+          left: '16px',   // Margem lateral
+          right: '16px',  // Margem lateral
         },
         timeout: 30000,
       });

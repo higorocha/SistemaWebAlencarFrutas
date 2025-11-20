@@ -35,6 +35,7 @@ import { capitalizeName } from "../../utils/formatters";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import useResponsive from "../../hooks/useResponsive";
+import { HectaresInput } from "../common/inputs";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -136,6 +137,7 @@ const FornecedorForm = ({
       id: `temp-${Date.now()}`, // ID temporário para controle local
       nome: "",
       culturaId: null,
+      quantidadeHa: null,
       isNew: true,
     };
     setAreas(prev => [...prev, novaArea]);
@@ -206,6 +208,13 @@ const FornecedorForm = ({
     ));
   };
 
+  // Atualizar quantidade de hectares da área
+  const atualizarQuantidadeHaArea = (index, quantidadeHa) => {
+    setAreas(prev => prev.map((area, i) => 
+      i === index ? { ...area, quantidadeHa: quantidadeHa ? parseFloat(quantidadeHa) : null, modified: !area.isNew } : area
+    ));
+  };
+
   // Salvar áreas (será chamado pelo modal principal)
   const salvarAreas = async () => {
     console.log('Função salvarAreas chamada');
@@ -236,6 +245,7 @@ const FornecedorForm = ({
             fornecedorId: fornecedorAtual.id,
             nome: area.nome.trim(),
             culturaId: area.culturaId || null,
+            quantidadeHa: area.quantidadeHa || null,
           });
           console.log('Área salva com sucesso:', response.data);
         }
@@ -248,6 +258,7 @@ const FornecedorForm = ({
           const response = await axiosInstance.patch(`/api/areas-fornecedores/${area.id}`, {
             nome: area.nome.trim(),
             culturaId: area.culturaId || null,
+            quantidadeHa: area.quantidadeHa || null,
           });
           console.log('Área atualizada com sucesso:', response.data);
         }
@@ -570,6 +581,18 @@ const FornecedorForm = ({
                         </Select>
                       </div>
 
+                      <div style={{ marginBottom: 12 }}>
+                        <Text strong style={{ color: "#059669", fontSize: "13px", display: "block", marginBottom: 4 }}>
+                          Hectares
+                        </Text>
+                        <HectaresInput
+                          value={area.quantidadeHa && parseFloat(area.quantidadeHa) > 0 ? area.quantidadeHa.toString() : ""}
+                          onChange={(value) => atualizarQuantidadeHaArea(index, value)}
+                          placeholder="0,00 ha"
+                          error={null}
+                        />
+                      </div>
+
                       <div style={{ 
                         display: "flex", 
                         gap: "8px", 
@@ -647,7 +670,7 @@ const FornecedorForm = ({
                   ) : (
                     // Layout desktop: colunas lado a lado
                     <Row gutter={[16, 16]} align="middle">
-                      <Col xs={24} md={12}>
+                      <Col xs={24} md={8}>
                         <Input
                           placeholder="Nome da área"
                           value={area.nome}
@@ -666,7 +689,7 @@ const FornecedorForm = ({
                         )}
                       </Col>
 
-                      <Col xs={24} md={8}>
+                      <Col xs={24} md={6}>
                         <Select
                           placeholder="Selecione a cultura"
                           value={area.culturaId}
@@ -685,6 +708,15 @@ const FornecedorForm = ({
                             </Option>
                           ))}
                         </Select>
+                      </Col>
+
+                      <Col xs={24} md={6}>
+                        <HectaresInput
+                          value={area.quantidadeHa && parseFloat(area.quantidadeHa) > 0 ? area.quantidadeHa.toString() : ""}
+                          onChange={(value) => atualizarQuantidadeHaArea(index, value)}
+                          placeholder="0,00 ha"
+                          error={null}
+                        />
                       </Col>
 
                       <Col xs={24} md={4}>

@@ -21,6 +21,7 @@ import {
   CancelarPagamentosDto,
 } from './dto/pagamentos.dto';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
+import { PagamentosSyncQueueService } from './pagamentos-sync-queue.service';
 
 /**
  * Service para integração com a API de Pagamentos do Banco do Brasil
@@ -37,6 +38,20 @@ export class PagamentosService {
   private readonly SCOPES_PIX_INFO = 'pagamentos-lote.transferencias-pix-info pagamentos-lote.pix-info';
   private readonly SCOPES_BOLETO_REQUISICAO = 'pagamentos-lote.boletos-requisicao pagamentos-lote.boletos-info pagamentos-lote.lotes-info';
   private readonly SCOPES_BOLETO_INFO = 'pagamentos-lote.boletos-info pagamentos-lote.lotes-info';
+  private readonly ITEM_ESTADOS_PENDENTES = new Set([
+    'PENDENTE',
+    'CONSISTENTE',
+    'AGENDADO',
+    'AGUARDANDO DEBITO',
+    'DEBITADO',
+  ]);
+  private readonly ITEM_ESTADOS_SUCESSO = new Set(['PAGO']);
+  private readonly ITEM_ESTADOS_CANCELADO = new Set(['CANCELADO', 'DEVOLVIDO']);
+  private readonly ITEM_ESTADOS_REJEITADO = new Set([
+    'REJEITADO',
+    'INCONSISTENTE',
+    'VENCIDO',
+  ]);
   private readonly SCOPES_GUIA_REQUISICAO = 'pagamentos-lote.guias-codigo-barras-requisicao pagamentos-lote.guias-codigo-barras-info pagamentos-lote.lotes-info';
   private readonly SCOPES_GUIA_INFO = 'pagamentos-lote.guias-codigo-barras-info pagamentos-lote.lotes-info';
   private readonly SCOPES_LIBERAR = 'pagamentos-lote.lotes-requisicao pagamentos-lote.lotes-info';
@@ -48,6 +63,7 @@ export class PagamentosService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => NotificacoesService))
     private readonly notificacoesService: NotificacoesService,
+    private readonly pagamentosSyncQueueService: PagamentosSyncQueueService,
   ) {}
 
   /**
@@ -197,6 +213,36 @@ export class PagamentosService {
 
       if (liberacaoSucesso) {
         console.log(`✅ [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} marcado como liberado (estadoRequisicao=9) após confirmação do BB`);
+      }
+
+        await this.pagamentosSyncQueueService.scheduleLoteSync({
+          numeroRequisicao,
+          contaCorrenteId: contaCorrente.id,
+          loteId: lote.id,
+          delayMinutes: liberacaoSucesso ? this.pagamentosSyncQueueService.getDefaultDelayMinutes() : undefined,
+        });
+
+      if (liberacaoSucesso) {
+        const itensParaMonitorar = await this.prisma.pagamentoApiItem.findMany({
+          where: {
+            loteId: lote.id,
+            identificadorPagamento: {
+              not: null,
+            },
+          },
+          select: {
+            identificadorPagamento: true,
+          },
+        });
+
+        for (const item of itensParaMonitorar) {
+          await this.pagamentosSyncQueueService.scheduleItemSync({
+            identificadorPagamento: item.identificadorPagamento,
+            contaCorrenteId: contaCorrente.id,
+            loteId: lote.id,
+            delayMinutes: 0,
+          });
+        }
       }
 
       return response.data;
@@ -648,16 +694,27 @@ export class PagamentosService {
           console.log(`✅ [PAGAMENTOS-SERVICE] Sequência inicializada para conta ${contaCorrenteId} com ultimoNumero=${ultimoNumeroInicial}`);
         }
 
-        // Incrementar e atualizar
-        const proximoNumero = sequencia.ultimoNumero + 1;
-        
+        // Incrementar até encontrar um número não utilizado globalmente
+        let proximoNumero = sequencia.ultimoNumero + 1;
+        while (true) {
+          const existente = await tx.pagamentoApiLote.findUnique({
+            where: { numeroRequisicao: proximoNumero },
+          });
+          if (!existente) {
+            break;
+          }
+          proximoNumero += 1;
+        }
+
         await tx.sequenciaNumeroRequisicao.update({
           where: { id: sequencia.id },
           data: { ultimoNumero: proximoNumero },
         });
 
-        console.log(`🔢 [PAGAMENTOS-SERVICE] Novo numeroRequisicao sequencial gerado: ${proximoNumero} (Conta: ${contaCorrenteId})`);
-        
+        console.log(
+          `🔢 [PAGAMENTOS-SERVICE] Novo numeroRequisicao sequencial gerado: ${proximoNumero} (Conta: ${contaCorrenteId})`,
+        );
+
         return proximoNumero;
       }, {
         // Timeout de 5 segundos para a transação
@@ -1306,6 +1363,7 @@ export class PagamentosService {
       const quantidadeValida = respostaData?.quantidadeTransferenciasValidas || 0;
       const valorTotalValido = respostaData?.valorTransferenciasValidas || 0;
       const statusLote = this.mapearStatusLote(estadoRequisicao);
+      const finalizado = estadoRequisicao === 6;
 
       const loteAtualizado = await this.prisma.pagamentoApiLote.update({
         where: { id: lote.id },
@@ -1389,7 +1447,15 @@ export class PagamentosService {
       }
 
       console.log(`✅ [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} criado com sucesso: ${quantidadeValida} transferência(s) válida(s), valor=${valorTotalValido}`);
-      
+
+      if (!finalizado) {
+        await this.pagamentosSyncQueueService.scheduleLoteSync({
+          numeroRequisicao,
+          contaCorrenteId: contaCorrente.id,
+          loteId: loteAtualizado.id,
+        });
+      }
+
       return respostaData;
 
     } catch (error) {
@@ -2049,10 +2115,24 @@ export class PagamentosService {
       console.log('═══════════════════════════════════════════════════════════════');
 
       // Atualizar lote com resposta mais recente
-      const estadoRequisicao = respostaData?.estadoRequisicao;
+      const estadoAnterior =
+        lote.estadoRequisicaoAtual ?? lote.estadoRequisicao ?? null;
+      const estadoRequisicaoApi = respostaData?.estadoRequisicao ?? null;
+      let estadoRequisicao = estadoRequisicaoApi ?? estadoAnterior;
+
+      if (
+        typeof estadoAnterior === 'number' &&
+        typeof estadoRequisicao === 'number' &&
+        estadoAnterior > estadoRequisicao
+      ) {
+        // Não permitir retroceder para estados anteriores (ex: voltar para 1 ou 4 após avançar)
+        estadoRequisicao = estadoAnterior;
+      }
+
       const quantidadeValida = respostaData?.quantidadeTransferenciasValidas || 0;
       const valorTotalValido = respostaData?.valorTransferenciasValidas || 0;
       const statusLote = this.mapearStatusLote(estadoRequisicao);
+      const finalizado = estadoRequisicao === 6;
 
       await this.prisma.pagamentoApiLote.update({
         where: { id: lote.id },
@@ -2062,7 +2142,7 @@ export class PagamentosService {
           quantidadeValida,
           valorTotalValido,
           status: statusLote,
-          processadoComSucesso: estadoRequisicao === 1 || estadoRequisicao === 4,
+          processadoComSucesso: finalizado,
           ultimaConsultaStatus: new Date(),
         },
       });
@@ -2580,34 +2660,8 @@ export class PagamentosService {
 
           const respostaData = response.data as any;
 
-          // Se item existe no banco, atualizar com resposta
           if (item) {
-            // Verificar se o estado do pagamento é CANCELADO e atualizar status
-            const estadoPagamento = respostaData?.estadoPagamento;
-            const dadosAtualizacao: any = {
-              estadoPagamentoIndividual: estadoPagamento || null,
-              payloadConsultaIndividual: respostaData || null,
-              ultimaConsultaIndividual: new Date(),
-            };
-            
-            // Se o BB retornou CANCELADO, atualizar status do item
-            if (estadoPagamento === 'CANCELADO' && item.status !== StatusPagamentoItem.REJEITADO) {
-              dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
-              console.log(`🔄 [PAGAMENTOS-SERVICE] Item ID ${item.id} atualizado para REJEITADO (cancelado) baseado na consulta individual`);
-            }
-            // BLOQUEADO: não atualizamos o status automaticamente, apenas salvamos o estadoPagamentoIndividual
-            // para referência. O status "BLOQUEADO" indica problema (falta de saldo, inconsistência, etc.)
-            // e deve ser tratado manualmente ou via webhook quando o BB atualizar o status
-            
-            await this.prisma.pagamentoApiItem.update({
-              where: { id: item.id },
-              data: dadosAtualizacao,
-            });
-            
-            // Se o item foi cancelado, atualizar também o lote
-            if (estadoPagamento === 'CANCELADO' && item.lote) {
-              await this.atualizarStatusLoteAposCancelamentoItem(item.lote.id);
-            }
+            await this.sincronizarItemPixComResposta(item, respostaData);
           }
 
           return respostaData;
@@ -2649,32 +2703,7 @@ export class PagamentosService {
             const respostaData = response.data as any;
 
             if (item) {
-              // Verificar se o estado do pagamento é CANCELADO e atualizar status
-              const estadoPagamento = respostaData?.estadoPagamento;
-              const dadosAtualizacao: any = {
-                estadoPagamentoIndividual: estadoPagamento || null,
-                payloadConsultaIndividual: respostaData || null,
-                ultimaConsultaIndividual: new Date(),
-              };
-              
-              // Se o BB retornou CANCELADO, atualizar status do item
-              if (estadoPagamento === 'CANCELADO' && item.status !== StatusPagamentoItem.REJEITADO) {
-                dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
-                console.log(`🔄 [PAGAMENTOS-SERVICE] Item ID ${item.id} atualizado para REJEITADO (cancelado) baseado na consulta individual (RETRY)`);
-              }
-              // BLOQUEADO: não atualizamos o status automaticamente, apenas salvamos o estadoPagamentoIndividual
-              // para referência. O status "BLOQUEADO" indica problema (falta de saldo, inconsistência, etc.)
-              // e deve ser tratado manualmente ou via webhook quando o BB atualizar o status
-              
-              await this.prisma.pagamentoApiItem.update({
-                where: { id: item.id },
-                data: dadosAtualizacao,
-              });
-              
-              // Se o item foi cancelado, atualizar também o lote
-              if (estadoPagamento === 'CANCELADO' && item.lote) {
-                await this.atualizarStatusLoteAposCancelamentoItem(item.lote.id);
-              }
+              await this.sincronizarItemPixComResposta(item, respostaData);
             }
 
             return respostaData;
@@ -2775,6 +2804,71 @@ export class PagamentosService {
     }
   }
 
+  private async sincronizarItemPixComResposta(
+    item: {
+      id: number;
+      status: StatusPagamentoItem;
+      loteId?: number | null;
+      lote?: { id: number } | null;
+    },
+    respostaData: any,
+  ): Promise<void> {
+    const estadoOriginal = respostaData?.estadoPagamento || null;
+    const estadoNormalizado = this.normalizarEstadoPagamentoPix(estadoOriginal);
+    const categoriaEstado =
+      this.classificarEstadoPagamentoPix(estadoNormalizado);
+    const dataPagamento = this.converterDataPagamentoBB(
+      respostaData?.dataPagamento,
+    );
+
+    const dadosAtualizacao: Prisma.PagamentoApiItemUpdateInput = {
+      estadoPagamentoIndividual: estadoOriginal,
+      payloadConsultaIndividual: respostaData || null,
+      payloadItemRespostaAtual: respostaData || null,
+      ultimaConsultaIndividual: new Date(),
+      ultimaAtualizacaoStatus: new Date(),
+    };
+
+    if (categoriaEstado === 'SUCESSO') {
+      dadosAtualizacao.status = StatusPagamentoItem.PROCESSADO;
+      dadosAtualizacao.processadoComSucesso = true;
+      dadosAtualizacao.indicadorMovimentoAceito = 'S';
+      dadosAtualizacao.indicadorMovimentoAceitoAtual = 'S';
+    } else if (
+      categoriaEstado === 'CANCELADO' ||
+      categoriaEstado === 'REJEITADO'
+    ) {
+      if (item.status !== StatusPagamentoItem.REJEITADO) {
+        dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
+      }
+    }
+
+    const itemAtualizado = await this.prisma.pagamentoApiItem.update({
+      where: { id: item.id },
+      data: dadosAtualizacao,
+    });
+
+    const loteIdRelacionado = item.loteId ?? item.lote?.id;
+
+    if (categoriaEstado === 'SUCESSO') {
+      await this.atualizarColheitasDoItemParaPago(
+        itemAtualizado.id,
+        dataPagamento ?? new Date(),
+      );
+      if (loteIdRelacionado) {
+        await this.atualizarStatusLoteAposProcessamento(loteIdRelacionado);
+      }
+    } else if (
+      categoriaEstado === 'CANCELADO' ||
+      categoriaEstado === 'REJEITADO'
+    ) {
+      await this.reverterColheitasDoItemParaPendente(itemAtualizado.id);
+      if (loteIdRelacionado) {
+        await this.atualizarStatusLoteAposCancelamentoItem(loteIdRelacionado);
+      }
+    }
+  }
+
   /**
    * Atualiza o status do lote após cancelamento de item(s)
    * @param loteId ID do lote a ser atualizado
@@ -2828,6 +2922,162 @@ export class PagamentosService {
     });
     
     console.log(`💾 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) atualizado: status=${novoStatusLote} (${itensCancelados}/${totalItens} itens cancelados)`);
+  }
+
+  private normalizarEstadoPagamentoPix(
+    estado: string | null,
+  ): string | null {
+    if (!estado) {
+      return null;
+    }
+
+    return estado
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .trim();
+  }
+
+  private classificarEstadoPagamentoPix(
+    estado: string | null,
+  ):
+    | 'PENDENTE'
+    | 'SUCESSO'
+    | 'CANCELADO'
+    | 'REJEITADO'
+    | 'BLOQUEADO'
+    | 'DESCONHECIDO' {
+    if (!estado) {
+      return 'DESCONHECIDO';
+    }
+
+    if (this.ITEM_ESTADOS_PENDENTES.has(estado)) {
+      return 'PENDENTE';
+    }
+
+    if (this.ITEM_ESTADOS_SUCESSO.has(estado)) {
+      return 'SUCESSO';
+    }
+
+    if (this.ITEM_ESTADOS_CANCELADO.has(estado)) {
+      return 'CANCELADO';
+    }
+
+    if (this.ITEM_ESTADOS_REJEITADO.has(estado)) {
+      return 'REJEITADO';
+    }
+
+    if (estado === 'BLOQUEADO') {
+      return 'BLOQUEADO';
+    }
+
+    return 'DESCONHECIDO';
+  }
+
+  private converterDataPagamentoBB(valor: any): Date | null {
+    if (!valor) {
+      return null;
+    }
+
+    if (valor instanceof Date) {
+      return valor;
+    }
+
+    const texto = String(valor).trim();
+
+    if (/^\d{8}$/.test(texto)) {
+      const dia = parseInt(texto.slice(0, 2), 10);
+      const mes = parseInt(texto.slice(2, 4), 10) - 1;
+      const ano = parseInt(texto.slice(4, 8), 10);
+      return new Date(Date.UTC(ano, mes, dia, 12, 0, 0));
+    }
+
+    const timestamp = Date.parse(texto);
+    if (!Number.isNaN(timestamp)) {
+      return new Date(timestamp);
+    }
+
+    return null;
+  }
+
+  private async atualizarColheitasDoItemParaPago(
+    itemId: number,
+    dataPagamento: Date,
+  ): Promise<void> {
+    const colheitas = await this.prisma.pagamentoApiItemColheita.findMany({
+      where: { pagamentoApiItemId: itemId },
+      include: { turmaColheitaCusto: true },
+    });
+
+    if (colheitas.length === 0) {
+      return;
+    }
+
+    for (const rel of colheitas) {
+      await this.prisma.turmaColheitaPedidoCusto.update({
+        where: { id: rel.turmaColheitaCustoId },
+        data: {
+          statusPagamento: 'PAGO',
+          pagamentoEfetuado: true,
+          dataPagamento: dataPagamento,
+        },
+      });
+    }
+  }
+
+  private async reverterColheitasDoItemParaPendente(
+    itemId: number,
+  ): Promise<void> {
+    const colheitas = await this.prisma.pagamentoApiItemColheita.findMany({
+      where: { pagamentoApiItemId: itemId },
+      select: { turmaColheitaCustoId: true },
+    });
+
+    if (colheitas.length === 0) {
+      return;
+    }
+
+    const ids = colheitas.map((rel) => rel.turmaColheitaCustoId);
+
+    await this.prisma.turmaColheitaPedidoCusto.updateMany({
+      where: {
+        id: { in: ids },
+        statusPagamento: { in: ['PROCESSANDO', 'PAGO'] },
+      },
+      data: {
+        statusPagamento: 'PENDENTE',
+        pagamentoEfetuado: false,
+        dataPagamento: null,
+      },
+    });
+  }
+
+  private async atualizarStatusLoteAposProcessamento(
+    loteId: number,
+  ): Promise<void> {
+    const itens = await this.prisma.pagamentoApiItem.findMany({
+      where: { loteId },
+      select: { status: true },
+    });
+
+    if (itens.length === 0) {
+      return;
+    }
+
+    const todosProcessados = itens.every(
+      (registro) => registro.status === StatusPagamentoItem.PROCESSADO,
+    );
+
+    if (todosProcessados) {
+      await this.prisma.pagamentoApiLote.update({
+        where: { id: loteId },
+        data: {
+          estadoRequisicaoAtual: 6,
+          status: StatusPagamentoLote.CONCLUIDO,
+          processadoComSucesso: true,
+        },
+      });
+    }
   }
 
   /**

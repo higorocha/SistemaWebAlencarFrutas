@@ -231,6 +231,28 @@ export class FornecedorColheitaDetalheDto {
   @ApiProperty({ example: 'KG' })
   unidade: string;
 
+  @ApiProperty({
+    example: 12.5,
+    description: 'Quantidade registrada na unidade secundária (ex: hectares)',
+    required: false,
+  })
+  quantidadeSecundaria?: number;
+
+  @ApiProperty({
+    example: 'HA',
+    description: 'Unidade secundária associada à quantidadeSecundaria',
+    required: false,
+  })
+  unidadeSecundaria?: string;
+
+  @ApiProperty({
+    example: 12.5,
+    description: 'Quantidade de hectares da área do fornecedor',
+    required: false,
+    nullable: true,
+  })
+  quantidadeHa?: number | null;
+
   @ApiProperty({ example: 1750.5, description: 'Valor proporcional atribuído à colheita nesta área' })
   valor: number;
 

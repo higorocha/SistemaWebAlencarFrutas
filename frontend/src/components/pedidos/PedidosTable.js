@@ -412,17 +412,25 @@ const PedidosTable = ({
           );
         }
         
-        // Se tiver múltiplas frutas, mostra ícones agrupados por cultura
-        const gruposPorCultura = frutasPedidos.reduce((acc, fruta) => {
-          const culturaId = fruta.fruta?.cultura?.id ?? `fruta-${fruta.id}`;
-          if (!acc[culturaId]) {
-            acc[culturaId] = {
-              key: culturaId,
-              frutaNome: fruta.fruta?.nome || fruta.nome || '',
+        // Se tiver múltiplas frutas, mostra ícones agrupados por fruta individual
+        // Agrupa por ID da fruta para garantir que cada tipo de fruta apareça separadamente
+        const gruposPorFruta = frutasPedidos.reduce((acc, fruta) => {
+          // Usar ID da fruta como chave para garantir que cada tipo de fruta seja único
+          const frutaId = fruta.fruta?.id ?? fruta.id;
+          const frutaNome = fruta.fruta?.nome || fruta.nome || '';
+          
+          // Criar uma chave única combinando ID e nome para evitar colisões
+          const key = `fruta-${frutaId}-${frutaNome.toLowerCase().trim()}`;
+          
+          if (!acc[key]) {
+            acc[key] = {
+              key: key,
+              frutaNome: frutaNome,
+              frutaId: frutaId,
               count: 0,
             };
           }
-          acc[culturaId].count += 1;
+          acc[key].count += 1;
           return acc;
         }, {});
 
@@ -434,7 +442,7 @@ const PedidosTable = ({
               onClick={() => handleOpenFrutasModal(record)}
             >
               <Space size={4} style={{ display: 'inline-flex', alignItems: 'center' }}>
-                {Object.values(gruposPorCultura).map((grupo) => (
+                {Object.values(gruposPorFruta).map((grupo) => (
                   <span
                     key={grupo.key}
                     style={{

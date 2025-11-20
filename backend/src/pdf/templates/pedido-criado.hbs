@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedido {{numeroPedido}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      color: #333;
+      font-size: 12px;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .content-wrapper {
+      flex: 1;
+      padding-bottom: 70px; /* Espaço para o rodapé */
+    }
+
+    .pdf-content {
+      padding: 0 10px 20px 10px;
+    }
+
+    .cards-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background-color: #ffffff;
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+      page-break-inside: avoid;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background-color: #059669;
+      color: #ffffff;
+      padding: 8px 12px;
+      border-radius: 8px 8px 0 0;
+      border-bottom: 2px solid #047857;
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    .card-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background-color: rgba(255, 255, 255, 0.15);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .card-chip {
+      font-size: 9px;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      white-space: nowrap;
+    }
+
+    .card-status-chip {
+      display: inline-flex;
+      align-items: center;
+      font-size: 9.5px;
+      text-transform: uppercase;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+
+    .card-body {
+      padding: 10px;
+    }
+
+    .card-body + .card-body {
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 6px 14px;
+      margin-bottom: 4px;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .info-item.full-span {
+      grid-column: 1 / -1;
+    }
+
+    .info-label {
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #059669;
+      text-transform: uppercase;
+    }
+
+    .info-value {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .card-divider {
+      border-top: 1px solid #e2e8f0;
+      margin: 12px 0;
+    }
+
+    /* Estilos do Cabeçalho Reutilizável - Layout Profissional */
+    .pdf-header {
+      background-color: #ffffff;
+      border-bottom: 3px solid #059669;
+      padding: 22px 20px 12px;
+      margin-bottom: 15px; /* Reduzido para aproximar do cabeçalho interno */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      page-break-inside: avoid;
+    }
+
+    .header-top {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      margin-bottom: 10px;
+    }
+
+    .header-logo,
+    .header-center,
+    .header-qualificacao {
+      display: table-cell;
+      vertical-align: middle;
+    }
+
+    /* Logo à Esquerda */
+    .header-logo {
+      width: 180px;
+      padding-right: 15px;
+    }
+
+    .logo-img {
+      max-width: 180px;
+      max-height: 80px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+
+    .logo-placeholder {
+      width: 180px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f3f4f6;
+      border: 1px dashed #d1d5db;
+      border-radius: 4px;
+    }
+
+    .logo-text {
+      font-size: 14px;
+      color: #6b7280;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    /* Nome da Empresa no Centro */
+    .header-center {
+      text-align: center;
+      padding: 0 20px;
+      vertical-align: middle;
+    }
+
+    .header-center h1.empresa-nome {
+      font-size: 24px;
+      margin: 0 0 5px 0;
+      font-weight: bold;
+      color: #059669;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      line-height: 1.2;
+    }
+
+    .header-center p.empresa-razao-social {
+      font-size: 12px;
+      margin: 0;
+      color: #6b7280;
+      font-style: italic;
+      line-height: 1.3;
+    }
+
+    /* Qualificação da Empresa à Direita */
+    .header-qualificacao {
+      width: 220px;
+      text-align: right;
+      padding-left: 15px;
+      vertical-align: top;
+    }
+
+    .qualificacao-item {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .qualificacao-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .qualificacao-value {
+      font-size: 10px;
+      color: #6b7280;
+      font-weight: 600;
+      display: block;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+
+    /* Título do Documento */
+    .pedido-header-interno {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background-color: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      border-radius: 999px;
+      padding: 6px 16px;
+      margin: 4px auto 8px auto;
+      font-weight: 700;
+      color: #047857;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .pedido-header-interno .pedido-header-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background-color: #059669;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pedido-header-interno .pedido-header-icon svg {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+
+    .pedido-header-interno .pedido-header-text {
+      font-size: 13px;
+    }
+
+    .pedido-header-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px 16px;
+      justify-items: center;
+    }
+
+    .pedido-header-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pedido-header-label {
+      font-weight: bold;
+      color: #059669;
+      font-size: 12px;
+    }
+
+    .pedido-header-value {
+      color: #333;
+      font-size: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      margin-bottom: 14px;
+    }
+
+    .table-item {
+      width: 40px;
+    }
+
+    .table-qty {
+      width: 80px;
+    }
+
+    .table-desc {
+      min-width: 220px;
+    }
+
+    .produto-nome {
+      font-weight: 600;
+      color: #1f2937;
+      font-size: 12px;
+    }
+
+    .produto-detalhe {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .table-unit {
+      display: block;
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 2px;
+      text-transform: uppercase;
+    }
+
+    .text-muted {
+      color: #9ca3af;
+    }
+
+    thead {
+      background-color: #059669;
+      color: white;
+    }
+
+    th {
+      padding: 8px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 10.5px;
+    }
+
+    tbody tr:hover {
+      background-color: #f9fafb;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .table-total-row td {
+      border-top: 2px solid #059669;
+      font-size: 12px;
+      font-weight: 700;
+      color: #059669;
+      padding-top: 10px;
+    }
+
+    .table-total-label {
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 20px;
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    .observacoes {
+      margin: 0;
+      padding: 12px;
+      background-color: #f9fafb;
+      border-left: 4px solid #059669;
+      border-radius: 6px;
+    }
+
+    .observacoes-title {
+      font-weight: bold;
+      color: #059669;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .observacoes-content {
+      color: #1f2937;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    /* Estilos do Rodapé Reutilizável - Posicionado no final */
+    .pdf-footer {
+      margin-top: auto;
+      padding: 10px 20px;
+      border-top: 2px solid #059669;
+      background-color: #f9fafb;
+      page-break-inside: avoid;
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #6b7280;
+      padding: 0 5px;
+    }
+
+    .footer-left {
+      flex: 1;
+      text-align: left;
+    }
+
+    .footer-center {
+      flex: 1;
+      text-align: center;
+    }
+
+    .footer-right {
+      flex: 1;
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+    }
+
+    .footer-empresa {
+      font-weight: bold;
+      color: #059669;
+      margin: 0 0 3px 0;
+      font-size: 10px;
+    }
+
+    .footer-cnpj {
+      margin: 0;
+      font-size: 9px;
+      color: #6b7280;
+    }
+
+    .footer-marca {
+      margin: 0;
+      font-size: 9px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    .footer-data,
+    .footer-pagina {
+      margin: 0;
+      font-size: 9px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  {{!-- Cabeçalho Reutilizável --}}
+  {{> header}}
+
+  <div class="content-wrapper">
+    <div class="pdf-content">
+      <div class="cards-wrapper">
+
+        <div class="pedido-header-interno">
+          <span class="pedido-header-icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 4H5L4 6V7H6L9 15H18L20 8H8" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="10" cy="18" r="1.5" fill="#ffffff"/>
+              <circle cx="17" cy="18" r="1.5" fill="#ffffff"/>
+            </svg>
+          </span>
+          <span class="pedido-header-text">PEDIDO DE VENDA</span>
+        </div>
+
+        {{!-- Card: Dados Básicos --}}
+        <div class="card card-pedido">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">PD</span>
+              <span>Dados Básicos do Pedido</span>
+            </div>
+            <span class="card-chip">{{#if diasDesdePedidoTexto}}{{diasDesdePedidoTexto}}{{else}}PEDIDO DE VENDA{{/if}}</span>
+          </div>
+          <div class="card-body">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Pedido</span>
+                <span class="info-value">#{{numeroPedidoFormatado}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Nota Fiscal</span>
+                <span class="info-value">#{{#if indNumeroNf}}{{indNumeroNf}}{{else}}00000{{/if}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Data do Pedido</span>
+                <span class="info-value">{{dataPedidoFormatada}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Previsão de Colheita</span>
+                <span class="info-value">{{dataPrevistaColheitaFormatada}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {{!-- Card: Cliente --}}
+        <div class="card card-cliente">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">CL</span>
+              <span>Cliente</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Nome Fantasia</span>
+                <span class="info-value">{{cliente.nome}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Razão Social</span>
+                <span class="info-value">{{#if cliente.razaoSocial}}{{cliente.razaoSocial}}{{else}}-{{/if}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">{{#if cliente.cnpj}}CNPJ{{else if cliente.cpf}}CPF{{else}}Documento{{/if}}</span>
+                <span class="info-value">
+                  {{#if cliente.cnpj}}{{cliente.cnpj}}{{else if cliente.cpf}}{{cliente.cpf}}{{else}}-{{/if}}
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Telefone</span>
+                <span class="info-value">{{#if cliente.telefone1}}{{cliente.telefone1}}{{else}}-{{/if}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">E-mail</span>
+                <span class="info-value">{{#if cliente.email1}}{{cliente.email1}}{{else}}-{{/if}}</span>
+              </div>
+              <div class="info-item full-span">
+                <span class="info-label">Endereço</span>
+                <span class="info-value">
+                  {{#if cliente.logradouro}}{{cliente.logradouro}}{{#if cliente.numero}}, {{cliente.numero}}{{/if}}{{#if cliente.complemento}} - {{cliente.complemento}}{{/if}}{{else}}-{{/if}}
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Bairro</span>
+                <span class="info-value">{{#if cliente.bairro}}{{cliente.bairro}}{{else}}-{{/if}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Cidade/UF</span>
+                <span class="info-value">
+                  {{#if cliente.cidade}}{{cliente.cidade}}{{#if cliente.estado}}/{{cliente.estado}}{{/if}}{{else}}-{{/if}}
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">CEP</span>
+                <span class="info-value">{{#if cliente.cep}}{{cliente.cep}}{{else}}-{{/if}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {{!-- Card: Frutas --}}
+        <div class="card card-frutas">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">FR</span>
+              <span>Frutas do Pedido</span>
+            </div>
+            <div class="card-status-chip">
+              {{statusFormatado}}
+            </div>
+          </div>
+          <div class="card-body">
+            {{#if frutasPedidos}}
+            <table>
+              <thead>
+                <tr>
+                  <th class="text-center table-item">Item</th>
+                  <th class="text-right table-qty">CX/UND</th>
+                  <th class="text-right table-qty">KG</th>
+                  <th class="table-desc">Descrição dos Produtos</th>
+                  <th class="text-right">Unitário</th>
+                  <th class="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{#each frutasPedidos}}
+                <tr>
+                  <td class="text-center table-item">{{itemNumero}}</td>
+                  <td class="text-right table-qty">
+                    {{#if quantidadeCxUndFormatada}}
+                      <strong>{{quantidadeCxUndFormatada}}</strong>
+                      {{#if unidadeCxUnd}}<span class="table-unit">{{unidadeCxUnd}}</span>{{/if}}
+                    {{else}}
+                      <span class="text-muted">-</span>
+                    {{/if}}
+                  </td>
+                  <td class="text-right table-qty">
+                    {{#if quantidadeKgFormatada}}
+                      <strong>{{quantidadeKgFormatada}}</strong>
+                      {{#if unidadeKg}}<span class="table-unit">{{unidadeKg}}</span>{{/if}}
+                    {{else}}
+                      <span class="text-muted">-</span>
+                    {{/if}}
+                  </td>
+                  <td class="table-desc">
+                    <div class="produto-nome">
+                      {{#if fruta.nome}}
+                        {{fruta.nome}}
+                      {{else}}
+                        {{#if nomeFruta}}
+                          {{nomeFruta}}
+                        {{else}}
+                          Produto
+                        {{/if}}
+                      {{/if}}
+                      {{#if fruta.dePrimeira}}
+                      <span style="color: #059669; font-size: 10px; margin-left: 4px;">(1ª)</span>
+                      {{/if}}
+                    </div>
+                  </td>
+                  <td class="text-right">
+                    {{#if valorUnitarioFormatado}}
+                      {{valorUnitarioFormatado}}
+                    {{else}}
+                      <span class="text-muted">-</span>
+                    {{/if}}
+                  </td>
+                  <td class="text-right">
+                    {{#if valorTotalFormatado}}
+                      <strong>{{valorTotalFormatado}}</strong>
+                    {{else}}
+                      <span class="text-muted">-</span>
+                    {{/if}}
+                  </td>
+                </tr>
+                {{/each}}
+                {{#if valorFinalFormatado}}
+                <tr class="table-total-row">
+                  <td colspan="4" class="text-right table-total-label">Total Geral</td>
+                  <td colspan="2" class="text-right">
+                    <strong>{{valorFinalFormatado}}</strong>
+                  </td>
+                </tr>
+                {{/if}}
+              </tbody>
+            </table>
+            {{else}}
+            <div class="no-data">Nenhuma fruta cadastrada neste pedido.</div>
+            {{/if}}
+          </div>
+        </div>
+
+
+        {{!-- Card: Observações --}}
+        {{#if observacoes}}
+        <div class="card card-observacoes">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">OB</span>
+              <span>Observações</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="observacoes">
+              <div class="observacoes-title">Observações:</div>
+              <div class="observacoes-content">{{observacoes}}</div>
+            </div>
+          </div>
+        </div>
+        {{/if}}
+
+        {{!-- Card: Observações da Colheita --}}
+        {{#if observacoesColheita}}
+        <div class="card card-observacoes">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">OC</span>
+              <span>Observações da Colheita</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="observacoes">
+              <div class="observacoes-title">Observações da Colheita:</div>
+              <div class="observacoes-content">{{observacoesColheita}}</div>
+            </div>
+          </div>
+        </div>
+        {{/if}}
+
+      </div>
+    </div>
+  </div>
+
+  {{!-- Rodapé removido - agora é gerado via displayHeaderFooter do Puppeteer --}}
+</body>
+</html>
+
+
+

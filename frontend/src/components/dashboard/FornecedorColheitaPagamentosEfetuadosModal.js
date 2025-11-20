@@ -364,14 +364,14 @@ const FornecedorColheitaPagamentosEfetuadosModal = ({
           <PDFButton
             onClick={handleGerarPF}
             size={isMobile ? "small" : "large"}
-            tooltip="Gerar PF (Nota Fiscal)"
+            tooltip="Gerar PDF"
             style={{
               height: isMobile ? "32px" : "40px",
               padding: isMobile ? "0 12px" : "0 16px",
               fontSize: isMobile ? "0.75rem" : undefined,
             }}
           >
-            Gerar PF
+            Gerar PDF
           </PDFButton>
           <Button 
             onClick={onClose} 

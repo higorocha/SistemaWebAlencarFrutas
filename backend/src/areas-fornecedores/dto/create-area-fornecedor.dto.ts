@@ -15,5 +15,10 @@ export class CreateAreaFornecedorDto {
   @IsNumber({}, { message: 'ID da cultura deve ser um número' })
   @Type(() => Number)
   culturaId?: number;
+
+  @IsOptional({ message: 'Quantidade de hectares é opcional' })
+  @IsNumber({}, { message: 'Quantidade de hectares deve ser um número' })
+  @Type(() => Number)
+  quantidadeHa?: number;
 }
 

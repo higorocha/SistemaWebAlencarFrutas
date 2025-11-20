@@ -1,45 +1,58 @@
 {{!-- Partial de Cabeçalho Reutilizável --}}
 <div class="pdf-header">
-  <div class="header-content">
-    <div class="header-left">
+  <div class="header-top">
+    <!-- Logo à Esquerda -->
+    <div class="header-logo">
+      {{#if logoPath}}
+      <img src="{{logoPath}}" alt="{{#if empresa}}{{empresa.nome_fantasia}}{{else}}Alencar Frutas{{/if}}" class="logo-img" />
+      {{else}}
+      <div class="logo-placeholder">
+        <span class="logo-text">{{#if empresa}}{{empresa.nome_fantasia}}{{else}}Alencar Frutas{{/if}}</span>
+      </div>
+      {{/if}}
+    </div>
+    
+    <!-- Nome da Empresa no Centro -->
+    <div class="header-center">
       {{#if empresa}}
-      <div class="empresa-info">
         <h1 class="empresa-nome">{{empresa.nome_fantasia}}</h1>
         {{#if empresa.razao_social}}
         <p class="empresa-razao-social">{{empresa.razao_social}}</p>
         {{/if}}
-        {{#if empresa.cnpj}}
-        <p class="empresa-cnpj">CNPJ: {{empresa.cnpj}}</p>
-        {{/if}}
-      </div>
       {{else}}
-      <div class="empresa-info">
         <h1 class="empresa-nome">Alencar Frutas</h1>
-      </div>
       {{/if}}
     </div>
-    <div class="header-right">
+    
+    <!-- Qualificação da Empresa à Direita -->
+    <div class="header-qualificacao">
       {{#if empresa}}
-      <div class="empresa-contato">
+        {{#if empresa.cnpj}}
+        <div class="qualificacao-item">
+          <span class="qualificacao-value">{{empresa.cnpj}}</span>
+        </div>
+        {{/if}}
         {{#if empresa.telefone}}
-        <p class="empresa-telefone">{{empresa.telefone}}</p>
+        <div class="qualificacao-item">
+          <span class="qualificacao-value">{{empresa.telefone}}</span>
+        </div>
         {{/if}}
         {{#if empresa.logradouro}}
-        <p class="empresa-endereco">
-          {{empresa.logradouro}}{{#if empresa.bairro}}, {{empresa.bairro}}{{/if}}
-        </p>
-        <p class="empresa-cidade">
-          {{empresa.cidade}}{{#if empresa.estado}} - {{empresa.estado}}{{/if}} {{#if empresa.cep}}| CEP: {{empresa.cep}}{{/if}}
-        </p>
+        <div class="qualificacao-item">
+          <span class="qualificacao-value">
+            {{empresa.logradouro}}{{#if empresa.bairro}}, {{empresa.bairro}}{{/if}}
+          </span>
+        </div>
+        <div class="qualificacao-item">
+          <span class="qualificacao-value">
+            {{empresa.cidade}}{{#if empresa.estado}} - {{empresa.estado}}{{/if}}{{#if empresa.cep}} | {{empresa.cep}}{{/if}}
+          </span>
+        </div>
         {{/if}}
-      </div>
       {{/if}}
     </div>
   </div>
-  {{#if titulo}}
-  <div class="header-title">
-    <h2>{{titulo}}{{#if subtitulo}} - {{subtitulo}}{{/if}}</h2>
-  </div>
-  {{/if}}
+  
+        {{!-- Título removido - agora é exibido no cabeçalho interno do pedido --}}
 </div>
 

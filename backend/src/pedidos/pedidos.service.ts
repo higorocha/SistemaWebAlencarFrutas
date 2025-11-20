@@ -3481,7 +3481,7 @@ export class PedidosService {
       if (updatePedidoCompletoDto.maoObra) {
         console.log('🛠️ Processando mão de obra do pedido...');
 
-        // Buscar custos atuais do pedido
+        // Buscar custos atuais do pedido (incluindo flag de pagamento)
         const custosAtuais = await prisma.turmaColheitaPedidoCusto.findMany({
           where: { pedidoId: id },
           select: {
@@ -3490,28 +3490,133 @@ export class PedidosService {
             frutaId: true,
             quantidadeColhida: true,
             valorColheita: true,
-            observacoes: true
-          }
+            observacoes: true,
+            pagamentoEfetuado: true,
+          },
         });
 
-        // Identificar custos a remover (não estão mais no array enviado)
-        const custosIdsEnviados = updatePedidoCompletoDto.maoObra
-          .filter(m => m.id)
-          .map(m => m.id);
-
-        const custosParaRemover = custosAtuais.filter(
-          custo => !custosIdsEnviados.includes(custo.id)
+        // Verificar se há custos já pagos
+        const possuiPagamentosEfetuados = custosAtuais.some(
+          (custo) => custo.pagamentoEfetuado === true,
         );
 
-        // Remover custos obsoletos
-        if (custosParaRemover.length > 0) {
-          console.log('🗑️ Removendo custos obsoletos:', custosParaRemover.map(c => c.id));
-          await prisma.turmaColheitaPedidoCusto.deleteMany({
-            where: { id: { in: custosParaRemover.map(c => c.id) } }
-          });
+        // =====================================================
+        // CASO 1: Não há pagamentos efetuados -> substituir tudo
+        //         (mais simples e garante que frutaId acompanha
+        //          exatamente o que veio do frontend)
+        // =====================================================
+        if (!possuiPagamentosEfetuados) {
+          // Remover todos os custos atuais do pedido
+          if (custosAtuais.length > 0) {
+            console.log(
+              '🗑️ Removendo todos os custos de colheita do pedido (sem pagamentos efetuados):',
+              custosAtuais.map((c) => c.id),
+            );
+            await prisma.turmaColheitaPedidoCusto.deleteMany({
+              where: { pedidoId: id },
+            });
+          }
+
+          // Recriar custos exatamente conforme enviado pelo frontend
+          for (const maoObra of updatePedidoCompletoDto.maoObra) {
+            // Buscar dados da fruta para fallback (se unidadeMedida não for fornecido)
+            const frutaPedido = await prisma.frutasPedidos.findFirst({
+              where: {
+                pedidoId: id,
+                frutaId: maoObra.frutaId,
+              },
+              select: {
+                unidadeMedida1: true,
+                unidadeMedida2: true,
+              },
+            });
+
+            if (!frutaPedido) {
+              console.log(
+                `⚠️ Fruta ${maoObra.frutaId} não encontrada no pedido, pulando...`,
+              );
+              continue;
+            }
+
+            // Determinar unidade de medida
+            let unidadeMedida: string = 'KG';
+            if (
+              maoObra.unidadeMedida &&
+              ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'].includes(maoObra.unidadeMedida)
+            ) {
+              unidadeMedida = maoObra.unidadeMedida;
+            } else {
+              const unidadeCompleta = frutaPedido.unidadeMedida1 || 'KG';
+              const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+              const unidadeEncontrada = unidadesValidas.find((u) =>
+                unidadeCompleta.includes(u),
+              );
+              unidadeMedida = unidadeEncontrada || 'KG';
+            }
+
+            console.log(
+              '🆕 Criando custo de colheita (substituição completa):',
+              {
+                turmaColheitaId: maoObra.turmaColheitaId,
+                frutaId: maoObra.frutaId,
+                quantidadeColhida: maoObra.quantidadeColhida,
+                unidadeMedida,
+                valorColheita: maoObra.valorColheita || 0,
+              },
+            );
+
+            await prisma.turmaColheitaPedidoCusto.create({
+              data: {
+                turmaColheitaId: maoObra.turmaColheitaId,
+                pedidoId: id,
+                frutaId: maoObra.frutaId,
+                quantidadeColhida: maoObra.quantidadeColhida,
+                unidadeMedida: unidadeMedida as any,
+                valorColheita: maoObra.valorColheita || 0,
+                observacoes: maoObra.observacoes || null,
+                dataColheita: maoObra.dataColheita
+                  ? new Date(maoObra.dataColheita)
+                  : undefined,
+              },
+            });
+          }
+        } else {
+          // =====================================================
+          // CASO 2: Há pagamentos efetuados -> comportamento anterior
+          //         (não removemos tudo para não quebrar vínculos)
+          // =====================================================
+
+          // Identificar custos a remover (não estão mais no array enviado)
+          const custosIdsEnviados = updatePedidoCompletoDto.maoObra
+            .filter((m) => m.id)
+            .map((m) => m.id);
+
+          const custosParaRemover = custosAtuais.filter(
+            (custo) => !custosIdsEnviados.includes(custo.id),
+          );
+
+          // Remover custos obsoletos (apenas os que não têm pagamento efetuado)
+          const idsParaRemover = custosParaRemover
+            .filter((c) => !c.pagamentoEfetuado)
+            .map((c) => c.id);
+
+          if (idsParaRemover.length > 0) {
+            console.log(
+              '🗑️ Removendo custos obsoletos (sem pagamento):',
+              idsParaRemover,
+            );
+            await prisma.turmaColheitaPedidoCusto.deleteMany({
+              where: { id: { in: idsParaRemover } },
+            });
+          }
         }
 
         // Processar cada item de mão de obra
+        // - Quando NÃO há pagamentos efetuados, toda a substituição já foi feita acima
+        //   (deleteMany + creates), então não precisamos (nem devemos) rodar a lógica
+        //   de update por ID aqui.
+        // - Quando HÁ pagamentos efetuados, usamos o fluxo incremental abaixo.
+        if (possuiPagamentosEfetuados) {
         for (const maoObra of updatePedidoCompletoDto.maoObra) {
           // Buscar dados da fruta para fallback (se unidadeMedida não for fornecido)
           const frutaPedido = await prisma.frutasPedidos.findFirst({
@@ -3545,10 +3650,12 @@ export class PedidosService {
 
           if (maoObra.id) {
             // Atualizar custo existente
+            // ✅ IMPORTANTE: também permitir alteração da fruta vinculada à mão de obra
             await prisma.turmaColheitaPedidoCusto.update({
               where: { id: maoObra.id },
               data: {
                 turmaColheitaId: maoObra.turmaColheitaId,
+                frutaId: maoObra.frutaId,
                 quantidadeColhida: maoObra.quantidadeColhida,
                 unidadeMedida: unidadeMedida as any,
                 valorColheita: maoObra.valorColheita || 0,
@@ -3572,6 +3679,7 @@ export class PedidosService {
               }
             });
           }
+        }
         }
 
         console.log('✅ Mão de obra processada com sucesso!');

@@ -787,6 +787,9 @@ export class FornecedorPagamentosService {
       areaNome: string;
       quantidade: number;
       unidade: string;
+      quantidadeSecundaria?: number;
+      unidadeSecundaria?: string | null;
+      quantidadeHa?: number | null;
       valorProporcional: number;
       valorTotalFruta: number;
       statusPedido: string;
@@ -897,6 +900,9 @@ export class FornecedorPagamentosService {
       areaNome: string;
       quantidade: number;
       unidade: string;
+      quantidadeSecundaria?: number;
+      unidadeSecundaria?: string | null;
+      quantidadeHa?: number | null;
       valorProporcional: number;
       valorTotalFruta: number;
       statusPedido: string;
@@ -934,6 +940,21 @@ export class FornecedorPagamentosService {
           frutaPedido.quantidadePrevista ??
           0;
 
+        const quantidadeAreaSecundaria =
+          relacaoArea.quantidadeColhidaUnidade2 ?? null;
+
+        const unidadeSecundaria = frutaPedido.unidadeMedida2 || null;
+
+        // Usar quantidadeHa da área do fornecedor (se disponível)
+        // Garantir que seja sempre incluído no objeto, mesmo quando null/undefined
+        let quantidadeHa: number | null = null;
+        if (area.quantidadeHa !== null && area.quantidadeHa !== undefined) {
+          const quantidadeHaNumero = Number(area.quantidadeHa);
+          if (!isNaN(quantidadeHaNumero) && quantidadeHaNumero > 0) {
+            quantidadeHa = quantidadeHaNumero;
+          }
+        }
+
         const somaAreasRelacionadas = frutaPedido.areas.reduce((acc, areaRelacionada) => {
           const quantidadeRelacionada =
             areaRelacionada.quantidadeColhidaUnidade1 ??
@@ -962,6 +983,12 @@ export class FornecedorPagamentosService {
           fruta: frutaNome,
           quantidade: Number(quantidadeArea) || 0,
           unidade,
+          quantidadeSecundaria:
+            quantidadeAreaSecundaria !== null && quantidadeAreaSecundaria !== undefined
+              ? Number(quantidadeAreaSecundaria)
+              : undefined,
+          unidadeSecundaria,
+          quantidadeHa: quantidadeHa !== null && quantidadeHa !== undefined ? quantidadeHa : null, // Quantidade de hectares da área do fornecedor
           valorProporcional: Number(valorProporcional.toFixed(2)),
           valorTotalFruta: Number(valorTotalFruta),
           areaNome: area.nome,

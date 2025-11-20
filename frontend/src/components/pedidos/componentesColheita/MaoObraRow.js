@@ -26,7 +26,8 @@ const MaoObraRow = ({
   fieldsLength,
   onRemove,
   onAdd,
-  capitalizeName
+  capitalizeName,
+  pagamentoEfetuado = false,
 }) => {
   // ✅ Usar Form.useWatch DENTRO do componente (não no map)
   const frutaIdSelecionado = Form.useWatch(['maoObra', index, 'frutaId'], form);
@@ -146,6 +147,9 @@ const MaoObraRow = ({
   const qtd = parseFloat(qtdStr) || 0;
   const quantidadePreenchida = qtd > 0;
 
+  // ✅ Linha de mão de obra já paga não pode ser editada/removida
+  const isReadonly = pagamentoEfetuado === true;
+
   // ✅ Ref para controlar qual campo está sendo editado (evitar loop)
   const isEditingValorUnitario = React.useRef(false);
   const isEditingValorTotal = React.useRef(false);
@@ -221,13 +225,20 @@ const MaoObraRow = ({
             borderRadius: "12px",
             border: "1px solid #bae6fd"
           }}>
-            <Text style={{ 
-              color: "#059669", 
-              fontSize: "12px", 
-              fontWeight: "600" 
-            }}>
-              {identificador}
-            </Text>
+            <Space size={6}>
+              <Text style={{ 
+                color: "#059669", 
+                fontSize: "12px", 
+                fontWeight: "600" 
+              }}>
+                {identificador}
+              </Text>
+              {isReadonly && (
+                <Tooltip title="Mão de obra já paga. Edição e exclusão bloqueadas.">
+                  <CheckCircleOutlined style={{ color: "#16a34a", fontSize: 14 }} />
+                </Tooltip>
+              )}
+            </Space>
           </div>
           <div style={{
             flex: 1,

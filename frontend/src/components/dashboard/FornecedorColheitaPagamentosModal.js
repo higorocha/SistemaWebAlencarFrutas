@@ -322,7 +322,9 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
   }, [fornecedor, detalhes]);
   
   // Obter nome do fornecedor
-  const nomeFornecedor = fornecedor?.nomeFornecedor || "Fornecedor";
+  const nomeFornecedor = useMemo(() => {
+    return fornecedor?.nomeFornecedor || fornecedor?.nome || "Fornecedor";
+  }, [fornecedor]);
 
   useEffect(() => {
     if (!open) {
@@ -457,6 +459,125 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
         return dataB - dataA;
       });
   }, [detalhes, filtroBusca, filtroStatus, filtroFruta, filtroData]);
+
+  const formatNumber = React.useCallback(
+    (value, { minimumFractionDigits = 0, maximumFractionDigits = 2 } = {}) => {
+      if (value === null || value === undefined) {
+        return "-";
+      }
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return "-";
+      }
+      return numeric.toLocaleString("pt-BR", {
+        minimumFractionDigits,
+        maximumFractionDigits,
+      });
+    },
+    []
+  );
+
+  const gerarResumoAreas = React.useCallback((detalhesFruta = []) => {
+    const mapa = new Map();
+
+    detalhesFruta.forEach((detalhe) => {
+      const areaKey = detalhe.areaFornecedorId ?? detalhe.areaNome ?? detalhe.frutaPedidoAreaId;
+      if (!mapa.has(areaKey)) {
+        mapa.set(areaKey, {
+          areaId: detalhe.areaFornecedorId,
+          areaNome: detalhe.areaNome,
+          unidades: new Map(),
+          quantidadeHa: null,
+        });
+      }
+
+      const registro = mapa.get(areaKey);
+
+      // Usar quantidadeHa do backend (vem da área do fornecedor)
+      // Se ainda não foi definido ou se o novo valor é válido, atualizar
+      if (detalhe.quantidadeHa !== undefined && detalhe.quantidadeHa !== null) {
+        const quantidadeHaNumero = Number(detalhe.quantidadeHa);
+        if (Number.isFinite(quantidadeHaNumero) && quantidadeHaNumero > 0) {
+          registro.quantidadeHa = quantidadeHaNumero;
+        }
+      }
+
+      // Adicionar quantidades por unidade
+      const adicionarQuantidade = (unidade, quantidade) => {
+        if (!unidade) return;
+        const valor = Number(quantidade) || 0;
+        if (!Number.isFinite(valor) || valor === 0) return;
+        
+        // Se a unidade for HA (hectares), não adicionar às unidades normais
+        const unidadeUpper = unidade.toUpperCase();
+        if (unidadeUpper === 'HA' || unidadeUpper === 'HECTARES' || unidadeUpper === 'HECTARE') {
+          return;
+        } else {
+          // Caso contrário, adicionar à unidade normal
+          const atual = registro.unidades.get(unidade) || 0;
+          registro.unidades.set(unidade, atual + valor);
+        }
+      };
+
+      adicionarQuantidade(detalhe.unidade, detalhe.quantidade);
+      if (detalhe.unidadeSecundaria && detalhe.quantidadeSecundaria) {
+        adicionarQuantidade(detalhe.unidadeSecundaria, detalhe.quantidadeSecundaria);
+      }
+    });
+
+    return Array.from(mapa.values())
+      .map((registro) => {
+        // Calcular métricas para cada unidade (exceto HA)
+        const metricas = Array.from(registro.unidades.entries())
+          .filter(([unidade]) => {
+            const unidadeUpper = unidade.toUpperCase();
+            return unidadeUpper !== 'HA' && unidadeUpper !== 'HECTARES' && unidadeUpper !== 'HECTARE';
+          })
+          .map(([unidade, quantidade]) => {
+            // Calcular média como quantidade/ha
+            const quantidadeHaValida = registro.quantidadeHa !== null && 
+                                       registro.quantidadeHa !== undefined && 
+                                       Number.isFinite(Number(registro.quantidadeHa)) && 
+                                       Number(registro.quantidadeHa) > 0;
+            const media = quantidadeHaValida
+              ? quantidade / Number(registro.quantidadeHa)
+              : null;
+
+            return {
+              unidade,
+              quantidade,
+              media,
+            };
+          });
+
+        const quantidadeTotal = metricas.reduce((acc, metrica) => acc + (metrica.quantidade || 0), 0);
+
+        // Formatar nome da área: $area - $fornecedor ($quantidadeHa)
+        // Sempre incluir nome do fornecedor, mesmo sem hectares
+        const quantidadeHaValida = registro.quantidadeHa !== null && 
+                                   registro.quantidadeHa !== undefined && 
+                                   Number.isFinite(Number(registro.quantidadeHa)) && 
+                                   Number(registro.quantidadeHa) > 0;
+        
+        const quantidadeHaFormatada = quantidadeHaValida
+          ? formatNumber(registro.quantidadeHa, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+          : null;
+        
+        const nomeAreaCompleto = quantidadeHaFormatada
+          ? `${registro.areaNome} - ${nomeFornecedor} (${quantidadeHaFormatada} ha)`
+          : `${registro.areaNome} - ${nomeFornecedor}`;
+
+        return {
+          areaId: registro.areaId,
+          areaNome: registro.areaNome,
+          areaNomeCompleto: nomeAreaCompleto,
+          quantidadeHa: registro.quantidadeHa,
+          metricas,
+          quantidadeTotal,
+        };
+      })
+      .sort((a, b) => (b.quantidadeTotal || 0) - (a.quantidadeTotal || 0));
+  }, [nomeFornecedor, formatNumber]);
 
   const getRowKey = useMemo(
     () => (item) =>
@@ -1284,7 +1405,10 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
                 style={{ padding: "40px 0" }}
               />
             ) : (
-              gruposPorFruta.map((grupo) => (
+              gruposPorFruta.map((grupo) => {
+                const resumoAreas = gerarResumoAreas(grupo.detalhes);
+
+                return (
                 <FruitSectionCard
                   key={grupo.fruta}
                   $isMobile={isMobile}
@@ -1321,8 +1445,98 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
                     showScrollHint
                     rowSelection={rowSelection}
                   />
+                      {resumoAreas.length > 0 && (
+                        <div
+                          style={{
+                            marginTop: isMobile ? 12 : 16,
+                            backgroundColor: "#f0fdf4",
+                            border: "1px solid #bbf7d0",
+                            borderRadius: 8,
+                            padding: isMobile ? 10 : 16,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              marginBottom: isMobile ? 8 : 12,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <TagOutlined style={{ color: "#047857" }} />
+                            <Text strong style={{ color: "#047857", fontSize: isMobile ? "0.85rem" : "0.95rem" }}>
+                              Resumo por Área
+                            </Text>
+                          </div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
+                              gap: isMobile ? 8 : 12,
+                            }}
+                          >
+                            {resumoAreas.map((area) => (
+                                <div
+                                  key={`${grupo.fruta}-${area.areaId || area.areaNome}`}
+                                  style={{
+                                    backgroundColor: "#ecfdf5",
+                                    border: "1px solid #a7f3d0",
+                                    borderRadius: 8,
+                                    padding: isMobile ? 10 : 12,
+                                  }}
+                                >
+                                  <Text strong style={{ color: "#065f46", fontSize: "0.9rem" }}>
+                                    {area.areaNomeCompleto || area.areaNome || "Área"}
+                                  </Text>
+                                  {area.metricas.map((metrica, indice) => {
+                                    const mediaFormatada = metrica.media && Number.isFinite(metrica.media)
+                                      ? formatNumber(metrica.media, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+                                      : "-";
+
+                                    return (
+                                      <div
+                                        key={`${area.areaId || area.areaNome}-${metrica.unidade}-${indice}`}
+                                        style={{
+                                          marginTop: 8,
+                                          paddingTop: 8,
+                                          borderTop: indice > 0 ? "1px dashed #bbf7d0" : "none",
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          gap: 4,
+                                          fontSize: "0.8rem",
+                                          color: "#065f46",
+                                        }}
+                                      >
+                                        <span>
+                                          Quantidade ({metrica.unidade}):{" "}
+                                          <strong>
+                                            {formatNumber(metrica.quantidade, {
+                                              minimumFractionDigits: 0,
+                                              maximumFractionDigits: 2,
+                                            })}{" "}
+                                            {metrica.unidade}
+                                          </strong>
+                                        </span>
+                                        <span>
+                                          Média:{" "}
+                                          <strong>
+                                            {mediaFormatada !== "-" 
+                                              ? `${mediaFormatada} ${metrica.unidade}/ha`
+                                              : "-"}
+                                          </strong>
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
                 </FruitSectionCard>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -1588,6 +1802,20 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
             padding: isMobile ? '12px' : '16px',
             borderRadius: '8px'
           }}>
+            <div style={{ marginBottom: isMobile ? 12 : 16 }}>
+              <Space
+                direction={isMobile ? "vertical" : "horizontal"}
+                size={isMobile ? 4 : 12}
+                style={{ width: "100%", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center" }}
+              >
+                <Text strong style={{ color: "#065f46", fontSize: isMobile ? "0.95rem" : "1.05rem" }}>
+                  Total selecionado
+                </Text>
+                <Tag color="#047857" style={{ fontSize: isMobile ? "0.95rem" : "1.1rem", padding: "6px 14px", borderRadius: 999 }}>
+                  R$ {formatCurrency(totalAPagar || 0)}
+                </Tag>
+              </Space>
+            </div>
             <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]} align="middle">
               <Col xs={24} sm={24} md={8}>
                 <Button

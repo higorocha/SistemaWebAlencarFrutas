@@ -5,9 +5,12 @@ Sistema centralizado para geração de PDFs no backend NestJS usando **Handlebar
 ## ⚡ Resumo Rápido
 
 - **Endpoint:** `GET /api/pdf/pedido/:id` (protegido por JWT)
+- **Template Principal:** `pedido-criado.hbs` - PDF de pedidos criados
 - **Templates:** Arquivos `.hbs` em `templates/`
-- **Partials:** Cabeçalho e rodapé reutilizáveis em `templates/partials/`
-- **Produção:** Configurar Build Command no Render: `npm run render:build`
+- **Partials:** Cabeçalho reutilizável em `templates/partials/header.hbs`
+- **Rodapé:** Gerado via `displayHeaderFooter` do Puppeteer (não usa partial)
+- **Chrome:** Instalação **automática** na primeira execução (sem configuração extra)
+- **Render.com:** Funciona com suas configurações atuais, sem mudanças necessárias
 
 ## 📋 Índice
 
@@ -15,6 +18,7 @@ Sistema centralizado para geração de PDFs no backend NestJS usando **Handlebar
 - [Estrutura de Arquivos](#estrutura-de-arquivos)
 - [Como Usar](#como-usar)
 - [Templates e Partials](#templates-e-partials)
+- [Mapa de Templates](#-mapa-de-templates)
 - [Configuração para Produção (Render.com)](#configuração-para-produção-rendercom)
 - [Adicionando Novos Templates](#adicionando-novos-templates)
 - [Integração com Email](#integração-com-email)
@@ -65,12 +69,15 @@ O sistema foi projetado para ser **escalável** e **reutilizável**:
 backend/src/pdf/
 ├── templates/
 │   ├── partials/
-│   │   ├── header.hbs      # Cabeçalho reutilizável
-│   │   └── footer.hbs      # Rodapé reutilizável
-│   └── relatorio-pedidos.hbs  # Template de pedido
+│   │   ├── header.hbs      # Cabeçalho reutilizável (logo, nome empresa, qualificação)
+│   │   └── footer.hbs      # Rodapé reutilizável (não usado atualmente - footer via Puppeteer)
+│   ├── pedido-criado.hbs   # Template de PDF para pedidos criados
+│   └── assets/
+│       └── img/
+│           └── logoEstendido.png  # Logo da empresa
 ├── pdf.module.ts           # Módulo NestJS
-├── pdf.service.ts          # Serviço de geração
-├── pdf.controller.ts       # Controller HTTP
+├── pdf.service.ts          # Serviço de geração (Handlebars + Puppeteer)
+├── pdf.controller.ts       # Controller HTTP (endpoints de PDF)
 └── README.md               # Esta documentação
 ```
 
@@ -108,7 +115,7 @@ async enviarEmailComPdf() {
     // ... dados formatados
   };
   
-  const pdfBuffer = await this.pdfService.gerarPdf('relatorio-pedidos', dadosTemplate);
+  const pdfBuffer = await this.pdfService.gerarPdf('pedido-criado', dadosTemplate);
   
   await this.mailerService.sendMail({
     to: cliente.email,
@@ -198,61 +205,148 @@ O sistema foi configurado para funcionar automaticamente no Render.com:
 
 ### Configuração no Render.com
 
-No painel do Render.com (Settings > Build & Deploy), configure:
+**✅ Boa notícia:** O sistema agora instala o Chrome **automaticamente** quando necessário! Não é preciso configurar nada especial no Render.
 
-1. **Build Command:**
-   ```
-   npm run render:build
-   ```
-   Este comando:
-   - Executa `ensure-chrome.js` para garantir que o Chrome está instalado
-   - Compila o projeto TypeScript com `npm run build:prod`
+No painel do Render.com (Settings > Build & Deploy), use suas configurações normais:
 
-2. **Start Command:**
-   ```
-   npm run render:start
-   ```
-   Este comando:
-   - Aplica migrations do Prisma (`prisma migrate deploy`)
-   - Inicia o servidor em produção (`npm run start:prod`)
+1. **Build Command:** (seu comando atual, ex: `npm run build:prod`)
+2. **Start Command:** (seu comando atual, ex: `npm run render:start`)
 
-**Importante:** Certifique-se de que o Build Command está configurado corretamente no Render.com!
+**Como funciona:**
+- Na primeira execução que precisar gerar PDF, se o Chrome não for encontrado, o sistema tenta instalar automaticamente
+- A instalação acontece **durante a execução** (não no build)
+- Após instalado, o Chrome fica disponível para todas as próximas requisições
+
+## 🔧 Como Funciona a Instalação do Chrome
+
+### Instalação Automática (Solução Atual)
+
+O sistema usa **instalação automática sob demanda** - você não precisa fazer nada!
+
+#### Fluxo Completo:
+
+```
+1. Usuário solicita PDF
+   ↓
+2. PdfService.gerarPdf() é chamado
+   ↓
+3. Puppeteer tenta iniciar Chrome
+   ↓
+4. Chrome encontrado? 
+   ├─ SIM → Gera PDF normalmente (segundos)
+   └─ NÃO → Instala Chrome automaticamente
+              ↓
+              Executa: npx puppeteer browsers install chrome
+              ↓
+              Aguarda instalação (2-5 minutos na primeira vez)
+              ↓
+              Tenta iniciar Chrome novamente
+              ↓
+              Gera PDF
+```
+
+#### Detalhes Técnicos:
+
+1. **Primeira requisição de PDF (quando Chrome não existe):**
+   ```typescript
+   // PdfService detecta erro "Could not find Chrome"
+   // Define flag: chromeInstallAttempted = true
+   // Executa: execSync('npx puppeteer browsers install chrome')
+   // Timeout: 5 minutos (instalação pode ser lenta)
+   // Após instalação: tenta iniciar Chrome novamente
+   ```
+
+2. **Próximas requisições:**
+   - Chrome já está em `/opt/render/.cache/puppeteer/chrome/`
+   - Puppeteer encontra automaticamente
+   - Geração de PDF é rápida (2-10 segundos)
+
+3. **Proteção contra loops:**
+   - Flag `chromeInstallAttempted` evita tentativas repetidas
+   - Se instalação falhar, retorna erro claro
+
+### Onde o Chrome Fica Armazenado?
+
+No Render.com, o Chrome é instalado em:
+```
+/opt/render/.cache/puppeteer/chrome/
+```
+
+Este diretório:
+- ✅ **Persiste entre reinicializações** do serviço
+- ✅ **Não é apagado** quando você faz novo deploy
+- ✅ **Fica disponível** para todas as instâncias do serviço
+
+### Comportamento do Render.com
+
+#### ✅ O que PERSISTE (não é apagado):
+- Arquivos em `/opt/render/.cache/` (cache do Puppeteer)
+- Arquivos em `node_modules/` (após `npm install`)
+- Banco de dados e dados persistentes
+
+#### ❌ O que é APAGADO em cada deploy:
+- Arquivos compilados em `dist/` (são recriados no build)
+- Arquivos temporários
+
+**Conclusão:** O Chrome instalado em `/opt/render/.cache/puppeteer/` **permanece** entre deploys! Você só precisa instalar uma vez.
+
+### Quando o Chrome Precisa Ser Reinstalado?
+
+#### ✅ Chrome NÃO precisa ser reinstalado quando:
+- Você faz **novo deploy** (push no git)
+- O serviço **reinicia** (restart manual ou automático)
+- Você **atualiza dependências** (`npm install`)
+- Você **compila novamente** (`npm run build`)
+
+**Por quê?** O diretório `/opt/render/.cache/puppeteer/` **persiste** entre esses eventos.
+
+#### ❌ Chrome PRECISA ser reinstalado quando:
+1. **Serviço é criado pela primeira vez** (serviço novo no Render)
+2. **Cache foi limpo manualmente** (ação rara, via SSH)
+3. **Serviço foi deletado e recriado** (não apenas redeploy)
+4. **Render limpa o cache** (ação automática rara do Render)
+
+**Na prática:** 
+- Primeira requisição de PDF em um serviço novo → Instala automaticamente (2-5 min)
+- Todas as próximas requisições → Rápido (segundos)
+- Após a primeira instalação, o Chrome fica disponível **permanentemente**
+
+### Performance
+
+| Situação | Tempo de Resposta |
+|----------|-------------------|
+| Primeira requisição (instalando Chrome) | 2-5 minutos |
+| Requisições subsequentes | 2-10 segundos |
+| Após reinicialização do serviço | 2-10 segundos (Chrome já instalado) |
 
 ### Variável de Ambiente (Opcional)
 
 Se necessário, você pode definir no Render.com:
 
 - **Nome:** `PUPPETEER_EXECUTABLE_PATH`
-- **Valor:** Caminho completo do Chrome (geralmente não necessário)
+- **Valor:** Caminho completo do Chrome (geralmente **não necessário**)
 
-**Como encontrar o caminho:**
-```bash
-find ~/.cache/puppeteer -name "chrome" -type f
-```
+**Quando usar:** Apenas se quiser usar uma versão específica do Chrome ou se o caminho padrão não funcionar.
 
 ### Troubleshooting no Render
 
-#### Erro: "Could not find Chrome"
+#### Erro: "Chrome não encontrado" (mesmo após instalação automática)
 
-**Solução 1:** Verificar se o Build Command está correto
-- Deve ser: `npm run render:build`
-- Não use apenas `npm run build:prod`
+**Possíveis causas:**
+1. Instalação falhou (verifique logs do servidor)
+2. Permissões insuficientes (improvável no Render)
+3. Cache foi limpo manualmente
 
-**Solução 2:** Adicionar script de instalação manual
-- No Render, adicione um script de build que instala o Chrome:
-  ```bash
-  npx puppeteer browsers install chrome && npm run build:prod
-  ```
+**Solução:**
+- Verifique os logs do servidor para ver a mensagem de erro completa
+- A primeira requisição pode demorar 2-5 minutos (instalação do Chrome)
+- Se persistir, verifique se o serviço tem permissões de escrita em `/opt/render/.cache/`
 
-**Solução 3:** Usar Buildpack (Alternativa)
-- No Render, adicione o buildpack: `heroku-buildpack-google-chrome`
-- Isso instala o Chrome do sistema
+#### Verificar Instalação (via SSH no Render)
 
-#### Verificar Instalação
-
-Para verificar se o Chrome foi instalado (via SSH no Render):
+Se tiver acesso SSH:
 ```bash
-ls -la ~/.cache/puppeteer/chrome/
+ls -la /opt/render/.cache/puppeteer/chrome/
 ```
 
 ### Scripts Disponíveis
@@ -261,11 +355,94 @@ ls -la ~/.cache/puppeteer/chrome/
 {
   "scripts": {
     "puppeteer:install": "npx puppeteer browsers install chrome",
-    "render:build": "npm run puppeteer:install && npm run build:prod",
+    "ensure-chrome": "node scripts/ensure-chrome.js",
+    "render:build": "npm run ensure-chrome && npm run build:prod",
     "render:start": "npm run prisma:deploy && npm run start:prod"
   }
 }
 ```
+
+**Nota:** Os scripts `puppeteer:install` e `ensure-chrome` são opcionais. O sistema instala automaticamente quando necessário.
+
+## 🗺️ Mapa de Templates
+
+Para uma documentação detalhada de cada template, incluindo de onde vem as chamadas, quais dados utiliza e sua estrutura, consulte:
+
+📄 **[mapa-templates.md](./mapa-templates.md)**
+
+---
+
+## 📄 Templates Disponíveis
+
+### Arquivos `.hbs` - O que são?
+
+Os arquivos `.hbs` (Handlebars) são **templates HTML** que definem a estrutura e o layout dos PDFs gerados. Cada template representa um tipo diferente de documento que o sistema pode gerar.
+
+**Estrutura básica:**
+- **HTML/CSS padrão:** Você pode usar todo o poder do HTML e CSS para criar layouts complexos
+- **Handlebars:** Sistema de templating que permite injetar dados dinâmicos usando `{{variável}}`
+- **Partials:** Componentes reutilizáveis (como `header.hbs`) que podem ser incluídos em múltiplos templates
+
+### `pedido-criado.hbs`
+
+**Propósito:** Template para geração de PDF de **resumo básico do pedido**, emitido na criação do pedido com informações essenciais.
+
+**Status atual:** 
+- ⚠️ Atualmente sendo chamado no `VisualizarPedidoModal.js` para testes
+- 🔄 Será ajustado futuramente para ser chamado automaticamente na criação do pedido
+- 📝 Por enquanto, serve como base para desenvolvimento e testes
+
+**Endpoint:** `GET /api/pdf/pedido/:id`
+
+**Conteúdo do Documento:**
+1. **Cabeçalho (Partial `header.hbs`):**
+   - Logo da empresa (esquerda) - carregada de `src/pdf/assets/img/logoEstendido.png`
+   - Nome fantasia da empresa (centro) - verde, uppercase
+   - Qualificação da empresa (direita): CNPJ, telefone, endereço completo - cinza
+   - Título do documento: "Pedido Criado - Pedido #XXX"
+
+2. **Informações Básicas do Pedido:**
+   - Cliente
+   - Data do Pedido
+   - Data Prevista Colheita
+   - Data da Colheita (se houver)
+   - Status (com badge colorido)
+
+3. **Frutas do Pedido:**
+   - Tabela com: Fruta, Quantidade Prevista, Quantidade Real (se houver), Valor Unitário e Total (se houver)
+   - Exibe cultura e indicação de "1ª" quando aplicável
+
+4. **Totais (se houver valores):**
+   - Frete, ICMS, Desconto, Avaria
+   - Total Geral
+   - Valor Recebido
+
+5. **Observações:**
+   - Observações gerais do pedido
+   - Observações da colheita (se houver)
+
+6. **Rodapé (via Puppeteer `displayHeaderFooter`):**
+   - Esquerda: Razão Social (verde, bold) e CNPJ (cinza)
+   - Centro: "Sistemas de Informações - AlencarFrutas" (cinza)
+   - Direita: Número da página e data de geração (cinza)
+
+**Dados necessários:** Pedido completo com relacionamentos preparados pelo `PdfController.prepararDadosTemplate()`
+
+### `partials/header.hbs`
+
+**Propósito:** Partial reutilizável que define o cabeçalho padrão de todos os PDFs.
+
+**Características:**
+- Layout profissional com logo, nome da empresa e qualificação
+- Pode ser incluído em qualquer template usando `{{> header}}`
+- Recebe dados da empresa via objeto `empresa` no contexto do template
+- Suporta logo em base64 (carregada automaticamente pelo controller)
+
+### `partials/footer.hbs`
+
+**Propósito:** Partial de rodapé (atualmente não utilizado).
+
+**Nota:** O rodapé é gerado via `displayHeaderFooter` do Puppeteer no `pdf.service.ts`, permitindo numeração automática de páginas e posicionamento fixo no final de cada página. O arquivo `footer.hbs` existe para referência futura, caso seja necessário usar partials para o rodapé.
 
 ## ➕ Adicionando Novos Templates
 
@@ -274,7 +451,7 @@ ls -la ~/.cache/puppeteer/chrome/
 Crie um novo arquivo `.hbs` em `templates/`:
 
 ```handlebars
-<!-- templates/relatorio-frutas.hbs -->
+<!-- templates/novo-template.hbs -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -283,11 +460,11 @@ Crie um novo arquivo `.hbs` em `templates/`:
   </style>
 </head>
 <body>
-  {{> header titulo="Relatório de Frutas"}}
+  {{> header titulo="Título do Documento"}}
   
   <!-- Seu conteúdo -->
   
-  {{> footer}}
+  <!-- Nota: Rodapé é gerado automaticamente via Puppeteer displayHeaderFooter -->
 </body>
 </html>
 ```
@@ -298,11 +475,11 @@ Se quiser expor via HTTP:
 
 ```typescript
 // pdf.controller.ts
-@Get('frutas/:id')
-async downloadFrutasPdf(@Param('id') id: string, @Res() res: Response) {
-  const dados = await this.frutasService.findOne(+id);
-  const dadosTemplate = this.prepararDadosFrutas(dados);
-  const buffer = await this.pdfService.gerarPdf('relatorio-frutas', dadosTemplate);
+@Get('novo-endpoint/:id')
+async downloadNovoPdf(@Param('id') id: string, @Res() res: Response) {
+  const dados = await this.service.findOne(+id);
+  const dadosTemplate = this.prepararDados(dados);
+  const buffer = await this.pdfService.gerarPdf('novo-template', dadosTemplate);
   
   res.set({
     'Content-Type': 'application/pdf',
@@ -315,7 +492,7 @@ async downloadFrutasPdf(@Param('id') id: string, @Res() res: Response) {
 ### Passo 3: Usar Internamente
 
 ```typescript
-const buffer = await this.pdfService.gerarPdf('relatorio-frutas', dadosFormatados);
+const buffer = await this.pdfService.gerarPdf('novo-template', dadosFormatados);
 ```
 
 ## 📧 Integração com Email
@@ -324,7 +501,7 @@ O `PdfService` retorna um `Buffer` que pode ser usado diretamente no Nodemailer:
 
 ```typescript
 // Exemplo em um service de notificações
-const pdfBuffer = await this.pdfService.gerarPdf('relatorio-pedidos', dadosPedido);
+  const pdfBuffer = await this.pdfService.gerarPdf('pedido-criado', dadosPedido);
 
 await this.mailerService.sendMail({
   to: cliente.email,
@@ -347,7 +524,7 @@ await this.mailerService.sendMail({
 
 ### Dados Específicos por Template
 
-Cada template recebe dados específicos preparados no controller. Para o template `relatorio-pedidos`:
+Cada template recebe dados específicos preparados no controller. Para o template `pedido-criado`:
 
 - `numeroPedido`: Número do pedido
 - `cliente`: Dados do cliente
@@ -402,19 +579,34 @@ O sistema usa Handlebars padrão. Helpers úteis disponíveis:
 
 ## ✅ Checklist de Deploy no Render.com
 
-Antes de fazer deploy, verifique:
+**✅ Boa notícia:** Não precisa configurar nada especial! O sistema instala o Chrome automaticamente.
 
-- [ ] Build Command configurado: `npm run render:build`
-- [ ] Start Command configurado: `npm run render:start`
+Antes de fazer deploy, verifique apenas:
+
 - [ ] Dependências `puppeteer` e `handlebars` estão em `dependencies` (não `devDependencies`)
-- [ ] Script `ensure-chrome.js` existe em `scripts/`
 - [ ] Dados da empresa configurados no sistema (para aparecer no header/footer)
+- [ ] Build e Start Commands do Render estão funcionando normalmente (seus comandos atuais)
+
+**Não precisa:**
+- ❌ Adicionar scripts de instalação do Chrome no Build Command
+- ❌ Configurar variáveis de ambiente especiais
+- ❌ Usar buildpacks adicionais
 
 ### Teste Pós-Deploy
 
-1. Acesse: `https://seu-backend.onrender.com/api/pdf/pedido/1` (com autenticação)
-2. Deve retornar um PDF para download
-3. Verifique os logs no Render para erros
+1. **Primeira requisição** (pode demorar 2-5 minutos):
+   - Acesse: `https://seu-backend.onrender.com/api/pdf/pedido/1` (com autenticação)
+   - O sistema vai instalar o Chrome automaticamente
+   - Aguarde a conclusão (verifique os logs)
+
+2. **Próximas requisições** (rápido, 2-10 segundos):
+   - Deve retornar o PDF imediatamente
+   - Chrome já está instalado e pronto
+
+3. **Verifique os logs** no Render para confirmar:
+   - Primeira vez: `"Chrome não encontrado. Tentando instalar automaticamente..."`
+   - Depois: `"✅ Chrome instalado com sucesso"`
+   - Próximas: `"PDF gerado com sucesso"`
 
 ## 📊 Resumo da Implementação
 
@@ -434,16 +626,19 @@ Antes de fazer deploy, verifique:
 backend/src/pdf/
 ├── templates/
 │   ├── partials/
-│   │   ├── header.hbs      ✅ Cabeçalho reutilizável
-│   │   └── footer.hbs      ✅ Rodapé reutilizável
-│   └── relatorio-pedidos.hbs ✅ Template de pedido
+│   │   ├── header.hbs      ✅ Cabeçalho reutilizável (logo, empresa, qualificação)
+│   │   └── footer.hbs      ✅ Rodapé reutilizável (não usado - footer via Puppeteer)
+│   ├── pedido-criado.hbs   ✅ Template de PDF para pedidos
+│   └── assets/
+│       └── img/
+│           └── logoEstendido.png  ✅ Logo da empresa
 ├── pdf.module.ts           ✅ Módulo NestJS
-├── pdf.service.ts          ✅ Serviço de geração
-├── pdf.controller.ts       ✅ Controller HTTP
+├── pdf.service.ts          ✅ Serviço de geração (Handlebars + Puppeteer)
+├── pdf.controller.ts       ✅ Controller HTTP (endpoints de PDF)
 └── README.md               ✅ Documentação completa
 
 backend/scripts/
-└── ensure-chrome.js        ✅ Script de instalação do Chrome
+└── ensure-chrome.js        ✅ Script de instalação do Chrome (não usado - instalação automática)
 ```
 
 ## 📚 Referências

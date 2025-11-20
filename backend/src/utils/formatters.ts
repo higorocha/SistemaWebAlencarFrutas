@@ -16,6 +16,12 @@ export const capitalizeName = (name: string): string => {
     .join(' ');
 };
 
+export const capitalizeNameShort = (name: string): string => {
+  if (!name) return '';
+  const shortName = name.split('-')[0].trim();
+  return capitalizeName(shortName);
+};
+
 /**
  * Formata um valor monetário para o padrão brasileiro
  * @param value Valor a ser formatado

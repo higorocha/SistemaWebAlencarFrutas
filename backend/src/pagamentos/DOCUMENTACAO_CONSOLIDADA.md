@@ -13,9 +13,9 @@ Sistema completo de controle e rastreabilidade de pagamentos via API do Banco do
 - Relacionamento N:N com tabelas de origem
 - Rastreabilidade completa
 - Auditoria completa
+- **Jobs automáticos de sincronização** (fila + worker) com delay configurado
 
 **⚠️ Pendente:**
-- Jobs para consultar status automaticamente
 - Webhook para receber atualizações do BB (vide seção 🔔 Webhook de Pagamentos)
 
 ---
@@ -24,12 +24,13 @@ Sistema completo de controle e rastreabilidade de pagamentos via API do Banco do
 
 ### Estrutura Geral
 
-O sistema utiliza **4 tabelas principais** para controlar todos os pagamentos:
+O sistema utiliza **5 tabelas principais** para controlar todos os pagamentos:
 
 1. **`sequencia_numero_requisicao`** - Controle de números sequenciais
 2. **`pagamento_api_lote`** - Controle de lotes de pagamento
 3. **`pagamento_api_item`** - Controle de itens individuais
 4. **`pagamento_api_item_colheita`** - Relacionamento N:N (Pagamento ↔ Colheitas)
+5. **`pagamento_api_sync_job`** - Fila de jobs para sincronização automática
 
 ---
 
@@ -239,6 +240,27 @@ PagamentoApiItem (ID: 1, Valor: R$ 1.000,00)
 
 ---
 
+### 5. `pagamento_api_sync_job`
+
+**Propósito:** Fila persistida que controla quando cada lote/ item será ressincronizado com a API BB.
+
+**Campos principais:**
+- `tipo`: `LOTE` ou `ITEM`
+- `status`: `PENDING`, `RUNNING`, `DONE`, `FAILED`
+- `contaCorrenteId`: usada para buscar credenciais/token corretos
+- `numeroRequisicao`, `identificadorPagamento`, `loteId`: referências do que será consultado
+- `runAfter`: horário mínimo de execução (delay padrão 15 minutos)
+- `tentativas`, `ultimaExecucao`, `erro`: controle de retries (até 5 tentativas com backoff)
+
+**Lógica resumida**
+1. Remessa criada → agenda `LOTE` (15 min).
+2. Liberação ok → reagenda `LOTE` (0 min) + adiciona `ITEM` para cada identificador PIX.
+3. Worker executa jobs com `runAfter <= now`, um por vez.
+4. Erros entram em backoff (15 → 30 → 60 → 180 min); após 5 falhas, `FAILED`.
+5. Se o BB ainda devolver estado pendente (lote=1, item=PENDENTE/CONSISTENTE), reagenda automaticamente +15 min.
+
+---
+
 ## 👤 Sistema de Rastreamento por Usuário
 
 ### 🎯 Objetivo
@@ -282,6 +304,18 @@ const lote = await this.prisma.pagamentoApiLote.create({
 **Resultado:**
 - `PagamentoApiLote.usuarioCriacaoId` = ID do usuário que criou
 - `PagamentoApiLote.usuarioCriacao` = Dados completos do usuário (nome, email)
+
+---
+
+## 🔁 Jobs Automáticos
+
+- **Criação/liberação** → agenda registros em `pagamento_api_sync_job` (lotes: +15 min; itens liberados: imediato).
+- **Worker** (`PagamentosSyncWorkerService`) desperta a cada minuto e processa toda a fila disponível, sempre em série.
+- **Logs** mostram hora local (`America/Sao_Paulo`), início de cada job e o resumo final (sucessos/falhas). Reagendamentos também geram log.
+- **Reagendamento automático (lotes)**: repete enquanto o BB responder estados intermediários (`1`, `2`, `4`, `5`, `8`, `9`, `10`). Só encerra quando chega em `6` (processado) ou `7` (rejeitado), e nunca deixa o estado “voltar atrás”.
+- **Reagendamento automático (itens)**: repete quando o estado do PIX = `PENDENTE`, `CONSISTENTE`, `AGENDADO`, `AGUARDANDO DÉBITO` ou `DEBITADO`. Estados finais (`PAGO`, `CANCELADO`, `REJEITADO`, `DEVOLVIDO`, `VENCIDO`, `BLOQUEADO`) encerram o job.
+- **Propagação Turma Colheita**: quando o item chega em `PAGO`, o job replica o mesmo fluxo do webhook — marca as colheitas vinculadas como pagas e, se todos os itens do lote estiverem `PROCESSADOS`, atualiza o lote para `estadoRequisicao=6`/`CONCLUIDO`.
+- **Backoff de erros**: 15 → 30 → 60 → 180 min; após 5 tentativas falhas, status `FAILED` + mensagem registrada.
 
 ---
 
@@ -1431,10 +1465,10 @@ GET /api/pagamentos/pix/96494633731030000/individual
 
 ## 🚧 Próximos Passos
 
-### Fase 7: Jobs e Processamento Assíncrono (Pendente)
-- ⚠️ Implementar jobs para consultar status automaticamente
-- ⚠️ Configurar intervalo de consulta
-- ⚠️ Processar lotes pendentes
+### Fase 7: Jobs e Processamento Assíncrono (Concluído)
+- ✅ Fila `pagamento_api_sync_job` (delay 15 min, controle por conta)
+- ✅ Worker cron serial + logs narrativos
+- ✅ Backoff, reagendamento automático e resumo por execução
 
 ### Fase 8: Webhook (Pendente)
 - ⚠️ Implementar endpoint para receber webhooks do BB
@@ -1485,7 +1519,7 @@ Se o Prisma Client não reconhece a nova tabela:
 
 ---
 
-**Última atualização:** 2024-12-15
+**Última atualização:** 2025-11-20
 
 **Versão:** 1.0.0
 

@@ -731,6 +731,9 @@ export class DashboardService {
           fruta: string;
           quantidade: number;
           unidade: string;
+          quantidadeSecundaria?: number;
+          unidadeSecundaria?: string | null;
+          quantidadeHa?: number | null;
           valor: number;
           valorTotalFruta: number;
           areaNome: string;
@@ -771,6 +774,21 @@ export class DashboardService {
               frutaPedido.quantidadePrevista ??
               0;
 
+            const quantidadeAreaSecundaria =
+              relacaoArea.quantidadeColhidaUnidade2 ?? null;
+
+            const unidadeSecundaria = frutaPedido.unidadeMedida2 || null;
+
+            // Usar quantidadeHa da área do fornecedor (se disponível)
+            // Garantir que seja sempre incluído no objeto, mesmo quando null/undefined
+            let quantidadeHa: number | null = null;
+            if (area.quantidadeHa !== null && area.quantidadeHa !== undefined) {
+              const quantidadeHaNumero = Number(area.quantidadeHa);
+              if (!isNaN(quantidadeHaNumero) && quantidadeHaNumero > 0) {
+                quantidadeHa = quantidadeHaNumero;
+              }
+            }
+
             const somaAreasRelacionadas = frutaPedido.areas.reduce((acc, areaRelacionada) => {
               const quantidadeRelacionada =
                 areaRelacionada.quantidadeColhidaUnidade1 ??
@@ -799,6 +817,12 @@ export class DashboardService {
               fruta: frutaNome,
               quantidade: Number(quantidadeArea) || 0,
               unidade,
+              quantidadeSecundaria:
+                quantidadeAreaSecundaria !== null && quantidadeAreaSecundaria !== undefined
+                  ? Number(quantidadeAreaSecundaria)
+                  : undefined,
+              unidadeSecundaria,
+              quantidadeHa: quantidadeHa !== null && quantidadeHa !== undefined ? quantidadeHa : null, // Quantidade de hectares da área do fornecedor
               valor: Number(valorProporcional.toFixed(2)),
               valorTotalFruta: Number(valorTotalFruta),
               areaNome: area.nome,
@@ -946,6 +970,16 @@ export class DashboardService {
               fruta: d.fruta,
               quantidade: Number(d.quantidade.toFixed(2)),
               unidade: d.unidade,
+              quantidadeSecundaria:
+                d.quantidadeSecundaria !== undefined && d.quantidadeSecundaria !== null
+                  ? Number(Number(d.quantidadeSecundaria).toFixed(2))
+                  : undefined,
+              unidadeSecundaria: d.unidadeSecundaria || undefined,
+              // Quantidade de hectares da área do fornecedor (se cadastrada)
+              quantidadeHa:
+                d.quantidadeHa !== undefined && d.quantidadeHa !== null
+                  ? Number(d.quantidadeHa)
+                  : null,
               valor: Number(d.valor.toFixed(2)),
               valorTotalFruta: Number(d.valorTotalFruta.toFixed(2)),
               areaNome: d.areaNome,
@@ -955,10 +989,19 @@ export class DashboardService {
               frutaPedidoId: d.frutaPedidoId,
               frutaPedidoAreaId: d.frutaPedidoAreaId,
               // Campos de pagamento (podem ser undefined se não houver pagamento)
-              pagamentoId: d.pagamentoId !== undefined && d.pagamentoId !== null ? Number(d.pagamentoId) : undefined,
+              pagamentoId:
+                d.pagamentoId !== undefined && d.pagamentoId !== null
+                  ? Number(d.pagamentoId)
+                  : undefined,
               statusPagamento: d.statusPagamento || undefined,
-              valorUnitario: d.valorUnitario !== undefined && d.valorUnitario !== null ? Number(d.valorUnitario) : undefined,
-              valorTotal: d.valorTotal !== undefined && d.valorTotal !== null ? Number(d.valorTotal) : undefined,
+              valorUnitario:
+                d.valorUnitario !== undefined && d.valorUnitario !== null
+                  ? Number(d.valorUnitario)
+                  : undefined,
+              valorTotal:
+                d.valorTotal !== undefined && d.valorTotal !== null
+                  ? Number(d.valorTotal)
+                  : undefined,
               dataPagamento: d.dataPagamento ? d.dataPagamento.toISOString() : undefined,
               formaPagamento: d.formaPagamento || undefined,
             };

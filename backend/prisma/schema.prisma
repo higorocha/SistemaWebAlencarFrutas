@@ -67,6 +67,7 @@ model ContaCorrente {
   credenciaisAPI            CredenciaisAPI[]
   lotesPagamentoApi         PagamentoApiLote[]
   sequenciaNumeroRequisicao SequenciaNumeroRequisicao? // Sequência de número de requisição para esta conta
+  syncJobs                  PagamentoApiSyncJob[]
 
   @@unique([bancoCodigo, agencia, contaCorrente])
   @@map("conta_corrente")
@@ -296,6 +297,7 @@ model AreaFornecedor {
   id                 Int                   @id @default(autoincrement())
   fornecedorId       Int
   nome               String                @db.VarChar(100)
+  quantidadeHa       Float?                @map("quantidade_ha")
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
   culturaId          Int?                  @map("cultura_id")
@@ -795,6 +797,18 @@ enum StatusPagamentoItem {
   ERRO // Erro no processamento
 }
 
+enum PagamentoApiSyncJobTipo {
+  LOTE
+  ITEM
+}
+
+enum PagamentoApiSyncJobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
 model HistoricoPedido {
   id             Int           @id @default(autoincrement())
   pedidoId       Int           @map("pedido_id")
@@ -887,6 +901,7 @@ model PagamentoApiLote {
 
   // Relacionamentos com itens pagos
   itensPagamento PagamentoApiItem[]
+  syncJobs       PagamentoApiSyncJob[]
 
   @@index([numeroRequisicao])
   @@index([contaCorrenteId])
@@ -1044,4 +1059,28 @@ model BbWebhookEvent {
   @@index([statusProcessamento])
   @@index([receivedAt])
   @@map("bb_webhook_events")
+}
+
+model PagamentoApiSyncJob {
+  id                      Int                       @id @default(autoincrement())
+  tipo                    PagamentoApiSyncJobTipo
+  status                  PagamentoApiSyncJobStatus @default(PENDING)
+  contaCorrenteId         Int
+  contaCorrente           ContaCorrente             @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  numeroRequisicao        Int?
+  identificadorPagamento  String?
+  loteId                  Int?
+  lote                    PagamentoApiLote?         @relation(fields: [loteId], references: [id], onDelete: SetNull)
+  runAfter                DateTime
+  tentativas              Int                       @default(0)
+  ultimaExecucao          DateTime?
+  erro                    String?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+
+  @@index([status, runAfter])
+  @@index([tipo, numeroRequisicao])
+  @@index([tipo, identificadorPagamento])
+  @@index([contaCorrenteId])
+  @@map("pagamento_api_sync_job")
 }

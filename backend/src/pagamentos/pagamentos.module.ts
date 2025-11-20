@@ -4,6 +4,8 @@ import { PagamentosService } from './pagamentos.service';
 import { CredenciaisAPIModule } from '../credenciais-api/credenciais-api.module';
 import { ContaCorrenteModule } from '../conta-corrente/conta-corrente.module';
 import { NotificacoesModule } from '../notificacoes/notificacoes.module';
+import { PagamentosSyncQueueService } from './pagamentos-sync-queue.service';
+import { PagamentosSyncWorkerService } from './pagamentos-sync-worker.service';
 
 /**
  * Módulo de pagamentos para integração com a API do Banco do Brasil
@@ -31,9 +33,12 @@ import { NotificacoesModule } from '../notificacoes/notificacoes.module';
   ],
   providers: [
     PagamentosService,    // Service com lógica de negócio e integração BB API
+    PagamentosSyncQueueService,
+    PagamentosSyncWorkerService,
   ],
   exports: [
     PagamentosService,    // Exporta o service para uso em outros módulos se necessário
+    PagamentosSyncQueueService,
   ],
 })
 export class PagamentosModule {}
