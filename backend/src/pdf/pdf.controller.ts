@@ -47,12 +47,15 @@ export class PdfController {
     @Res() res: Response,
     @Req() request?: any,
   ) {
+    console.log('[PDF Controller] Iniciando geração de PDF para pedido ID:', id);
+    
     // Extrair dados do usuário do JWT
     const usuarioNivel = request?.user?.nivel;
     const usuarioCulturaId = request?.user?.culturaId;
 
     // 1. Busca dados usando o Service existente (reaproveita lógica)
     const pedido = await this.pedidosService.findOne(+id, usuarioNivel, usuarioCulturaId);
+    console.log('[PDF Controller] Pedido encontrado. Número do pedido:', pedido?.numeroPedido);
 
     // 2. Buscar dados completos do cliente (o findOne do pedido retorna apenas id, nome e industria)
     const clienteCompleto = pedido.clienteId 
@@ -71,15 +74,55 @@ export class PdfController {
     // 4. Gera o PDF
     const buffer = await this.pdfService.gerarPdf('pedido-criado', dadosTemplate);
 
-    // 5. Configura Headers para download ou visualização
+    // 5. Formatar nome do arquivo: pedido-0152-NomeCliente.pdf
+    console.log('[PDF Controller] Formatando nome do arquivo...');
+    console.log('[PDF Controller] Número pedido original:', pedido.numeroPedido);
+    console.log('[PDF Controller] Tipo do número pedido:', typeof pedido.numeroPedido);
+    
+    // Extrai apenas a última parte numérica do número do pedido (ex: "0165" de "PED-2025-0165")
+    let numeroPedidoFormatado = '';
+    if (pedido.numeroPedido) {
+      const numeroLimpo = String(pedido.numeroPedido).replace(/^#/, '').trim();
+      console.log('[PDF Controller] Número limpo:', numeroLimpo);
+      
+      const partes = numeroLimpo.split('-');
+      console.log('[PDF Controller] Partes após split:', partes);
+      
+      if (partes.length > 0) {
+        numeroPedidoFormatado = partes[partes.length - 1];
+        console.log('[PDF Controller] Última parte (número formatado):', numeroPedidoFormatado);
+      } else {
+        // Fallback: extrai últimos 4 dígitos
+        const match = numeroLimpo.match(/(\d{4})$/);
+        numeroPedidoFormatado = match ? match[1] : numeroLimpo;
+        console.log('[PDF Controller] Fallback - número formatado:', numeroPedidoFormatado);
+      }
+    } else {
+      console.log('[PDF Controller] AVISO: pedido.numeroPedido está vazio ou undefined!');
+    }
+    
+    const nomeClienteFormatado = clienteCompleto?.nome 
+      ? capitalizeNameShort(clienteCompleto.nome)
+          .replace(/[^a-zA-Z0-9\s]/g, '') // Remove caracteres especiais
+          .replace(/\s+/g, '-') // Substitui espaços por hífen
+          .toLowerCase()
+      : 'cliente';
+    
+    const nomeArquivo = `pedido-${numeroPedidoFormatado}-${nomeClienteFormatado}.pdf`;
+    console.log('[PDF Controller] Nome do arquivo final:', nomeArquivo);
+
+    // 6. Configura Headers para download ou visualização
+    console.log('[PDF Controller] Configurando headers com nome do arquivo:', nomeArquivo);
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename=pedido-${pedido.numeroPedido}.pdf`,
+      'Content-Disposition': `attachment; filename="${nomeArquivo}"`, // Adiciona aspas para garantir que espaços sejam tratados corretamente
       'Content-Length': buffer.length.toString(),
     });
+    console.log('[PDF Controller] Headers configurados. Enviando PDF...');
 
-    // 6. Envia o stream
+    // 7. Envia o stream
     res.end(buffer);
+    console.log('[PDF Controller] PDF enviado com sucesso!');
   }
 
   /**

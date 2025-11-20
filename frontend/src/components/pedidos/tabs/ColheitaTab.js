@@ -261,7 +261,10 @@ const ColheitaTab = ({
     }
 
     if (typeof valor === 'string') {
-      const sanitized = valor.replace(/\./g, '').replace(',', '.');
+      // Valores vindos do MonetaryInput já vêm no formato "1234.56"
+      // ou "1234" (ponto como separador decimal). Só precisamos
+      // tratar vírgula para compatibilidade.
+      const sanitized = valor.replace(',', '.');
       const parsed = parseFloat(sanitized);
       return Number.isFinite(parsed) ? parsed : undefined;
     }

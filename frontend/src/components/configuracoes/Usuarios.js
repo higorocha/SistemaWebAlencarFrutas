@@ -251,7 +251,9 @@ const Usuarios = () => {
         email: values.email,
         senha: values.senha,
         nivel: values.nivel,
-        ...(values.culturaId && { culturaId: values.culturaId }),
+        // Se o nível não for GERENTE_CULTURA, não envia culturaId
+        // Se for GERENTE_CULTURA e tiver culturaId, inclui no objeto
+        ...(values.nivel === 'GERENTE_CULTURA' && values.culturaId && { culturaId: values.culturaId }),
       };
 
       await axiosInstance.post(API_URL.usuarios, dadosUsuario);
@@ -350,7 +352,9 @@ const Usuarios = () => {
         cpf: cpfFormatado,
         email: values.email,
         nivel: values.nivel,
-        ...(values.culturaId && { culturaId: values.culturaId }),
+        // Se o nível não for GERENTE_CULTURA, remove a cultura (envia null)
+        // Se for GERENTE_CULTURA e tiver culturaId, inclui no objeto
+        culturaId: values.nivel === 'GERENTE_CULTURA' ? (values.culturaId || null) : null,
       };
 
       console.log("Dados para envio:", dadosAtualizacao);
@@ -808,7 +812,13 @@ const Usuarios = () => {
               <Select
                 placeholder="Selecione o nível"
                 style={{ borderRadius: 6 }}
-                onChange={(value) => setNivelEdicao(value)}
+                onChange={(value) => {
+                  setNivelEdicao(value);
+                  // Se mudar para um nível diferente de GERENTE_CULTURA, limpa o culturaId
+                  if (value !== 'GERENTE_CULTURA') {
+                    editForm.setFieldValue('culturaId', undefined);
+                  }
+                }}
               >
                 <Option value="ADMINISTRADOR">Administrador</Option>
                 <Option value="GERENTE_GERAL">Gerente Geral</Option>

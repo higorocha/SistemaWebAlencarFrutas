@@ -76,7 +76,10 @@ const EditarPedidoDialog = ({
     }
 
     if (typeof valor === 'string') {
-      const sanitized = valor.replace(/\./g, '').replace(',', '.');
+      // Valores vindos do MonetaryInput já vêm no formato "1234.56"
+      // ou "1234" (ponto como separador decimal). Só precisamos
+      // tratar vírgula para compatibilidade.
+      const sanitized = valor.replace(',', '.');
       const parsed = parseFloat(sanitized);
       return Number.isFinite(parsed) ? parsed : undefined;
     }
@@ -957,54 +960,104 @@ const EditarPedidoDialog = ({
         // ✅ CRÍTICO: Usar maoObraAtualizada se fornecida (dados diretos do ColheitaTab), senão usar pedidoAtual.maoObra
         // ✅ CORREÇÃO: Garantir que sempre seja um array
         const maoObraFonte = maoObraAtualizada || pedidoAtual.maoObra || [];
-        const maoObraPadronizada = Array.isArray(maoObraFonte) 
-          ? normalizarListaMaoObra(maoObraFonte) 
+        const maoObraPadronizada = Array.isArray(maoObraFonte)
+          ? normalizarListaMaoObra(maoObraFonte)
           : [];
-        
+
         if (maoObraPadronizada && maoObraPadronizada.length > 0) {
           // Filtrar apenas itens válidos com dados obrigatórios preenchidos
-          const maoObraValida = maoObraPadronizada.filter(item =>
+          const maoObraValida = maoObraPadronizada.filter((item) =>
             item.turmaColheitaId &&
             item.frutaId &&
             item.quantidadeColhida &&
             item.quantidadeColhida > 0 &&
-            item.valorColheita &&
-            item.valorColheita > 0
+            // valorColheita pode ser recalculado a partir de valorUnitario; validar após cálculo
+            (item.valorColheita || item.valorUnitario)
           );
 
           // Só incluir maoObra no formData se houver itens válidos
           if (maoObraValida.length > 0) {
-            // ✅ SIMPLIFICADO: Usar unidadeMedida diretamente (igual ao valorColheita)
-            // Se veio do ColheitaTab, já está correto. Se não, usar do item com fallback
-            formData.maoObra = maoObraValida.map(item => {
-            // Usar unidadeMedida do item (já está correto se veio do ColheitaTab)
-            let unidadeMedida = item.unidadeMedida;
-            
-            // Fallback: calcular se não tiver (não deveria acontecer)
-            if (!unidadeMedida || !['KG', 'CX', 'TON', 'UND', 'ML', 'LT'].includes(unidadeMedida)) {
-              const frutaPedido = pedido.frutasPedidos?.find(fp => fp.frutaId === item.frutaId);
-              const usarUnidadeSecundaria = item.usarUnidadeSecundaria === true;
-              const unidadeBase = usarUnidadeSecundaria && frutaPedido?.unidadeMedida2
-                ? frutaPedido.unidadeMedida2
-                : (frutaPedido?.unidadeMedida1 || 'KG');
-              const unidadesValidas = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
-              const unidadeEncontrada = unidadesValidas.find(u => unidadeBase.includes(u));
-              unidadeMedida = unidadeEncontrada || 'KG';
-            }
+            // ✅ Sempre recalcular valorColheita a partir de quantidadeColhida * valorUnitario
+            // para evitar inconsistências e problemas de formatação
+            const maoObraCalculada = maoObraValida
+              .map((item) => {
+                let valorColheita = item.valorColheita;
 
-              return {
-                id: item.id || undefined,
-                turmaColheitaId: item.turmaColheitaId,
-                frutaId: item.frutaId,
-                quantidadeColhida: item.quantidadeColhida,
-                unidadeMedida,
-                valorColheita: item.valorColheita,
-                observacoes: item.observacoes || undefined,
-                dataColheita: pedidoAtual.dataColheita
-                  ? moment(pedidoAtual.dataColheita).startOf('day').add(12, 'hours').toISOString()
-                  : undefined
-              };
-            });
+                if (
+                  item.quantidadeColhida &&
+                  item.quantidadeColhida > 0 &&
+                  item.valorUnitario &&
+                  item.valorUnitario > 0
+                ) {
+                  const total =
+                    Number(item.quantidadeColhida) * Number(item.valorUnitario);
+                  valorColheita = Number(total.toFixed(2));
+                }
+
+                // Se depois do cálculo ainda não houver valorColheita válido, descartar item
+                if (!valorColheita || valorColheita <= 0) {
+                  return null;
+                }
+
+                return {
+                  ...item,
+                  valorColheita,
+                };
+              })
+              .filter(Boolean);
+
+            if (maoObraCalculada.length > 0) {
+              // ✅ SIMPLIFICADO: Usar unidadeMedida diretamente (igual ao valorColheita)
+              // Se veio do ColheitaTab, já está correto. Se não, usar do item com fallback
+              formData.maoObra = maoObraCalculada.map((item) => {
+                // Usar unidadeMedida do item (já está correto se veio do ColheitaTab)
+                let unidadeMedida = item.unidadeMedida;
+
+                // Fallback: calcular se não tiver (não deveria acontecer)
+                if (
+                  !unidadeMedida ||
+                  !['KG', 'CX', 'TON', 'UND', 'ML', 'LT'].includes(unidadeMedida)
+                ) {
+                  const frutaPedido = pedido.frutasPedidos?.find(
+                    (fp) => fp.frutaId === item.frutaId,
+                  );
+                  const usarUnidadeSecundaria =
+                    item.usarUnidadeSecundaria === true;
+                  const unidadeBase =
+                    usarUnidadeSecundaria && frutaPedido?.unidadeMedida2
+                      ? frutaPedido.unidadeMedida2
+                      : frutaPedido?.unidadeMedida1 || 'KG';
+                  const unidadesValidas = [
+                    'KG',
+                    'CX',
+                    'TON',
+                    'UND',
+                    'ML',
+                    'LT',
+                  ];
+                  const unidadeEncontrada = unidadesValidas.find((u) =>
+                    unidadeBase.includes(u),
+                  );
+                  unidadeMedida = unidadeEncontrada || 'KG';
+                }
+
+                return {
+                  id: item.id || undefined,
+                  turmaColheitaId: item.turmaColheitaId,
+                  frutaId: item.frutaId,
+                  quantidadeColhida: item.quantidadeColhida,
+                  unidadeMedida,
+                  valorColheita: item.valorColheita,
+                  observacoes: item.observacoes || undefined,
+                  dataColheita: pedidoAtual.dataColheita
+                    ? moment(pedidoAtual.dataColheita)
+                        .startOf('day')
+                        .add(12, 'hours')
+                        .toISOString()
+                    : undefined,
+                };
+              });
+            }
           }
         }
       }

@@ -154,6 +154,35 @@ const MaoObraRow = ({
   const isEditingValorUnitario = React.useRef(false);
   const isEditingValorTotal = React.useRef(false);
 
+  // ✅ Recalcular valor total automaticamente quando a quantidade mudar
+  // e já existir um valor unitário definido (edição em tempo real)
+  React.useEffect(() => {
+    if (isReadonly) return;
+
+    const qtdNum = quantidadeColhida
+      ? parseFloat(String(quantidadeColhida).replace(',', '.')) || 0
+      : 0;
+    const valUnitNum = valorUnitario
+      ? parseFloat(String(valorUnitario).replace(',', '.')) || 0
+      : 0;
+
+    if (!qtdNum || !valUnitNum) return;
+    if (isEditingValorUnitario.current || isEditingValorTotal.current) return;
+
+    const total = Number((qtdNum * valUnitNum).toFixed(2));
+
+    const maoObraAtual = form.getFieldValue('maoObra') || [];
+    const atual = maoObraAtual[index] || {};
+
+    if (atual.valorColheita === total) return;
+
+    maoObraAtual[index] = {
+      ...atual,
+      valorColheita: total,
+    };
+    form.setFieldsValue({ maoObra: maoObraAtual });
+  }, [quantidadeColhida, valorUnitario, form, index, isReadonly]);
+
   // ✅ Handler para calcular valor total quando valor unitário muda
   const handleValorUnitarioChange = (novoValorUnitario) => {
     if (!quantidadeColhida || !novoValorUnitario) return;
@@ -317,6 +346,7 @@ const MaoObraRow = ({
                 borderColor: "#d9d9d9",
                 fontSize: isMobile ? "0.875rem" : "1rem"
               }}
+              disabled={isReadonly}
             >
               {turmasColheita.map((turma) => (
                 <Option 
@@ -380,6 +410,7 @@ const MaoObraRow = ({
                 borderColor: "#d9d9d9",
                 fontSize: isMobile ? "0.875rem" : "1rem"
               }}
+              disabled={isReadonly}
             >
               {pedido?.frutasPedidos?.map((frutaPedido) => {
                 // ✅ OBTER nome da fruta (prioridade: fruta.nome > frutaNome > fallback)
@@ -486,6 +517,7 @@ const MaoObraRow = ({
               style={{
                 fontSize: isMobile ? "0.875rem" : "1rem"
               }}
+              disabled={isReadonly}
             />
           </Form.Item>
         </Col>
@@ -506,7 +538,7 @@ const MaoObraRow = ({
               placeholder="Ex: 5,00"
               addonBefore="R$"
               size={isMobile ? "small" : "large"}
-              disabled={!quantidadePreenchida}
+              disabled={isReadonly || !quantidadePreenchida}
               decimalScale={4}
               onChange={(value) => {
                 if (value && quantidadeColhida) {
@@ -557,7 +589,7 @@ const MaoObraRow = ({
               placeholder="Ex: 150,00"
               addonBefore="R$"
               size={isMobile ? "small" : "large"}
-              disabled={!quantidadePreenchida}
+              disabled={isReadonly || !quantidadePreenchida}
               onChange={(value) => {
                 if (value && quantidadeColhida) {
                   handleValorTotalChange(value);

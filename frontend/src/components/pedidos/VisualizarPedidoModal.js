@@ -96,6 +96,16 @@ const VisualizarPedidoModal = ({
         responseType: 'blob', // Importante para receber o arquivo binário
       });
 
+      // Extrair nome do arquivo do header Content-Disposition do backend
+      let nomeArquivo = `pedido-${pedido.numeroPedido}.pdf`; // Fallback
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          nomeArquivo = match[1].replace(/['"]/g, ''); // Remove aspas se houver
+        }
+      }
+
       // Criar blob do PDF
       const blob = new Blob([response.data], { type: 'application/pdf' });
       
@@ -105,7 +115,7 @@ const VisualizarPedidoModal = ({
       // Criar elemento <a> para download
       const link = document.createElement('a');
       link.href = url;
-      link.download = `pedido-${pedido.numeroPedido}.pdf`;
+      link.download = nomeArquivo; // Usa o nome do arquivo do backend
       
       // Adicionar ao DOM, clicar e remover
       document.body.appendChild(link);
