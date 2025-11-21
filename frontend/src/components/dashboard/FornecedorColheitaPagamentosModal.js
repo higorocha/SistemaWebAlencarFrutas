@@ -593,6 +593,19 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
     return mapa;
   }, [detalhesFiltrados, getRowKey]);
 
+  const isColheitaPaga = React.useCallback((item) => {
+    if (!item) return false;
+
+    const temPagamentoId =
+      item.pagamentoId !== undefined &&
+      item.pagamentoId !== null &&
+      typeof item.pagamentoId === "number" &&
+      item.pagamentoId > 0;
+    const statusPago = item.statusPagamento === "PAGO";
+
+    return temPagamentoId && statusPago;
+  }, []);
+
   const gruposPorFruta = useMemo(() => {
     const mapa = new Map();
 
@@ -1086,22 +1099,26 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
       getCheckboxProps: (record) => {
         const key = getRowKey(record);
         const item = detalhesPorKey.get(key);
-        
-        // Verificar se é colheita paga
-        const temPagamentoId = item?.pagamentoId !== undefined && 
-                               item?.pagamentoId !== null && 
-                               typeof item?.pagamentoId === 'number' && 
-                               item?.pagamentoId > 0;
-        const statusPago = item?.statusPagamento === 'PAGO';
-        const isColheitaPaga = temPagamentoId && statusPago;
-        
+        const pago = isColheitaPaga(item);
         return {
-          disabled: isColheitaPaga, // Desabilitar checkbox se for colheita paga
+          disabled: pago,
           name: `checkbox-${key}`,
         };
       },
+      renderCell: (_, record, __, originNode) => {
+        const key = getRowKey(record);
+        const item = detalhesPorKey.get(key);
+        if (isColheitaPaga(item)) {
+          return (
+            <Tooltip title="Colheita já paga">
+              <CheckCircleOutlined style={{ color: "#52c41a", fontSize: "18px" }} />
+            </Tooltip>
+          );
+        }
+        return originNode;
+      },
     }),
-    [itensSelecionados, detalhesPorKey, getRowKey]
+    [detalhesPorKey, getRowKey, isColheitaPaga, itensSelecionados]
   );
 
   return (

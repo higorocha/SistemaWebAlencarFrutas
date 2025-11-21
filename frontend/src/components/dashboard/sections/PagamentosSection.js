@@ -1,10 +1,13 @@
 import React from 'react';
-import { Typography, Button, List, Avatar, Tag } from 'antd';
+import { Typography, Button, List, Avatar, Tag, Input, DatePicker, Tooltip } from 'antd';
 import {
   CheckCircleOutlined,
   SyncOutlined,
   WarningOutlined,
   SwapOutlined,
+  FilterOutlined,
+  SearchOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { Icon } from '@iconify/react';
 import { styled } from 'styled-components';
@@ -16,7 +19,10 @@ import FornecedorColheitaPagamentosEfetuadosModal from '../FornecedorColheitaPag
 import TurmaColheitaPagamentosModal from '../TurmaColheitaPagamentosModal';
 import TurmaColheitaPagamentosEfetuadosModal from '../TurmaColheitaPagamentosEfetuadosModal';
 
+import moment from 'moment';
+
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 const CardStyled = styled.div`
   border-radius: 10px;
@@ -70,6 +76,9 @@ const PagamentosSection = ({
   const { isMobile } = useResponsive();
   const isModoPendentes = modoPagamentos === 'pendentes';
   const [activeTab, setActiveTab] = React.useState('turmas');
+  const [mostrarFiltrosTurma, setMostrarFiltrosTurma] = React.useState(false);
+  const [buscaTurmas, setBuscaTurmas] = React.useState('');
+  const [rangeDatasTurmas, setRangeDatasTurmas] = React.useState(null);
   // Estado interno para controlar modo de fornecedores (pendentes/efetuados)
   const [modoFornecedores, setModoFornecedores] = React.useState('pendentes');
   
@@ -103,23 +112,205 @@ const PagamentosSection = ({
 
   const contentHeight = isMobile ? '380px' : '460px';
 
-  const renderTurmasContent = React.useCallback(() => (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: contentHeight,
-        position: 'relative',
-      }}
-    >
+  const filtrosAplicadosTurmas = React.useMemo(() => {
+    const termoAtivo = Boolean(buscaTurmas.trim());
+    const rangeAtivo =
+      Array.isArray(rangeDatasTurmas) &&
+      rangeDatasTurmas.length === 2 &&
+      rangeDatasTurmas[0] &&
+      rangeDatasTurmas[1];
+
+    return termoAtivo || rangeAtivo;
+  }, [buscaTurmas, rangeDatasTurmas]);
+
+  const handleLimparFiltrosTurmas = React.useCallback(() => {
+    setBuscaTurmas('');
+    setRangeDatasTurmas(null);
+  }, []);
+
+  const getDataReferenciaTurma = React.useCallback(
+    (registro) => {
+      if (!registro) {
+        return null;
+      }
+
+      if (isModoPendentes) {
+        if (registro.dataCadastro) {
+          return registro.dataCadastro;
+        }
+        const detalheComData = registro.detalhes?.find((detalhe) => detalhe?.dataColheita);
+        return detalheComData?.dataColheita || null;
+      }
+
+      return registro.dataPagamento || registro.dataCadastro || null;
+    },
+    [isModoPendentes]
+  );
+
+  const dadosFiltradosTurmas = React.useMemo(() => {
+    if (!Array.isArray(dadosPagamentosAtuais) || dadosPagamentosAtuais.length === 0) {
+      return Array.isArray(dadosPagamentosAtuais) ? dadosPagamentosAtuais : [];
+    }
+
+    const termo = buscaTurmas.trim().toLowerCase();
+    const rangeAtivo =
+      Array.isArray(rangeDatasTurmas) &&
+      rangeDatasTurmas.length === 2 &&
+      rangeDatasTurmas[0] &&
+      rangeDatasTurmas[1];
+
+    const inicio = rangeAtivo ? rangeDatasTurmas[0].clone().startOf('day') : null;
+    const fim = rangeAtivo ? rangeDatasTurmas[1].clone().endOf('day') : null;
+
+    return dadosPagamentosAtuais.filter((item) => {
+      if (termo) {
+        const nomeMatch = item.nomeColhedor?.toLowerCase().includes(termo);
+        const chavePixMatch = item.chavePix?.toLowerCase().includes(termo);
+        const detalhesMatch = item.detalhes?.some((detalhe) => {
+          if (!detalhe) {
+            return false;
+          }
+          const campos = [
+            detalhe.pedidoNumero,
+            detalhe.cliente,
+            detalhe.fruta,
+            detalhe.areaNome,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return campos.includes(termo);
+        });
+
+        if (!nomeMatch && !chavePixMatch && !detalhesMatch) {
+          return false;
+        }
+      }
+
+      if (rangeAtivo) {
+        const dataReferencia = getDataReferenciaTurma(item);
+        if (!dataReferencia) {
+          return false;
+        }
+        const dataMoment = moment(dataReferencia);
+        if (!dataMoment.isValid()) {
+          return false;
+        }
+        if (!dataMoment.isBetween(inicio, fim, undefined, '[]')) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [dadosPagamentosAtuais, buscaTurmas, rangeDatasTurmas, getDataReferenciaTurma]);
+
+  const renderTurmasContent = React.useCallback(() => {
+    const totalOriginal = Array.isArray(dadosPagamentosAtuais) ? dadosPagamentosAtuais.length : 0;
+    const totalFiltrado = dadosFiltradosTurmas.length;
+    const semResultadosFiltrados = totalOriginal > 0 && totalFiltrado === 0 && filtrosAplicadosTurmas;
+
+    return (
       <div
         style={{
-          flex: 1,
-          overflowY: 'auto',
-          minHeight: '200px',
+          display: 'flex',
+          flexDirection: 'column',
+          height: contentHeight,
+          position: 'relative',
         }}
       >
-        {dadosPagamentosAtuais.length === 0 && !loadingPagamentosEfetuados && !erroPagamentosEfetuados ? (
+        {mostrarFiltrosTurma && (
+          <div
+            style={{
+              backgroundColor: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              padding: isMobile ? '10px' : '14px',
+              marginBottom: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: isMobile ? '8px' : '12px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: isMobile ? 'flex-start' : 'center',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? '4px' : '0',
+              }}
+            >
+              <Text style={{ fontWeight: 600, color: '#065f46', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <FilterOutlined />
+                Filtros de turmas
+              </Text>
+              {filtrosAplicadosTurmas && (
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<CloseCircleOutlined />}
+                  onClick={handleLimparFiltrosTurmas}
+                  style={{ color: '#d46b08', padding: 0 }}
+                >
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? '10px' : '12px',
+              }}
+            >
+              <div style={{ flex: isMobile ? 1 : 1.6, minWidth: 0 }}>
+                <Text style={{ display: 'block', marginBottom: '6px', fontSize: '0.75rem', color: '#555' }}>
+                  Buscar colhedor / pedido
+                </Text>
+                <Input
+                  placeholder="Digite nome, pedido, cliente ou fruta"
+                  value={buscaTurmas}
+                  onChange={(e) => setBuscaTurmas(e.target.value)}
+                  allowClear
+                  size={isMobile ? 'middle' : 'large'}
+                  prefix={<SearchOutlined style={{ color: '#9ca3af' }} />}
+                />
+              </div>
+
+              <div style={{ flex: isMobile ? 1 : 1, minWidth: isMobile ? 0 : '180px', maxWidth: isMobile ? '100%' : '260px' }}>
+                <Text style={{ display: 'block', marginBottom: '6px', fontSize: '0.75rem', color: '#555' }}>
+                  Período de referência
+                </Text>
+                <RangePicker
+                  value={rangeDatasTurmas}
+                  onChange={(values) => {
+                    if (!values || values.length < 2 || !values[0] || !values[1]) {
+                      setRangeDatasTurmas(null);
+                    } else {
+                      setRangeDatasTurmas([values[0].clone(), values[1].clone()]);
+                    }
+                  }}
+                  allowClear
+                  size={isMobile ? 'middle' : 'large'}
+                  format="DD/MM/YYYY"
+                  style={{ width: '100%' }}
+                  getPopupContainer={(trigger) => trigger?.parentNode || undefined}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            minHeight: '200px',
+          }}
+        >
+          {totalOriginal === 0 && !loadingPagamentosEfetuados && !erroPagamentosEfetuados ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: '#8c8c8c' }}>
             <CheckCircleOutlined style={{ fontSize: '3rem', marginBottom: '1rem', color: '#52c41a' }} />
             <div>{isModoPendentes ? 'Nenhum pagamento pendente' : 'Nenhum pagamento efetuado'}</div>
@@ -181,10 +372,43 @@ const PagamentosSection = ({
               Tentar Novamente
             </Button>
           </div>
-        ) : dadosPagamentosAtuais.length > 0 ? (
+        ) : semResultadosFiltrados ? (
+          <div
+            style={{
+              padding: '32px 16px',
+              textAlign: 'center',
+              color: '#8c8c8c',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <SearchOutlined style={{ fontSize: '2rem', color: '#9ca3af' }} />
+            <div style={{ fontWeight: 600, color: '#555', fontSize: '0.9rem' }}>
+              Nenhum resultado encontrado para os filtros aplicados
+            </div>
+            <Text style={{ fontSize: '0.75rem' }}>
+              Ajuste os critérios de busca ou limpe os filtros para visualizar todas as turmas.
+            </Text>
+            <Button
+              type="primary"
+              size="small"
+              icon={<CloseCircleOutlined />}
+              onClick={handleLimparFiltrosTurmas}
+              style={{
+                backgroundColor: '#059669',
+                borderColor: '#047857',
+                borderRadius: '6px',
+              }}
+            >
+              Limpar filtros
+            </Button>
+          </div>
+        ) : dadosFiltradosTurmas.length > 0 ? (
           <List
             itemLayout="horizontal"
-            dataSource={dadosPagamentosAtuais}
+            dataSource={dadosFiltradosTurmas}
             renderItem={(item) => (
               <List.Item
                 style={{
@@ -338,9 +562,9 @@ const PagamentosSection = ({
             )}
           />
         ) : null}
-      </div>
+        </div>
 
-      {dadosPagamentosAtuais.length > 0 && (
+        {dadosFiltradosTurmas.length > 0 && (
         <div
           style={{
             marginTop: 'auto',
@@ -352,11 +576,11 @@ const PagamentosSection = ({
             flexShrink: 0,
           }}
         >
-          <Text style={{ fontSize: '0.6875rem', color: '#999', maxWidth: '60%' }}>
-            {isModoPendentes
-              ? `${dadosPagamentosAtuais.length} colhedor${dadosPagamentosAtuais.length > 1 ? 'es' : ''} com ${'\u00A0'}pagamento${dadosPagamentosAtuais.length > 1 ? 's' : ''} pendente${dadosPagamentosAtuais.length > 1 ? 's' : ''}`
-              : `${dadosPagamentosAtuais.length} pagamento${dadosPagamentosAtuais.length > 1 ? 's' : ''} realizado${dadosPagamentosAtuais.length > 1 ? 's' : ''}`}
-          </Text>
+            <Text style={{ fontSize: '0.6875rem', color: '#999', maxWidth: '60%' }}>
+              {isModoPendentes
+                ? `${dadosFiltradosTurmas.length} colhedor${dadosFiltradosTurmas.length > 1 ? 'es' : ''} com ${'\u00A0'}pagamento${dadosFiltradosTurmas.length > 1 ? 's' : ''} pendente${dadosFiltradosTurmas.length > 1 ? 's' : ''}`
+                : `${dadosFiltradosTurmas.length} pagamento${dadosFiltradosTurmas.length > 1 ? 's' : ''} realizado${dadosFiltradosTurmas.length > 1 ? 's' : ''}`}
+            </Text>
           <div
             style={{
               display: 'flex',
@@ -390,15 +614,22 @@ const PagamentosSection = ({
             )}
           </div>
         </div>
-      )}
-    </div>
-  ), [
+        )}
+      </div>
+    );
+  }, [
     contentHeight,
     dadosPagamentosAtuais,
+    dadosFiltradosTurmas,
     erroPagamentosEfetuados,
+    filtrosAplicadosTurmas,
+    handleLimparFiltrosTurmas,
+    rangeDatasTurmas,
+    buscaTurmas,
     isModoPendentes,
     isMobile,
     loadingPagamentosEfetuados,
+    mostrarFiltrosTurma,
     onTentarNovamente,
   ]);
 
@@ -838,56 +1069,84 @@ const PagamentosSection = ({
         <Title level={4} style={{ color: '#2E7D32', margin: 0, fontSize: '1rem' }}>
           {headerTitle}
         </Title>
-        {activeTab === 'fornecedores' ? (
-          // Toggle button para aba de fornecedores
-          <Button
-            type="text"
-            icon={<SwapOutlined />}
-            onClick={() => setModoFornecedores(modoFornecedores === 'pendentes' ? 'efetuados' : 'pendentes')}
-            style={{
-              color: '#059669',
-              border: '1px solid #059669',
-              borderRadius: '6px',
-              padding: '6px',
-              height: 'auto',
-              minWidth: 'auto',
-            }}
-            title={`Alternar para ${modoFornecedores === 'pendentes' ? 'Efetuados' : 'Pendentes'}`}
-          />
-        ) : (
-          // Toggle button para aba de turmas
-          <Button
-            type="text"
-            icon={
-              loadingPagamentosEfetuados
-                ? <SyncOutlined spin />
-                : <SwapOutlined />
-            }
-            onClick={onToggleModo}
-            loading={loadingPagamentosEfetuados}
-            disabled={loadingPagamentosEfetuados}
-            style={{
-              color: loadingPagamentosEfetuados
-                ? '#8b8b8b'
-                : '#059669',
-              border: '1px solid ' + (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          {activeTab === 'turmas' && (
+            <Tooltip title={mostrarFiltrosTurma ? 'Ocultar filtros' : 'Mostrar filtros'}>
+              <Button
+                type="text"
+                icon={<FilterOutlined />}
+                onClick={() => setMostrarFiltrosTurma((prev) => !prev)}
+                style={{
+                  color: mostrarFiltrosTurma ? '#ffffff' : '#059669',
+                  border: `1px solid ${mostrarFiltrosTurma ? '#047857' : '#059669'}`,
+                  backgroundColor: mostrarFiltrosTurma ? '#059669' : 'transparent',
+                  borderRadius: '6px',
+                  padding: '6px',
+                  height: 'auto',
+                  minWidth: 'auto',
+                }}
+                title={mostrarFiltrosTurma ? 'Ocultar filtros' : 'Mostrar filtros'}
+              />
+            </Tooltip>
+          )}
+
+          {activeTab === 'fornecedores' ? (
+            // Toggle button para aba de fornecedores
+            <Button
+              type="text"
+              icon={<SwapOutlined />}
+              onClick={() => setModoFornecedores(modoFornecedores === 'pendentes' ? 'efetuados' : 'pendentes')}
+              style={{
+                color: '#059669',
+                border: '1px solid #059669',
+                borderRadius: '6px',
+                padding: '6px',
+                height: 'auto',
+                minWidth: 'auto',
+              }}
+              title={`Alternar para ${modoFornecedores === 'pendentes' ? 'Efetuados' : 'Pendentes'}`}
+            />
+          ) : (
+            // Toggle button para aba de turmas
+            <Button
+              type="text"
+              icon={
                 loadingPagamentosEfetuados
-                  ? '#d9d9d9'
-                  : '#059669'
-              ),
-              borderRadius: '6px',
-              padding: '6px',
-              height: 'auto',
-              minWidth: 'auto',
-              opacity: loadingPagamentosEfetuados ? 0.6 : 1,
-            }}
-            title={
-              loadingPagamentosEfetuados
-                ? 'Carregando...'
-                : `Alternar para ${isModoPendentes ? 'Efetuados' : 'Pendentes'}`
-            }
-          />
-        )}
+                  ? <SyncOutlined spin />
+                  : <SwapOutlined />
+              }
+              onClick={onToggleModo}
+              loading={loadingPagamentosEfetuados}
+              disabled={loadingPagamentosEfetuados}
+              style={{
+                color: loadingPagamentosEfetuados
+                  ? '#8b8b8b'
+                  : '#059669',
+                border: '1px solid ' + (
+                  loadingPagamentosEfetuados
+                    ? '#d9d9d9'
+                    : '#059669'
+                ),
+                borderRadius: '6px',
+                padding: '6px',
+                height: 'auto',
+                minWidth: 'auto',
+                opacity: loadingPagamentosEfetuados ? 0.6 : 1,
+              }}
+              title={
+                loadingPagamentosEfetuados
+                  ? 'Carregando...'
+                  : `Alternar para ${isModoPendentes ? 'Efetuados' : 'Pendentes'}`
+              }
+            />
+          )}
+        </div>
       </div>
 
       <PaymentTabs
