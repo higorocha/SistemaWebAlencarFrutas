@@ -32,6 +32,9 @@ import Login from "./pages/Login";
 import { NotificacaoProvider } from './contexts/NotificacaoContext';
 import { useThemeVariables } from './hooks/useThemeVariables';
 import { setAntAppInstance } from './config/notificationConfig';
+import ArhCargosFuncoes from "./pages/ArhCargosFuncoes";
+import ArhFuncionarios from "./pages/ArhFuncionarios";
+import ArhFolhaPagamento from "./pages/ArhFolhaPagamento";
 
 const LoadingContext = React.createContext();
 
@@ -101,6 +104,9 @@ const App = () => {
                             <Route path="/producao/banana" element={<ControleBanana />} />
                             <Route path="/mapa-geral" element={<MapaGeral />} />
                             <Route path="/configuracoes" element={<Configuracoes />} />
+                            <Route path="/arh/cargos-funcoes" element={<ArhCargosFuncoes />} />
+                            <Route path="/arh/funcionarios" element={<ArhFuncionarios />} />
+                            <Route path="/arh/folhas" element={<ArhFolhaPagamento />} />
                           </Routes>
                         </Layout>
                         </NotificacaoProvider>

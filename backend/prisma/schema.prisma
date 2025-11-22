@@ -29,6 +29,8 @@ model Usuario {
   lotesPagamentoCriados PagamentoApiLote[] @relation("UsuarioCriacao")
   lotesPagamentoLiberados PagamentoApiLote[] @relation("UsuarioLiberacao")
   itensPagamentoCancelados PagamentoApiItem[] @relation("UsuarioCancelamento")
+  folhasCriadas FolhaPagamento[] @relation("FolhaCriacao")
+  folhasLiberadas FolhaPagamento[] @relation("FolhaLiberacao")
 
   @@map("usuarios")
 }
@@ -669,6 +671,147 @@ model FornecedorPagamento {
   @@map("fornecedor_pagamentos")
 }
 
+model Cargo {
+  id                      Int                      @id @default(autoincrement())
+  nome                    String                   @db.VarChar(120)
+  descricao               String?
+  salarioMensal           Decimal                  @db.Decimal(12, 2)
+  cargaHorariaMensal      Int?
+  adicionalPericulosidade Decimal?                 @db.Decimal(10, 2)
+  ativo                   Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  funcionarios            Funcionario[]
+  pagamentoSnapshots      FuncionarioPagamento[]
+
+  @@unique([nome])
+  @@map("arh_cargos")
+}
+
+model FuncaoDiarista {
+  id                 Int                  @id @default(autoincrement())
+  nome               String               @db.VarChar(120)
+  descricao          String?
+  valorDiariaBase    Decimal              @db.Decimal(12, 2)
+  duracaoPadraoHoras Int?
+  exigeEpi           Boolean              @default(false)
+  ativo              Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  funcionarios       Funcionario[]
+  pagamentoSnapshots FuncionarioPagamento[]
+
+  @@unique([nome])
+  @@map("arh_funcoes_diaristas")
+}
+
+model Funcionario {
+  id                     Int                       @id @default(autoincrement())
+  nome                   String                    @db.VarChar(180)
+  apelido                String?                   @db.VarChar(100)
+  cpf                    String                    @unique @db.VarChar(14)
+  rg                     String?                   @db.VarChar(20)
+  pis                    String?                   @db.VarChar(20)
+  ctps                   String?                   @db.VarChar(30)
+  dataNascimento         DateTime?
+  telefone               String?                   @db.VarChar(20)
+  celular                String?                   @db.VarChar(20)
+  email                  String?                   @db.VarChar(120)
+  estadoCivil            String?                   @db.VarChar(30)
+  endereco               Json?
+  dadosBancarios         Json?
+  dependentes            Json?
+  observacoes            String?
+  tipoContrato           TipoContratoFuncionario
+  cargoId                Int?
+  funcaoId               Int?
+  salarioCustomizado     Decimal?                  @db.Decimal(12, 2)
+  valorDiariaCustomizada Decimal?                  @db.Decimal(12, 2)
+  tipoChavePix           Int? // Código: 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória
+  modalidadeChave        String?                   @db.VarChar(50) // Nome: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"
+  chavePix               String?                   @db.VarChar(200)
+  responsavelChavePix    String?                   @db.VarChar(180)
+  status                 StatusFuncionario         @default(ATIVO)
+  dataAdmissao           DateTime?
+  dataDemissao           DateTime?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  cargo                  Cargo?                    @relation(fields: [cargoId], references: [id])
+  funcao                 FuncaoDiarista?           @relation(fields: [funcaoId], references: [id])
+  pagamentos             FuncionarioPagamento[]
+
+  @@map("arh_funcionarios")
+}
+
+model FolhaPagamento {
+  id                    Int                  @id @default(autoincrement())
+  competenciaMes        Int
+  competenciaAno        Int
+  periodo               Int                  // 1 ou 2 (primeira ou segunda quinzena)
+  referencia            String?              @db.VarChar(40)
+  status                StatusFolhaPagamento @default(RASCUNHO)
+  observacoes           String?
+  totalBruto            Decimal              @default(0) @db.Decimal(14, 2)
+  totalLiquido          Decimal              @default(0) @db.Decimal(14, 2)
+  totalPago             Decimal              @default(0) @db.Decimal(14, 2)
+  totalPendente         Decimal              @default(0) @db.Decimal(14, 2)
+  quantidadeLancamentos Int                  @default(0)
+  dataProcessamento     DateTime?
+  dataFechamento        DateTime?
+  dataLiberacao         DateTime?
+  usuarioCriacaoId      Int
+  usuarioLiberacaoId    Int?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  pagamentos            FuncionarioPagamento[]
+  usuarioCriacao        Usuario              @relation("FolhaCriacao", fields: [usuarioCriacaoId], references: [id])
+  usuarioLiberacao      Usuario?             @relation("FolhaLiberacao", fields: [usuarioLiberacaoId], references: [id])
+
+  @@unique([competenciaMes, competenciaAno, periodo])
+  @@map("arh_folhas_pagamento")
+}
+
+model FuncionarioPagamento {
+  id                    Int                        @id @default(autoincrement())
+  folhaId               Int
+  funcionarioId         Int
+  cargoId               Int?
+  funcaoId              Int?
+  tipoContrato          TipoContratoFuncionario
+  referenciaNomeCargo   String?                    @db.VarChar(120)
+  referenciaNomeFuncao  String?                    @db.VarChar(120)
+  salarioBaseReferencia Decimal?                   @db.Decimal(12, 2)
+  valorDiariaAplicada   Decimal?                   @db.Decimal(12, 2)
+  diasTrabalhados       Int                        @default(0)
+  faltas                Int                        @default(0)
+  horasExtras           Decimal?                   @db.Decimal(10, 2)
+  valorHoraExtra        Decimal?                   @db.Decimal(10, 2)
+  ajudaCusto            Decimal?                   @default(0) @db.Decimal(12, 2)
+  descontosExtras       Decimal?                   @default(0) @db.Decimal(12, 2)
+  adiantamento          Decimal?                   @default(0) @db.Decimal(12, 2)
+  valorBruto            Decimal                    @default(0) @db.Decimal(12, 2)
+  valorLiquido          Decimal                    @default(0) @db.Decimal(12, 2)
+  meioPagamento         MeioPagamentoFuncionario   @default(PIX)
+  pagamentoEfetuado     Boolean                    @default(false)
+  dataPagamento         DateTime?
+  statusPagamento       StatusFuncionarioPagamento @default(PENDENTE)
+  pagamentoApiItemId    Int?                       @unique
+  observacoes           String?
+  funcionarioSnapshot   Json?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  folha                 FolhaPagamento             @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  funcionario           Funcionario                @relation(fields: [funcionarioId], references: [id])
+  cargo                 Cargo?                     @relation(fields: [cargoId], references: [id])
+  funcao                FuncaoDiarista?            @relation(fields: [funcaoId], references: [id])
+  pagamentoApiItem      PagamentoApiItem?          @relation("FuncionarioPagamentoToPagamentoApiItem", fields: [pagamentoApiItemId], references: [id], onDelete: SetNull)
+
+  @@unique([folhaId, funcionarioId])
+  @@index([folhaId])
+  @@index([statusPagamento])
+  @@map("arh_funcionarios_pagamento")
+}
+
 enum NivelUsuario {
   ADMINISTRADOR
   USUARIO
@@ -767,6 +910,42 @@ enum StatusPagamentoFornecedor {
   PENDENTE // Pagamento pendente (não usado agora, para futuro)
   PROCESSANDO // Pagamento em processamento (não usado agora, para futuro)
   PAGO // Pagamento efetuado com sucesso
+}
+
+enum TipoContratoFuncionario {
+  DIARISTA
+  MENSALISTA
+  EVENTUAL
+}
+
+enum StatusFuncionario {
+  ATIVO
+  INATIVO
+}
+
+enum StatusFolhaPagamento {
+  RASCUNHO
+  PENDENTE_LIBERACAO
+  EM_PROCESSAMENTO
+  FECHADA
+  CANCELADA
+}
+
+enum StatusFuncionarioPagamento {
+  PENDENTE
+  ENVIADO
+  ACEITO
+  PROCESSANDO
+  PAGO
+  REJEITADO
+  CANCELADO
+  ERRO
+}
+
+enum MeioPagamentoFuncionario {
+  PIX
+  PIX_API
+  ESPECIE
 }
 
 // ========================================
@@ -975,12 +1154,12 @@ model PagamentoApiItem {
   // Relacionamento polimórfico com o registro pago
   // Usando campos nullable para suportar diferentes tipos
   fornecedorPagamentoId  Int? // Se for pagamento de fornecedor
-  funcionarioPagamentoId Int? // Se for pagamento de funcionário (futuro)
+  funcionarioPagamentoId Int? // Se for pagamento de funcionário
 
   // Relacionamentos específicos (N:N para turma de colheita via tabela intermediária)
   colheitas           PagamentoApiItemColheita[] // Relacionamento N:N com TurmaColheitaPedidoCusto
   fornecedorPagamento FornecedorPagamento?       @relation(fields: [fornecedorPagamentoId], references: [id], onDelete: SetNull)
-  // funcionarioPagamento  FuncionarioPagamento? @relation(fields: [funcionarioPagamentoId], references: [id], onDelete: SetNull)
+  funcionarioPagamento FuncionarioPagamento?     @relation("FuncionarioPagamentoToPagamentoApiItem")
 
   // Status do item
   status               StatusPagamentoItem @default(PENDENTE)
@@ -1007,6 +1186,7 @@ model PagamentoApiItem {
   @@index([codigoPagamento]) // Para GUIA
   @@index([status])
   @@index([usuarioCancelamentoId])
+  @@index([funcionarioPagamentoId])
   @@map("pagamento_api_item")
 }
 

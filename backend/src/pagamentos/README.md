@@ -31,6 +31,20 @@ O módulo está **praticamente completo** com:
 - Jobs para consultar status automaticamente
 - Webhook para receber atualizações do BB
 
+## 🧾 Integração com ARH
+
+O novo módulo de **ARH** (cargos, funções, funcionários e folha própria) já está preparado para conversar com os pagamentos automatizados:
+
+- Os registros de folha vivem em `arh_folhas_pagamento` e os lançamentos em `arh_funcionarios_pagamento`.
+- Cada lançamento possui os campos `meioPagamento` (`PIX`, `PIX_API`, `ESPECIE`), `statusPagamento` (mesmo enum de `PagamentoApiItem`) e a flag `pagamentoEfetuado`.
+- Quando a folha utilizar a automação bancária, basta preencher `pagamentoApiItemId` no lançamento e o relacionamento `PagamentoApiItem.funcionarioPagamentoId` garantirá rastreabilidade completa.
+- Enquanto a integração PIX-API não é disparada, o backend permite marcar pagamentos manuais (PIX comum ou espécie) mantendo histórico e recalculando totais da folha.
+- As APIs REST estão em `src/arh/**` e seguem o padrão NestJS (controllers com prefixo `api/arh/...`). O frontend consome tudo via `@axiosConfig.js`.
+- Fluxo de status: `RASCUNHO` → `PENDENTE_LIBERACAO` → `FECHADA`. Qualquer usuário autenticado (exceto `GERENTE_CULTURA`) pode criar/finalizar folhas; apenas `ADMINISTRADOR` pode liberá-las.
+- Cada folha registra `usuarioCriacaoId`, `usuarioLiberacaoId` e `dataLiberacao`, permitindo auditoria completa.
+
+> **Importante:** nenhuma alteração foi feita no `PagamentosService` agora. O link com os lançamentos da folha será habilitado somente quando os meios `PIX_API` forem validados em produção – o esquema e os serviços já estão preparados para isso.
+
 ## 📚 Documentação
 
 **👉 Leia a documentação completa em:** [`DOCUMENTACAO_CONSOLIDADA.md`](./DOCUMENTACAO_CONSOLIDADA.md)

@@ -33,6 +33,7 @@ import { ExtratosMonitorModule } from './extratos-monitor/extratos-monitor.modul
 import { MobileModule } from './mobile/mobile.module';
 import { BbWebhooksModule } from './bb-webhooks/bb-webhooks.module';
 import { PdfModule } from './pdf/pdf.module';
+import { ArhModule } from './arh/arh.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { PdfModule } from './pdf/pdf.module';
     MobileModule, // Módulo para API mobile
     BbWebhooksModule, // Módulo para webhooks do Banco do Brasil
     PdfModule, // Módulo para geração de PDFs
+    ArhModule,
   ],
   controllers: [AppController],
   providers: [AppService],

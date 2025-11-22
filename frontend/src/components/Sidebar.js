@@ -89,6 +89,7 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     CADASTRO: false,
     PRODUCAO: false,
     RELATORIOS: false,
+    ARH: false,
   });
 
   // ------------------------------------------------------------------
@@ -131,6 +132,24 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
       text: "Turma de Colheita", 
       icon: <Icon icon="game-icons:farmer" style={{ fontSize: '20px' }} />, 
       path: "/turma-colheita" 
+    },
+  ];
+  
+  const arhItems = [
+    {
+      text: "Cargos / Funções",
+      icon: <Icon icon="mdi:briefcase-account" style={{ fontSize: '20px' }} />,
+      path: "/arh/cargos-funcoes",
+    },
+    {
+      text: "Funcionários",
+      icon: <Icon icon="mdi:account-badge" style={{ fontSize: '20px' }} />,
+      path: "/arh/funcionarios",
+    },
+    {
+      text: "Folha de Pagamento",
+      icon: <Icon icon="mdi:cash-multiple" style={{ fontSize: '20px' }} />,
+      path: "/arh/folhas",
     },
   ];
 
@@ -184,6 +203,9 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
     if (location.pathname.startsWith("/relatorios")) {
       setOpenParents((prev) => ({ ...prev, RELATORIOS: true }));
     }
+    if (location.pathname.startsWith("/arh")) {
+      setOpenParents((prev) => ({ ...prev, ARH: true }));
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------------
@@ -212,6 +234,8 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
         PEDIDOS: false,
         CADASTRO: false,
         PRODUCAO: false,
+        RELATORIOS: false,
+        ARH: false,
       });
       
       // Em mobile, sempre colapsar o sidebar após selecionar uma opção
@@ -226,6 +250,8 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
         PEDIDOS: false,
         CADASTRO: false,
         PRODUCAO: false,
+        RELATORIOS: false,
+        ARH: false,
         [parentKey]: true,
       });
     }
@@ -538,6 +564,51 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               }
             >
               {cadastroItems.map((c) => renderMenuItem(c, "CADASTRO"))}
+            </SubMenu>
+          )}
+
+          {/* SUBMENU ARH */}
+          {isOpen ? (
+            <SubMenu
+              key="ARH"
+              icon={<Icon icon="mdi:account-cash" style={{ fontSize: '20px' }} />}
+              label="ARH"
+              open={openParents.ARH}
+              onOpenChange={(opened) =>
+                handleParentOpenChange("ARH", opened)
+              }
+              className={
+                isMenuActive([
+                  "/arh",
+                ])
+                  ? "ps-active-parent"
+                  : ""
+              }
+            >
+              {arhItems.map((item) => renderMenuItem(item, "ARH"))}
+            </SubMenu>
+          ) : (
+            <SubMenu
+              key="ARH"
+              icon={
+                <Tooltip title="ARH" placement="right">
+                  <Icon icon="mdi:account-cash" style={{ fontSize: '20px' }} />
+                </Tooltip>
+              }
+              label=""
+              open={openParents.ARH}
+              onOpenChange={(opened) =>
+                handleParentOpenChange("ARH", opened)
+              }
+              className={
+                isMenuActive([
+                  "/arh",
+                ])
+                  ? "ps-active-parent"
+                  : ""
+              }
+            >
+              {arhItems.map((item) => renderMenuItem(item, "ARH"))}
             </SubMenu>
           )}
 

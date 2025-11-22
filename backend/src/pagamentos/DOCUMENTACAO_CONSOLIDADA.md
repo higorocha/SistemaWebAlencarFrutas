@@ -1477,8 +1477,17 @@ GET /api/pagamentos/pix/96494633731030000/individual
 
 ### Futuro: Integração com Fornecedores e Funcionários
 - ⚠️ Integrar com `FornecedorPagamento`
-- ⚠️ Integrar com `FuncionarioPagamento` (quando implementado)
+- ✅ Integração com `FuncionarioPagamento` (folha ARH)
 - ⚠️ Suportar múltiplos itens por lote para funcionários
+
+### Integração com ARH (Novo)
+- Novas tabelas `arh_folhas_pagamento` e `arh_funcionarios_pagamento` mantêm o cálculo da folha internamente.
+- Cada lançamento possui `meioPagamento` (`PIX`, `PIX_API`, `ESPECIE`), `pagamentoEfetuado` e `statusPagamento` sincronizado com os estados da API BB (`PENDENTE`, `ENVIADO`, `ACEITO`, `PROCESSANDO`, `PAGO`, `REJEITADO`, `CANCELADO`, `ERRO`).
+- Quando um pagamento for efetuado via API, basta preencher `pagamentoApiItemId` — o relacionamento `PagamentoApiItem.funcionarioPagamentoId` garante rastreabilidade.
+- Fluxo manual (PIX comum ou espécie) permanece independente, permitindo validar todo o processo antes de enviar para a automação bancária.
+- Endpoints REST para cargos, funções, funcionários e folha estão sob `api/arh/...` e utilizam o `PrismaService` padrão.
+- Fluxo de status da folha: `RASCUNHO` → `PENDENTE_LIBERACAO` → `FECHADA`. Usuários (exceto `GERENTE_CULTURA`) podem criar e finalizar; apenas `ADMINISTRADOR` pode liberar.
+- Campos `usuarioCriacaoId`, `usuarioLiberacaoId` e `dataLiberacao` registram quem criou/liberou cada folha.
 
 ---
 

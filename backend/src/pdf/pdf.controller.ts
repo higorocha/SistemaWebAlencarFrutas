@@ -69,7 +69,13 @@ export class PdfController {
     const logoBase64 = await this.carregarLogoBase64();
 
     // 5. Prepara dados para o template (formatação)
-    const dadosTemplate = this.prepararDadosTemplate(pedido, clienteCompleto, dadosEmpresa, logoBase64);
+    let dadosTemplate;
+    try {
+      dadosTemplate = this.prepararDadosTemplate(pedido, clienteCompleto, dadosEmpresa, logoBase64);
+    } catch (error) {
+      console.error('[PDF Controller] ❌ ERRO ao executar prepararDadosTemplate:', error);
+      throw error;
+    }
 
     // 4. Gera o PDF
     const buffer = await this.pdfService.gerarPdf('pedido-criado', dadosTemplate);
@@ -181,6 +187,12 @@ export class PdfController {
    * Formata valores monetários, datas e status
    */
   private prepararDadosTemplate(pedido: any, clienteCompleto: any, dadosEmpresa: any, logoBase64: string | null): any {
+    console.log('[PDF] 📋 Preparando dados do pedido:', {
+      pedidoId: pedido?.id,
+      numeroPedido: pedido?.numeroPedido,
+      cliente: clienteCompleto?.nome || pedido?.cliente?.nome,
+      totalFrutas: pedido?.frutasPedidos?.length || 0,
+    });
     // Formatar status
     const statusMap: { [key: string]: string } = {
       PEDIDO_CRIADO: 'Pedido Criado',
@@ -263,41 +275,65 @@ export class PdfController {
 
       const unidadesNormalizadas = unidadesAlvo.map((unidade) => unidade.toUpperCase());
       const unidadePrecificada = normalizarUnidade(frutaPedido.unidadePrecificada);
-
-      if (unidadePrecificada && unidadesNormalizadas.includes(unidadePrecificada)) {
-        const quantidadePrecificada = frutaPedido.quantidadePrecificada ?? frutaPedido.quantidadeReal ?? frutaPedido.quantidadeReal2 ?? frutaPedido.quantidadePrevista;
-        if (quantidadePrecificada !== null && quantidadePrecificada !== undefined) {
-          return { quantidade: quantidadePrecificada, unidade: unidadePrecificada };
-        }
-      }
-
       const unidade1 = normalizarUnidade(frutaPedido.unidadeMedida1);
+      const unidade2 = normalizarUnidade(frutaPedido.unidadeMedida2);
+
+
+      // ✅ CORREÇÃO: Verificar unidadeMedida1 PRIMEIRO (prioridade para quantidades reais colhidas)
       if (unidade1 && unidadesNormalizadas.includes(unidade1)) {
-        const quantidade =
-          frutaPedido.quantidadeReal ??
-          frutaPedido.quantidadePrecificada ??
-          frutaPedido.quantidadePrevista ??
-          null;
-        if (quantidade !== null && quantidade !== undefined) {
+        // Prioridade: quantidadeReal (colhida) > quantidadePrecificada (se unidade corresponder) > quantidadePrevista
+        let quantidade = frutaPedido.quantidadeReal ?? null;
+        
+        // Se não há quantidadeReal, verificar quantidadePrecificada (só se unidade precificada corresponder à unidadeMedida1)
+        if (quantidade === null && unidadePrecificada === unidade1) {
+          quantidade = frutaPedido.quantidadePrecificada ?? null;
+        }
+        
+        // Se ainda não há, usar quantidadePrevista (sempre associada à unidadeMedida1)
+        if (quantidade === null) {
+          quantidade = frutaPedido.quantidadePrevista ?? null;
+        }
+        
+        if (quantidade !== null && quantidade !== undefined && quantidade > 0) {
           return { quantidade, unidade: unidade1 };
         }
       }
 
-      const unidade2 = normalizarUnidade(frutaPedido.unidadeMedida2);
+      // ✅ CORREÇÃO: Verificar unidadeMedida2 - só usar quantidades associadas a essa unidade
       if (unidade2 && unidadesNormalizadas.includes(unidade2)) {
-        const quantidade =
-          frutaPedido.quantidadeReal2 ??
-          frutaPedido.quantidadePrecificada ??
-          frutaPedido.quantidadeReal ??
-          frutaPedido.quantidadePrevista ??
-          null;
-        if (quantidade !== null && quantidade !== undefined) {
+        // Prioridade: quantidadeReal2 (colhida na unidade 2)
+        // NUNCA usar quantidadeReal aqui, pois ele está associado à unidadeMedida1
+        const quantidade = frutaPedido.quantidadeReal2 ?? null;
+        if (quantidade !== null && quantidade !== undefined && quantidade > 0) {
           return { quantidade, unidade: unidade2 };
+        }
+      }
+
+      // ✅ CORREÇÃO: Se há unidade precificada e ela corresponde ao alvo, usar quantidade precificada (fallback)
+      // Isso só acontece se não encontrou nas unidades medidas acima
+      if (unidadePrecificada && unidadesNormalizadas.includes(unidadePrecificada)) {
+        const quantidadePrecificada = frutaPedido.quantidadePrecificada;
+        if (quantidadePrecificada !== null && quantidadePrecificada !== undefined && quantidadePrecificada > 0) {
+          return { quantidade: quantidadePrecificada, unidade: unidadePrecificada };
         }
       }
 
       return { quantidade: null, unidade: null };
     };
+
+    // ✅ LÓGICA INTELIGENTE: Verificar se há quantidade precificada > 0 no pedido
+    // IMPORTANTE: unidadePrecificada sempre existe (recebe unidadeMedida1 por padrão)
+    // Mas quantidadePrecificada pode ser 0 quando não foi precificado
+    const temUnidadePrecificada = pedido.frutasPedidos?.some((fp: any) => {
+      const qtdPrec = fp.quantidadePrecificada;
+      const temQuantidade = qtdPrec !== null && qtdPrec !== undefined && Number(qtdPrec) > 0;
+      return temQuantidade;
+    }) || false;
+
+    console.log('[PDF] 🔍 Modo de exibição:', {
+      modo: temUnidadePrecificada ? 'INTELIGENTE (com precificação)' : 'PADRÃO (sem precificação)',
+      totalFrutas: pedido.frutasPedidos?.length || 0,
+    });
 
     // Formatar frutas do pedido
     const frutasPedidosFormatadas = pedido.frutasPedidos?.map((frutaPedido: any, index: number) => {
@@ -340,8 +376,96 @@ export class PdfController {
         ? formatCurrencyBR(frutaPedido.valorTotal)
         : null;
 
-      const dadosCxUnd = obterQuantidadePorUnidade(frutaPedido, ['CX', 'UND']);
-      const dadosKg = obterQuantidadePorUnidade(frutaPedido, ['KG']);
+      // ✅ LÓGICA INTELIGENTE: Verificar se esta fruta tem quantidade precificada > 0
+      // IMPORTANTE: unidadePrecificada sempre existe, mas quantidadePrecificada pode ser 0
+      const unidadePrecificadaFruta = normalizarUnidade(frutaPedido.unidadePrecificada);
+      const quantidadePrecificadaFruta = frutaPedido.quantidadePrecificada;
+      const temPrecificacao = quantidadePrecificadaFruta !== null && 
+                              quantidadePrecificadaFruta !== undefined && 
+                              Number(quantidadePrecificadaFruta) > 0;
+
+      console.log('[PDF] 🍎 Fruta:', {
+        nome: nomeFrutaFormatada,
+        modo: temPrecificacao ? 'INTELIGENTE' : 'PADRÃO',
+        unidadeMedida1: normalizarUnidade(frutaPedido.unidadeMedida1),
+        quantidadeReal: frutaPedido.quantidadeReal,
+        unidadeMedida2: normalizarUnidade(frutaPedido.unidadeMedida2),
+        quantidadeReal2: frutaPedido.quantidadeReal2,
+        unidadePrecificada: unidadePrecificadaFruta,
+        quantidadePrecificada: quantidadePrecificadaFruta,
+      });
+
+      let quantidadeColunaKg: { quantidade: number | null; unidade: string | null } = { quantidade: null, unidade: null };
+      let quantidadeColunaCxUnd: { quantidade1: number | null; unidade1: string | null; quantidade2: number | null; unidade2: string | null } = {
+        quantidade1: null,
+        unidade1: null,
+        quantidade2: null,
+        unidade2: null,
+      };
+      let cabecalhoColunaKg = 'KG';
+      let cabecalhoColunaCxUnd = 'CX/UND';
+
+      if (temPrecificacao) {
+        // ✅ MODO INTELIGENTE: Usar unidade precificada na coluna KG
+        
+        if (unidadePrecificadaFruta) {
+          cabecalhoColunaKg = unidadePrecificadaFruta;
+          quantidadeColunaKg = {
+            quantidade: Number(quantidadePrecificadaFruta),
+            unidade: unidadePrecificadaFruta,
+          };
+        }
+
+        // Coluna CX/UND: exibir unidadeMedida1 e unidadeMedida2 (se existirem e não forem a mesma da precificada)
+        const unidade1 = normalizarUnidade(frutaPedido.unidadeMedida1);
+        const unidade2 = normalizarUnidade(frutaPedido.unidadeMedida2);
+        
+        
+        // Se unidadeMedida1 não é a mesma da precificada, adicionar na coluna CX/UND
+        if (unidade1 && unidade1 !== unidadePrecificadaFruta) {
+          // Prioridade: quantidadeReal > quantidadePrevista
+          const qtd1 = frutaPedido.quantidadeReal ?? frutaPedido.quantidadePrevista ?? null;
+          if (qtd1 !== null && qtd1 !== undefined && qtd1 > 0) {
+            quantidadeColunaCxUnd.quantidade1 = qtd1;
+            quantidadeColunaCxUnd.unidade1 = unidade1;
+          }
+        }
+
+        // Se unidadeMedida2 existe e não é a mesma da precificada, adicionar na coluna CX/UND
+        if (unidade2 && unidade2 !== unidadePrecificadaFruta) {
+          const qtd2 = frutaPedido.quantidadeReal2 ?? null;
+          if (qtd2 !== null && qtd2 !== undefined && qtd2 > 0) {
+            quantidadeColunaCxUnd.quantidade2 = qtd2;
+            quantidadeColunaCxUnd.unidade2 = unidade2;
+          }
+        }
+
+        // Ajustar cabeçalho da coluna CX/UND baseado nas unidades encontradas
+        const unidadesCxUnd = [
+          quantidadeColunaCxUnd.unidade1,
+          quantidadeColunaCxUnd.unidade2,
+        ].filter(Boolean);
+        
+        if (unidadesCxUnd.length > 0) {
+          cabecalhoColunaCxUnd = unidadesCxUnd.join('/');
+        } else {
+          cabecalhoColunaCxUnd = quantidadeColunaCxUnd.unidade1 || quantidadeColunaCxUnd.unidade2 || 'CX/UND';
+        }
+
+      } else {
+        // ✅ MODO PADRÃO: Comportamento original (quantidadePrecificada é 0 ou null)
+        const dadosCxUnd = obterQuantidadePorUnidade(frutaPedido, ['CX', 'UND']);
+        const dadosKg = obterQuantidadePorUnidade(frutaPedido, ['KG']);
+
+        quantidadeColunaKg = dadosKg;
+        quantidadeColunaCxUnd = {
+          quantidade1: dadosCxUnd.quantidade,
+          unidade1: dadosCxUnd.unidade,
+          quantidade2: null,
+          unidade2: null,
+        };
+
+      }
 
       return {
         ...frutaPedido,
@@ -354,38 +478,122 @@ export class PdfController {
         quantidadeReal2Formatada,
         valorUnitarioFormatado,
         valorTotalFormatado,
-        quantidadeCxUndFormatada: formatarQuantidade(dadosCxUnd.quantidade),
-        unidadeCxUnd: dadosCxUnd.unidade,
-        quantidadeCxUnd: dadosCxUnd.quantidade, // Valor numérico para cálculo
-        quantidadeKgFormatada: formatarQuantidade(dadosKg.quantidade),
-        unidadeKg: dadosKg.unidade,
-        quantidadeKg: dadosKg.quantidade, // Valor numérico para cálculo
+        // Dados para coluna KG (pode ser KG padrão ou unidade precificada)
+        quantidadeKgFormatada: formatarQuantidade(quantidadeColunaKg.quantidade),
+        unidadeKg: quantidadeColunaKg.unidade,
+        quantidadeKg: quantidadeColunaKg.quantidade,
+        // Dados para coluna CX/UND (pode ser CX/UND padrão ou unidadeMedida1/unidadeMedida2)
+        quantidadeCxUndFormatada: formatarQuantidade(quantidadeColunaCxUnd.quantidade1),
+        unidadeCxUnd: quantidadeColunaCxUnd.unidade1,
+        quantidadeCxUnd: quantidadeColunaCxUnd.quantidade1,
+        // Novos campos para suportar duas unidades na coluna CX/UND
+        quantidadeCxUnd2Formatada: formatarQuantidade(quantidadeColunaCxUnd.quantidade2),
+        unidadeCxUnd2: quantidadeColunaCxUnd.unidade2,
+        quantidadeCxUnd2: quantidadeColunaCxUnd.quantidade2,
+        // Flags para controle do template
+        temPrecificacao,
+        cabecalhoColunaKg,
+        cabecalhoColunaCxUnd,
       };
     }) || [];
 
-    // Calcular totais agrupados por unidade
+    // ✅ Calcular totais agrupados por unidade (considerando modo inteligente)
     let totalCx = 0;
     let totalUnd = 0;
     let totalKg = 0;
+    let totalUnidadePrecificada = 0;
+    const unidadesPrecificadas: Record<string, number> = {};
+
+    // Determinar cabeçalhos dinâmicos (pegar da primeira fruta que tem precificação, se houver)
+    let cabecalhoColunaKgGlobal = 'KG';
+    let cabecalhoColunaCxUndGlobal = 'CX/UND';
+    const primeiraFrutaComPrecificacao = frutasPedidosFormatadas.find((f: any) => f.temPrecificacao);
+    if (primeiraFrutaComPrecificacao) {
+      cabecalhoColunaKgGlobal = primeiraFrutaComPrecificacao.cabecalhoColunaKg || 'KG';
+      cabecalhoColunaCxUndGlobal = primeiraFrutaComPrecificacao.cabecalhoColunaCxUnd || 'CX/UND';
+    }
 
     frutasPedidosFormatadas.forEach((fruta: any) => {
-      if (fruta.unidadeCxUnd === 'CX' && fruta.quantidadeCxUnd !== null && fruta.quantidadeCxUnd !== undefined) {
-        totalCx += fruta.quantidadeCxUnd;
-      } else if (fruta.unidadeCxUnd === 'UND' && fruta.quantidadeCxUnd !== null && fruta.quantidadeCxUnd !== undefined) {
-        totalUnd += fruta.quantidadeCxUnd;
+      if (fruta.temPrecificacao) {
+        // ✅ MODO INTELIGENTE: Calcular totais específicos
+        // Total da unidade precificada (coluna KG dinâmica)
+        if (fruta.unidadeKg && fruta.quantidadeKg !== null && fruta.quantidadeKg !== undefined) {
+          const unidade = normalizarUnidade(fruta.unidadeKg);
+          if (unidade) {
+            if (!unidadesPrecificadas[unidade]) {
+              unidadesPrecificadas[unidade] = 0;
+            }
+            unidadesPrecificadas[unidade] += fruta.quantidadeKg;
+          }
+        }
+
+        // Totais para coluna CX/UND (unidadeMedida1 e unidadeMedida2)
+        if (fruta.unidadeCxUnd) {
+          const unidade1 = normalizarUnidade(fruta.unidadeCxUnd);
+          if (unidade1 === 'CX' && fruta.quantidadeCxUnd !== null && fruta.quantidadeCxUnd !== undefined) {
+            totalCx += fruta.quantidadeCxUnd;
+          } else if (unidade1 === 'UND' && fruta.quantidadeCxUnd !== null && fruta.quantidadeCxUnd !== undefined) {
+            totalUnd += fruta.quantidadeCxUnd;
+          }
+        }
+
+        if (fruta.unidadeCxUnd2) {
+          const unidade2 = normalizarUnidade(fruta.unidadeCxUnd2);
+          if (unidade2 === 'CX' && fruta.quantidadeCxUnd2 !== null && fruta.quantidadeCxUnd2 !== undefined) {
+            totalCx += fruta.quantidadeCxUnd2;
+          } else if (unidade2 === 'UND' && fruta.quantidadeCxUnd2 !== null && fruta.quantidadeCxUnd2 !== undefined) {
+            totalUnd += fruta.quantidadeCxUnd2;
+          }
+        }
+      } else {
+        // ✅ MODO PADRÃO: Comportamento original
+        // Totais para coluna CX/UND
+        if (fruta.unidadeCxUnd === 'CX' && fruta.quantidadeCxUnd !== null && fruta.quantidadeCxUnd !== undefined) {
+          totalCx += fruta.quantidadeCxUnd;
+        } else if (fruta.unidadeCxUnd === 'UND' && fruta.quantidadeCxUnd !== null && fruta.quantidadeCxUnd !== undefined) {
+          totalUnd += fruta.quantidadeCxUnd;
+        }
+        
+        // Totais para coluna KG
+        if (fruta.unidadeKg === 'KG' && fruta.quantidadeKg !== null && fruta.quantidadeKg !== undefined) {
+          totalKg += fruta.quantidadeKg;
+        }
       }
-      
-      if (fruta.unidadeKg === 'KG' && fruta.quantidadeKg !== null && fruta.quantidadeKg !== undefined) {
-        totalKg += fruta.quantidadeKg;
-      }
+    });
+
+    console.log('[PDF] 📊 Totais do pedido:', {
+      totalCx: totalCx > 0 ? `${totalCx} CX` : null,
+      totalUnd: totalUnd > 0 ? `${totalUnd} UND` : null,
+      totalKg: totalKg > 0 ? `${totalKg} KG` : null,
+      totalUnidadePrecificada: primeiraFrutaComPrecificacao && primeiraFrutaComPrecificacao.unidadeKg
+        ? (() => {
+            const unidadeNormalizada = normalizarUnidade(primeiraFrutaComPrecificacao.unidadeKg);
+            if (unidadeNormalizada && unidadesPrecificadas[unidadeNormalizada] > 0) {
+              return `${unidadesPrecificadas[unidadeNormalizada]} ${unidadeNormalizada}`;
+            }
+            return null;
+          })()
+        : null,
+      modo: temUnidadePrecificada ? 'INTELIGENTE' : 'PADRÃO',
     });
 
     // Formatar totais de CX/UND separadamente (para renderização inline)
     const totalCxFormatado = totalCx > 0 ? formatNumber(totalCx) : null;
     const totalUndFormatado = totalUnd > 0 ? formatNumber(totalUnd) : null;
     
-    // Formatar total de KG separadamente
+    // Formatar total de KG separadamente (modo padrão)
     const totalKgFormatado = totalKg > 0 ? formatNumber(totalKg) : null;
+
+    // Formatar total da unidade precificada (modo inteligente)
+    const totalUnidadePrecificadaFormatado = primeiraFrutaComPrecificacao && primeiraFrutaComPrecificacao.unidadeKg
+      ? (() => {
+          const unidadeNormalizada = normalizarUnidade(primeiraFrutaComPrecificacao.unidadeKg);
+          if (unidadeNormalizada && unidadesPrecificadas[unidadeNormalizada] > 0) {
+            return formatNumber(unidadesPrecificadas[unidadeNormalizada]);
+          }
+          return null;
+        })()
+      : null;
 
     // Verificar se há quantidades reais ou valores unitários
     const temQuantidadeReal = frutasPedidosFormatadas.some(
@@ -454,6 +662,12 @@ export class PdfController {
       totalCxFormatado,
       totalUndFormatado,
       totalKgFormatado,
+      totalUnidadePrecificadaFormatado,
+      // Cabeçalhos dinâmicos para o template
+      cabecalhoColunaKg: cabecalhoColunaKgGlobal,
+      cabecalhoColunaCxUnd: cabecalhoColunaCxUndGlobal,
+      // Flag global para indicar se está usando modo inteligente
+      usandoModoInteligente: temUnidadePrecificada,
     };
   }
 }

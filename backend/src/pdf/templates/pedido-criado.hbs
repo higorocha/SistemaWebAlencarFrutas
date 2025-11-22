@@ -624,8 +624,8 @@
               <thead>
                 <tr>
                   <th class="text-center table-item">Item</th>
-                  <th class="text-right table-qty">CX/UND</th>
-                  <th class="text-right table-qty">KG</th>
+                  <th class="text-right table-qty">{{#if cabecalhoColunaCxUnd}}{{cabecalhoColunaCxUnd}}{{else}}CX/UND{{/if}}</th>
+                  <th class="text-right table-qty">{{#if cabecalhoColunaKg}}{{cabecalhoColunaKg}}{{else}}KG{{/if}}</th>
                   <th class="table-desc">Descrição dos Produtos</th>
                   <th class="text-right">Unitário</th>
                   <th class="text-right">Total</th>
@@ -636,11 +636,26 @@
                 <tr>
                   <td class="text-center table-item">{{itemNumero}}</td>
                   <td class="text-right table-qty">
-                    {{#if quantidadeCxUndFormatada}}
-                      <strong>{{quantidadeCxUndFormatada}}</strong>
-                      {{#if unidadeCxUnd}}<span class="table-unit">{{unidadeCxUnd}}</span>{{/if}}
+                    {{#if temPrecificacao}}
+                      {{!-- Modo Inteligente: Exibir unidadeMedida1 e unidadeMedida2 --}}
+                      {{#if quantidadeCxUndFormatada}}
+                        <strong>{{quantidadeCxUndFormatada}}</strong>
+                        {{#if unidadeCxUnd}}<span class="table-unit">{{unidadeCxUnd}}</span>{{/if}}
+                      {{/if}}
+                      {{#if quantidadeCxUndFormatada}}{{#if quantidadeCxUnd2Formatada}}<span style="margin: 0 4px; color: #9ca3af;">|</span>{{/if}}{{/if}}
+                      {{#if quantidadeCxUnd2Formatada}}
+                        <strong>{{quantidadeCxUnd2Formatada}}</strong>
+                        {{#if unidadeCxUnd2}}<span class="table-unit">{{unidadeCxUnd2}}</span>{{/if}}
+                      {{/if}}
+                      {{#unless quantidadeCxUndFormatada}}{{#unless quantidadeCxUnd2Formatada}}<span class="text-muted">-</span>{{/unless}}{{/unless}}
                     {{else}}
-                      <span class="text-muted">-</span>
+                      {{!-- Modo Padrão: Comportamento original --}}
+                      {{#if quantidadeCxUndFormatada}}
+                        <strong>{{quantidadeCxUndFormatada}}</strong>
+                        {{#if unidadeCxUnd}}<span class="table-unit">{{unidadeCxUnd}}</span>{{/if}}
+                      {{else}}
+                        <span class="text-muted">-</span>
+                      {{/if}}
                     {{/if}}
                   </td>
                   <td class="text-right table-qty">
@@ -686,23 +701,49 @@
                 {{#if valorFinalFormatado}}
                 <tr class="table-total-row">
                   <td colspan="2" class="text-right table-qty" style="white-space: nowrap;">
-                    {{#if totalCxFormatado}}
-                      <strong>{{totalCxFormatado}}</strong>
-                      <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">CX</span>
+                    {{#if usandoModoInteligente}}
+                      {{!-- Modo Inteligente: Exibir totais das unidades na coluna CX/UND --}}
+                      {{#if totalCxFormatado}}
+                        <strong>{{totalCxFormatado}}</strong>
+                        <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">CX</span>
+                      {{/if}}
+                      {{#if totalCxFormatado}}{{#if totalUndFormatado}}<span style="margin: 0 4px; color: #9ca3af;">|</span>{{/if}}{{/if}}
+                      {{#if totalUndFormatado}}
+                        <strong>{{totalUndFormatado}}</strong>
+                        <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">UND</span>
+                      {{/if}}
+                      {{#unless totalCxFormatado}}{{#unless totalUndFormatado}}<span class="text-muted">-</span>{{/unless}}{{/unless}}
+                    {{else}}
+                      {{!-- Modo Padrão: Comportamento original --}}
+                      {{#if totalCxFormatado}}
+                        <strong>{{totalCxFormatado}}</strong>
+                        <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">CX</span>
+                      {{/if}}
+                      {{#if totalCxFormatado}}{{#if totalUndFormatado}}<span style="margin: 0 4px; color: #9ca3af;">|</span>{{/if}}{{/if}}
+                      {{#if totalUndFormatado}}
+                        <strong>{{totalUndFormatado}}</strong>
+                        <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">UND</span>
+                      {{/if}}
+                      {{#unless totalCxFormatado}}{{#unless totalUndFormatado}}<span class="text-muted">-</span>{{/unless}}{{/unless}}
                     {{/if}}
-                    {{#if totalCxFormatado}}{{#if totalUndFormatado}}<span style="margin: 0 4px; color: #9ca3af;">|</span>{{/if}}{{/if}}
-                    {{#if totalUndFormatado}}
-                      <strong>{{totalUndFormatado}}</strong>
-                      <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">UND</span>
-                    {{/if}}
-                    {{#unless totalCxFormatado}}{{#unless totalUndFormatado}}<span class="text-muted">-</span>{{/unless}}{{/unless}}
                   </td>
                   <td class="text-right table-qty" style="white-space: nowrap;">
-                    {{#if totalKgFormatado}}
-                      <strong>{{totalKgFormatado}}</strong>
-                      <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">KG</span>
+                    {{#if usandoModoInteligente}}
+                      {{!-- Modo Inteligente: Exibir total da unidade precificada --}}
+                      {{#if totalUnidadePrecificadaFormatado}}
+                        <strong>{{totalUnidadePrecificadaFormatado}}</strong>
+                        <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">{{#if cabecalhoColunaKg}}{{cabecalhoColunaKg}}{{else}}KG{{/if}}</span>
+                      {{else}}
+                        <span class="text-muted">-</span>
+                      {{/if}}
                     {{else}}
-                      <span class="text-muted">-</span>
+                      {{!-- Modo Padrão: Exibir total de KG --}}
+                      {{#if totalKgFormatado}}
+                        <strong>{{totalKgFormatado}}</strong>
+                        <span style="display: inline; font-size: 10px; color: #6b7280; margin-left: 2px; text-transform: uppercase;">KG</span>
+                      {{else}}
+                        <span class="text-muted">-</span>
+                      {{/if}}
                     {{/if}}
                   </td>
                   <td class="text-right table-total-label">Total Geral</td>
