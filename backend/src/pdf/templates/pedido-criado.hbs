@@ -14,26 +14,29 @@
     body {
       font-family: 'Helvetica', 'Arial', sans-serif;
       color: #333;
-      font-size: 12px;
-      line-height: 1.6;
+      font-size: 10.8px; /* Redução de 10% (12px * 0.9) */
+      line-height: 1.5; /* Ajustado proporcionalmente */
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      transform: scale(0.9);
+      transform-origin: top left;
+      width: 111.11%; /* Compensar a redução (100% / 0.9) */
     }
     
     .content-wrapper {
       flex: 1;
-      padding-bottom: 70px; /* Espaço para o rodapé */
+      padding-bottom: 63px; /* Redução de 10% */
     }
 
     .pdf-content {
-      padding: 0 10px 20px 10px;
+      padding: 0 9px 18px 9px; /* Redução de 10% */
     }
 
     .cards-wrapper {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px; /* Redução de 10% */
     }
 
     .card {
@@ -48,11 +51,11 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 7px; /* Redução de 10% */
       background-color: #059669;
       color: #ffffff;
-      padding: 8px 12px;
-      border-radius: 8px 8px 0 0;
+      padding: 7px 11px; /* Redução de 10% */
+      border-radius: 7px 7px 0 0; /* Redução de 10% */
       border-bottom: 2px solid #047857;
     }
 
@@ -105,7 +108,7 @@
     }
 
     .card-body {
-      padding: 10px;
+      padding: 9px; /* Redução de 10% */
     }
 
     .card-body + .card-body {
@@ -114,8 +117,8 @@
 
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 6px 14px;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); /* Redução de 10% */
+      gap: 5px 13px; /* Redução de 10% */
       margin-bottom: 4px;
     }
 
@@ -583,7 +586,7 @@
                 <span class="info-label">E-mail</span>
                 <span class="info-value">{{#if cliente.email1}}{{cliente.email1}}{{else}}-{{/if}}</span>
               </div>
-              <div class="info-item full-span">
+              <div class="info-item" style="grid-column: span 3;">
                 <span class="info-label">Endereço</span>
                 <span class="info-value">
                   {{#if cliente.logradouro}}{{cliente.logradouro}}{{#if cliente.numero}}, {{cliente.numero}}{{/if}}{{#if cliente.complemento}} - {{cliente.complemento}}{{/if}}{{else}}-{{/if}}
@@ -624,8 +627,7 @@
               <thead>
                 <tr>
                   <th class="text-center table-item">Item</th>
-                  <th class="text-right table-qty">{{#if cabecalhoColunaCxUnd}}{{cabecalhoColunaCxUnd}}{{else}}CX/UND{{/if}}</th>
-                  <th class="text-right table-qty">{{#if cabecalhoColunaKg}}{{cabecalhoColunaKg}}{{else}}KG{{/if}}</th>
+                  <th class="text-center table-qty" colspan="2">Quantidades</th>
                   <th class="table-desc">Descrição dos Produtos</th>
                   <th class="text-right">Unitário</th>
                   <th class="text-right">Total</th>
@@ -698,7 +700,7 @@
                   </td>
                 </tr>
                 {{/each}}
-                {{#if valorFinalFormatado}}
+                {{#if totalFrutasFormatado}}
                 <tr class="table-total-row">
                   <td colspan="2" class="text-right table-qty" style="white-space: nowrap;">
                     {{#if usandoModoInteligente}}
@@ -746,10 +748,10 @@
                       {{/if}}
                     {{/if}}
                   </td>
-                  <td class="text-right table-total-label">Total Geral</td>
+                  <td class="text-right table-total-label">Total das Frutas</td>
                   <td class="text-right">-</td>
                   <td class="text-right">
-                    <strong>{{valorFinalFormatado}}</strong>
+                    <strong>{{#if totalFrutasFormatado}}{{totalFrutasFormatado}}{{else}}<span class="text-muted">-</span>{{/if}}</strong>
                   </td>
                 </tr>
                 {{/if}}
@@ -761,6 +763,57 @@
           </div>
         </div>
 
+        {{!-- Card: Valores e Totais --}}
+        {{#if temValores}}
+        <div class="card card-valores">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">VL</span>
+              <span>Valores e Totais</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="info-grid">
+              {{#if freteFormatado}}
+              <div class="info-item">
+                <span class="info-label">Frete</span>
+                <span class="info-value">{{freteFormatado}}</span>
+              </div>
+              {{/if}}
+              {{#if icmsFormatado}}
+              <div class="info-item">
+                <span class="info-label">ICMS</span>
+                <span class="info-value">{{icmsFormatado}}</span>
+              </div>
+              {{/if}}
+              {{#if descontoFormatado}}
+              <div class="info-item">
+                <span class="info-label">Desconto</span>
+                <span class="info-value" style="color: #dc2626;">- {{descontoFormatado}}</span>
+              </div>
+              {{/if}}
+              {{#if avariaFormatada}}
+              <div class="info-item">
+                <span class="info-label">Avaria</span>
+                <span class="info-value" style="color: #dc2626;">- {{avariaFormatada}}</span>
+              </div>
+              {{/if}}
+              {{#if valorFinalFormatado}}
+              <div class="info-item full-span" style="border-top: 2px solid #059669; padding-top: 10px; margin-top: 8px;">
+                <span class="info-label" style="font-size: 11px;">Total Final</span>
+                <span class="info-value" style="font-size: 16px; color: #059669;">{{valorFinalFormatado}}</span>
+              </div>
+              {{/if}}
+              {{#if valorRecebidoFormatado}}
+              <div class="info-item">
+                <span class="info-label">Valor Recebido</span>
+                <span class="info-value" style="color: #059669;">{{valorRecebidoFormatado}}</span>
+              </div>
+              {{/if}}
+            </div>
+          </div>
+        </div>
+        {{/if}}
 
         {{!-- Card: Observações --}}
         {{#if observacoes}}

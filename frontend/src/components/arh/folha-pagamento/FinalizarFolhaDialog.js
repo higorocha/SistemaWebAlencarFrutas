@@ -186,3 +186,4 @@ FinalizarFolhaDialog.propTypes = {
 
 export default FinalizarFolhaDialog;
 
+

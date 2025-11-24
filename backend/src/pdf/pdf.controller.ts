@@ -603,6 +603,14 @@ export class PdfController {
       (fp: any) => fp.valorUnitarioFormatado || fp.valorTotalFormatado,
     );
 
+    // ✅ Calcular total das frutas (sem interferências de frete, ICMS, desconto, avaria)
+    // Este é o valor que deve aparecer na tabela de frutas
+    const totalFrutas = pedido.frutasPedidos?.reduce(
+      (acc, frutaPedido) => acc + (parseFloat(frutaPedido.valorTotal) || 0),
+      0
+    ) || 0;
+    const totalFrutasFormatado = totalFrutas > 0 ? formatCurrencyBR(totalFrutas) : null;
+
     // Obter ano atual para o rodapé
     const anoAtual = new Date().getFullYear();
 
@@ -654,6 +662,8 @@ export class PdfController {
       valorFinalFormatado,
       valorRecebidoFormatado,
       temValores,
+      // Total das frutas (sem interferências) - para exibir na tabela
+      totalFrutasFormatado,
       // Frutas
       frutasPedidos: frutasPedidosFormatadas,
       temQuantidadeReal,
