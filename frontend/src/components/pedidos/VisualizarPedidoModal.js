@@ -1797,9 +1797,22 @@ const VisualizarPedidoModal = ({
             )}
 
             {/* Seção 4: Pagamentos e Precificação */}
-            {(pedido.valorFinal ||
-              (pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0) ||
-              lancamentosVinculados.length > 0) && (
+            {/* Exibir se houver valorFinal, pagamentos, lançamentos vinculados, ou qualquer informação de precificação */}
+            {(() => {
+              const valorTotalFrutas = pedido.frutasPedidos?.reduce((acc, fruta) => acc + (parseFloat(fruta.valorTotal) || 0), 0) || 0;
+              const temPrecificacao = 
+                (pedido.valorFinal !== null && pedido.valorFinal !== undefined) ||
+                valorTotalFrutas > 0 ||
+                (pedido.frete && parseFloat(pedido.frete) > 0) ||
+                (pedido.icms && parseFloat(pedido.icms) > 0) ||
+                (pedido.desconto && parseFloat(pedido.desconto) > 0) ||
+                (pedido.avaria && parseFloat(pedido.avaria) > 0);
+              
+              const temPagamentos = pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0;
+              const temLancamentos = lancamentosVinculados.length > 0;
+              
+              return (temPrecificacao || temPagamentos || temLancamentos);
+            })() && (
               <Card
                 title={
                   <Space>
@@ -1828,7 +1841,26 @@ const VisualizarPedidoModal = ({
                 }}
               >
                 {/* Subseção: Resumo Financeiro */}
-                {pedido.valorFinal && (
+                {/* Mostrar sempre que houver informações de precificação (valorFinal definido, ou qualquer valor de frete/icms/desconto/avaria) */}
+                {(() => {
+                  const valorTotalFrutas = pedido.frutasPedidos?.reduce((acc, fruta) => acc + (parseFloat(fruta.valorTotal) || 0), 0) || 0;
+                  const frete = parseFloat(pedido.frete) || 0;
+                  const icms = parseFloat(pedido.icms) || 0;
+                  const desconto = parseFloat(pedido.desconto) || 0;
+                  const avaria = parseFloat(pedido.avaria) || 0;
+                  
+                  // Verificar se há informações de precificação para exibir
+                  const temPrecificacao = 
+                    (pedido.valorFinal !== null && pedido.valorFinal !== undefined) || 
+                    valorTotalFrutas > 0 || 
+                    frete > 0 || 
+                    icms > 0 || 
+                    desconto > 0 || 
+                    avaria > 0;
+                  
+                  if (!temPrecificacao) return null;
+                  
+                  return (
                   <>
                     <Title level={5} style={{ color: "#059669", marginBottom: "8px" }}>
                       <DollarOutlined style={{ marginRight: 8 }} />
@@ -1840,11 +1872,6 @@ const VisualizarPedidoModal = ({
                       // =================================================
                       // LÓGICA DE CÁLCULO CENTRALIZADA
                       // =================================================
-                      const valorTotalFrutas = pedido.frutasPedidos?.reduce((acc, fruta) => acc + (parseFloat(fruta.valorTotal) || 0), 0) || 0;
-                      const frete = parseFloat(pedido.frete) || 0;
-                      const icms = parseFloat(pedido.icms) || 0;
-                      const desconto = parseFloat(pedido.desconto) || 0;
-                      const avaria = parseFloat(pedido.avaria) || 0;
                       const valorRecebido = parseFloat(pedido.valorRecebido) || 0;
 
                       // Valor bruto do pedido (sem descontos/avarias)
@@ -1952,7 +1979,8 @@ const VisualizarPedidoModal = ({
                       );
                     })()}
                   </>
-                )}
+                  );
+                })()}
 
                 {/* Subseção: Histórico de Pagamentos */}
                 {pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0 ? (

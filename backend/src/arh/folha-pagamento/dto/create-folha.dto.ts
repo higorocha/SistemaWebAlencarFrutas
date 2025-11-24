@@ -7,6 +7,7 @@ import {
   MaxLength,
   Max,
   Min,
+  IsDateString,
 } from 'class-validator';
 
 export class CreateFolhaDto {
@@ -26,6 +27,14 @@ export class CreateFolhaDto {
   @Min(1)
   @Max(2)
   periodo: number; // 1 = primeira quinzena, 2 = segunda quinzena
+
+  @IsDateString()
+  @IsNotEmpty()
+  dataInicial: string; // Data inicial da quinzena (ISO string)
+
+  @IsDateString()
+  @IsNotEmpty()
+  dataFinal: string; // Data final da quinzena (ISO string)
 
   @IsOptional()
   @IsString()

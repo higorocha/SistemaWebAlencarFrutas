@@ -228,7 +228,34 @@ const CargoForm = ({
           </Row>
 
           <Row gutter={[16, 16]}>
-            <Col xs={24}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label={
+                  <Space>
+                    <IdcardOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Cargo Gerencial</span>
+                  </Space>
+                }
+                help="Cargos gerenciais podem ser vinculados como gerentes de funcionários diaristas"
+              >
+                <Space>
+                  <Switch
+                    checked={cargoAtual.isGerencial === true}
+                    onChange={(checked) => handleChange("isGerencial", checked)}
+                    style={{
+                      backgroundColor: cargoAtual.isGerencial === true ? "#059669" : "#d9d9d9",
+                    }}
+                  />
+                  <Text style={{ 
+                    color: cargoAtual.isGerencial === true ? "#059669" : "#666",
+                    fontWeight: cargoAtual.isGerencial === true ? "600" : "400"
+                  }}>
+                    {cargoAtual.isGerencial === true ? "Sim" : "Não"}
+                  </Text>
+                </Space>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
               <Form.Item
                 label={
                   <Space>

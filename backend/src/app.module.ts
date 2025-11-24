@@ -34,6 +34,7 @@ import { MobileModule } from './mobile/mobile.module';
 import { BbWebhooksModule } from './bb-webhooks/bb-webhooks.module';
 import { PdfModule } from './pdf/pdf.module';
 import { ArhModule } from './arh/arh.module';
+import { PedidosFinalizacaoJobModule } from './pedidos/pedidos-finalizacao-job.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { ArhModule } from './arh/arh.module';
     BbWebhooksModule, // Módulo para webhooks do Banco do Brasil
     PdfModule, // Módulo para geração de PDFs
     ArhModule,
+    PedidosFinalizacaoJobModule, // Job de finalização automática de pedidos zerados
   ],
   controllers: [AppController],
   providers: [AppService],

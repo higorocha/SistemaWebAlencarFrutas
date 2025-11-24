@@ -3,7 +3,7 @@
 import React, { useMemo } from "react";
 import PropTypes from "prop-types";
 import { Tag, Button, Space, Empty, Typography, Dropdown } from "antd";
-import { EditOutlined, MoreOutlined } from "@ant-design/icons";
+import { EditOutlined, MoreOutlined, CheckCircleOutlined, StopOutlined } from "@ant-design/icons";
 import ResponsiveTable from "../../common/ResponsiveTable";
 import useResponsive from "../../../hooks/useResponsive";
 
@@ -42,7 +42,12 @@ const FuncoesTable = ({
         key: "toggle",
         label: (
           <Space>
-            <span style={{ color: record.ativo ? "#ff4d4f" : "#52c41a" }}>
+            {record.ativo ? (
+              <StopOutlined style={{ color: "#ff4d4f" }} />
+            ) : (
+              <CheckCircleOutlined style={{ color: "#52c41a" }} />
+            )}
+            <span style={{ color: "#333" }}>
               {record.ativo ? "Inativar" : "Ativar"}
             </span>
           </Space>

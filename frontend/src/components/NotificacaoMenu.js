@@ -17,6 +17,7 @@ import { useNotificacao } from "../contexts/NotificacaoContext";
 import NotificacaoDetalheModal from "./NotificacaoDetalheModal";
 import VincularPagamentoManualModal from "./clientes/VincularPagamentoManualModal";
 import LotePagamentosDetalhesModal from "./pagamentos/LotePagamentosDetalhesModal";
+import VisualizarPedidoModal from "./pedidos/VisualizarPedidoModal";
 import CentralizedLoader from "./common/loaders/CentralizedLoader";
 import moment from "../config/momentConfig";
 import { formatarValorMonetario } from "../utils/formatters";
@@ -56,6 +57,11 @@ const NotificacaoMenu = () => {
   const [loteParaLiberacao, setLoteParaLiberacao] = useState(null);
   const [loadingLoteLiberacao, setLoadingLoteLiberacao] = useState(false);
   const [liberandoLoteId, setLiberandoLoteId] = useState(null);
+
+  // Estados para modal de visualização de pedido
+  const [visualizarPedidoModalOpen, setVisualizarPedidoModalOpen] = useState(false);
+  const [pedidoParaVisualizar, setPedidoParaVisualizar] = useState(null);
+  const [loadingPedidoVisualizar, setLoadingPedidoVisualizar] = useState(false);
 
   // Estado para controlar quantas notificações estão sendo exibidas
   const [limiteExibicao, setLimiteExibicao] = useState(50);
@@ -108,6 +114,47 @@ const NotificacaoMenu = () => {
     return dadosAdicionais.tipoNegocio === 'liberar_pagamento';
   };
 
+  // Função para buscar pedido completo do backend
+  const buscarPedidoCompleto = useCallback(async (pedidoId) => {
+    try {
+      const response = await axiosInstance.get(`/api/pedidos/${pedidoId}`);
+      return response.data;
+    } catch (error) {
+      console.error("Erro ao buscar pedido completo:", error);
+      showNotification("error", "Erro", "Erro ao carregar dados do pedido");
+      return null;
+    }
+  }, []);
+
+  // Função para abrir modal de visualização de pedido
+  const handleAbrirVisualizarPedido = useCallback(async (notificacao) => {
+    const dadosAdicionais = obterDadosAdicionais(notificacao);
+    const pedidoId = dadosAdicionais?.pedidoId;
+
+    if (!pedidoId) {
+      showNotification("warning", "Atenção", "Não foi possível identificar o pedido da notificação");
+      return;
+    }
+
+    setLoadingPedidoVisualizar(true);
+    setVisualizarPedidoModalOpen(true);
+    setPedidoParaVisualizar(null);
+
+    try {
+      const pedidoCompleto = await buscarPedidoCompleto(pedidoId);
+      if (pedidoCompleto) {
+        setPedidoParaVisualizar(pedidoCompleto);
+      } else {
+        setVisualizarPedidoModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Erro ao abrir visualização de pedido:", error);
+      setVisualizarPedidoModalOpen(false);
+    } finally {
+      setLoadingPedidoVisualizar(false);
+    }
+  }, [buscarPedidoCompleto]);
+
   // Função para lidar com o clique na notificação
   const handleNotificacaoClick = async (notificacao) => {
     if (!notificacao || !notificacao.id) return;
@@ -124,6 +171,12 @@ const NotificacaoMenu = () => {
     // Se for notificação de pagamento, abrir modal de vinculação
     if (isNotificacaoPagamento(notificacao)) {
       await handleAbrirVinculacaoPagamento(notificacao);
+      return;
+    }
+
+    // Se for notificação de pedido (incluindo pedido finalizado automaticamente), abrir modal de visualização com dados completos
+    if (isNotificacaoPedido(notificacao)) {
+      await handleAbrirVisualizarPedido(notificacao);
       return;
     }
 
@@ -1238,6 +1291,17 @@ const NotificacaoMenu = () => {
           // Usar indicadorFloat 'S' (produção)
           await handleLiberarPagamento(lote.numeroRequisicao, 'S');
         }}
+      />
+
+      {/* Modal de visualização de pedido */}
+      <VisualizarPedidoModal
+        open={visualizarPedidoModalOpen}
+        onClose={() => {
+          setVisualizarPedidoModalOpen(false);
+          setPedidoParaVisualizar(null);
+        }}
+        pedido={pedidoParaVisualizar}
+        loading={loadingPedidoVisualizar}
       />
     </>
   );

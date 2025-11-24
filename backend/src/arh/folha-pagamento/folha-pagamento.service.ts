@@ -96,6 +96,8 @@ export class FolhaPagamentoService {
             competenciaMes: dto.competenciaMes,
             competenciaAno: dto.competenciaAno,
             periodo: dto.periodo,
+            dataInicial: new Date(dto.dataInicial),
+            dataFinal: new Date(dto.dataFinal),
             referencia: dto.referencia?.trim(),
             observacoes: dto.observacoes?.trim(),
             status: StatusFolhaPagamento.RASCUNHO,
@@ -154,8 +156,26 @@ export class FolhaPagamentoService {
       where,
       orderBy: [{ pagamentoEfetuado: 'asc' }, { createdAt: 'desc' }],
       include: {
-        funcionario: { select: { nome: true, cpf: true, tipoContrato: true } },
-        cargo: true,
+        funcionario: {
+          select: {
+            nome: true,
+            cpf: true,
+            tipoContrato: true,
+            gerente: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+          },
+        },
+        cargo: {
+          select: {
+            id: true,
+            nome: true,
+            isGerencial: true,
+          },
+        },
         funcao: true,
       },
     });

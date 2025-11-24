@@ -1,10 +1,10 @@
 // src/components/arh/folha-pagamento/AdicionarFuncionariosForm.js
 
-import React, { useMemo } from "react";
-import { Card, Select, Typography, Empty, Tag, Space, Alert } from "antd";
-import { UserAddOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import React, { useMemo, useState } from "react";
+import { Card, Typography, Empty, Tag, Space, Alert, Checkbox, Row, Col, Input } from "antd";
+import { UserAddOutlined, InfoCircleOutlined, SearchOutlined, UserOutlined, IdcardOutlined, TeamOutlined } from "@ant-design/icons";
 import PropTypes from "prop-types";
-import { capitalizeName } from "../../../utils/formatters";
+import { capitalizeName, formatarCPF } from "../../../utils/formatters";
 
 const { Text } = Typography;
 
@@ -16,16 +16,75 @@ const AdicionarFuncionariosForm = ({
   funcionarios,
   funcionariosNaFolha = [],
 }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Filtrar funcionários que já estão na folha
   const funcionariosDisponiveis = useMemo(() => {
-    const idsNaFolha = new Set(funcionariosNaFolha.map(f => f.funcionarioId || f.id));
-    return funcionarios.filter(f => !idsNaFolha.has(f.id) && f.status === "ATIVO");
+    if (!Array.isArray(funcionarios) || funcionarios.length === 0) {
+      return [];
+    }
+
+    if (!Array.isArray(funcionariosNaFolha) || funcionariosNaFolha.length === 0) {
+      return funcionarios;
+    }
+
+    // Extrair IDs dos funcionários que já estão na folha
+    const idsNaFolha = new Set();
+    
+    funcionariosNaFolha.forEach((lancamento) => {
+      if (lancamento.funcionarioId !== undefined && lancamento.funcionarioId !== null) {
+        const id = Number(lancamento.funcionarioId);
+        if (!isNaN(id)) {
+          idsNaFolha.add(id);
+        }
+      }
+    });
+    
+    // Filtrar funcionários que não estão na folha
+    return funcionarios.filter(f => {
+      const funcionarioId = Number(f.id);
+      return !idsNaFolha.has(funcionarioId);
+    });
   }, [funcionarios, funcionariosNaFolha]);
 
-  const handleChange = (value) => {
-    setSelectedIds(value);
-    if (erros.funcionarios && value.length > 0) {
+  // Filtrar por termo de busca
+  const funcionariosFiltrados = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return funcionariosDisponiveis;
+    }
+
+    const termo = searchTerm.toLowerCase().trim();
+    return funcionariosDisponiveis.filter(func => {
+      const nomeMatch = func.nome?.toLowerCase().includes(termo);
+      const cpfMatch = func.cpf?.toLowerCase().includes(termo);
+      const cargoMatch = func.cargo?.nome?.toLowerCase().includes(termo);
+      const funcaoMatch = func.funcao?.nome?.toLowerCase().includes(termo);
+      const gerenteMatch = func.gerente?.nome?.toLowerCase().includes(termo);
+      
+      return nomeMatch || cpfMatch || cargoMatch || funcaoMatch || gerenteMatch;
+    });
+  }, [funcionariosDisponiveis, searchTerm]);
+
+  const handleToggleFuncionario = (funcionarioId) => {
+    const id = Number(funcionarioId);
+    setSelectedIds(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(selectedId => selectedId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+    
+    if (erros.funcionarios) {
       setErros({ ...erros, funcionarios: undefined });
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.length === funcionariosFiltrados.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(funcionariosFiltrados.map(f => Number(f.id)));
     }
   };
 
@@ -73,50 +132,129 @@ const AdicionarFuncionariosForm = ({
           />
         ) : (
           <>
-            <Select
-              mode="multiple"
-              placeholder="Selecione um ou mais funcionários"
-              style={{ width: "100%" }}
+            {/* Barra de busca */}
+            <Input
+              placeholder="Buscar por nome, CPF, cargo, função ou gerente..."
+              prefix={<SearchOutlined style={{ color: "#999" }} />}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               size="large"
-              value={selectedIds}
-              onChange={handleChange}
-              status={erros.funcionarios ? "error" : ""}
-              filterOption={(input, option) =>
-                (option?.label || "").toLowerCase().includes(input.toLowerCase())
-              }
-              showSearch
-              maxTagCount="responsive"
+              style={{ marginBottom: "16px" }}
+              allowClear
+            />
+
+            {/* Selecionar todos */}
+            {funcionariosFiltrados.length > 0 && (
+              <div style={{ marginBottom: "12px", paddingBottom: "12px", borderBottom: "1px solid #e8e8e8" }}>
+                <Checkbox
+                  checked={selectedIds.length === funcionariosFiltrados.length && funcionariosFiltrados.length > 0}
+                  indeterminate={selectedIds.length > 0 && selectedIds.length < funcionariosFiltrados.length}
+                  onChange={handleSelectAll}
+                >
+                  <Text strong style={{ fontSize: "14px" }}>
+                    Selecionar todos ({funcionariosFiltrados.length})
+                  </Text>
+                </Checkbox>
+              </div>
+            )}
+
+            {/* Lista de cards */}
+            <div
+              style={{
+                maxHeight: "400px",
+                overflowY: "auto",
+                paddingRight: "8px",
+              }}
             >
-              {funcionariosDisponiveis.map((func) => (
-                <Select.Option key={func.id} value={func.id} label={capitalizeName(func.nome)}>
-                  <div>
-                    <div>
-                      <Text strong>{capitalizeName(func.nome)}</Text>
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#999", marginTop: "2px" }}>
-                      {func.tipoContrato === "CLT" ? (
-                        <>
-                          <Tag color="green" style={{ marginRight: 4, fontSize: "11px" }}>
-                            CLT
-                          </Tag>
-                          {func.cargo?.nome && <span>{func.cargo.nome}</span>}
-                        </>
-                      ) : (
-                        <>
-                          <Tag color="blue" style={{ marginRight: 4, fontSize: "11px" }}>
-                            DIARISTA
-                          </Tag>
-                          {func.funcao?.nome && <span>{func.funcao.nome}</span>}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </Select.Option>
-              ))}
-            </Select>
+              {funcionariosFiltrados.length === 0 ? (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Nenhum funcionário encontrado com o termo de busca"
+                  style={{ margin: "40px 0" }}
+                />
+              ) : (
+                <Row gutter={[12, 12]}>
+                  {funcionariosFiltrados.map((func) => {
+                    const isSelected = selectedIds.includes(Number(func.id));
+                    const tipoContrato = func.tipoContrato;
+                    
+                    return (
+                      <Col xs={24} sm={12} md={12} key={func.id}>
+                        <Card
+                          hoverable
+                          onClick={() => handleToggleFuncionario(func.id)}
+                          style={{
+                            cursor: "pointer",
+                            border: isSelected ? "2px solid #059669" : "1px solid #e8e8e8",
+                            backgroundColor: isSelected ? "#f0fdf4" : "#ffffff",
+                            transition: "all 0.2s ease",
+                          }}
+                          bodyStyle={{ padding: "12px" }}
+                        >
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={() => handleToggleFuncionario(func.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                                <UserOutlined style={{ color: "#059669", fontSize: "16px" }} />
+                                <Text strong style={{ fontSize: "14px", color: "#333" }}>
+                                  {capitalizeName(func.nome)}
+                                </Text>
+                              </div>
+                              
+                              <div style={{ marginBottom: "6px" }}>
+                                <Space size="small">
+                                  <Tag
+                                    color={tipoContrato === "MENSALISTA" ? "#10b981" : tipoContrato === "DIARISTA" ? "#06b6d4" : "#f59e0b"}
+                                    style={{ fontSize: "11px", fontWeight: "600" }}
+                                  >
+                                    {tipoContrato === "MENSALISTA" ? "Mensalista" : tipoContrato === "DIARISTA" ? "Diarista" : tipoContrato}
+                                  </Tag>
+                                  {func.cargo?.nome && (
+                                    <Tag color="#722ed1" style={{ fontSize: "11px" }}>
+                                      {func.cargo.nome}
+                                    </Tag>
+                                  )}
+                                  {func.funcao?.nome && (
+                                    <Tag color="#13c2c2" style={{ fontSize: "11px" }}>
+                                      {func.funcao.nome}
+                                    </Tag>
+                                  )}
+                                </Space>
+                              </div>
+
+                              {func.cpf && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px" }}>
+                                  <IdcardOutlined style={{ color: "#999", fontSize: "12px" }} />
+                                  <Text style={{ fontSize: "12px", color: "#666" }}>
+                                    {formatarCPF(func.cpf)}
+                                  </Text>
+                                </div>
+                              )}
+
+                              {func.gerente && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px" }}>
+                                  <TeamOutlined style={{ color: "#059669", fontSize: "12px" }} />
+                                  <Text style={{ fontSize: "12px", color: "#666" }}>
+                                    Gerente: <Text strong style={{ color: "#059669" }}>{capitalizeName(func.gerente.nome)}</Text>
+                                  </Text>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      </Col>
+                    );
+                  })}
+                </Row>
+              )}
+            </div>
 
             {erros.funcionarios && (
-              <Text type="danger" style={{ fontSize: "12px", marginTop: "8px", display: "block" }}>
+              <Text type="danger" style={{ fontSize: "12px", marginTop: "12px", display: "block" }}>
                 {erros.funcionarios}
               </Text>
             )}
@@ -132,8 +270,7 @@ const AdicionarFuncionariosForm = ({
                 }}
               >
                 <Text strong style={{ color: "#059669" }}>
-                  {selectedIds.length} funcionário{selectedIds.length > 1 ? "s" : ""} selecionado
-                  {selectedIds.length > 1 ? "s" : ""}
+                  {selectedIds.length} funcionário{selectedIds.length > 1 ? "s" : ""} selecionado{selectedIds.length > 1 ? "s" : ""}
                 </Text>
               </div>
             )}

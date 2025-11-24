@@ -10,6 +10,7 @@ import {
   DollarOutlined,
 } from "@ant-design/icons";
 import { IMaskInput } from "react-imask";
+import { capitalizeName } from "../../../utils/formatters";
 
 const { Text } = Typography;
 
@@ -33,6 +34,7 @@ const FuncionarioForm = ({
   setFuncionarioAtual,
   cargos,
   funcoes,
+  gerentes,
   erros,
   setErros,
 }) => {
@@ -55,14 +57,21 @@ const FuncionarioForm = ({
           }));
         }
       }
-      // Se mudou para MENSALISTA, limpar funcaoId
+      // Se mudou para MENSALISTA, limpar funcaoId e gerenteId
       if (value === "MENSALISTA") {
         newData.funcaoId = undefined;
-        // Limpar erro de funcaoId
+        newData.gerenteId = undefined;
+        // Limpar erro de funcaoId e gerenteId
         if (erros.funcaoId) {
           setErros((prev) => ({
             ...prev,
             funcaoId: undefined,
+          }));
+        }
+        if (erros.gerenteId) {
+          setErros((prev) => ({
+            ...prev,
+            gerenteId: undefined,
           }));
         }
       }
@@ -352,32 +361,68 @@ const FuncionarioForm = ({
               </Col>
             )}
             {isDiarista && (
-              <Col xs={24} md={12}>
-                <Form.Item
-                  label={
-                    <Space>
-                      <BankOutlined style={{ color: "#059669" }} />
-                      <Text strong>Função Diarista</Text>
-                    </Space>
-                  }
-                  validateStatus={erros.funcaoId ? "error" : ""}
-                  help={erros.funcaoId}
-                  required
-                >
-                  <Select
-                    placeholder="Escolha a função diarista"
-                    value={funcionarioAtual.funcaoId || undefined}
-                    onChange={(value) => handleChange("funcaoId", value)}
-                    size="large"
+              <>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={
+                      <Space>
+                        <BankOutlined style={{ color: "#059669" }} />
+                        <Text strong>Função Diarista</Text>
+                      </Space>
+                    }
+                    validateStatus={erros.funcaoId ? "error" : ""}
+                    help={erros.funcaoId}
+                    required
                   >
-                    {funcoes.map((funcao) => (
-                      <Select.Option value={funcao.id} key={funcao.id}>
-                        {funcao.nome}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              </Col>
+                    <Select
+                      placeholder="Escolha a função diarista"
+                      value={funcionarioAtual.funcaoId || undefined}
+                      onChange={(value) => handleChange("funcaoId", value)}
+                      size="large"
+                    >
+                      {funcoes.map((funcao) => (
+                        <Select.Option value={funcao.id} key={funcao.id}>
+                          {funcao.nome}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={
+                      <Space>
+                        <UserOutlined style={{ color: "#059669" }} />
+                        <Text strong>Gerente</Text>
+                      </Space>
+                    }
+                    validateStatus={erros.gerenteId ? "error" : ""}
+                    help={erros.gerenteId || "Selecione o gerente responsável (opcional)"}
+                  >
+                    <Select
+                      placeholder="Selecione o gerente"
+                      value={funcionarioAtual.gerenteId || undefined}
+                      onChange={(value) => handleChange("gerenteId", value)}
+                      allowClear
+                      size="large"
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                      }
+                    >
+                      {gerentes.map((gerente) => (
+                        <Select.Option 
+                          value={gerente.id} 
+                          key={gerente.id}
+                          label={`${capitalizeName(gerente.nome)} - ${gerente.cargo?.nome || ""}`}
+                        >
+                          {capitalizeName(gerente.nome)} {gerente.cargo && `- ${gerente.cargo.nome}`}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </>
             )}
           </Row>
         </Card>
@@ -418,12 +463,12 @@ const FuncionarioForm = ({
                 }
                 validateStatus={erros.tipoChavePix ? "error" : ""}
                 help={erros.tipoChavePix}
+                required
               >
                 <Select
                   placeholder="Selecione o tipo"
                   value={funcionarioAtual.tipoChavePix}
                   onChange={handleTipoChavePixChange}
-                  allowClear
                   size="large"
                 >
                   <Select.Option value={1}>{TIPOS_CHAVE_PIX[1]}</Select.Option>
@@ -443,6 +488,7 @@ const FuncionarioForm = ({
                 }
                 validateStatus={erros.chavePix ? "error" : ""}
                 help={erros.chavePix}
+                required
               >
                 <Input
                   placeholder="CPF, e-mail, telefone ou chave aleatória"
@@ -463,9 +509,12 @@ const FuncionarioForm = ({
                     <Text strong>Responsável Chave PIX</Text>
                   </Space>
                 }
+                validateStatus={erros.responsavelChavePix ? "error" : ""}
+                help={erros.responsavelChavePix}
+                required
               >
                 <Input
-                  placeholder="Nome do responsável pela chave PIX (se diferente do funcionário)"
+                  placeholder="Nome do responsável pela chave PIX"
                   value={funcionarioAtual.responsavelChavePix || ""}
                   onChange={(e) =>
                     handleChange("responsavelChavePix", e.target.value)
@@ -486,6 +535,7 @@ FuncionarioForm.propTypes = {
   setFuncionarioAtual: PropTypes.func.isRequired,
   cargos: PropTypes.array.isRequired,
   funcoes: PropTypes.array.isRequired,
+  gerentes: PropTypes.array.isRequired,
   erros: PropTypes.object,
   setErros: PropTypes.func,
 };

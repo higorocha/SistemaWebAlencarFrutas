@@ -141,5 +141,11 @@ export class CreateFuncionarioDto {
   @IsOptional()
   @IsDateString()
   dataDemissao?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  gerenteId?: number;
 }
 

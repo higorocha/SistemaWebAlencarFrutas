@@ -5,12 +5,13 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, StatusFuncionario, TipoContratoFuncionario } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCargoDto } from './dto/create-cargo.dto';
 import { UpdateCargoDto } from './dto/update-cargo.dto';
 import { ListCargoQueryDto } from './dto/list-cargo-query.dto';
 import { UpdateCargoStatusDto } from './dto/update-cargo-status.dto';
+import { capitalizeName } from '../../utils/formatters';
 
 @Injectable()
 export class CargosService {
@@ -71,7 +72,13 @@ export class CargosService {
   }
 
   async update(id: number, dto: UpdateCargoDto) {
-    await this.ensureExists(id);
+    const cargoAtual = await this.ensureExists(id);
+    
+    // Validar se está tentando desmarcar cargo gerencial que tem gerentes com subordinados
+    if (dto.isGerencial === false && cargoAtual.isGerencial === true) {
+      await this.validarDesmarcarGerencial(id);
+    }
+    
     try {
       return await this.prisma.cargo.update({
         where: { id },
@@ -104,6 +111,7 @@ export class CargosService {
         dto.adicionalPericulosidade !== undefined
           ? new Prisma.Decimal(dto.adicionalPericulosidade)
           : null,
+      isGerencial: dto.isGerencial ?? false,
       ativo: dto.ativo ?? true,
     };
   }
@@ -130,6 +138,9 @@ export class CargosService {
         dto.adicionalPericulosidade,
       );
     }
+    if (dto.isGerencial !== undefined) {
+      data.isGerencial = dto.isGerencial;
+    }
     if (dto.ativo !== undefined) {
       data.ativo = dto.ativo;
     }
@@ -143,6 +154,59 @@ export class CargosService {
       throw new NotFoundException('Cargo não encontrado.');
     }
     return cargo;
+  }
+
+  private async validarDesmarcarGerencial(cargoId: number) {
+    // Buscar funcionários mensalistas ativos com esse cargo
+    const funcionariosMensalistas = await this.prisma.funcionario.findMany({
+      where: {
+        cargoId,
+        status: StatusFuncionario.ATIVO,
+        tipoContrato: TipoContratoFuncionario.MENSALISTA,
+      },
+      select: {
+        id: true,
+        nome: true,
+      },
+    });
+
+    if (funcionariosMensalistas.length === 0) {
+      // Se não há funcionários mensalistas, pode desmarcar
+      return;
+    }
+
+    // Verificar se algum desses funcionários tem subordinados (diaristas vinculados)
+    const funcionariosComSubordinados: Array<{
+      nome: string;
+      quantidadeSubordinados: number;
+    }> = [];
+    
+    for (const funcionario of funcionariosMensalistas) {
+      const subordinados = await this.prisma.funcionario.count({
+        where: {
+          gerenteId: funcionario.id,
+          status: StatusFuncionario.ATIVO,
+        },
+      });
+
+      if (subordinados > 0) {
+        funcionariosComSubordinados.push({
+          nome: funcionario.nome,
+          quantidadeSubordinados: subordinados,
+        });
+      }
+    }
+
+    if (funcionariosComSubordinados.length > 0) {
+      const nomesGerentes = funcionariosComSubordinados
+        .map((f) => `${capitalizeName(f.nome)} (${f.quantidadeSubordinados} subordinado${f.quantidadeSubordinados > 1 ? 's' : ''})`)
+        .join(', ');
+
+      throw new BadRequestException(
+        `Não é possível desmarcar este cargo como gerencial. Os seguintes funcionários com este cargo possuem funcionários diaristas vinculados: ${nomesGerentes}. ` +
+        `Primeiro, remova os vínculos de gerência ou altere o gerente dos funcionários diaristas.`,
+      );
+    }
   }
 
   private handlePrismaError(error: any): never {

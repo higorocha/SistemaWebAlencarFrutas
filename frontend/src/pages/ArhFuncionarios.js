@@ -51,9 +51,10 @@ const ArhFuncionarios = () => {
   const [funcionarioEditando, setFuncionarioEditando] = useState(null);
   const [dadosTemporarios, setDadosTemporarios] = useState(null);
 
-  // Estados para cargos e funções
+  // Estados para cargos, funções e gerentes
   const [cargos, setCargos] = useState([]);
   const [funcoes, setFuncoes] = useState([]);
+  const [gerentes, setGerentes] = useState([]);
 
   const isGerenteCultura = user?.nivel === "GERENTE_CULTURA";
   const canCreate = !isGerenteCultura;
@@ -65,11 +66,12 @@ const ArhFuncionarios = () => {
       setLoadingMessage("Carregando funcionários...");
       setLoading(true);
 
-      // Buscar todos os registros de funcionários, cargos e funções
-      const [funcRes, cargoRes, funcaoRes] = await Promise.all([
+      // Buscar todos os registros de funcionários, cargos, funções e gerentes
+      const [funcRes, cargoRes, funcaoRes, gerentesRes] = await Promise.all([
         axiosInstance.get("/api/arh/funcionarios", { params: { limit: 100 } }),
         axiosInstance.get("/api/arh/cargos/ativos"),
         axiosInstance.get("/api/arh/funcoes/ativas"),
+        axiosInstance.get("/api/arh/funcionarios/gerentes"),
       ]);
 
       const lista = funcRes.data?.data || funcRes.data || [];
@@ -81,6 +83,7 @@ const ArhFuncionarios = () => {
 
       setCargos(cargoRes.data || []);
       setFuncoes(funcaoRes.data || []);
+      setGerentes(gerentesRes.data || []);
     } catch (error) {
       console.error("Erro ao buscar funcionários:", error);
       showNotification("error", "Erro", "Erro ao carregar funcionários");
@@ -402,6 +405,7 @@ const ArhFuncionarios = () => {
           funcionario={funcionarioEditando}
           cargos={cargos}
           funcoes={funcoes}
+          gerentes={gerentes}
         />
       </Suspense>
 

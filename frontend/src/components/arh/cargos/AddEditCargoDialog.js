@@ -21,6 +21,7 @@ const AddEditCargoDialog = ({
     salarioMensal: 0,
     cargaHorariaMensal: undefined,
     adicionalPericulosidade: undefined,
+    isGerencial: false,
     ativo: true,
   });
   const [editando, setEditando] = useState(false);
@@ -55,6 +56,7 @@ const AddEditCargoDialog = ({
         salarioMensal: Number(cargo.salarioMensal || 0),
         cargaHorariaMensal: cargo.cargaHorariaMensal || undefined,
         adicionalPericulosidade: cargo.adicionalPericulosidade || undefined,
+        isGerencial: cargo.isGerencial === true,
         ativo: cargo.ativo !== false,
       });
       setEditando(true);
@@ -65,6 +67,7 @@ const AddEditCargoDialog = ({
         salarioMensal: 0,
         cargaHorariaMensal: undefined,
         adicionalPericulosidade: undefined,
+        isGerencial: false,
         ativo: true,
       });
       setEditando(false);
@@ -109,6 +112,7 @@ const AddEditCargoDialog = ({
       salarioMensal: 0,
       cargaHorariaMensal: undefined,
       adicionalPericulosidade: undefined,
+      isGerencial: false,
       ativo: true,
     });
     setErros({});

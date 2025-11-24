@@ -3,7 +3,7 @@
 import React, { useMemo } from "react";
 import PropTypes from "prop-types";
 import { Tag, Button, Space, Switch, Empty, Typography, Dropdown } from "antd";
-import { EditOutlined, MoreOutlined } from "@ant-design/icons";
+import { EditOutlined, MoreOutlined, CheckCircleOutlined, StopOutlined } from "@ant-design/icons";
 import ResponsiveTable from "../../common/ResponsiveTable";
 import useResponsive from "../../../hooks/useResponsive";
 
@@ -42,7 +42,12 @@ const CargosTable = ({
         key: "toggle",
         label: (
           <Space>
-            <span style={{ color: record.ativo ? "#ff4d4f" : "#52c41a" }}>
+            {record.ativo ? (
+              <StopOutlined style={{ color: "#ff4d4f" }} />
+            ) : (
+              <CheckCircleOutlined style={{ color: "#52c41a" }} />
+            )}
+            <span style={{ color: "#333" }}>
               {record.ativo ? "Inativar" : "Ativar"}
             </span>
           </Space>
@@ -93,6 +98,30 @@ const CargosTable = ({
           <Text style={{ color: "#666666" }}>{value ? `${value}%` : "—"}</Text>
         ),
         sorter: (a, b) => (a.adicionalPericulosidade || 0) - (b.adicionalPericulosidade || 0),
+      },
+      {
+        title: "Gerencial",
+        dataIndex: "isGerencial",
+        key: "isGerencial",
+        width: 110,
+        render: (isGerencial) => (
+          <Tag
+            color={isGerencial ? "#722ed1" : "#d9d9d9"}
+            style={{
+              borderRadius: "4px",
+              fontWeight: "500",
+              fontSize: "12px",
+              border: "none",
+            }}
+          >
+            {isGerencial ? "Sim" : "Não"}
+          </Tag>
+        ),
+        filters: [
+          { text: "Gerencial", value: true },
+          { text: "Não Gerencial", value: false },
+        ],
+        onFilter: (value, record) => record.isGerencial === value,
       },
       {
         title: "Status",

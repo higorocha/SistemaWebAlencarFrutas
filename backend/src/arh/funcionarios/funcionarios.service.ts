@@ -62,6 +62,13 @@ export class FuncionariosService {
         include: {
           cargo: true,
           funcao: true,
+          gerente: {
+            select: {
+              id: true,
+              nome: true,
+              cpf: true,
+            },
+          },
         },
       }),
       this.prisma.funcionario.count({ where }),
@@ -88,6 +95,50 @@ export class FuncionariosService {
         tipoContrato: true,
         cargoId: true,
         funcaoId: true,
+        gerenteId: true,
+        cargo: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        funcao: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        gerente: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+      orderBy: { nome: 'asc' },
+    });
+  }
+
+  async listGerentes() {
+    return this.prisma.funcionario.findMany({
+      where: {
+        status: StatusFuncionario.ATIVO,
+        tipoContrato: TipoContratoFuncionario.MENSALISTA,
+        cargo: {
+          isGerencial: true,
+          ativo: true,
+        },
+      },
+      select: {
+        id: true,
+        nome: true,
+        cpf: true,
+        cargo: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
       },
       orderBy: { nome: 'asc' },
     });
@@ -96,7 +147,17 @@ export class FuncionariosService {
   async findOne(id: number) {
     const funcionario = await this.prisma.funcionario.findUnique({
       where: { id },
-      include: { cargo: true, funcao: true },
+      include: {
+        cargo: true,
+        funcao: true,
+        gerente: {
+          select: {
+            id: true,
+            nome: true,
+            cpf: true,
+          },
+        },
+      },
     });
     if (!funcionario) {
       throw new NotFoundException('Funcionário não encontrado.');
@@ -175,6 +236,30 @@ export class FuncionariosService {
       tipoContrato !== TipoContratoFuncionario.MENSALISTA
     ) {
       await this.ensureFuncao(dto.funcaoId);
+    }
+
+    // Validar gerenteId
+    const gerenteIdTarget = dto.gerenteId ?? options.current?.gerenteId ?? undefined;
+    if (dto.gerenteId !== undefined || gerenteIdTarget !== undefined) {
+      // Só permite gerenteId para funcionários DIARISTAS
+      if (tipoContrato !== TipoContratoFuncionario.DIARISTA) {
+        throw new BadRequestException(
+          'Apenas funcionários diaristas podem ter um gerente vinculado.',
+        );
+      }
+
+      // Se está definindo um gerente, validar
+      if (dto.gerenteId !== undefined && dto.gerenteId !== null) {
+        // Não pode ser gerente de si mesmo (apenas no update)
+        if (options.mode === 'update' && options.current?.id === dto.gerenteId) {
+          throw new BadRequestException(
+            'Um funcionário não pode ser gerente de si mesmo.',
+          );
+        }
+
+        // Validar que o gerente existe e é válido
+        await this.ensureGerente(dto.gerenteId);
+      }
     }
 
     const data =
@@ -287,6 +372,12 @@ export class FuncionariosService {
       data.status = dto.status ?? StatusFuncionario.ATIVO;
     }
 
+    if (dto.gerenteId !== undefined) {
+      data.gerenteId = dto.gerenteId ?? null;
+    } else if (options.mode === 'create') {
+      data.gerenteId = gerenteIdTarget ?? null;
+    }
+
     return data;
   }
 
@@ -308,6 +399,43 @@ export class FuncionariosService {
       throw new NotFoundException('Função não encontrada ou inativa.');
     }
     return funcao;
+  }
+
+  private async ensureGerente(id: number) {
+    const gerente = await this.prisma.funcionario.findUnique({
+      where: { id },
+      include: {
+        cargo: true,
+      },
+    });
+
+    if (!gerente) {
+      throw new NotFoundException('Gerente não encontrado.');
+    }
+
+    if (gerente.status !== StatusFuncionario.ATIVO) {
+      throw new BadRequestException('O gerente deve estar ativo.');
+    }
+
+    if (gerente.tipoContrato !== TipoContratoFuncionario.MENSALISTA) {
+      throw new BadRequestException(
+        'Apenas funcionários mensalistas podem ser gerentes.',
+      );
+    }
+
+    if (!gerente.cargo) {
+      throw new BadRequestException(
+        'O gerente deve ter um cargo vinculado.',
+      );
+    }
+
+    if (!gerente.cargo.isGerencial) {
+      throw new BadRequestException(
+        'O cargo do gerente deve ser marcado como gerencial.',
+      );
+    }
+
+    return gerente;
   }
 
   private handlePrismaError(error: any): never {

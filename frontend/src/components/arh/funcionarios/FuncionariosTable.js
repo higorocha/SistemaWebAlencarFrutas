@@ -6,7 +6,7 @@ import { EditOutlined, MoreOutlined, InfoCircleOutlined, CheckCircleOutlined, St
 import PropTypes from "prop-types";
 import { showNotification } from "../../../config/notificationConfig";
 import ResponsiveTable from "../../common/ResponsiveTable";
-import { capitalizeName } from "../../../utils/formatters";
+import { capitalizeName, formatarCPF, formatarChavePixPorTipo } from "../../../utils/formatters";
 import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
 
 const { Text } = Typography;
@@ -163,7 +163,7 @@ const FuncionariosTable = React.memo(
         title: "Nome",
         dataIndex: "nome",
         key: "nome",
-        width: 180,
+        width: 160,
         sorter: (a, b) => a.nome.localeCompare(b.nome),
         render: (text) => (
           <Text
@@ -182,10 +182,10 @@ const FuncionariosTable = React.memo(
         title: "CPF",
         dataIndex: "cpf",
         key: "cpf",
-        width: 150,
+        width: 130,
         render: (cpf) => (
           <Text style={{ color: "#333333", fontSize: "12px" }}>
-            {cpf || "—"}
+            {cpf ? formatarCPF(cpf) : "—"}
           </Text>
         ),
       },
@@ -193,11 +193,11 @@ const FuncionariosTable = React.memo(
         title: "Chave PIX",
         dataIndex: "chavePix",
         key: "chavePix",
-        width: 240,
+        width: 200,
         render: (chavePix, record) => (
           <div>
             <Text style={{ color: "#333333", fontSize: "12px" }}>
-              {chavePix || "—"}
+              {chavePix ? formatarChavePixPorTipo(chavePix, record.tipoChavePix) : "—"}
             </Text>
             {record.modalidadeChave && (
               <div style={{ fontSize: "11px", color: "#999999", marginTop: "2px" }}>
@@ -211,13 +211,13 @@ const FuncionariosTable = React.memo(
         title: "Contrato",
         dataIndex: "tipoContrato",
         key: "tipoContrato",
-        width: 130,
+        width: 110,
         render: (tipo) => formatarTipoContrato(tipo),
       },
       {
         title: "Cargo / Função",
         key: "vinculo",
-        width: 160,
+        width: 150,
         render: (_, record) => (
           <Text style={{ color: "#333333", fontSize: "12px" }}>
             {record.cargo?.nome || record.funcao?.nome || "—"}
@@ -225,9 +225,19 @@ const FuncionariosTable = React.memo(
         ),
       },
       {
+        title: "Gerente",
+        key: "gerente",
+        width: 150,
+        render: (_, record) => (
+          <Text style={{ color: "#333333", fontSize: "12px" }}>
+            {record.gerente?.nome ? capitalizeName(record.gerente.nome) : "—"}
+          </Text>
+        ),
+      },
+      {
         title: "Salário / Diária",
         key: "valor",
-        width: 140,
+        width: 130,
         render: (_, record) => {
           if (record.tipoContrato === "DIARISTA") {
             const valor =

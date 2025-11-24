@@ -9,6 +9,7 @@ const { Text } = Typography;
 
 // Estilos para sobrescrever hover padrão do Ant Design
 const tableStyles = `
+  /* Folha selecionada - sempre destaque laranja */
   .folha-selecionada:hover > td {
     background-color: #fa8c16 !important;
   }
@@ -21,11 +22,63 @@ const tableStyles = `
   .folha-selecionada > td:first-child {
     padding-left: 16px !important;
   }
-  .folha-normal:hover > td {
-    background-color: #fff7e6 !important;
-  }
   .ant-table-tbody > tr.folha-selecionada {
     box-shadow: 0 3px 10px rgba(250, 140, 22, 0.25) !important;
+  }
+
+  /* RASCUNHO - Cinza claro */
+  .folha-status-rascunho:hover > td {
+    background-color: #f0f0f0 !important;
+  }
+  .folha-status-rascunho > td {
+    background-color: #fafafa !important;
+  }
+  .ant-table-tbody > tr.folha-status-rascunho {
+    border-left: 4px solid #d9d9d9 !important;
+  }
+
+  /* PENDENTE_LIBERACAO - Laranja claro */
+  .folha-status-pendente-liberacao:hover > td {
+    background-color: #ffe7ba !important;
+  }
+  .folha-status-pendente-liberacao > td {
+    background-color: #fff7e6 !important;
+  }
+  .ant-table-tbody > tr.folha-status-pendente-liberacao {
+    border-left: 4px solid #faad14 !important;
+  }
+
+  /* EM_PROCESSAMENTO - Azul claro */
+  .folha-status-em-processamento:hover > td {
+    background-color: #bae7ff !important;
+  }
+  .folha-status-em-processamento > td {
+    background-color: #e6f7ff !important;
+  }
+  .ant-table-tbody > tr.folha-status-em-processamento {
+    border-left: 4px solid #1890ff !important;
+  }
+
+  /* FECHADA - Verde claro */
+  .folha-status-fechada:hover > td {
+    background-color: #b7eb8f !important;
+  }
+  .folha-status-fechada > td {
+    background-color: #f6ffed !important;
+  }
+  .ant-table-tbody > tr.folha-status-fechada {
+    border-left: 4px solid #52c41a !important;
+  }
+
+  /* CANCELADA - Vermelho claro */
+  .folha-status-cancelada:hover > td {
+    background-color: #ffccc7 !important;
+  }
+  .folha-status-cancelada > td {
+    background-color: #fff2f0 !important;
+  }
+  .ant-table-tbody > tr.folha-status-cancelada {
+    border-left: 4px solid #ff4d4f !important;
   }
 `;
 
@@ -146,38 +199,39 @@ const FolhasTable = React.memo(
           bordered={true}
           size="middle"
           showScrollHint={true}
-          rowClassName={(record) => 
-            record.id === selectedFolhaId ? "folha-selecionada" : "folha-normal"
-          }
-          onRow={(record) => ({
-            onClick: () => onSelectFolha(record.id),
-            style: {
-              cursor: "pointer",
-              backgroundColor:
-                record.id === selectedFolhaId ? "#fa8c16" : "transparent",
-              transition: "transform 0.2s ease, border-left 0.2s ease",
-              borderLeft: record.id === selectedFolhaId ? "4px solid #d46b08" : "4px solid transparent",
-              fontWeight: record.id === selectedFolhaId ? "700" : "400",
-            },
-            onMouseEnter: (e) => {
-              if (record.id !== selectedFolhaId) {
-                // Hover para linhas não selecionadas: laranja claro + movimento
-                e.currentTarget.style.transform = "translateX(4px)";
-                e.currentTarget.style.borderLeft = "4px solid #ffc069";
-              } else {
-                // Hover para linha selecionada: apenas movimento (SEM mudança de cor)
-                e.currentTarget.style.transform = "translateX(3px)";
-              }
-            },
-            onMouseLeave: (e) => {
-              if (record.id !== selectedFolhaId) {
+          rowClassName={(record) => {
+            // Se estiver selecionada, sempre retorna classe de selecionada
+            if (record.id === selectedFolhaId) {
+              return "folha-selecionada";
+            }
+            // Caso contrário, retorna classe baseada no status
+            const statusClass = `folha-status-${record.status?.toLowerCase().replace(/_/g, "-") || "rascunho"}`;
+            return statusClass;
+          }}
+          onRow={(record) => {
+            const isSelected = record.id === selectedFolhaId;
+            return {
+              onClick: () => onSelectFolha(record.id),
+              style: {
+                cursor: "pointer",
+                backgroundColor: isSelected ? "#fa8c16" : "transparent",
+                transition: "transform 0.2s ease",
+                fontWeight: isSelected ? "700" : "400",
+              },
+              onMouseEnter: (e) => {
+                if (!isSelected) {
+                  // Hover para linhas não selecionadas: movimento suave
+                  e.currentTarget.style.transform = "translateX(4px)";
+                } else {
+                  // Hover para linha selecionada: apenas movimento (SEM mudança de cor)
+                  e.currentTarget.style.transform = "translateX(3px)";
+                }
+              },
+              onMouseLeave: (e) => {
                 e.currentTarget.style.transform = "translateX(0)";
-                e.currentTarget.style.borderLeft = "4px solid transparent";
-              } else {
-                e.currentTarget.style.transform = "translateX(0)";
-              }
-            },
-          })}
+              },
+            };
+          }}
           locale={{
             emptyText: (
               <Empty
@@ -196,7 +250,7 @@ FolhasTable.propTypes = {
   folhas: PropTypes.array.isRequired,
   loading: PropTypes.bool,
   onSelectFolha: PropTypes.func.isRequired,
-  selectedFolhaId: PropTypes.string,
+  selectedFolhaId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
 };
 
 export default FolhasTable;

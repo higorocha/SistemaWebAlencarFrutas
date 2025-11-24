@@ -15,6 +15,7 @@ const AddEditFuncionarioDialog = ({
   funcionario,
   cargos,
   funcoes,
+  gerentes,
 }) => {
   const [funcionarioAtual, setFuncionarioAtual] = useState({
     nome: "",
@@ -27,6 +28,7 @@ const AddEditFuncionarioDialog = ({
     tipoContrato: "MENSALISTA",
     cargoId: undefined,
     funcaoId: undefined,
+    gerenteId: undefined,
     tipoChavePix: undefined,
     modalidadeChave: "",
     chavePix: "",
@@ -67,6 +69,7 @@ const AddEditFuncionarioDialog = ({
         tipoContrato: funcionario.tipoContrato || "MENSALISTA",
         cargoId: funcionario.cargoId ?? undefined,
         funcaoId: funcionario.funcaoId ?? undefined,
+        gerenteId: funcionario.gerenteId ?? undefined,
         tipoChavePix: funcionario.tipoChavePix ?? undefined,
         modalidadeChave: funcionario.modalidadeChave || "",
         chavePix: funcionario.chavePix || "",
@@ -85,6 +88,7 @@ const AddEditFuncionarioDialog = ({
         tipoContrato: "MENSALISTA",
         cargoId: undefined,
         funcaoId: undefined,
+        gerenteId: undefined,
         tipoChavePix: undefined,
         chavePix: "",
         responsavelChavePix: "",
@@ -126,6 +130,21 @@ const AddEditFuncionarioDialog = ({
       novosErros.funcaoId = "Função é obrigatória para diaristas";
     }
 
+    // Validação para Tipo da Chave PIX
+    if (!funcionarioAtual.tipoChavePix) {
+      novosErros.tipoChavePix = "Tipo da Chave PIX é obrigatório";
+    }
+
+    // Validação para Chave PIX
+    if (!funcionarioAtual.chavePix?.trim()) {
+      novosErros.chavePix = "Chave PIX é obrigatória";
+    }
+
+    // Validação para Responsável Chave PIX
+    if (!funcionarioAtual.responsavelChavePix?.trim()) {
+      novosErros.responsavelChavePix = "Responsável pela Chave PIX é obrigatório";
+    }
+
     setErros(novosErros);
     return Object.keys(novosErros).length === 0;
   };
@@ -140,6 +159,7 @@ const AddEditFuncionarioDialog = ({
       ...funcionarioAtual,
       cargoId: funcionarioAtual.cargoId || undefined,
       funcaoId: funcionarioAtual.funcaoId || undefined,
+      gerenteId: funcionarioAtual.gerenteId || undefined,
     };
 
     // Chamar onSave e deixar o componente pai controlar o fechamento
@@ -216,6 +236,7 @@ const AddEditFuncionarioDialog = ({
           setFuncionarioAtual={setFuncionarioAtual}
           cargos={cargos}
           funcoes={funcoes}
+          gerentes={gerentes}
           erros={erros}
           setErros={setErros}
         />
@@ -273,6 +294,7 @@ AddEditFuncionarioDialog.propTypes = {
   funcionario: PropTypes.object,
   cargos: PropTypes.array.isRequired,
   funcoes: PropTypes.array.isRequired,
+  gerentes: PropTypes.array.isRequired,
 };
 
 export default AddEditFuncionarioDialog;

@@ -801,6 +801,46 @@ const Pedidos = () => {
     }
   }, [fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, pedidoSelecionado]);
 
+  // Função para executar job de finalização de pedidos zerados manualmente
+  const handleExecutarJobFinalizacao = useCallback(async () => {
+    try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Executando job de finalização de pedidos zerados...");
+      setLoading(true);
+
+      const response = await axiosInstance.post('/api/pedidos-finalizacao-job/executar');
+      
+      const { processados, finalizados, erros } = response.data;
+
+      if (finalizados > 0) {
+        showNotification(
+          "success",
+          "Job Executado",
+          `${finalizados} pedido(s) finalizado(s) automaticamente. ${processados} pedido(s) processado(s).${erros > 0 ? ` ${erros} erro(s) encontrado(s).` : ''}`
+        );
+      } else {
+        showNotification(
+          "info",
+          "Job Executado",
+          `Nenhum pedido para finalizar. ${processados} pedido(s) verificado(s).`
+        );
+      }
+
+      // Recarregar lista de pedidos após execução
+      setLoadingMessage("Atualizando lista de pedidos...");
+      const { dataInicio, dataFim, tipoData } = getActiveDateParams();
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
+
+    } catch (error) {
+      console.error("Erro ao executar job de finalização:", error);
+      const message = error.response?.data?.message || "Erro ao executar job de finalização de pedidos";
+      showNotification("error", "Erro", message);
+    } finally {
+      setLoading(false);
+      setCentralizedLoading(false);
+    }
+  }, [fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, getActiveDateParams]);
+
   // Função para quando ajustes financeiros são salvos (frete, ICMS, desconto, avaria)
   const handleAjustesSalvos = useCallback(async () => {
     try {
@@ -1315,6 +1355,22 @@ const Pedidos = () => {
         >
           {isMobile ? 'Pagamentos' : 'Pagamentos Automáticos'}
         </PrimaryButton>
+        <SecondaryButton
+          icon={<CheckCircleOutlined />}
+          onClick={handleExecutarJobFinalizacao}
+          loading={loading}
+          size={isMobile ? "small" : (isTablet ? "small" : "large")}
+          style={{
+            height: isMobile ? '32px' : (isTablet ? '36px' : '40px'),
+            padding: isMobile ? '0 12px' : (isTablet ? '0 14px' : '0 16px'),
+            fontSize: isMobile ? '0.75rem' : undefined,
+            backgroundColor: '#fff7e6',
+            borderColor: '#ffd591',
+            color: '#d46b08'
+          }}
+        >
+          {isMobile ? 'Finalizar Pedidos' : 'Finalizar Pedidos Zerados'}
+        </SecondaryButton>
       </Box>
 
       {/* Tabela de Pedidos */}

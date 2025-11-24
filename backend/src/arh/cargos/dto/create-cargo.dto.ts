@@ -40,6 +40,11 @@ export class CreateCargoDto {
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()
+  isGerencial?: boolean;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
   ativo?: boolean;
 }
 

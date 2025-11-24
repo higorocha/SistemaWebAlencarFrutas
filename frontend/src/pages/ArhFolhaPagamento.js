@@ -21,6 +21,8 @@ import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
 import ConfirmActionModal from "../components/common/modals/ConfirmActionModal";
 import { Box, Chip } from "@mui/material";
 import { capitalizeName } from "../utils/formatters";
+import StyledTabs from "../components/common/StyledTabs";
+import { UserOutlined } from "@ant-design/icons";
 
 const FolhasTable = lazy(() => import("../components/arh/folha-pagamento/FolhasTable"));
 const LancamentosTable = lazy(() => import("../components/arh/folha-pagamento/LancamentosTable"));
@@ -30,7 +32,7 @@ const AtualizarPagamentoDialog = lazy(() => import("../components/arh/folha-paga
 const FinalizarFolhaDialog = lazy(() => import("../components/arh/folha-pagamento/FinalizarFolhaDialog"));
 const AdicionarFuncionariosDialog = lazy(() => import("../components/arh/folha-pagamento/AdicionarFuncionariosDialog"));
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const STATUS_FOLHA = {
   RASCUNHO: { label: "Rascunho", color: "default" },
@@ -90,6 +92,7 @@ const ArhFolhaPagamento = () => {
   const [centralMessage, setCentralMessage] = useState("Processando...");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTabLancamentos, setActiveTabLancamentos] = useState("all");
 
   const isGerenteCultura = user?.nivel === "GERENTE_CULTURA";
   const isAdmin = user?.nivel === "ADMINISTRADOR";
@@ -103,14 +106,21 @@ const ArhFolhaPagamento = () => {
       const lista = response.data?.data || response.data || [];
       setFolhas(lista);
       
+      // Se não há folhas, limpar seleção
+      if (lista.length === 0) {
+        setSelectedFolhaId(null);
+        localStorage.removeItem("arh_folha_selecionada");
+        return;
+      }
+      
       // Se houver folha selecionada no cache, validar se ainda existe
       if (selectedFolhaId) {
         const folhaExiste = lista.some((f) => f.id === selectedFolhaId);
-        if (!folhaExiste && lista.length) {
-          // Se não existe mais, selecionar a primeira
+        if (!folhaExiste) {
+          // Se não existe mais, selecionar a primeira disponível
           setSelectedFolhaId(lista[0].id);
         }
-      } else if (lista.length) {
+      } else {
         // Se não tem cache, selecionar a primeira
         setSelectedFolhaId(lista[0].id);
       }
@@ -144,8 +154,17 @@ const ArhFolhaPagamento = () => {
         );
         setLancamentos(response.data || []);
       } catch (error) {
-        console.error(error);
-        showNotification("error", "Erro", "Falha ao carregar lançamentos.");
+        // Se for 404 (folha não encontrada), apenas limpar lançamentos silenciosamente
+        // Isso pode acontecer se a folha foi deletada ou se o ID do cache está inválido
+        if (error.response?.status === 404) {
+          setLancamentos([]);
+          // Limpar seleção se a folha não existe mais
+          setSelectedFolhaId(null);
+          localStorage.removeItem("arh_folha_selecionada");
+        } else {
+          console.error(error);
+          showNotification("error", "Erro", "Falha ao carregar lançamentos.");
+        }
       } finally {
         setLancamentosLoading(false);
       }
@@ -273,17 +292,22 @@ const ArhFolhaPagamento = () => {
     }
   };
 
-  const atualizarLancamento = async (values) => {
-    if (!selectedFolha || !editLancamento.record) return;
+  const atualizarLancamento = useCallback(async (values, record = null) => {
+    // Se não passar record, usar do estado do modal
+    const lancamentoRecord = record || editLancamento.record;
     
-    // Fechar modal imediatamente
-    setEditLancamento({ open: false, record: null });
+    if (!selectedFolha || !lancamentoRecord) return;
+    
+    // Fechar modal imediatamente (se estava aberto)
+    if (editLancamento.open) {
+      setEditLancamento({ open: false, record: null });
+    }
     
     try {
       setCentralLoading(true);
       setCentralMessage("Recalculando lançamento...");
       await axiosInstance.patch(
-        `/api/arh/folhas/${selectedFolha.id}/lancamentos/${editLancamento.record.id}`,
+        `/api/arh/folhas/${selectedFolha.id}/lancamentos/${lancamentoRecord.id}`,
         values,
       );
       showNotification("success", "Sucesso", "Lançamento atualizado!");
@@ -295,12 +319,14 @@ const ArhFolhaPagamento = () => {
         "Erro ao atualizar o lançamento da folha.";
       showNotification("error", "Erro", message);
       
-      // Reabrir modal em caso de erro
-      setEditLancamento({ open: true, record: editLancamento.record });
+      // Reabrir modal em caso de erro (apenas se estava aberto antes)
+      if (!record && editLancamento.record) {
+        setEditLancamento({ open: true, record: editLancamento.record });
+      }
     } finally {
       setCentralLoading(false);
     }
-  };
+  }, [selectedFolha, editLancamento, carregarLancamentos, carregarFolhas]);
 
   const marcarPagamento = async (values) => {
     if (!selectedFolha || !pagamentoModal.record) return;
@@ -397,9 +423,16 @@ const ArhFolhaPagamento = () => {
     }
   };
 
-  const handleEditLancamento = useCallback((record) => {
-    setEditLancamento({ open: true, record });
-  }, []);
+  const handleEditLancamento = useCallback((valuesOrRecord, record) => {
+    // Se receber dois parâmetros, é edição inline (values, record)
+    if (record) {
+      // Edição inline: salvar diretamente
+      atualizarLancamento(valuesOrRecord, record);
+    } else {
+      // Edição via modal: abrir modal
+      setEditLancamento({ open: true, record: valuesOrRecord });
+    }
+  }, [atualizarLancamento]);
 
   const handleEditPagamento = useCallback((record) => {
     setPagamentoModal({ open: true, record });
@@ -419,6 +452,232 @@ const ArhFolhaPagamento = () => {
     selectedFolha &&
     isAdmin &&
     selectedFolha.status === "PENDENTE_LIBERACAO";
+
+  // Calcular resumo detalhado dos lançamentos
+  const resumoDetalhado = useMemo(() => {
+    if (!lancamentos || lancamentos.length === 0) {
+      return {
+        totalHorasExtras: 0,
+        totalValorHorasExtras: 0,
+        totalAjudaCusto: 0,
+        totalDescontos: 0,
+        totalAdiantamento: 0,
+        quantidadeFuncionarios: 0,
+        quantidadeComValores: 0,
+        quantidadePendentes: 0,
+        quantidadePagos: 0,
+      };
+    }
+
+    const totalHorasExtras = lancamentos.reduce((sum, l) => sum + Number(l.horasExtras || 0), 0);
+    const totalValorHorasExtras = lancamentos.reduce((sum, l) => {
+      const horas = Number(l.horasExtras || 0);
+      const valorHora = Number(l.valorHoraExtra || 0);
+      return sum + (horas * valorHora);
+    }, 0);
+    const totalAjudaCusto = lancamentos.reduce((sum, l) => sum + Number(l.ajudaCusto || 0), 0);
+    const totalDescontos = lancamentos.reduce((sum, l) => sum + Number(l.descontosExtras || 0), 0);
+    const totalAdiantamento = lancamentos.reduce((sum, l) => sum + Number(l.adiantamento || 0), 0);
+    const quantidadeFuncionarios = lancamentos.length;
+    // Lógica: Mensalistas já têm salário inicial, então contam se tiverem valorBruto > 0
+    // Diaristas só contam se tiverem diasTrabalhados preenchidos (e consequentemente valorBruto > 0)
+    const quantidadeComValores = lancamentos.filter(l => {
+      const tipoContrato = l.funcionario?.tipoContrato;
+      const temValorBruto = Number(l.valorBruto || 0) > 0;
+      const temDiasTrabalhados = l.diasTrabalhados !== null && l.diasTrabalhados !== undefined;
+      
+      // Mensalistas: contam se tiverem valor bruto calculado
+      if (tipoContrato === "MENSALISTA") {
+        return temValorBruto;
+      }
+      // Diaristas: só contam se tiverem dias trabalhados preenchidos
+      if (tipoContrato === "DIARISTA") {
+        return temDiasTrabalhados && temValorBruto;
+      }
+      // Outros tipos: usar lógica genérica
+      return temDiasTrabalhados;
+    }).length;
+    const quantidadePendentes = lancamentos.filter(l => l.statusPagamento === "PENDENTE").length;
+    const quantidadePagos = lancamentos.filter(l => l.statusPagamento === "PAGO").length;
+
+    return {
+      totalHorasExtras,
+      totalValorHorasExtras,
+      totalAjudaCusto,
+      totalDescontos,
+      totalAdiantamento,
+      quantidadeFuncionarios,
+      quantidadeComValores,
+      quantidadePendentes,
+      quantidadePagos,
+    };
+  }, [lancamentos]);
+
+  // Agrupar lançamentos por gerente
+  const lancamentosAgrupados = useMemo(() => {
+    const grupos = {
+      gerentes: [], // Funcionários que SÃO gerentes (mensalistas com cargo gerencial)
+      semGerente: [], // Diaristas sem gerente
+      porGerente: {}, // Diaristas agrupados por gerente
+    };
+
+    lancamentos.forEach((lancamento) => {
+      const funcionario = lancamento.funcionario;
+      const tipoContrato = funcionario?.tipoContrato;
+      const cargo = lancamento.cargo;
+      
+      // Verificar se é um gerente (mensalista com cargo gerencial)
+      if (tipoContrato === "MENSALISTA" && cargo?.isGerencial === true) {
+        grupos.gerentes.push(lancamento);
+      } else {
+        // Para diaristas, verificar se têm gerente
+        const gerente = funcionario?.gerente;
+        if (gerente && gerente.id) {
+          const gerenteId = String(gerente.id);
+          if (!grupos.porGerente[gerenteId]) {
+            grupos.porGerente[gerenteId] = {
+              gerente: gerente,
+              lancamentos: [],
+            };
+          }
+          grupos.porGerente[gerenteId].lancamentos.push(lancamento);
+        } else {
+          // Diarista sem gerente
+          grupos.semGerente.push(lancamento);
+        }
+      }
+    });
+
+    return grupos;
+  }, [lancamentos]);
+
+  // Criar itens das abas
+  const tabItemsLancamentos = useMemo(() => {
+    const items = [];
+
+    // 1. Primeira aba: Gerentes (se houver)
+    if (lancamentosAgrupados.gerentes.length > 0) {
+      items.push({
+        key: "gerentes",
+        label: (
+          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <UserOutlined style={{ fontSize: "14px" }} />
+            <span>Gerentes ({lancamentosAgrupados.gerentes.length})</span>
+          </span>
+        ),
+        children: (
+          <LancamentosTable
+            lancamentos={lancamentosAgrupados.gerentes}
+            loading={lancamentosLoading}
+            onEditLancamento={handleEditLancamento}
+            onEditPagamento={handleEditPagamento}
+            onRemoveFuncionario={removerFuncionario}
+          />
+        ),
+      });
+    }
+
+    // 2. Segunda aba: Diaristas sem gerente (se houver)
+    if (lancamentosAgrupados.semGerente.length > 0) {
+      items.push({
+        key: "sem-gerente",
+        label: (
+          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <UserOutlined style={{ fontSize: "14px" }} />
+            <span>Sem Gerente ({lancamentosAgrupados.semGerente.length})</span>
+          </span>
+        ),
+        children: (
+          <LancamentosTable
+            lancamentos={lancamentosAgrupados.semGerente}
+            loading={lancamentosLoading}
+            onEditLancamento={handleEditLancamento}
+            onEditPagamento={handleEditPagamento}
+            onRemoveFuncionario={removerFuncionario}
+          />
+        ),
+      });
+    }
+
+    // 3. Terceira em diante: Cada gerente individual (ordenadas por nome)
+    const gerentesOrdenados = Object.values(lancamentosAgrupados.porGerente).sort(
+      (a, b) => {
+        const nomeA = a.gerente?.nome || "";
+        const nomeB = b.gerente?.nome || "";
+        return nomeA.localeCompare(nomeB);
+      }
+    );
+
+    gerentesOrdenados.forEach((grupo) => {
+      if (grupo.lancamentos.length > 0) {
+        const gerenteId = String(grupo.gerente.id);
+        items.push({
+          key: `gerente-${gerenteId}`,
+          label: (
+            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <UserOutlined style={{ fontSize: "14px" }} />
+              <span>
+                {capitalizeName(grupo.gerente.nome)} ({grupo.lancamentos.length})
+              </span>
+            </span>
+          ),
+          children: (
+            <LancamentosTable
+              lancamentos={grupo.lancamentos}
+              loading={lancamentosLoading}
+              onEditLancamento={handleEditLancamento}
+              onEditPagamento={handleEditPagamento}
+              onRemoveFuncionario={removerFuncionario}
+            />
+          ),
+        });
+      }
+    });
+
+    // Se não houver abas, criar uma aba padrão com todos os lançamentos
+    if (items.length === 0) {
+      items.push({
+        key: "all",
+        label: (
+          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <UserOutlined style={{ fontSize: "14px" }} />
+            <span>Todos ({lancamentos.length})</span>
+          </span>
+        ),
+        children: (
+          <LancamentosTable
+            lancamentos={lancamentos}
+            loading={lancamentosLoading}
+            onEditLancamento={handleEditLancamento}
+            onEditPagamento={handleEditPagamento}
+            onRemoveFuncionario={removerFuncionario}
+          />
+        ),
+      });
+    }
+
+    return items;
+  }, [
+    lancamentosAgrupados,
+    lancamentos,
+    lancamentosLoading,
+    handleEditLancamento,
+    handleEditPagamento,
+    removerFuncionario,
+  ]);
+
+  // Ajustar aba ativa quando os lançamentos mudarem
+  useEffect(() => {
+    if (tabItemsLancamentos.length > 0) {
+      const primeiraAba = tabItemsLancamentos[0].key;
+      const abaAtualExiste = tabItemsLancamentos.find((tab) => tab.key === activeTabLancamentos);
+      if (!abaAtualExiste) {
+        setActiveTabLancamentos(primeiraAba);
+      }
+    } else {
+      setActiveTabLancamentos("all");
+    }
+  }, [tabItemsLancamentos]);
 
   return (
     <Box
@@ -556,8 +815,8 @@ const ArhFolhaPagamento = () => {
             sx={{
               background: "#fff",
               borderRadius: 2,
-              padding: 2,
-              minHeight: 220,
+              padding: 3,
+              minHeight: 500,
               boxShadow: "0 3px 12px rgba(15,118,110,0.08)",
             }}
           >
@@ -579,29 +838,128 @@ const ArhFolhaPagamento = () => {
               />
               {selectedFolha ? `Resumo ${competenciaLabel(selectedFolha)}` : "Resumo"}
             </Title>
-            <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+            <Divider style={{ margin: "0 0 20px 0", borderColor: "#e8e8e8" }} />
 
             {selectedFolha ? (
               <>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
-                  <Chip label={`Total Bruto: ${currency(selectedFolha.totalBruto)}`} />
-                  <Chip
-                    label={`Total Líquido: ${currency(selectedFolha.totalLiquido)}`}
-                    color="success"
-                  />
-                  <Chip
-                    label={`Pago: ${currency(selectedFolha.totalPago)}`}
-                    color="success"
-                    variant="outlined"
-                  />
-                  <Chip
-                    label={`Pendente: ${currency(selectedFolha.totalPendente)}`}
-                    color="warning"
-                    variant="outlined"
-                  />
-                  <Chip label={`Lançamentos: ${selectedFolha.quantidadeLancamentos}`} />
+                {/* Seção 1: Valores Principais */}
+                <Box sx={{ mb: 3 }}>
+                  <Text strong style={{ fontSize: "14px", color: "#059669", display: "block", marginBottom: "12px" }}>
+                    Valores Principais
+                  </Text>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    <Chip 
+                      label={`Total Bruto: ${currency(selectedFolha.totalBruto)}`}
+                      sx={{ fontSize: "13px", fontWeight: 600 }}
+                    />
+                    <Chip
+                      label={`Total Líquido: ${currency(selectedFolha.totalLiquido)}`}
+                      color="success"
+                      sx={{ fontSize: "13px", fontWeight: 600 }}
+                    />
+                    <Chip
+                      label={`Pago: ${currency(selectedFolha.totalPago)}`}
+                      color="success"
+                      variant="outlined"
+                      sx={{ fontSize: "13px", fontWeight: 600 }}
+                    />
+                    <Chip
+                      label={`Pendente: ${currency(selectedFolha.totalPendente)}`}
+                      color="warning"
+                      variant="outlined"
+                      sx={{ fontSize: "13px", fontWeight: 600 }}
+                    />
+                  </Box>
                 </Box>
-                <Space wrap>
+
+                {/* Seção 2 e 3: Resumo Detalhado e Estatísticas lado a lado */}
+                <Box sx={{ mb: 3, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                  {/* Resumo Detalhado */}
+                  <Box sx={{ p: 2, backgroundColor: "#f8fafc", borderRadius: 2, border: "1px solid #e2e8f0" }}>
+                    <Text strong style={{ fontSize: "14px", color: "#059669", display: "block", marginBottom: "12px" }}>
+                      Resumo Detalhado
+                    </Text>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                      <Box>
+                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                          Horas Extras
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#334155" }}>
+                          {resumoDetalhado.totalHorasExtras.toFixed(1)}h - {currency(resumoDetalhado.totalValorHorasExtras)}
+                        </Text>
+                      </Box>
+                      <Box>
+                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                          Ajuda de Custo
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#52c41a" }}>
+                          {currency(resumoDetalhado.totalAjudaCusto)}
+                        </Text>
+                      </Box>
+                      <Box>
+                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                          Descontos
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#ff4d4f" }}>
+                          {currency(resumoDetalhado.totalDescontos)}
+                        </Text>
+                      </Box>
+                      <Box>
+                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                          Adiantamentos
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#fa8c16" }}>
+                          {currency(resumoDetalhado.totalAdiantamento)}
+                        </Text>
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {/* Estatísticas */}
+                  <Box sx={{ p: 2, backgroundColor: "#f0fdf4", borderRadius: 2, border: "1px solid #bbf7d0" }}>
+                    <Text strong style={{ fontSize: "14px", color: "#059669", display: "block", marginBottom: "12px" }}>
+                      Estatísticas
+                    </Text>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                      <Box>
+                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                          Total de Funcionários
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#334155" }}>
+                          {resumoDetalhado.quantidadeFuncionarios}
+                        </Text>
+                      </Box>
+                      <Box>
+                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                          Com Valores Informados
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#059669" }}>
+                          {resumoDetalhado.quantidadeComValores} / {resumoDetalhado.quantidadeFuncionarios}
+                        </Text>
+                      </Box>
+                      <Box>
+                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                          Pagos
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#52c41a" }}>
+                          {resumoDetalhado.quantidadePagos}
+                        </Text>
+                      </Box>
+                      <Box>
+                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                          Pendentes
+                        </Text>
+                        <Text strong style={{ fontSize: "14px", color: "#faad14" }}>
+                          {resumoDetalhado.quantidadePendentes}
+                        </Text>
+                      </Box>
+                    </Box>
+                  </Box>
+                </Box>
+
+                {/* Seção 4: Botões de Ação */}
+                <Divider style={{ margin: "20px 0", borderColor: "#e8e8e8" }} />
+                <Space wrap style={{ width: "100%" }}>
                   <PrimaryButton
                     icon={<OrderedListOutlined />}
                     disabled={selectedFolha?.status !== "RASCUNHO"}
@@ -637,9 +995,9 @@ const ArhFolhaPagamento = () => {
                 </Space>
               </>
             ) : (
-              <Typography.Text style={{ color: "#94a3b8" }}>
+              <Text style={{ color: "#94a3b8" }}>
                 Selecione uma folha para visualizar os detalhes.
-              </Typography.Text>
+              </Text>
             )}
           </Box>
         </Box>
@@ -675,13 +1033,22 @@ const ArhFolhaPagamento = () => {
         <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
 
         <Suspense fallback={<SuspenseFallback message="Carregando lançamentos..." />}>
-          <LancamentosTable
-            lancamentos={lancamentos}
-            loading={lancamentosLoading}
-            onEditLancamento={handleEditLancamento}
-            onEditPagamento={handleEditPagamento}
-            onRemoveFuncionario={removerFuncionario}
-          />
+          {tabItemsLancamentos.length > 0 ? (
+            <StyledTabs
+              type="card"
+              activeKey={activeTabLancamentos}
+              onChange={setActiveTabLancamentos}
+              items={tabItemsLancamentos}
+            />
+          ) : (
+            <LancamentosTable
+              lancamentos={lancamentos}
+              loading={lancamentosLoading}
+              onEditLancamento={handleEditLancamento}
+              onEditPagamento={handleEditPagamento}
+              onRemoveFuncionario={removerFuncionario}
+            />
+          )}
         </Suspense>
       </Box>
 

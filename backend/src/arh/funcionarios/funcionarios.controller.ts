@@ -34,6 +34,11 @@ export class FuncionariosController {
     return this.service.listResumo();
   }
 
+  @Get('gerentes')
+  listGerentes() {
+    return this.service.listGerentes();
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

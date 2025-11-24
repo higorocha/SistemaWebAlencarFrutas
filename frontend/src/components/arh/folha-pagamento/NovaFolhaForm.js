@@ -24,12 +24,63 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
     }
   };
 
+  const calcularDatasQuinzena = (mes, ano, periodo) => {
+    if (!mes || !ano || !periodo) return { dataInicial: null, dataFinal: null };
+
+    let dataInicial, dataFinal;
+    const primeiroDiaMes = dayjs().year(ano).month(mes - 1).date(1);
+    const ultimoDiaMes = dayjs().year(ano).month(mes - 1).endOf('month');
+
+    // Encontrar o primeiro sábado do mês (dia da semana 6 = sábado no dayjs)
+    const encontrarProximoSabado = (data) => {
+      let dataAtual = data;
+      while (dataAtual.day() !== 6) { // 6 = sábado
+        dataAtual = dataAtual.add(1, 'day');
+      }
+      return dataAtual;
+    };
+
+    const primeiroSabado = encontrarProximoSabado(primeiroDiaMes);
+
+    if (periodo === 1) {
+      // Primeira quinzena: primeiro sábado até o segundo sábado (inclusive)
+      dataInicial = primeiroSabado;
+      dataFinal = primeiroSabado.add(6, 'days'); // Segundo sábado (7 dias depois)
+    } else {
+      // Segunda quinzena: terceiro sábado até o último sábado do mês
+      const terceiroSabado = primeiroSabado.add(14, 'days'); // Terceiro sábado (14 dias depois do primeiro)
+      
+      // Encontrar o último sábado do mês
+      let ultimoSabado = terceiroSabado;
+      let proximoSabado = terceiroSabado.add(7, 'days');
+      
+      // Encontrar o último sábado que ainda está dentro do mês
+      while (proximoSabado.month() === mes - 1 && proximoSabado.year() === ano) {
+        ultimoSabado = proximoSabado;
+        proximoSabado = proximoSabado.add(7, 'days');
+      }
+      
+      dataInicial = terceiroSabado;
+      dataFinal = ultimoSabado;
+    }
+
+    return { dataInicial, dataFinal };
+  };
+
   const handleCompetenciaChange = (date) => {
     if (date) {
+      const mes = date.month() + 1; // dayjs usa 0-11 para meses
+      const ano = date.year();
+      const periodo = folhaAtual.periodo;
+
+      const novasDatas = calcularDatasQuinzena(mes, ano, periodo);
+
       setFolhaAtual((prev) => ({
         ...prev,
-        competenciaMes: date.month() + 1, // dayjs usa 0-11 para meses
-        competenciaAno: date.year(),
+        competenciaMes: mes,
+        competenciaAno: ano,
+        dataInicial: novasDatas.dataInicial,
+        dataFinal: novasDatas.dataFinal,
       }));
       // Limpar erros de competência
       if (erros.competenciaMes || erros.competenciaAno) {
@@ -44,6 +95,30 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
         ...prev,
         competenciaMes: undefined,
         competenciaAno: undefined,
+        dataInicial: null,
+        dataFinal: null,
+      }));
+    }
+  };
+
+  const handlePeriodoChange = (periodo) => {
+    const mes = folhaAtual.competenciaMes;
+    const ano = folhaAtual.competenciaAno;
+
+    const novasDatas = calcularDatasQuinzena(mes, ano, periodo);
+
+    setFolhaAtual((prev) => ({
+      ...prev,
+      periodo,
+      dataInicial: novasDatas.dataInicial,
+      dataFinal: novasDatas.dataFinal,
+    }));
+
+    // Limpar erro do período
+    if (erros.periodo) {
+      setErros((prev) => ({
+        ...prev,
+        periodo: undefined,
       }));
     }
   };
@@ -121,12 +196,83 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
                 <Select
                   placeholder="Selecione a quinzena"
                   value={folhaAtual.periodo || undefined}
-                  onChange={(value) => handleChange("periodo", value)}
+                  onChange={handlePeriodoChange}
                   size="large"
                 >
                   <Select.Option value={1}>1ª Quinzena</Select.Option>
                   <Select.Option value={2}>2ª Quinzena</Select.Option>
                 </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label={
+                  <Space>
+                    <CalendarOutlined style={{ color: "#059669" }} />
+                    <Text strong>Data Inicial</Text>
+                  </Space>
+                }
+                validateStatus={erros.dataInicial ? "error" : ""}
+                help={erros.dataInicial}
+                required
+              >
+                <DatePicker
+                  placeholder="Selecione a data inicial"
+                  value={folhaAtual.dataInicial ? dayjs(folhaAtual.dataInicial) : null}
+                  onChange={(date) => {
+                    setFolhaAtual((prev) => ({
+                      ...prev,
+                      dataInicial: date,
+                    }));
+                    if (erros.dataInicial) {
+                      setErros((prev) => ({
+                        ...prev,
+                        dataInicial: undefined,
+                      }));
+                    }
+                  }}
+                  format="DD/MM/YYYY"
+                  style={{ width: "100%" }}
+                  size="large"
+                  allowClear
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label={
+                  <Space>
+                    <CalendarOutlined style={{ color: "#059669" }} />
+                    <Text strong>Data Final</Text>
+                  </Space>
+                }
+                validateStatus={erros.dataFinal ? "error" : ""}
+                help={erros.dataFinal}
+                required
+              >
+                <DatePicker
+                  placeholder="Selecione a data final"
+                  value={folhaAtual.dataFinal ? dayjs(folhaAtual.dataFinal) : null}
+                  onChange={(date) => {
+                    setFolhaAtual((prev) => ({
+                      ...prev,
+                      dataFinal: date,
+                    }));
+                    if (erros.dataFinal) {
+                      setErros((prev) => ({
+                        ...prev,
+                        dataFinal: undefined,
+                      }));
+                    }
+                  }}
+                  format="DD/MM/YYYY"
+                  style={{ width: "100%" }}
+                  size="large"
+                  allowClear
+                />
               </Form.Item>
             </Col>
           </Row>
