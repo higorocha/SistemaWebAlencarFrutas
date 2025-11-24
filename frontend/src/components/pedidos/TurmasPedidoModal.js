@@ -14,7 +14,10 @@ import {
 import {
   UserOutlined,
   EyeOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
+import { Tooltip } from "antd";
 import moment from "moment";
 import { formatarValorMonetario, capitalizeName, intFormatter } from "../../utils/formatters";
 
@@ -110,6 +113,80 @@ const TurmasPedidoModal = ({ open, onClose, pedido }) => {
           <Text strong style={{ color: "#059669" }}>
             {formatarValorMonetario(totalValor)}
           </Text>
+        );
+      },
+    },
+    {
+      title: "Status Pagamento",
+      key: "statusPagamento",
+      width: 150,
+      align: "center",
+      render: (_, record) => {
+        // Cada turma só pode colher uma fruta por pedido, então há apenas um custo
+        const custo = record.custos && record.custos.length > 0 ? record.custos[0] : null;
+        
+        if (!custo) {
+          return <Tag color="default">-</Tag>;
+        }
+        
+        // Se pagamentoEfetuado === true, mostrar "Pago"
+        if (custo.pagamentoEfetuado === true) {
+          return (
+            <Tooltip title="Pagamento efetuado">
+              <Tag color="success" icon={<CheckCircleOutlined />} style={{ margin: 0 }}>
+                Pago
+              </Tag>
+            </Tooltip>
+          );
+        }
+        
+        // Se pagamentoEfetuado === false, mostrar statusPagamento
+        const statusPagamento = custo.statusPagamento || 'PENDENTE';
+        
+        // Formatar texto do status
+        const formatarStatus = (status) => {
+          switch (status) {
+            case 'PAGO':
+              return 'Pago';
+            case 'PROCESSANDO':
+              return 'Processando';
+            case 'PENDENTE':
+              return 'Pendente';
+            default:
+              return status || 'Pendente';
+          }
+        };
+        
+        // Determinar cor e ícone baseado no status
+        const getStatusConfig = (status) => {
+          switch (status) {
+            case 'PAGO':
+              return { color: 'success', icon: <CheckCircleOutlined /> };
+            case 'PROCESSANDO':
+              return { 
+                color: 'warning', 
+                icon: <ClockCircleOutlined />,
+                tooltip: 'Pagamento processando - Aguardando liberação no Banco do Brasil. O pagamento será concluído após a liberação e processamento pelo banco.'
+              };
+            case 'PENDENTE':
+            default:
+              return { 
+                color: 'default', 
+                icon: null,
+                tooltip: 'Pagamento pendente'
+              };
+          }
+        };
+        
+        const config = getStatusConfig(statusPagamento);
+        const textoStatus = formatarStatus(statusPagamento);
+        
+        return (
+          <Tooltip title={config.tooltip || textoStatus}>
+            <Tag color={config.color} icon={config.icon} style={{ margin: 0 }}>
+              {textoStatus}
+            </Tag>
+          </Tooltip>
         );
       },
     },

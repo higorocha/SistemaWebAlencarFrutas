@@ -522,24 +522,18 @@ const PedidosTable = ({
         
         const turmasArray = Array.from(turmasUnicas);
         
-        // Se tiver apenas uma turma, mostra badge simples
-        if (turmasArray.length === 1) {
-          return (
-            <Tag color="purple" style={{ cursor: 'default' }}>
-              {capitalizeName(turmasArray[0])}
-            </Tag>
-          );
-        }
-        
-        // Se tiver múltiplas turmas, mostra badge clicável
+        // Sempre mostrar badge clicável (mesmo com 1 turma, permite ver detalhes)
         return (
-          <Tooltip title="Clique para ver as turmas">
+          <Tooltip title={turmasArray.length === 1 ? "Clique para ver detalhes da turma" : "Clique para ver as turmas"}>
             <Tag 
               color="purple" 
               style={{ cursor: 'pointer' }}
               onClick={() => handleOpenTurmasModal(record)}
             >
-              {turmasArray.length} turmas
+              {turmasArray.length === 1 
+                ? capitalizeName(turmasArray[0])
+                : `${turmasArray.length} turmas`
+              }
             </Tag>
           </Tooltip>
         );
