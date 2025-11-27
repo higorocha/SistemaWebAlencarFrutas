@@ -160,6 +160,16 @@ export class SolicitarTransferenciaPixDto {
   @ValidateNested({ each: true })
   @Type(() => TransferenciaPixDto)
   listaTransferencias: TransferenciaPixDto[];
+
+  @ApiPropertyOptional({ description: 'Tipo de origem do pagamento (ex: TURMA_COLHEITA, FOLHA_PAGAMENTO)', example: 'TURMA_COLHEITA' })
+  @IsOptional()
+  @IsString()
+  origemTipo?: string;
+
+  @ApiPropertyOptional({ description: 'Nome da origem do pagamento (ex: "Turma de Colheita", "Folha de Pagamento 01/2025 - 1ª Quinzena")', example: 'Turma de Colheita' })
+  @IsOptional()
+  @IsString()
+  origemNome?: string;
 }
 
 /**

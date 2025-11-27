@@ -1,7 +1,7 @@
 // src/pages/PedidosDashboard.js
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Typography, message, Button, Tooltip, Space, Badge } from "antd";
+import { Typography, message, Button, Tooltip, Space, Badge, Card } from "antd";
 import { Icon } from "@iconify/react";
 
 const { Title, Text: AntText } = Typography;
@@ -78,6 +78,7 @@ import PrecificacaoModal from "../components/pedidos/PrecificacaoModal";
 import PagamentoModal from "../components/pedidos/PagamentoModal";
 import VisualizarPedidoModal from "../components/pedidos/VisualizarPedidoModal";
 import LancarPagamentosModal from "../components/pedidos/LancarPagamentosModal";
+import { capitalizeName } from "../utils/formatters";
 
 
 const PedidosDashboard = () => {
@@ -141,6 +142,7 @@ const PedidosDashboard = () => {
   const [visualizarLoading, setVisualizarLoading] = useState(false);
   const [lancarPagamentosModalOpen, setLancarPagamentosModalOpen] = useState(false);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
+  
 
   // Função para buscar pedido atualizado
   const buscarPedidoAtualizado = useCallback(async (pedidoId) => {
@@ -157,7 +159,7 @@ const PedidosDashboard = () => {
   const handleSalvarPedido = useCallback(async (pedidoData) => {
     try {
       setOperacaoLoading(true);
-      setLoadingType('novo-pedido'); // ✅ Tipo específico para novo pedido
+      setLoadingType('novo-pedido');
       
       await axiosInstance.post("/api/pedidos", pedidoData);
       showNotification("success", "Sucesso", "Pedido criado com sucesso!");
@@ -166,14 +168,22 @@ const PedidosDashboard = () => {
       
       await reloadAfterNovoPedido();
     } catch (error) {
-      console.error("Erro ao salvar pedido:", error);
-      const message = error.response?.data?.message || "Erro ao salvar pedido";
+      // Verificar se é erro de pedido duplicado - relançar para o modal tratar
+      const errorData = error?.response?.data;
+      if (errorData?.code === 'PEDIDO_DUPLICADO') {
+        // Relançar o erro para que o NovoPedidoModal possa tratá-lo
+        throw error;
+      }
+      
+      // Para outros erros, mostrar notificação
+      const message = errorData?.message || "Erro ao salvar pedido";
       showNotification("error", "Erro", message);
     } finally {
       setOperacaoLoading(false);
-      setLoadingType(null); // ✅ Limpar tipo
+      setLoadingType(null);
     }
   }, [setOperacaoLoading, reloadAfterNovoPedido]);
+
 
   // Handlers para ações dos cards
   const handleColheita = (pedido) => {
@@ -616,6 +626,7 @@ const PedidosDashboard = () => {
           open={novoPedidoModalOpen}
           onClose={handleModalClose}
           onSave={handleSalvarPedido}
+          onReload={reloadAfterNovoPedido}
           loading={operacaoLoading || clientesLoading}
           clientes={clientes}
         />
@@ -673,6 +684,7 @@ const PedidosDashboard = () => {
           loading={operacaoLoading}
         />
       )}
+
     </div>
   );
 };

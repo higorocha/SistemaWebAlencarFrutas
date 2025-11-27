@@ -529,7 +529,9 @@ const TurmaColheitaPagamentosModal = ({
         digitoVerificadorContaCorrente: digitoVerificador,
         tipoPagamento: 128, // 128 = Pagamentos diversos
         listaTransferencias: listaTransferencias,
-        colheitaIds: colheitaIds // ✅ Adicionar array de IDs para relacionamento
+        colheitaIds: colheitaIds, // ✅ Adicionar array de IDs para relacionamento
+        origemTipo: 'TURMA_COLHEITA', // ✅ Padronizar origem explicitamente
+        origemNome: turmaNome ? `Turma de Colheita - ${turmaNome}` : 'Turma de Colheita' // ✅ Nome descritivo da origem
       };
 
       // ========================================

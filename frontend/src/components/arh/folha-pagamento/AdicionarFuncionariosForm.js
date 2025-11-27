@@ -203,7 +203,7 @@ const AdicionarFuncionariosForm = ({
                                 <Text strong style={{ fontSize: "14px", color: "#333" }}>
                                   {capitalizeName(func.nome)}
                                 </Text>
-                              </div>
+                    </div>
                               
                               <div style={{ marginBottom: "6px" }}>
                                 <Space size="small">
@@ -216,12 +216,12 @@ const AdicionarFuncionariosForm = ({
                                   {func.cargo?.nome && (
                                     <Tag color="#722ed1" style={{ fontSize: "11px" }}>
                                       {func.cargo.nome}
-                                    </Tag>
+                          </Tag>
                                   )}
                                   {func.funcao?.nome && (
                                     <Tag color="#13c2c2" style={{ fontSize: "11px" }}>
                                       {func.funcao.nome}
-                                    </Tag>
+                          </Tag>
                                   )}
                                 </Space>
                               </div>
@@ -242,9 +242,9 @@ const AdicionarFuncionariosForm = ({
                                     Gerente: <Text strong style={{ color: "#059669" }}>{capitalizeName(func.gerente.nome)}</Text>
                                   </Text>
                                 </div>
-                              )}
-                            </div>
-                          </div>
+                      )}
+                    </div>
+                  </div>
                         </Card>
                       </Col>
                     );

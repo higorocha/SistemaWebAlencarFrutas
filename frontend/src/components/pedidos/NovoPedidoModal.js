@@ -22,6 +22,8 @@ import { validarFrutasDuplicadas, validarPedidoCompleto } from "../../utils/pedi
 import { capitalizeName } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import moment from "moment";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
+import { ExclamationCircleOutlined } from "@ant-design/icons";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -34,12 +36,16 @@ const NovoPedidoModal = ({
   loading,
   clientes,
   onLoadingChange, // Callback para controlar CentralizedLoader
+  onReload, // Callback opcional para recarregar dados após criar pedido
 }) => {
   const { isMobile } = useResponsive();
   const [form] = Form.useForm();
   const frutasFormValues = Form.useWatch("frutas", form) || [];
   const [isSaving, setIsSaving] = useState(false);
   const [frutas, setFrutas] = useState([]);
+  const [showDuplicadoModal, setShowDuplicadoModal] = useState(false);
+  const [pedidosDuplicados, setPedidosDuplicados] = useState([]);
+  const [formDataParaSalvar, setFormDataParaSalvar] = useState(null);
 
   const frutasPorId = useMemo(() => {
     const mapa = {};
@@ -85,6 +91,52 @@ const NovoPedidoModal = ({
     }
   }, [open, form]);
 
+  // Efeito para definir quantidade como '1' quando a fruta se torna filha
+  useEffect(() => {
+    if (!open || !frutasFormValues || frutasFormValues.length === 0) return;
+
+    const culturaPrimeiraIndexMap = {};
+    frutasFormValues.forEach((valor, idx) => {
+      const frutaCatalogo = valor?.frutaId ? frutasPorId[valor.frutaId] : undefined;
+      if (frutaCatalogo?.culturaId && frutaCatalogo?.dePrimeira) {
+        culturaPrimeiraIndexMap[frutaCatalogo.culturaId] = idx;
+      }
+    });
+
+    let precisaAtualizar = false;
+    const frutasAtualizadas = frutasFormValues.map((fruta, index) => {
+      if (!fruta?.frutaId) return fruta;
+
+      const frutaCatalogo = frutasPorId[fruta.frutaId];
+      const culturaId = frutaCatalogo?.culturaId;
+      const isPrimeira = Boolean(frutaCatalogo?.dePrimeira);
+      const existePrimeiraNaCultura =
+        culturaId !== undefined &&
+        culturaPrimeiraIndexMap[culturaId] !== undefined;
+      const isFilha = Boolean(existePrimeiraNaCultura && !isPrimeira);
+
+      // Se for filha e a quantidade não for '1', atualizar
+      if (isFilha) {
+        const quantidadeAtual = fruta.quantidadePrevista;
+        const quantidadeNum = typeof quantidadeAtual === 'string' 
+          ? parseFloat(quantidadeAtual) 
+          : quantidadeAtual;
+        
+        if (quantidadeNum !== 1) {
+          precisaAtualizar = true;
+          return { ...fruta, quantidadePrevista: '1' };
+        }
+      }
+
+      return fruta;
+    });
+
+    // Só atualizar se houve mudança
+    if (precisaAtualizar) {
+      form.setFieldsValue({ frutas: frutasAtualizadas });
+    }
+  }, [frutasFormValues, frutasPorId, open, form]);
+
   const unidadesMedida = [
     { value: 'KG', label: 'Quilogramas (KG)' },
     { value: 'TON', label: 'Toneladas (TON)' },
@@ -127,15 +179,6 @@ const NovoPedidoModal = ({
           showNotification("error", "Erro", "Data prevista para colheita não pode ser anterior à data do pedido");
           return;
         }
-      }
-
-      // PADRÃO "FECHAR-ENTÃO-LOADING": Fechar modal ANTES de iniciar loading
-      form.resetFields();
-      onClose();
-
-      // Notificar parent component para iniciar CentralizedLoader
-      if (onLoadingChange) {
-        onLoadingChange(true, "Criando pedido...");
       }
 
       // Processar datas para formato ISO
@@ -187,12 +230,34 @@ const NovoPedidoModal = ({
         frutas: frutasPayload,
       };
 
-
-      await onSave(formData);
+      // Tentar salvar o pedido
+      try {
+        await onSave(formData);
+        // Se chegou aqui, foi sucesso - fechar modal
+        form.resetFields();
+        onClose();
+      } catch (error) {
+        // Verificar se é erro de duplicidade
+        const errorData = error?.response?.data;
+        const code = errorData?.code;
+        const pedidosDuplicados = errorData?.pedidosDuplicados;
+        
+        if (code === 'PEDIDO_DUPLICADO' && pedidosDuplicados && Array.isArray(pedidosDuplicados) && pedidosDuplicados.length > 0) {
+          // Salvar dados e mostrar modal de confirmação
+          // NÃO fechar o modal - ele deve permanecer aberto para mostrar o modal de confirmação
+          setFormDataParaSalvar(formData);
+          setPedidosDuplicados(pedidosDuplicados);
+          setShowDuplicadoModal(true);
+          setIsSaving(false);
+          return;
+        }
+        
+        // Para outros erros, relançar para o parent tratar
+        throw error;
+      }
     } catch (error) {
-      console.error("Erro ao criar pedido:", error);
-      // Em caso de erro, reabrir o modal
-      onClose(false); // false indica que não deve fechar
+      // Em caso de erro genérico, não fechar o modal para permitir correção
+      // O parent component vai tratar a notificação de erro
     } finally {
       setIsSaving(false);
       // Notificar parent component para parar CentralizedLoader
@@ -202,9 +267,62 @@ const NovoPedidoModal = ({
     }
   };
 
+
+
   const handleCancelar = () => {
     form.resetFields();
     onClose();
+  };
+
+  const handleConfirmarDuplicado = async () => {
+    if (!formDataParaSalvar) return;
+
+    setShowDuplicadoModal(false);
+    setIsSaving(true);
+
+    if (onLoadingChange) {
+      onLoadingChange(true, "Criando pedido...");
+    }
+
+    try {
+      // Fazer requisição direta com header especial para confirmar duplicidade
+      await axiosInstance.post("/api/pedidos", formDataParaSalvar, {
+        headers: {
+          'X-Confirmar-Duplicado': 'true',
+          'x-confirmar-duplicado': 'true',
+        },
+      });
+      
+      showNotification("success", "Sucesso", "Pedido criado com sucesso!");
+      form.resetFields();
+      onClose();
+      
+      // Se houver callback de reload, chamá-lo para atualizar a lista
+      if (onReload) {
+        try {
+          await onReload();
+        } catch (e) {
+          // Silenciosamente ignorar erro de reload
+        }
+      }
+    } catch (error) {
+      const errorData = error?.response?.data;
+      const message = errorData?.message || error?.message || "Erro ao criar pedido";
+      showNotification("error", "Erro", message);
+    } finally {
+      setIsSaving(false);
+      if (onLoadingChange) {
+        onLoadingChange(false);
+      }
+      setFormDataParaSalvar(null);
+      setPedidosDuplicados([]);
+    }
+  };
+
+  const handleCancelarDuplicado = () => {
+    setShowDuplicadoModal(false);
+    setFormDataParaSalvar(null);
+    setPedidosDuplicados([]);
   };
 
   // Adicionar nova fruta
@@ -230,6 +348,7 @@ const NovoPedidoModal = ({
   };
 
   return (
+    <>
     <Modal
       title={
         <span style={{ 
@@ -627,6 +746,13 @@ const NovoPedidoModal = ({
                                 </Space>
                               ) : undefined
                             }
+                            normalize={(value) => {
+                              // Se for filha, sempre retornar '1'
+                              if (isFilha) {
+                                return '1';
+                              }
+                              return value;
+                            }}
                             rules={[
                               {
                                 required: true,
@@ -656,11 +782,17 @@ const NovoPedidoModal = ({
                             <MonetaryInput
                               placeholder="Ex: 1.234,56"
                               size={isMobile ? "small" : "large"}
+                              disabled={isFilha}
                               style={{
                                 width: "100%",
                                 borderRadius: "6px",
                                 borderColor: "#d9d9d9",
                                 fontSize: isMobile ? "14px" : "16px",
+                                ...(isFilha && {
+                                  backgroundColor: "#f3f4f6",
+                                  color: "#9ca3af",
+                                  cursor: "not-allowed",
+                                }),
                               }}
                             />
                           </Form.Item>
@@ -1006,6 +1138,87 @@ const NovoPedidoModal = ({
         </div>
       </Form>
     </Modal>
+
+    {/* Modal de confirmação para pedido duplicado */}
+    <ConfirmActionModal
+      open={showDuplicadoModal}
+      onConfirm={handleConfirmarDuplicado}
+      onCancel={handleCancelarDuplicado}
+      title="Pedido Duplicado Detectado"
+      confirmText="Sim, Criar Mesmo Assim"
+      cancelText="Cancelar"
+      confirmButtonDanger={false}
+      icon={<ExclamationCircleOutlined />}
+      iconColor="#fa8c16"
+      customContent={
+        <div style={{ textAlign: "left", padding: isMobile ? "12px" : "16px" }}>
+          <Text style={{ 
+            fontSize: isMobile ? "14px" : "16px", 
+            fontWeight: "500", 
+            color: "#333",
+            display: "block",
+            marginBottom: "16px"
+          }}>
+            Já existe(m) pedido(s) registrado(s) para este cliente, fruta(s) e data prevista de colheita:
+          </Text>
+          {pedidosDuplicados.map((pedido, index) => (
+            <Card
+              key={pedido.pedidoId}
+              style={{
+                marginBottom: index < pedidosDuplicados.length - 1 ? "12px" : 0,
+                border: "1px solid #e8e8e8",
+                backgroundColor: "#f9f9f9"
+              }}
+            >
+              <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                <div>
+                  <Text strong>Pedido: </Text>
+                  <Text>{pedido.numeroPedido}</Text>
+                </div>
+                <div>
+                  <Text strong>Cliente: </Text>
+                  <Text>{capitalizeName(pedido.cliente.nome)}</Text>
+                </div>
+                <div>
+                  <Text strong>Data Prevista de Colheita: </Text>
+                  <Text>{moment(pedido.dataPrevistaColheita).format("DD/MM/YYYY")}</Text>
+                </div>
+                <div>
+                  <Text strong>Data do Pedido: </Text>
+                  <Text>{moment(pedido.dataPedido).format("DD/MM/YYYY")}</Text>
+                </div>
+                <div>
+                  <Text strong>Status: </Text>
+                  <Text>{pedido.status}</Text>
+                </div>
+                <div>
+                  <Text strong>Frutas Duplicadas: </Text>
+                  <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
+                    {pedido.frutas.map((fruta, idx) => (
+                      <li key={idx}>
+                        <Text>
+                          {capitalizeName(fruta.nome)} - {fruta.quantidadePrevista} {fruta.unidadeMedida1}
+                        </Text>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Space>
+            </Card>
+          ))}
+          <Text style={{ 
+            fontSize: isMobile ? "13px" : "14px", 
+            color: "#666",
+            display: "block",
+            marginTop: "16px",
+            fontStyle: "italic"
+          }}>
+            Deseja criar o pedido mesmo assim?
+          </Text>
+        </div>
+      }
+    />
+    </>
   );
 };
 

@@ -1,7 +1,7 @@
 // src/pages/ArhFolhaPagamento.js
 
 import React, { useCallback, useEffect, useMemo, useState, Suspense, lazy } from "react";
-import { Typography, Select, Divider, Space } from "antd";
+import { Typography, Select, Divider, Space, Tooltip, Spin, Alert, Tag } from "antd";
 import {
   PlusCircleOutlined,
   OrderedListOutlined,
@@ -9,11 +9,12 @@ import {
   UnlockOutlined,
   FilterOutlined,
   EditOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import { Icon } from "@iconify/react";
 import axiosInstance from "../api/axiosConfig";
 import { showNotification } from "../config/notificationConfig";
-import { PrimaryButton } from "components/common/buttons";
+import { PrimaryButton, PDFButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
 import useResponsive from "../hooks/useResponsive";
 import { useAuth } from "../contexts/AuthContext";
@@ -22,7 +23,7 @@ import ConfirmActionModal from "../components/common/modals/ConfirmActionModal";
 import { Box, Chip } from "@mui/material";
 import { capitalizeName } from "../utils/formatters";
 import StyledTabs from "../components/common/StyledTabs";
-import { UserOutlined } from "@ant-design/icons";
+import { UserOutlined, DeleteOutlined, ReloadOutlined } from "@ant-design/icons";
 
 const FolhasTable = lazy(() => import("../components/arh/folha-pagamento/FolhasTable"));
 const LancamentosTable = lazy(() => import("../components/arh/folha-pagamento/LancamentosTable"));
@@ -93,6 +94,11 @@ const ArhFolhaPagamento = () => {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTabLancamentos, setActiveTabLancamentos] = useState("all");
+  const [excluirModalOpen, setExcluirModalOpen] = useState(false);
+  const [reprocessarModalOpen, setReprocessarModalOpen] = useState(false);
+  const [contasDisponiveis, setContasDisponiveis] = useState([]);
+  const [contaCorrenteSelecionada, setContaCorrenteSelecionada] = useState(null);
+  const [loadingContas, setLoadingContas] = useState(false);
 
   const isGerenteCultura = user?.nivel === "GERENTE_CULTURA";
   const isAdmin = user?.nivel === "ADMINISTRADOR";
@@ -201,6 +207,34 @@ const ArhFolhaPagamento = () => {
       return matchSearch && matchStatus;
     });
   }, [folhas, searchTerm, statusFilter]);
+
+  // Verificar se a folha usa PIX_API (agora verifica pelo campo da folha)
+  const folhaUsaPixApi = useMemo(() => {
+    return selectedFolha?.meioPagamento === "PIX_API";
+  }, [selectedFolha]);
+
+  // Carregar dados da conta quando abrir modal de Liberar (se PIX_API)
+  useEffect(() => {
+    if (liberarModalOpen && folhaUsaPixApi && selectedFolha?.contaCorrenteId) {
+      // A conta já está salva na folha, então apenas carregamos os detalhes para exibição
+      const carregarContaDetalhes = async () => {
+        setLoadingContas(true);
+        try {
+          const response = await axiosInstance.get("/api/pagamentos/contas-disponiveis");
+          setContasDisponiveis(response.data || []);
+        } catch (error) {
+          console.error("Erro ao carregar contas disponíveis:", error);
+          setContasDisponiveis([]);
+        } finally {
+          setLoadingContas(false);
+        }
+      };
+      carregarContaDetalhes();
+    } else if (!liberarModalOpen) {
+      setContasDisponiveis([]);
+      setContaCorrenteSelecionada(null);
+    }
+  }, [liberarModalOpen, folhaUsaPixApi, selectedFolha?.contaCorrenteId]);
 
   const salvarFolha = async (folhaData) => {
     // Fechar modal imediatamente
@@ -366,13 +400,55 @@ const ArhFolhaPagamento = () => {
     try {
       setCentralLoading(true);
       setCentralMessage("Finalizando folha...");
-      await axiosInstance.patch(`/api/arh/folhas/${selectedFolha.id}/finalizar`, dadosFinalizacao);
-      showNotification("success", "Sucesso", "Folha finalizada e aguardando liberação!");
-      carregarFolhas();
+      
+      // Finalizar a folha (muda status para PENDENTE_LIBERACAO)
+      // O envio ao BB será feito apenas ao clicar em "Liberar Folha"
+      const payload = {
+        meioPagamento: dadosFinalizacao.meioPagamento,
+        dataPagamento: dadosFinalizacao.dataPagamento,
+        observacoes: dadosFinalizacao.observacoes,
+      };
+      
+      // Incluir contaCorrenteId se for PIX_API
+      if (dadosFinalizacao.contaCorrenteId) {
+        payload.contaCorrenteId = dadosFinalizacao.contaCorrenteId;
+      }
+      
+      await axiosInstance.patch(`/api/arh/folhas/${selectedFolha.id}/finalizar`, payload);
+      
+      showNotification("success", "Sucesso", "Folha finalizada e aguardando liberação por um administrador!");
+      
+      // Recarregar folhas e lançamentos para atualizar método de pagamento na tabela
+      await carregarFolhas();
+      await carregarLancamentos(selectedFolha.id);
     } catch (error) {
-      const message =
-        error.response?.data?.message ||
-        "Erro ao finalizar a folha.";
+      let message = "Erro ao finalizar a folha.";
+      
+      // Tratar diferentes formatos de erro do NestJS
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        // Se for array de mensagens (validação de múltiplos campos)
+        if (Array.isArray(errorData.message)) {
+          message = errorData.message.join(". ");
+        }
+        // Se for objeto com mensagens por campo
+        else if (typeof errorData.message === "object" && errorData.message !== null) {
+          const messages = Object.values(errorData.message)
+            .flat()
+            .filter((msg) => typeof msg === "string");
+          message = messages.length > 0 ? messages.join(". ") : message;
+        }
+        // Se for string única
+        else if (typeof errorData.message === "string") {
+          message = errorData.message
+            // Adiciona separação quando há transição de minúscula para maiúscula
+            .replace(/([a-z])([A-Z])/g, "$1. $2")
+            // Adiciona separação quando há transição de número para letra maiúscula
+            .replace(/(\d)([A-Z])/g, "$1. $2");
+        }
+      }
+      
       showNotification("error", "Erro", message);
       
       // Reabrir modal em caso de erro
@@ -389,7 +465,10 @@ const ArhFolhaPagamento = () => {
       setCentralMessage("Reabrindo folha para edição...");
       await axiosInstance.patch(`/api/arh/folhas/${selectedFolha.id}/reabrir`);
       showNotification("success", "Sucesso", "Folha reaberta para edição!");
-      carregarFolhas();
+      
+      // Recarregar folhas e lançamentos para atualizar método de pagamento na tabela
+      await carregarFolhas();
+      await carregarLancamentos(selectedFolha.id);
     } catch (error) {
       const message =
         error.response?.data?.message ||
@@ -408,15 +487,121 @@ const ArhFolhaPagamento = () => {
     
     try {
       setCentralLoading(true);
-      setCentralMessage("Liberando folha e processando pagamentos...");
+      
+      // Se a folha usa PIX_API, primeiro criar o lote no BB
+      if (folhaUsaPixApi) {
+        if (!selectedFolha.contaCorrenteId) {
+          showNotification("error", "Erro", "Conta corrente não definida para a folha. Reabra a folha e finalize novamente selecionando a conta corrente.");
+          setCentralLoading(false);
+          return;
+        }
+        
+        setCentralMessage("Criando lote de pagamentos PIX no Banco do Brasil...");
+        
+        try {
+          const respostaPixApi = await axiosInstance.post(
+            `/api/arh/folhas/${selectedFolha.id}/processar-pix-api`,
+            {
+              contaCorrenteId: selectedFolha.contaCorrenteId,
+              dataPagamento: selectedFolha.dataPagamento,
+              observacoes: selectedFolha.observacoes,
+            }
+          );
+          
+          const dados = respostaPixApi.data;
+          showNotification(
+            "success",
+            "Lote PIX Criado!",
+            `${dados?.resumo?.totalTransferencias || 0} transferência(s) enviada(s) para o Banco do Brasil. Aguardando aprovação por um administrador.`
+          );
+        } catch (pixError) {
+          const pixMessage = pixError.response?.data?.message || "Erro ao criar lote de pagamentos PIX.";
+          showNotification("error", "Erro PIX-API", pixMessage);
+          setCentralLoading(false);
+          return; // Não prossegue com a liberação se o PIX falhar
+        }
+      }
+      
+      // Liberar a folha (atualizar status e marcar pagamentos manuais como pagos)
+      setCentralMessage("Liberando folha e finalizando pagamentos...");
       await axiosInstance.patch(`/api/arh/folhas/${selectedFolha.id}/liberar`);
-      showNotification("success", "Sucesso", "Folha liberada e pagamentos processados!");
+      
+      showNotification("success", "Sucesso", "Folha liberada com sucesso!");
       carregarFolhas();
       carregarLancamentos(selectedFolha.id);
     } catch (error) {
       const message =
         error.response?.data?.message ||
         "Erro ao liberar a folha.";
+      showNotification("error", "Erro", message);
+    } finally {
+      setCentralLoading(false);
+    }
+  };
+
+  const excluirFolha = async () => {
+    if (!selectedFolha) return;
+    
+    // Fechar modal de confirmação
+    setExcluirModalOpen(false);
+    
+    try {
+      setCentralLoading(true);
+      setCentralMessage("Excluindo folha de pagamento...");
+      await axiosInstance.delete(`/api/arh/folhas/${selectedFolha.id}`);
+      showNotification("success", "Sucesso", "Folha de pagamento excluída com sucesso!");
+      
+      // Limpar seleção e recarregar folhas
+      setSelectedFolhaId(null);
+      localStorage.removeItem("arh_folha_selecionada");
+      await carregarFolhas();
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Erro ao excluir a folha.";
+      showNotification("error", "Erro", message);
+    } finally {
+      setCentralLoading(false);
+    }
+  };
+
+  const reprocessarFolha = async () => {
+    if (!selectedFolha) return;
+    
+    // Fechar modal de confirmação
+    setReprocessarModalOpen(false);
+    
+    try {
+      setCentralLoading(true);
+      setCentralMessage("Reprocessando salários da folha...");
+      const response = await axiosInstance.patch(`/api/arh/folhas/${selectedFolha.id}/reprocessar`);
+      showNotification("success", "Sucesso", response.data.mensagem || "Folha reprocessada com sucesso!");
+      carregarFolhas();
+      carregarLancamentos(selectedFolha.id);
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Erro ao reprocessar a folha.";
+      showNotification("error", "Erro", message);
+    } finally {
+      setCentralLoading(false);
+    }
+  };
+
+  const gerarPDF = async () => {
+    if (!selectedFolha) return;
+    
+    try {
+      setCentralLoading(true);
+      setCentralMessage("Gerando PDF da folha de pagamento...");
+      
+      // TODO: Implementar geração de PDF quando o endpoint estiver disponível
+      // Por enquanto, apenas uma notificação
+      showNotification("info", "Em desenvolvimento", "A geração de PDF será implementada em breve.");
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Erro ao gerar PDF.";
       showNotification("error", "Erro", message);
     } finally {
       setCentralLoading(false);
@@ -447,6 +632,11 @@ const ArhFolhaPagamento = () => {
     selectedFolha &&
     !isGerenteCultura &&
     selectedFolha.status === "PENDENTE_LIBERACAO";
+  
+  const canExcluir =
+    selectedFolha &&
+    !isGerenteCultura &&
+    selectedFolha.status === "RASCUNHO";
   
   const canLiberate =
     selectedFolha &&
@@ -795,6 +985,39 @@ const ArhFolhaPagamento = () => {
                 style={{ marginRight: 8, color: "#059669", fontSize: 24, verticalAlign: "middle" }}
               />
               Folhas Registradas
+              <Tooltip
+                title={
+                  <div style={{ maxWidth: 350 }}>
+                    <div style={{ marginBottom: 8, fontWeight: 600 }}>Status das Folhas</div>
+                    <div style={{ fontSize: "12px", lineHeight: 1.6 }}>
+                      <strong>Rascunho:</strong> Folha em edição, pode ser modificada.
+                      <br />
+                      <br />
+                      <strong>Pendente Liberação:</strong> Folha finalizada, aguardando liberação por um administrador.
+                      <br />
+                      <br />
+                      <strong>Em Processamento:</strong> Estado transitório durante a criação dos lotes PIX-API no Banco do Brasil. A folha será fechada imediatamente após.
+                      <br />
+                      <br />
+                      <strong>Fechada:</strong> Folha liberada e fechada definitivamente. Para PIX-API, os lotes foram criados e os pagamentos serão processados pelo banco. Para PIX/Espécie, os pagamentos foram marcados como pagos.
+                      <br />
+                      <br />
+                      <strong>Cancelada:</strong> Folha cancelada e não pode ser processada.
+                    </div>
+                  </div>
+                }
+                placement="top"
+              >
+                <InfoCircleOutlined 
+                  style={{ 
+                    marginLeft: 8, 
+                    color: "#d9d9d9", 
+                    fontSize: "16px", 
+                    cursor: "help",
+                    verticalAlign: "middle"
+                  }} 
+                />
+              </Tooltip>
             </Title>
             <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
 
@@ -959,40 +1182,158 @@ const ArhFolhaPagamento = () => {
 
                 {/* Seção 4: Botões de Ação */}
                 <Divider style={{ margin: "20px 0", borderColor: "#e8e8e8" }} />
-                <Space wrap style={{ width: "100%" }}>
-                  <PrimaryButton
-                    icon={<OrderedListOutlined />}
-                    disabled={selectedFolha?.status !== "RASCUNHO"}
-                    onClick={() => setAddModalOpen(true)}
-                  >
-                    Adicionar Funcionários
-                  </PrimaryButton>
-                  <PrimaryButton
-                    icon={<LockOutlined />}
-                    disabled={!canFinalize}
-                    onClick={() => setFinalizarModal(true)}
-                  >
-                    Finalizar Folha
-                  </PrimaryButton>
-                  <PrimaryButton
-                    icon={<EditOutlined />}
-                    disabled={!canEdit}
-                    onClick={editarFolha}
-                    style={{
-                      backgroundColor: canEdit ? "#fa8c16" : undefined,
-                      borderColor: canEdit ? "#fa8c16" : undefined,
-                    }}
-                  >
-                    Editar Folha
-                  </PrimaryButton>
-                  <PrimaryButton
-                    icon={<UnlockOutlined />}
-                    disabled={!canLiberate}
-                    onClick={() => setLiberarModalOpen(true)}
-                  >
-                    Liberar Folha
-                  </PrimaryButton>
-                </Space>
+                
+                {/* Botões Principais */}
+                <Box sx={{ mb: 2 }}>
+                  <Text strong style={{ fontSize: "13px", color: "#64748b", display: "block", marginBottom: "8px" }}>
+                    Ações Principais
+                  </Text>
+                  <Space wrap style={{ width: "100%" }}>
+                    <PrimaryButton
+                      icon={<OrderedListOutlined />}
+                      disabled={selectedFolha?.status !== "RASCUNHO"}
+                      onClick={() => setAddModalOpen(true)}
+                    >
+                      Adicionar Funcionários
+                    </PrimaryButton>
+                    <Tooltip
+                      title={
+                        <div style={{ maxWidth: 300 }}>
+                          <div style={{ marginBottom: 8, fontWeight: 600 }}>Finalizar Folha</div>
+                          <div style={{ fontSize: "12px", lineHeight: 1.6 }}>
+                            Define o meio de pagamento e data para todos os lançamentos pendentes.
+                            <br />
+                            <br />
+                            A folha ficará aguardando liberação por um administrador.
+                            <br />
+                            <br />
+                            <strong>Importante:</strong> Nenhum pagamento é processado nesta etapa. O envio ao banco (se PIX-API) ocorre apenas ao liberar.
+                          </div>
+                        </div>
+                      }
+                      placement="top"
+                    >
+                      <span>
+                        <PrimaryButton
+                          icon={<LockOutlined />}
+                          disabled={!canFinalize}
+                          onClick={() => setFinalizarModal(true)}
+                        >
+                          Finalizar Folha
+                        </PrimaryButton>
+                      </span>
+                    </Tooltip>
+                    {/* Toggle: Editar Folha (PENDENTE_LIBERACAO) ou Excluir Folha (RASCUNHO) */}
+                    {selectedFolha?.status === "PENDENTE_LIBERACAO" ? (
+                      <PrimaryButton
+                        icon={<EditOutlined />}
+                        disabled={!canEdit}
+                        onClick={editarFolha}
+                        style={{
+                          backgroundColor: canEdit ? "#fa8c16" : undefined,
+                          borderColor: canEdit ? "#fa8c16" : undefined,
+                        }}
+                      >
+                        Editar Folha
+                      </PrimaryButton>
+                    ) : (
+                      <PrimaryButton
+                        icon={<DeleteOutlined />}
+                        disabled={!canExcluir}
+                        onClick={() => setExcluirModalOpen(true)}
+                        danger
+                      >
+                        Excluir Folha
+                      </PrimaryButton>
+                    )}
+                    <Tooltip
+                      title={
+                        <div style={{ maxWidth: 300 }}>
+                          <div style={{ marginBottom: 8, fontWeight: 600 }}>Liberar Folha</div>
+                          <div style={{ fontSize: "12px", lineHeight: 1.6 }}>
+                            Processa os pagamentos e fecha a folha definitivamente.
+                            <br />
+                            <br />
+                            <strong>Para PIX-API:</strong> O lote será criado e enviado ao Banco do Brasil com a <strong>data atual</strong> (dia da liberação), evitando remessas com data retroativa.
+                            <br />
+                            <br />
+                            <strong>Para PIX/Espécie:</strong> Os lançamentos serão marcados como pagos automaticamente.
+                            <br />
+                            <br />
+                            <strong>Importante:</strong> A data de pagamento usada será sempre a data do dia da liberação, não a data definida na finalização.
+                          </div>
+                        </div>
+                      }
+                      placement="top"
+                    >
+                      <span>
+                        <PrimaryButton
+                          icon={<UnlockOutlined />}
+                          disabled={!canLiberate}
+                          onClick={() => setLiberarModalOpen(true)}
+                        >
+                          Liberar Folha
+                        </PrimaryButton>
+                      </span>
+                    </Tooltip>
+                  </Space>
+                </Box>
+
+                {/* Botões Secundários */}
+                <Box>
+                  <Text strong style={{ fontSize: "13px", color: "#64748b", display: "block", marginBottom: "8px" }}>
+                    Outras Ações
+                  </Text>
+                  <Space wrap style={{ width: "100%" }}>
+                    <Tooltip
+                      title={
+                        <div style={{ maxWidth: 300 }}>
+                          <div style={{ marginBottom: 8, fontWeight: 600 }}>Reprocessar Folha</div>
+                          <div style={{ fontSize: "12px", lineHeight: 1.6 }}>
+                            Atualiza os valores base (salário/diária) dos lançamentos com os valores atuais dos cargos/funções e recalcula automaticamente o valor bruto e líquido de todos os lançamentos.
+                            <br />
+                            <br />
+                            <strong>Útil quando:</strong>
+                            <br />
+                            • O salário de um cargo foi alterado após a criação da folha
+                            <br />
+                            • O valor da diária de uma função foi atualizado
+                            <br />
+                            • Você precisa sincronizar os valores da folha com os valores atuais
+                          </div>
+                        </div>
+                      }
+                      placement="top"
+                    >
+                      <span>
+                        <PrimaryButton
+                          icon={<ReloadOutlined />}
+                          disabled={!selectedFolha || selectedFolha.status === "FECHADA" || selectedFolha.status === "CANCELADA"}
+                          onClick={() => setReprocessarModalOpen(true)}
+                          style={{
+                            backgroundColor: "#1890ff",
+                            borderColor: "#1890ff",
+                          }}
+                        >
+                          Reprocessar Folha
+                        </PrimaryButton>
+                      </span>
+                    </Tooltip>
+                    <PDFButton
+                      onClick={gerarPDF}
+                      disabled={!selectedFolha}
+                      size={isMobile ? "small" : "large"}
+                      tooltip="Exportar folha de pagamento para PDF"
+                      style={{
+                        height: isMobile ? "32px" : "40px",
+                        padding: isMobile ? "0 12px" : "0 16px",
+                        fontSize: isMobile ? "0.75rem" : undefined,
+                      }}
+                    >
+                      Exportar PDF
+                    </PDFButton>
+                  </Space>
+                </Box>
               </>
             ) : (
               <Text style={{ color: "#94a3b8" }}>
@@ -1107,15 +1448,15 @@ const ArhFolhaPagamento = () => {
         open={liberarModalOpen}
         onConfirm={liberarFolha}
         onCancel={() => setLiberarModalOpen(false)}
-        title="Liberar Folha de Pagamento?"
-        confirmText="Sim, Liberar Folha"
+        title="Liberar Folha de Pagamento"
+        confirmText="Liberar Folha"
         cancelText="Cancelar"
         confirmButtonDanger={false}
         icon={<UnlockOutlined />}
         iconColor="#059669"
         customContent={
           selectedFolha && (
-            <div style={{ padding: "16px 0" }}>
+            <div style={{ padding: "8px 0" }}>
               <Typography.Title level={5} style={{ marginBottom: 16, color: "#059669" }}>
                 Resumo da Folha
               </Typography.Title>
@@ -1123,6 +1464,20 @@ const ArhFolhaPagamento = () => {
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <Typography.Text strong>Competência:</Typography.Text>
                   <Typography.Text>{competenciaLabel(selectedFolha)}</Typography.Text>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <Typography.Text strong>Meio de Pagamento:</Typography.Text>
+                  <Tag color={selectedFolha.meioPagamento === "PIX_API" ? "blue" : selectedFolha.meioPagamento === "PIX" ? "green" : "orange"}>
+                    {selectedFolha.meioPagamento === "PIX_API" ? "PIX - API (Banco do Brasil)" : selectedFolha.meioPagamento === "PIX" ? "PIX Manual" : selectedFolha.meioPagamento === "ESPECIE" ? "Espécie" : "—"}
+                  </Tag>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <Typography.Text strong>Data de Pagamento:</Typography.Text>
+                  <Typography.Text>
+                    {selectedFolha.dataPagamento 
+                      ? new Date(selectedFolha.dataPagamento).toLocaleDateString("pt-BR") 
+                      : "—"}
+                  </Typography.Text>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <Typography.Text strong>Total Líquido:</Typography.Text>
@@ -1144,14 +1499,72 @@ const ArhFolhaPagamento = () => {
                   <Typography.Text strong>Lançamentos:</Typography.Text>
                   <Typography.Text>{selectedFolha.quantidadeLancamentos}</Typography.Text>
                 </div>
-                <Divider style={{ margin: "12px 0" }} />
-                <Typography.Text type="warning" style={{ fontSize: "12px", display: "block", marginTop: "8px" }}>
-                  ⚠️ Após liberar, não será possível editar os valores. Pagamentos serão processados conforme o método definido.
-                </Typography.Text>
               </div>
+
+              {/* Informações do PIX_API */}
+              {folhaUsaPixApi && (
+                <>
+                  <Divider style={{ margin: "16px 0" }} />
+                  <Alert
+                    message="Pagamento via PIX-API"
+                    description="Ao liberar, um lote de pagamentos será criado e enviado ao Banco do Brasil. A liberação precisará ser aprovada por um administrador."
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <Typography.Text strong>Conta para Débito:</Typography.Text>
+                    <Typography.Text>
+                      {loadingContas ? (
+                        <Spin size="small" />
+                      ) : (
+                        (() => {
+                          const conta = contasDisponiveis.find(c => c.id === selectedFolha.contaCorrenteId);
+                          return conta 
+                            ? `Ag: ${conta.agencia} / CC: ${conta.contaCorrente}` 
+                            : `ID: ${selectedFolha.contaCorrenteId}`;
+                        })()
+                      )}
+                    </Typography.Text>
+                  </div>
+                </>
+              )}
+
+              <Divider style={{ margin: "16px 0" }} />
+              <Typography.Text type="warning" style={{ fontSize: "12px", display: "block" }}>
+                ⚠️ Após liberar, não será possível editar os valores. Pagamentos serão processados conforme o método definido.
+              </Typography.Text>
             </div>
           )
         }
+      />
+
+      {/* Modal Excluir Folha */}
+      <ConfirmActionModal
+        open={excluirModalOpen}
+        onConfirm={excluirFolha}
+        onCancel={() => setExcluirModalOpen(false)}
+        title="Excluir Folha de Pagamento?"
+        message={`Tem certeza que deseja excluir a folha de pagamento ${selectedFolha ? competenciaLabel(selectedFolha) : ''}? Esta ação não pode ser desfeita e todos os lançamentos serão removidos.`}
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+      />
+
+      {/* Modal Reprocessar Folha */}
+      <ConfirmActionModal
+        open={reprocessarModalOpen}
+        onConfirm={reprocessarFolha}
+        onCancel={() => setReprocessarModalOpen(false)}
+        title="Reprocessar Folha de Pagamento?"
+        message={`Deseja reprocessar os salários brutos da folha ${selectedFolha ? competenciaLabel(selectedFolha) : ''}? Os valores base (salário/diária) serão atualizados com os valores atuais dos cargos/funções e todos os lançamentos serão recalculados.`}
+        confirmText="Sim, Reprocessar"
+        cancelText="Cancelar"
+        confirmButtonDanger={false}
+        icon={<ReloadOutlined />}
+        iconColor="#1890ff"
       />
     </Box>
   );

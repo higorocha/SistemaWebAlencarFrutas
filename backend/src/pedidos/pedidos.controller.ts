@@ -112,7 +112,8 @@ export class PedidosController {
   })
   create(@Body() createPedidoDto: CreatePedidoDto, @Req() req): Promise<PedidoResponseDto> {
     const usuarioId = req.user.id;
-    return this.pedidosService.create(createPedidoDto, usuarioId);
+    const confirmarDuplicado = req.headers['x-confirmar-duplicado'] === 'true';
+    return this.pedidosService.create(createPedidoDto, usuarioId, 'web', confirmarDuplicado);
   }
 
   // NOVO: Endpoint para criar pagamento individual

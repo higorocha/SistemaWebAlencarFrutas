@@ -12,13 +12,14 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
   const [finalizacaoAtual, setFinalizacaoAtual] = useState({
     meioPagamento: "PIX",
     dataPagamento: undefined,
+    contaCorrenteId: null,
     observacoes: "",
   });
   const [erros, setErros] = useState({});
 
   // Função customizada para verificar se há dados preenchidos
   const customHasDataChecker = (data) => {
-    return data.meioPagamento || data.dataPagamento || data.observacoes?.trim();
+    return data.meioPagamento || data.dataPagamento || data.contaCorrenteId || data.observacoes?.trim();
   };
 
   // Hook customizado para gerenciar confirmação de fechamento
@@ -35,6 +36,7 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
       setFinalizacaoAtual({
         meioPagamento: "PIX",
         dataPagamento: undefined,
+        contaCorrenteId: null,
         observacoes: "",
       });
       setErros({});
@@ -50,6 +52,11 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
 
     if (!finalizacaoAtual.dataPagamento) {
       novosErros.dataPagamento = "Data de pagamento é obrigatória";
+    }
+
+    // Validar conta corrente para PIX_API
+    if (finalizacaoAtual.meioPagamento === "PIX_API" && !finalizacaoAtual.contaCorrenteId) {
+      novosErros.contaCorrenteId = "Conta corrente é obrigatória para pagamento via PIX-API";
     }
 
     setErros(novosErros);
@@ -68,6 +75,19 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
       observacoes: finalizacaoAtual.observacoes || undefined,
     };
 
+    // Incluir contaCorrenteId para PIX_API (garantir que seja número)
+    if (finalizacaoAtual.meioPagamento === "PIX_API") {
+      if (!finalizacaoAtual.contaCorrenteId) {
+        setErros((prev) => ({
+          ...prev,
+          contaCorrenteId: "Conta corrente é obrigatória para pagamento via PIX-API",
+        }));
+        return;
+      }
+      // Garantir que seja número
+      dadosEnvio.contaCorrenteId = Number(finalizacaoAtual.contaCorrenteId);
+    }
+
     // Chamar onSave e deixar o componente pai controlar o fechamento
     await onSave(dadosEnvio);
   };
@@ -76,6 +96,7 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
     setFinalizacaoAtual({
       meioPagamento: "PIX",
       dataPagamento: undefined,
+      contaCorrenteId: null,
       observacoes: "",
     });
     setErros({});
@@ -185,5 +206,7 @@ FinalizarFolhaDialog.propTypes = {
 };
 
 export default FinalizarFolhaDialog;
+
+
 
 

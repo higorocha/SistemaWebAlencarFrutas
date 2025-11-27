@@ -77,6 +77,22 @@ const FuncionarioForm = ({
       }
     }
 
+    // Lógica especial para cargoId: se selecionar um cargo gerencial, limpar gerenteId
+    if (field === "cargoId") {
+      const cargoSelecionado = cargos.find(c => c.id === value);
+      if (cargoSelecionado?.isGerencial === true) {
+        // Se o cargo é gerencial, limpar gerenteId
+        newData.gerenteId = undefined;
+        // Limpar erro de gerenteId se existir
+        if (erros.gerenteId) {
+          setErros((prev) => ({
+            ...prev,
+            gerenteId: undefined,
+          }));
+        }
+      }
+    }
+
     setFuncionarioAtual(newData);
 
     // Limpar erro do campo quando modificado
@@ -107,6 +123,13 @@ const FuncionarioForm = ({
 
   const isDiarista = funcionarioAtual.tipoContrato === "DIARISTA";
   const isMensalista = funcionarioAtual.tipoContrato === "MENSALISTA";
+  
+  // Verificar se o cargo selecionado é gerencial
+  const cargoSelecionado = cargos.find(c => c.id === funcionarioAtual.cargoId);
+  const isCargoGerencial = cargoSelecionado?.isGerencial === true;
+  
+  // Para mensalista: mostrar gerente apenas se o cargo NÃO for gerencial
+  const deveMostrarGerenteMensalista = isMensalista && !isCargoGerencial;
 
   return (
     <div>
@@ -361,68 +384,69 @@ const FuncionarioForm = ({
               </Col>
             )}
             {isDiarista && (
-              <>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label={
-                      <Space>
-                        <BankOutlined style={{ color: "#059669" }} />
-                        <Text strong>Função Diarista</Text>
-                      </Space>
-                    }
-                    validateStatus={erros.funcaoId ? "error" : ""}
-                    help={erros.funcaoId}
-                    required
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <BankOutlined style={{ color: "#059669" }} />
+                      <Text strong>Função Diarista</Text>
+                    </Space>
+                  }
+                  validateStatus={erros.funcaoId ? "error" : ""}
+                  help={erros.funcaoId}
+                  required
+                >
+                  <Select
+                    placeholder="Escolha a função diarista"
+                    value={funcionarioAtual.funcaoId || undefined}
+                    onChange={(value) => handleChange("funcaoId", value)}
+                    size="large"
                   >
-                    <Select
-                      placeholder="Escolha a função diarista"
-                      value={funcionarioAtual.funcaoId || undefined}
-                      onChange={(value) => handleChange("funcaoId", value)}
-                      size="large"
-                    >
-                      {funcoes.map((funcao) => (
-                        <Select.Option value={funcao.id} key={funcao.id}>
-                          {funcao.nome}
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label={
-                      <Space>
-                        <UserOutlined style={{ color: "#059669" }} />
-                        <Text strong>Gerente</Text>
-                      </Space>
+                    {funcoes.map((funcao) => (
+                      <Select.Option value={funcao.id} key={funcao.id}>
+                        {funcao.nome}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+            )}
+            {/* Campo Gerente: aparece para diaristas OU mensalistas com cargo não gerencial */}
+            {(isDiarista || deveMostrarGerenteMensalista) && (
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <UserOutlined style={{ color: "#059669" }} />
+                      <Text strong>Gerente</Text>
+                    </Space>
+                  }
+                  validateStatus={erros.gerenteId ? "error" : ""}
+                  help={erros.gerenteId || "Selecione o gerente responsável (opcional)"}
+                >
+                  <Select
+                    placeholder="Selecione o gerente"
+                    value={funcionarioAtual.gerenteId || undefined}
+                    onChange={(value) => handleChange("gerenteId", value)}
+                    allowClear
+                    size="large"
+                    showSearch
+                    filterOption={(input, option) =>
+                      (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
                     }
-                    validateStatus={erros.gerenteId ? "error" : ""}
-                    help={erros.gerenteId || "Selecione o gerente responsável (opcional)"}
                   >
-                    <Select
-                      placeholder="Selecione o gerente"
-                      value={funcionarioAtual.gerenteId || undefined}
-                      onChange={(value) => handleChange("gerenteId", value)}
-                      allowClear
-                      size="large"
-                      showSearch
-                      filterOption={(input, option) =>
-                        (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
-                      }
-                    >
-                      {gerentes.map((gerente) => (
-                        <Select.Option 
-                          value={gerente.id} 
-                          key={gerente.id}
-                          label={`${capitalizeName(gerente.nome)} - ${gerente.cargo?.nome || ""}`}
-                        >
-                          {capitalizeName(gerente.nome)} {gerente.cargo && `- ${gerente.cargo.nome}`}
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </>
+                    {gerentes.map((gerente) => (
+                      <Select.Option 
+                        value={gerente.id} 
+                        key={gerente.id}
+                        label={`${capitalizeName(gerente.nome)} - ${gerente.cargo?.nome || ""}`}
+                      >
+                        {capitalizeName(gerente.nome)} {gerente.cargo && `- ${gerente.cargo.nome}`}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
             )}
           </Row>
         </Card>

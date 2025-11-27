@@ -4,16 +4,18 @@
 
 Sistema completo de controle e rastreabilidade de pagamentos via API do Banco do Brasil, incluindo **PIX**, **Boletos** e **Guias**, com persistência no banco de dados, consultas individuais, pagamento consolidado e preparação para webhook.
 
-### Status Atual: 95% Concluído
+### Status Atual: 98% Concluído
 
 **✅ Implementado:**
 - Persistência completa de lotes e itens
 - Consultas de lote e individuais
-- Pagamento consolidado (1 transferência para múltiplas colheitas)
-- Relacionamento N:N com tabelas de origem
+- Pagamento consolidado para colheitas (1 transferência para múltiplas colheitas)
+- Pagamento individual para funcionários (1 transferência por funcionário, até 320/lote)
+- Relacionamento N:N (colheitas) e 1:1 (funcionários) com tabelas de origem
 - Rastreabilidade completa
 - Auditoria completa
 - **Jobs automáticos de sincronização** (fila + worker) com delay configurado
+- **Integração completa com ARH (Folha de Pagamento)**
 
 **⚠️ Pendente:**
 - Webhook para receber atualizações do BB (vide seção 🔔 Webhook de Pagamentos)
@@ -312,7 +314,7 @@ const lote = await this.prisma.pagamentoApiLote.create({
 - **Criação/liberação** → agenda registros em `pagamento_api_sync_job` (lotes: +15 min; itens liberados: imediato).
 - **Worker** (`PagamentosSyncWorkerService`) desperta a cada minuto e processa toda a fila disponível, sempre em série.
 - **Logs** mostram hora local (`America/Sao_Paulo`), início de cada job e o resumo final (sucessos/falhas). Reagendamentos também geram log.
-- **Reagendamento automático (lotes)**: repete enquanto o BB responder estados intermediários (`1`, `2`, `4`, `5`, `8`, `9`, `10`). Só encerra quando chega em `6` (processado) ou `7` (rejeitado), e nunca deixa o estado “voltar atrás”.
+- **Reagendamento automático (lotes)**: repete enquanto o BB responder estados intermediários (`1`, `2`, `4`, `5`, `8`, `9`, `10`). Só encerra quando chega em `6` (processado) ou `7` (rejeitado). **IMPORTANTE**: O sistema aceita sempre o estado retornado pelo BB, pois os estados não seguem sequência numérica crescente (ver seção "Sequência Real dos Estados do BB").
 - **Reagendamento automático (itens)**: repete quando o estado do PIX = `PENDENTE`, `CONSISTENTE`, `AGENDADO`, `AGUARDANDO DÉBITO` ou `DEBITADO`. Estados finais (`PAGO`, `CANCELADO`, `REJEITADO`, `DEVOLVIDO`, `VENCIDO`, `BLOQUEADO`) encerram o job.
 - **Propagação Turma Colheita**: quando o item chega em `PAGO`, o job replica o mesmo fluxo do webhook — marca as colheitas vinculadas como pagas e, se todos os itens do lote estiverem `PROCESSADOS`, atualiza o lote para `estadoRequisicao=6`/`CONCLUIDO`.
 - **Backoff de erros**: 15 → 30 → 60 → 180 min; após 5 tentativas falhas, status `FAILED` + mensagem registrada.
@@ -691,13 +693,26 @@ const numeroRequisicao = await obterProximoNumeroRequisicao(); // Retorna: 3
 
 ### 3. Mapeamento de Status
 
+#### ⚠️ IMPORTANTE: Sequência Real dos Estados do BB
+
+**Os estados do Banco do Brasil NÃO seguem sequência numérica crescente!**
+
+A sequência real é:
+1. **Estados iniciais (validação)**: `1`, `2`, `3`
+2. **Estado 8**: "Preparando remessa não liberada"
+3. **Estado 4**: "Requisição pendente de ação pelo Conveniado" (aguarda autorização)
+4. **Estados 9 ou 10**: "Requisição liberada via API" / "Preparando remessa liberada"
+5. **Estados finais**: `6` (Processada) ou `7` (Rejeitada)
+
+**Exemplo prático**: Um lote pode estar em estado `8` e depois ir para estado `4`, o que é uma transição válida (não é "retrocesso"). O sistema aceita sempre o estado retornado pelo BB, que é a fonte da verdade.
+
 #### Função: `mapearStatusLote(estadoRequisicao)`
 
 **Mapeamento de Estados do BB para Status Interno:**
 
 | Estado BB | Descrição | Status Interno |
 |-----------|-----------|----------------|
-| 1 | Requisição com todos os lançamentos com dados consistentes | PROCESSANDO |
+| 1 | Requisição com todos os lançamentos com dados consistentes | PENDENTE |
 | 2 | Requisição com ao menos um dos lançamentos com dados inconsistentes | PROCESSANDO |
 | 3 | Requisição com todos os lançamentos com dados inconsistentes | REJEITADO |
 | 4 | Requisição pendente de ação pelo Conveniado | PENDENTE |
@@ -746,9 +761,10 @@ const numeroRequisicao = await obterProximoNumeroRequisicao(); // Retorna: 3
 #### Após Consulta de Lote
 1. Atualiza `PagamentoApiLote` com:
    - `ultimaConsultaStatus` (timestamp)
-   - `estadoRequisicaoAtual` (estado atual)
+   - `estadoRequisicaoAtual` (estado atual retornado pelo BB)
    - `payloadRespostaAtual` (resposta mais recente)
    - `status` (atualizado)
+   - **IMPORTANTE**: O sistema aceita sempre o estado retornado pelo BB, sem proteção contra "retrocesso numérico", pois os estados não seguem sequência numérica crescente (ver seção "Sequência Real dos Estados do BB").
 2. Atualiza `PagamentoApiItem`(s) com:
    - `ultimaAtualizacaoStatus` (timestamp)
    - `indicadorMovimentoAceitoAtual` / `indicadorAceiteAtual` / `indicadorAceiteGuiaAtual`
@@ -1279,6 +1295,38 @@ console.log('Número da requisição gerado:', response.data.numeroRequisicao);
 - **Cenário atual (Turma de Colheita):** Lote com 1 item → cancela 1 item.
 - **Cenário futuro (Funcionários):** Lote com N itens → cancela todos os N itens de uma vez.
 
+#### 4.3. Lógica do Botão "Liberar" no Frontend
+
+**Arquivo:** `frontend/src/pages/Pagamentos.js`
+
+**Lógica de exibição do botão "Liberar":**
+
+O botão "Liberar" aparece quando **TODAS** as condições abaixo são verdadeiras:
+
+1. `estadoRequisicao === 1` (dados consistentes, aguardando liberação) **OU** `estadoRequisicao === 4` (pendente de ação pelo Conveniado)
+2. `estadoRequisicao !== 9` (não está liberado via API)
+3. `estadoRequisicao !== 6` (não está processado)
+4. **`!record.dataLiberacao`** (não foi liberado anteriormente) ⚠️ **IMPORTANTE**
+
+**Por que verificar `dataLiberacao`?**
+
+Devido à sequência real dos estados do BB (1,2,3 → 8 → 4 → 9/10 → 6/7), um lote pode:
+- Estar em estado `8` (Preparando remessa não liberada)
+- Ser liberado pelo administrador (preenche `dataLiberacao`)
+- O BB retornar estado `4` (Pendente de ação pelo Conveniado) na próxima consulta
+
+Sem a verificação de `dataLiberacao`, o frontend mostraria o botão "Liberar" novamente, mesmo que o lote já tenha sido liberado. A verificação de `dataLiberacao` garante que o botão só apareça para lotes que ainda não foram liberados.
+
+**Código:**
+```javascript
+const podeLiberar =
+  estadoRequisicao &&
+  (estadoRequisicao === 1 || estadoRequisicao === 4) &&
+  estadoRequisicao !== 9 &&
+  estadoRequisicao !== 6 &&
+  !record.dataLiberacao; // ✅ Não mostrar se já foi liberado anteriormente
+```
+
 **Resposta do BB:**
 
 - Retorna um JSON informando se o comando de cancelamento, para **cada pagamento**, foi aceito ou não.
@@ -1475,19 +1523,60 @@ GET /api/pagamentos/pix/96494633731030000/individual
 - ⚠️ Atualizar status automaticamente via webhook
 - ⚠️ Validar assinatura do webhook
 
-### Futuro: Integração com Fornecedores e Funcionários
+### Futuro: Integração com Fornecedores
 - ⚠️ Integrar com `FornecedorPagamento`
-- ✅ Integração com `FuncionarioPagamento` (folha ARH)
-- ⚠️ Suportar múltiplos itens por lote para funcionários
 
-### Integração com ARH (Novo)
-- Novas tabelas `arh_folhas_pagamento` e `arh_funcionarios_pagamento` mantêm o cálculo da folha internamente.
-- Cada lançamento possui `meioPagamento` (`PIX`, `PIX_API`, `ESPECIE`), `pagamentoEfetuado` e `statusPagamento` sincronizado com os estados da API BB (`PENDENTE`, `ENVIADO`, `ACEITO`, `PROCESSANDO`, `PAGO`, `REJEITADO`, `CANCELADO`, `ERRO`).
-- Quando um pagamento for efetuado via API, basta preencher `pagamentoApiItemId` — o relacionamento `PagamentoApiItem.funcionarioPagamentoId` garante rastreabilidade.
-- Fluxo manual (PIX comum ou espécie) permanece independente, permitindo validar todo o processo antes de enviar para a automação bancária.
-- Endpoints REST para cargos, funções, funcionários e folha estão sob `api/arh/...` e utilizam o `PrismaService` padrão.
-- Fluxo de status da folha: `RASCUNHO` → `PENDENTE_LIBERACAO` → `FECHADA`. Usuários (exceto `GERENTE_CULTURA`) podem criar e finalizar; apenas `ADMINISTRADOR` pode liberar.
-- Campos `usuarioCriacaoId`, `usuarioLiberacaoId` e `dataLiberacao` registram quem criou/liberou cada folha.
+### Integração com Funcionários (Concluído ✅)
+- ✅ Integração com `FuncionarioPagamento` (folha ARH)
+- ✅ Suporte a múltiplos itens por lote (até 320 transferências por lote)
+- ✅ Divisão automática em múltiplos lotes se > 320 funcionários
+- ✅ Sincronização automática de status via jobs
+
+### Integração com ARH (Implementado ✅)
+
+#### Estrutura de Dados
+- Tabelas `arh_folhas_pagamento` e `arh_funcionarios_pagamento` mantêm o cálculo da folha internamente.
+- Cada lançamento possui `meioPagamento` (`PIX`, `PIX_API`, `ESPECIE`), `pagamentoEfetuado` e `statusPagamento`.
+- Relacionamento **1:1**: `FuncionarioPagamento.pagamentoApiItemId` ↔ `PagamentoApiItem.funcionarioPagamentoId`.
+
+#### Fluxo de Pagamento PIX-API
+```
+RASCUNHO → PENDENTE_LIBERACAO → EM_PROCESSAMENTO → FECHADA
+                    │                   │
+              Finalizar folha    Criar lote(s) BB
+              (selecionar        (1 PIX por funcionário,
+               PIX_API)          até 320 por lote)
+```
+
+#### Endpoint: `POST /api/arh/folhas/:id/processar-pix-api`
+- **Permissões:** `ADMINISTRADOR`, `GERENTE_GERAL`, `ESCRITORIO`
+- **Payload:** `{ contaCorrenteId, dataPagamento, observacoes }`
+- **Lógica:**
+  1. Valida folha (status `PENDENTE_LIBERACAO`)
+  2. Busca lançamentos com `meioPagamento = PIX_API` e `pagamentoEfetuado = false`
+  3. Valida chave PIX de todos os funcionários
+  4. Monta 1 transferência por funcionário
+  5. **Divide em chunks de 320** (limite do BB)
+  6. Para cada chunk, cria 1 lote com até 320 transferências em `listaTransferencias`
+  7. Vincula cada `PagamentoApiItem` ao respectivo `FuncionarioPagamento`
+  8. Atualiza `statusPagamento = ENVIADO` para cada funcionário
+
+#### Sincronização Automática
+Quando o job de sincronização (`PagamentosSyncWorkerService`) atualiza um `PagamentoApiItem` que tem `funcionarioPagamentoId`:
+- `estadoPagamento = "PAGO"` → `FuncionarioPagamento.statusPagamento = 'PAGO'`, `pagamentoEfetuado = true`
+- `estadoPagamento = "REJEITADO"` → `FuncionarioPagamento.statusPagamento = 'REJEITADO'`
+
+#### Diferença: Colheitas vs Funcionários
+| Aspecto | Colheitas | Funcionários |
+|---------|-----------|--------------|
+| Relacionamento | N:N (`PagamentoApiItemColheita`) | 1:1 (`funcionarioPagamentoId`) |
+| Transferências/lote | 1 única (consolidada) | Até 320 (1 por funcionário) |
+| Payload montado | Frontend | Backend |
+
+#### Outros Detalhes
+- Fluxo manual (PIX comum ou espécie) permanece independente.
+- Endpoints REST para cargos, funções, funcionários e folha estão sob `api/arh/...`.
+- Campos `usuarioCriacaoId`, `usuarioLiberacaoId` e `dataLiberacao` registram auditoria.
 
 ---
 

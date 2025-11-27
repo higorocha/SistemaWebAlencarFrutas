@@ -218,11 +218,14 @@ const FuncionariosTable = React.memo(
         title: "Cargo / Função",
         key: "vinculo",
         width: 150,
-        render: (_, record) => (
-          <Text style={{ color: "#333333", fontSize: "12px" }}>
-            {record.cargo?.nome || record.funcao?.nome || "—"}
-          </Text>
-        ),
+        render: (_, record) => {
+          const nomeCargoFuncao = record.cargo?.nome || record.funcao?.nome;
+          return (
+            <Text style={{ color: "#333333", fontSize: "12px" }}>
+              {nomeCargoFuncao ? capitalizeName(nomeCargoFuncao) : "—"}
+            </Text>
+          );
+        },
       },
       {
         title: "Gerente",

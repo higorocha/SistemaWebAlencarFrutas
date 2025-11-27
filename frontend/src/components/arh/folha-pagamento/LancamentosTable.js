@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Button, Space, Tag, Empty, Typography, Tooltip, Dropdown, InputNumber } from "antd";
-import { EditOutlined, DollarOutlined, DeleteOutlined, MoreOutlined, CalculatorOutlined, SaveOutlined, CloseOutlined } from "@ant-design/icons";
+import { EditOutlined, DollarOutlined, DeleteOutlined, MoreOutlined, CalculatorOutlined, SaveOutlined, CloseOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import ResponsiveTable from "../../common/ResponsiveTable";
 import { capitalizeName } from "../../../utils/formatters";
@@ -174,16 +174,34 @@ const LancamentosTable = React.memo(
         dataIndex: ["funcionario", "nome"],
         key: "funcionario",
         width: 200,
-        render: (_, record) => (
-          <div>
-            <Text strong style={{ color: "#059669", fontSize: "14px" }}>
-              {record.funcionario?.nome ? capitalizeName(record.funcionario.nome) : "—"}
-            </Text>
-            <div style={{ fontSize: 12, color: "#666666" }}>
-              {record.tipoContrato}
+        render: (_, record) => {
+          const tipoContrato = record.tipoContrato;
+          const cargoNome = record.cargo?.nome || record.referenciaNomeCargo;
+          const funcaoNome = record.funcao?.nome || record.referenciaNomeFuncao;
+          
+          // Determinar o que exibir: cargo para mensalista, função para diarista
+          const cargoOuFuncao = tipoContrato === "MENSALISTA" 
+            ? cargoNome 
+            : tipoContrato === "DIARISTA" 
+            ? funcaoNome 
+            : null;
+          
+          return (
+            <div>
+              <Text strong style={{ color: "#059669", fontSize: "14px" }}>
+                {record.funcionario?.nome ? capitalizeName(record.funcionario.nome) : "—"}
+              </Text>
+              <div style={{ fontSize: 12, color: "#666666" }}>
+                {tipoContrato}
+                {cargoOuFuncao && (
+                  <span style={{ marginLeft: "6px", color: "#8c8c8c" }}>
+                    • {capitalizeName(cargoOuFuncao)}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         title: "Dias",
@@ -199,6 +217,13 @@ const LancamentosTable = React.memo(
                 min={0}
                 value={editingValues.diasTrabalhados}
                 onChange={(val) => handleFieldChange("diasTrabalhados", val)}
+                onPressEnter={handleSaveEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleCancelEdit();
+                  }
+                }}
                 size="small"
                 style={{ width: "100%" }}
                 autoFocus
@@ -222,6 +247,13 @@ const LancamentosTable = React.memo(
                 min={0}
                 value={editingValues.faltas}
                 onChange={(val) => handleFieldChange("faltas", val)}
+                onPressEnter={handleSaveEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleCancelEdit();
+                  }
+                }}
                 size="small"
                 style={{ width: "100%" }}
               />
@@ -249,6 +281,13 @@ const LancamentosTable = React.memo(
                 precision={1}
                 value={editingValues.horasExtras}
                 onChange={(val) => handleFieldChange("horasExtras", val)}
+                onPressEnter={handleSaveEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleCancelEdit();
+                  }
+                }}
                 size="small"
                 style={{ width: "100%" }}
               />
@@ -275,6 +314,8 @@ const LancamentosTable = React.memo(
                 <MonetaryInput
                   value={editingValues.valorHoraExtra}
                   onChange={(val) => handleFieldChange("valorHoraExtra", val ? parseFloat(val) : 0)}
+                  onPressEnter={handleSaveEdit}
+                  onPressEsc={handleCancelEdit}
                   size="small"
                   style={{ flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                   placeholder="0,00"
@@ -323,6 +364,8 @@ const LancamentosTable = React.memo(
                 <MonetaryInput
                   value={editingValues.ajudaCusto}
                   onChange={(val) => handleFieldChange("ajudaCusto", val ? parseFloat(val) : 0)}
+                  onPressEnter={handleSaveEdit}
+                  onPressEsc={handleCancelEdit}
                   size="small"
                   style={{ flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                   placeholder="0,00"
@@ -371,6 +414,8 @@ const LancamentosTable = React.memo(
                 <MonetaryInput
                   value={editingValues.descontosExtras}
                   onChange={(val) => handleFieldChange("descontosExtras", val ? parseFloat(val) : 0)}
+                  onPressEnter={handleSaveEdit}
+                  onPressEsc={handleCancelEdit}
                   size="small"
                   style={{ flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                   placeholder="0,00"
@@ -419,6 +464,8 @@ const LancamentosTable = React.memo(
                 <MonetaryInput
                   value={editingValues.adiantamento}
                   onChange={(val) => handleFieldChange("adiantamento", val ? parseFloat(val) : 0)}
+                  onPressEnter={handleSaveEdit}
+                  onPressEsc={handleCancelEdit}
                   size="small"
                   style={{ flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                   placeholder="0,00"
@@ -454,7 +501,73 @@ const LancamentosTable = React.memo(
         },
       },
       {
-        title: "Valor Bruto",
+        title: "Salário Base / Diária",
+        dataIndex: "salarioBaseReferencia",
+        key: "salarioBaseDiaria",
+        width: 140,
+        align: "right",
+        render: (_, record) => {
+          const tipoContrato = record.tipoContrato;
+          let valorExibir = null;
+          let label = "";
+
+          if (tipoContrato === "MENSALISTA") {
+            // Mensalista: exibir salário base mensal
+            valorExibir = record.salarioBaseReferencia;
+            label = "Salário Base";
+          } else if (tipoContrato === "DIARISTA") {
+            // Diarista: exibir valor da diária
+            valorExibir = record.valorDiariaAplicada;
+            label = "Diária";
+          }
+
+          if (!valorExibir || Number(valorExibir) === 0) {
+            return <Text style={{ color: "#999", fontSize: "12px" }}>—</Text>;
+          }
+
+          return (
+            <div>
+              <Text style={{ color: "#666", fontSize: "11px", display: "block" }}>
+                {label}
+              </Text>
+              <Text style={{ color: "#333", fontSize: "12px", fontWeight: 500 }}>
+                {currency(valorExibir)}
+              </Text>
+            </div>
+          );
+        },
+      },
+      {
+        title: (
+          <Space size="small">
+            <span>Valor Bruto</span>
+            <Tooltip
+              title={
+                <div style={{ maxWidth: 300 }}>
+                  <div style={{ marginBottom: 8, fontWeight: 600 }}>Valor Bruto</div>
+                  <div style={{ fontSize: "12px", lineHeight: 1.6 }}>
+                    Valor total a receber antes de descontar adiantamentos.
+                    <br />
+                    <br />
+                    <strong>Cálculo:</strong>
+                    <br />
+                    Valor Base + Ajuda de Custo + Horas Extras - Descontos Extras
+                    <br />
+                    <br />
+                    <strong>Onde:</strong>
+                    <br />
+                    • Mensalista: Salário Mensal ÷ 2 (quinzenal)
+                    <br />
+                    • Diarista: Valor da Diária × Dias Trabalhados
+                  </div>
+                </div>
+              }
+              placement="top"
+            >
+              <InfoCircleOutlined style={{ color: "#d9d9d9", cursor: "help", fontSize: "14px" }} />
+            </Tooltip>
+          </Space>
+        ),
         dataIndex: "valorBruto",
         key: "valorBruto",
         width: 120,
@@ -481,7 +594,36 @@ const LancamentosTable = React.memo(
         },
       },
       {
-        title: "Valor Líquido",
+        title: (
+          <Space size="small">
+            <span>Valor Líquido</span>
+            <Tooltip
+              title={
+                <div style={{ maxWidth: 300 }}>
+                  <div style={{ marginBottom: 8, fontWeight: 600 }}>Valor Líquido</div>
+                  <div style={{ fontSize: "12px", lineHeight: 1.6 }}>
+                    Valor final a pagar ao funcionário após descontar adiantamentos.
+                    <br />
+                    <br />
+                    <strong>Cálculo:</strong>
+                    <br />
+                    Valor Bruto - Adiantamento
+                    <br />
+                    <br />
+                    <strong>Exemplo:</strong>
+                    <br />
+                    Se o Valor Bruto é R$ 1.950,00 e o Adiantamento é R$ 500,00,
+                    <br />
+                    o Valor Líquido será R$ 1.450,00 (valor que será pago).
+                  </div>
+                </div>
+              }
+              placement="top"
+            >
+              <InfoCircleOutlined style={{ color: "#d9d9d9", cursor: "help", fontSize: "14px" }} />
+            </Tooltip>
+          </Space>
+        ),
         dataIndex: "valorLiquido",
         key: "valorLiquido",
         width: 120,
@@ -511,8 +653,22 @@ const LancamentosTable = React.memo(
         title: "Método Pag.",
         dataIndex: "meioPagamento",
         key: "meioPagamento",
-        width: 100,
-        render: (meio) => <Tag color="#1890ff">{meio}</Tag>,
+        width: 140,
+        render: (meio) => {
+          if (!meio) {
+            return <Text type="secondary">-</Text>;
+          }
+          // Formatar o método de pagamento
+          let metodoFormatado = meio;
+          if (meio === "PIX_API") {
+            metodoFormatado = "PIX - API";
+          } else if (meio === "PIX") {
+            metodoFormatado = "PIX";
+          } else if (meio === "ESPECIE") {
+            metodoFormatado = "Espécie";
+          }
+          return <Tag color="#059669">{metodoFormatado}</Tag>;
+        },
       },
       {
         title: "Status",

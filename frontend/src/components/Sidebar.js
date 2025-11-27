@@ -567,6 +567,47 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
             </SubMenu>
           )}
 
+          {/* SUBMENU PRODUÇÃO */}
+          {isOpen ? (
+            <SubMenu
+              key="PRODUCAO"
+              icon={<Icon icon="fa6-solid:tractor" style={{ fontSize: '20px' }} />}
+              label="Produção"
+              open={openParents.PRODUCAO}
+              onOpenChange={(opened) =>
+                handleParentOpenChange("PRODUCAO", opened)
+              }
+              className={
+                isMenuActive(["/producao"])
+                  ? "ps-active-parent"
+                  : ""
+              }
+            >
+              {producaoItems.map((p) => renderMenuItem(p, "PRODUCAO"))}
+            </SubMenu>
+          ) : (
+            <SubMenu
+              key="PRODUCAO"
+              icon={
+                <Tooltip title="Produção" placement="right">
+                  <Icon icon="fa6-solid:tractor" style={{ fontSize: '20px' }} />
+                </Tooltip>
+              }
+              label=""
+              open={openParents.PRODUCAO}
+              onOpenChange={(opened) =>
+                handleParentOpenChange("PRODUCAO", opened)
+              }
+              className={
+                isMenuActive(["/producao"])
+                  ? "ps-active-parent"
+                  : ""
+              }
+            >
+              {producaoItems.map((p) => renderMenuItem(p, "PRODUCAO"))}
+            </SubMenu>
+          )}
+
           {/* SUBMENU ARH */}
           {isOpen ? (
             <SubMenu
@@ -609,47 +650,6 @@ const SidebarMenu = ({ isOpen, mode, toggleTheme, handleSidebarCollapse }) => {
               }
             >
               {arhItems.map((item) => renderMenuItem(item, "ARH"))}
-            </SubMenu>
-          )}
-
-          {/* SUBMENU PRODUÇÃO */}
-          {isOpen ? (
-            <SubMenu
-              key="PRODUCAO"
-              icon={<Icon icon="fa6-solid:tractor" style={{ fontSize: '20px' }} />}
-              label="Produção"
-              open={openParents.PRODUCAO}
-              onOpenChange={(opened) =>
-                handleParentOpenChange("PRODUCAO", opened)
-              }
-              className={
-                isMenuActive(["/producao"])
-                  ? "ps-active-parent"
-                  : ""
-              }
-            >
-              {producaoItems.map((p) => renderMenuItem(p, "PRODUCAO"))}
-            </SubMenu>
-          ) : (
-            <SubMenu
-              key="PRODUCAO"
-              icon={
-                <Tooltip title="Produção" placement="right">
-                  <Icon icon="fa6-solid:tractor" style={{ fontSize: '20px' }} />
-                </Tooltip>
-              }
-              label=""
-              open={openParents.PRODUCAO}
-              onOpenChange={(opened) =>
-                handleParentOpenChange("PRODUCAO", opened)
-              }
-              className={
-                isMenuActive(["/producao"])
-                  ? "ps-active-parent"
-                  : ""
-              }
-            >
-              {producaoItems.map((p) => renderMenuItem(p, "PRODUCAO"))}
             </SubMenu>
           )}
 

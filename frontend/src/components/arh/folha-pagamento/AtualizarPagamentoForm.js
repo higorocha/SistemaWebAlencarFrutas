@@ -14,18 +14,11 @@ const { Text } = Typography;
 
 const STATUS_PAGAMENTO = [
   "PENDENTE",
-  "ENVIADO",
-  "ACEITO",
-  "PROCESSANDO",
   "PAGO",
-  "REJEITADO",
-  "CANCELADO",
-  "ERRO",
 ];
 
 const MEIOS_PAGAMENTO = [
   { label: "PIX", value: "PIX" },
-  { label: "PIX - API", value: "PIX_API" },
   { label: "Espécie", value: "ESPECIE" },
 ];
 
@@ -43,10 +36,31 @@ const AtualizarPagamentoForm = ({
   lancamento,
 }) => {
   const handleChange = (field, value) => {
-    setPagamentoAtual((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setPagamentoAtual((prev) => {
+      const novoEstado = {
+        ...prev,
+        [field]: value,
+      };
+
+      // Sincronizar status e pagamentoEfetuado
+      if (field === "statusPagamento") {
+        // Quando status muda, atualizar o switch
+        if (value === "PAGO") {
+          novoEstado.pagamentoEfetuado = true;
+        } else if (value === "PENDENTE") {
+          novoEstado.pagamentoEfetuado = false;
+        }
+      } else if (field === "pagamentoEfetuado") {
+        // Quando switch muda, atualizar o status
+        if (value === true) {
+          novoEstado.statusPagamento = "PAGO";
+        } else if (value === false) {
+          novoEstado.statusPagamento = "PENDENTE";
+        }
+      }
+
+      return novoEstado;
+    });
 
     // Limpar erro do campo quando modificado
     if (erros[field]) {
@@ -282,5 +296,9 @@ AtualizarPagamentoForm.propTypes = {
 };
 
 export default AtualizarPagamentoForm;
+
+
+
+
 
 

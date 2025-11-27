@@ -6,6 +6,7 @@ import {
   TipoPagamentoApi,
   StatusPagamentoLote,
   StatusPagamentoItem,
+  StatusFuncionarioPagamento,
   Prisma,
 } from '@prisma/client';
 import { createPagamentosApiClient, createPagamentosAuthClient, BB_PAGAMENTOS_API_URLS } from '../utils/bb-pagamentos-client';
@@ -788,6 +789,53 @@ export class PagamentosService {
   }
 
   /**
+   * Mapeia o status do item de pagamento para o status do FuncionarioPagamento
+   * @param statusItem Status interno do item de pagamento
+   * @param loteFinalizado Se o lote está finalizado (estadoRequisicao = 6)
+   * @returns Objeto com campos para atualizar no FuncionarioPagamento ou null se não deve atualizar
+   */
+  private mapearStatusItemParaFuncionarioPagamento(
+    statusItem: StatusPagamentoItem,
+    loteFinalizado: boolean
+  ): { statusPagamento: StatusFuncionarioPagamento; pagamentoEfetuado?: boolean; dataPagamento?: Date } | null {
+    switch (statusItem) {
+      case StatusPagamentoItem.ACEITO:
+        // Item aceito (indicador = 'S'), mas ainda aguardando processamento
+        // Se lote está finalizado (estado 6), significa que foi processado com sucesso
+        if (loteFinalizado) {
+          return {
+            statusPagamento: StatusFuncionarioPagamento.PAGO,
+            pagamentoEfetuado: true,
+            dataPagamento: new Date(),
+          };
+        }
+        return {
+          statusPagamento: StatusFuncionarioPagamento.PROCESSANDO,
+        };
+
+      case StatusPagamentoItem.REJEITADO:
+        return {
+          statusPagamento: StatusFuncionarioPagamento.REJEITADO,
+          pagamentoEfetuado: false,
+        };
+
+      case StatusPagamentoItem.PROCESSADO:
+        // Item marcado como processado (PAGO na origem)
+        return {
+          statusPagamento: StatusFuncionarioPagamento.PAGO,
+          pagamentoEfetuado: true,
+          dataPagamento: new Date(),
+        };
+
+      case StatusPagamentoItem.ENVIADO:
+      case StatusPagamentoItem.PENDENTE:
+      default:
+        // Mantém ENVIADO ou PROCESSANDO sem alterar
+        return null;
+    }
+  }
+
+  /**
    * Invalida o cache de token para uma credencial e escopos específicos
    * Útil quando um token retorna erro 401/403, indicando que pode estar expirado ou com escopos incorretos
    * @param credencialId ID da credencial
@@ -927,7 +975,9 @@ export class PagamentosService {
   async listarLotesTurmaColheita(
     dataInicio?: string,
     dataFim?: string,
-  ): Promise<any[]> {
+    page?: number,
+    limit?: number,
+  ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     const where: Prisma.PagamentoApiLoteWhereInput = {
       tipoPagamentoApi: 'PIX',
     };
@@ -942,56 +992,64 @@ export class PagamentosService {
       }
     }
 
-    const lotes = await this.prisma.pagamentoApiLote.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 100,
-      include: {
-        contaCorrente: true,
-        usuarioCriacao: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-          },
+    // Paginação: padrão page=1, limit=10
+    const pageNumber = page ? Number(page) : 1;
+    const limitNumber = limit ? Number(limit) : 10;
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [lotes, total] = await Promise.all([
+      this.prisma.pagamentoApiLote.findMany({
+        where,
+        orderBy: {
+          createdAt: 'desc',
         },
-        usuarioLiberacao: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-          },
-        },
-        itensPagamento: {
-          include: {
-            usuarioCancelamento: {
-              select: {
-                id: true,
-                nome: true,
-                email: true,
-              },
+        skip,
+        take: limitNumber,
+        include: {
+          contaCorrente: true,
+          usuarioCriacao: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
             },
-            colheitas: {
-              include: {
-                turmaColheitaCusto: {
-                  include: {
-                    turmaColheita: true,
-                    pedido: {
-                      select: {
-                        numeroPedido: true,
-                        cliente: {
-                          select: {
-                            nome: true,
-                            razaoSocial: true,
+          },
+          usuarioLiberacao: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          itensPagamento: {
+            include: {
+              usuarioCancelamento: {
+                select: {
+                  id: true,
+                  nome: true,
+                  email: true,
+                },
+              },
+              colheitas: {
+                include: {
+                  turmaColheitaCusto: {
+                    include: {
+                      turmaColheita: true,
+                      pedido: {
+                        select: {
+                          numeroPedido: true,
+                          cliente: {
+                            select: {
+                              nome: true,
+                              razaoSocial: true,
+                            },
                           },
                         },
                       },
-                    },
-                    fruta: {
-                      select: {
-                        nome: true,
+                      fruta: {
+                        select: {
+                          nome: true,
+                        },
                       },
                     },
                   },
@@ -1000,10 +1058,11 @@ export class PagamentosService {
             },
           },
         },
-      },
-    });
+      }),
+      this.prisma.pagamentoApiLote.count({ where }),
+    ]);
 
-    return lotes.map((lote) => {
+    const lotesMapeados = lotes.map((lote) => {
       const todasColheitas = lote.itensPagamento.flatMap((item) =>
         item.colheitas.map((rel) => rel.turmaColheitaCusto),
       );
@@ -1131,6 +1190,254 @@ export class PagamentosService {
         })),
       };
     });
+
+    return {
+      data: lotesMapeados,
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+    };
+  }
+
+  /**
+   * Lista lotes de pagamentos vinculados a folhas de pagamento (PIX)
+   */
+  async listarLotesFolhaPagamento(
+    dataInicio?: string,
+    dataFim?: string,
+    page?: number,
+    limit?: number,
+  ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    const where: Prisma.PagamentoApiLoteWhereInput = {
+      tipoPagamentoApi: 'PIX',
+      itensPagamento: {
+        some: {
+          funcionarioPagamentoId: {
+            not: null,
+          },
+        },
+      },
+    };
+
+    if (dataInicio || dataFim) {
+      where.createdAt = {};
+      if (dataInicio) {
+        where.createdAt.gte = new Date(dataInicio);
+      }
+      if (dataFim) {
+        where.createdAt.lte = new Date(dataFim);
+      }
+    }
+
+    // Paginação: padrão page=1, limit=10
+    const pageNumber = page ? Number(page) : 1;
+    const limitNumber = limit ? Number(limit) : 10;
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [lotes, total] = await Promise.all([
+      this.prisma.pagamentoApiLote.findMany({
+        where,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limitNumber,
+        include: {
+          contaCorrente: true,
+          usuarioCriacao: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          usuarioLiberacao: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          itensPagamento: {
+            where: {
+              funcionarioPagamentoId: {
+                not: null,
+              },
+            },
+            include: {
+              usuarioCancelamento: {
+                select: {
+                  id: true,
+                  nome: true,
+                  email: true,
+                },
+              },
+              funcionarioPagamento: {
+                include: {
+                  funcionario: {
+                    select: {
+                      id: true,
+                      nome: true,
+                      cpf: true,
+                    },
+                  },
+                  folha: {
+                    select: {
+                      id: true,
+                      competenciaMes: true,
+                      competenciaAno: true,
+                      periodo: true,
+                      referencia: true,
+                      status: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.pagamentoApiLote.count({ where }),
+    ]);
+
+    const lotesMapeados = lotes.map((lote) => {
+      const funcionariosPagamento = lote.itensPagamento
+        .map((item) => item.funcionarioPagamento)
+        .filter((fp) => fp !== null);
+
+      const quantidadeFuncionarios = funcionariosPagamento.length;
+      const valorTotalFuncionarios = funcionariosPagamento.reduce(
+        (acc, fp) => acc + Number(fp?.valorLiquido || 0),
+        0,
+      );
+
+      // Agrupar por folha para identificar a origem
+      const folhas = new Map();
+      funcionariosPagamento.forEach((fp) => {
+        if (fp?.folha) {
+          const folhaId = fp.folha.id;
+          if (!folhas.has(folhaId)) {
+            folhas.set(folhaId, {
+              folha: fp.folha,
+              funcionarios: [],
+            });
+          }
+          folhas.get(folhaId).funcionarios.push(fp);
+        }
+      });
+
+      // Se houver múltiplas folhas, usar a primeira (geralmente há apenas uma)
+      const folhaPrincipal = Array.from(folhas.values())[0]?.folha || null;
+
+      // Origem do lote
+      const origemTipo = funcionariosPagamento.length > 0 ? 'FOLHA_PAGAMENTO' : 'DESCONHECIDO';
+      const origemNome = folhaPrincipal
+        ? `${String(folhaPrincipal.competenciaMes).padStart(2, '0')}/${folhaPrincipal.competenciaAno} - ${folhaPrincipal.periodo}ª Quinzena`
+        : null;
+
+      return {
+        id: lote.id,
+        numeroRequisicao: lote.numeroRequisicao,
+        tipoPagamentoApi: lote.tipoPagamentoApi,
+        tipoPagamento: lote.tipoPagamento,
+        status: lote.status,
+        estadoRequisicao: lote.estadoRequisicao,
+        estadoRequisicaoAtual: lote.estadoRequisicaoAtual,
+        processadoComSucesso: lote.processadoComSucesso,
+        dataCriacao: lote.createdAt,
+        dataAtualizacao: lote.updatedAt,
+        contaCorrente: {
+          id: lote.contaCorrente.id,
+          bancoCodigo: lote.contaCorrente.bancoCodigo,
+          agencia: lote.contaCorrente.agencia,
+          contaCorrente: lote.contaCorrente.contaCorrente,
+        },
+        quantidadeItens: lote.itensPagamento.length,
+        quantidadeFuncionarios,
+        valorTotalEnviado: lote.valorTotalEnviado,
+        valorTotalValidado: lote.valorTotalValido,
+        valorTotalFuncionarios,
+        origemTipo,
+        origemNome,
+        folhaPrincipal: folhaPrincipal ? {
+          id: folhaPrincipal.id,
+          competenciaMes: folhaPrincipal.competenciaMes,
+          competenciaAno: folhaPrincipal.competenciaAno,
+          periodo: folhaPrincipal.periodo,
+          referencia: folhaPrincipal.referencia,
+          status: folhaPrincipal.status,
+        } : null,
+        // Rastreamento por usuário
+        usuarioCriacao: lote.usuarioCriacao ? {
+          id: lote.usuarioCriacao.id,
+          nome: lote.usuarioCriacao.nome,
+          email: lote.usuarioCriacao.email,
+        } : null,
+        usuarioLiberacao: lote.usuarioLiberacao ? {
+          id: lote.usuarioLiberacao.id,
+          nome: lote.usuarioLiberacao.nome,
+          email: lote.usuarioLiberacao.email,
+        } : null,
+        dataLiberacao: lote.dataLiberacao,
+        itensPagamento: lote.itensPagamento.map(item => ({
+          id: item.id,
+          codigoPagamento: item.codigoPagamento,
+          codigoIdentificadorPagamento: item.codigoIdentificadorPagamento,
+          identificadorPagamento: item.identificadorPagamento,
+          valorEnviado: item.valorEnviado,
+          status: item.status,
+          estadoPagamentoIndividual: item.estadoPagamentoIndividual,
+          processadoComSucesso: item.processadoComSucesso,
+          // Dados PIX
+          chavePixEnviada: item.chavePixEnviada,
+          tipoChavePixEnviado: item.tipoChavePixEnviado,
+          usuarioCancelamento: item.usuarioCancelamento ? {
+            id: item.usuarioCancelamento.id,
+            nome: item.usuarioCancelamento.nome,
+            email: item.usuarioCancelamento.email,
+          } : null,
+          dataCancelamento: item.dataCancelamento,
+          // Funcionário vinculado ao item
+          funcionarioPagamento: item.funcionarioPagamento ? {
+            id: item.funcionarioPagamento.id,
+            funcionario: item.funcionarioPagamento.funcionario ? {
+              id: item.funcionarioPagamento.funcionario.id,
+              nome: item.funcionarioPagamento.funcionario.nome,
+              cpf: item.funcionarioPagamento.funcionario.cpf,
+            } : null,
+            folha: item.funcionarioPagamento.folha ? {
+              id: item.funcionarioPagamento.folha.id,
+              competenciaMes: item.funcionarioPagamento.folha.competenciaMes,
+              competenciaAno: item.funcionarioPagamento.folha.competenciaAno,
+              periodo: item.funcionarioPagamento.folha.periodo,
+              referencia: item.funcionarioPagamento.folha.referencia,
+              status: item.funcionarioPagamento.folha.status,
+            } : null,
+            valorLiquido: item.funcionarioPagamento.valorLiquido,
+            statusPagamento: item.funcionarioPagamento.statusPagamento,
+          } : null,
+        })),
+        funcionarios: funcionariosPagamento.map((fp) => ({
+          id: fp?.id,
+          funcionarioId: fp?.funcionarioId,
+          funcionarioNome: fp?.funcionario?.nome,
+          funcionarioCpf: fp?.funcionario?.cpf,
+          folhaId: fp?.folhaId,
+          folhaCompetencia: fp?.folha
+            ? `${String(fp.folha.competenciaMes).padStart(2, '0')}/${fp.folha.competenciaAno} - ${fp.folha.periodo}ª Quinzena`
+            : null,
+          valorLiquido: fp?.valorLiquido,
+          statusPagamento: fp?.statusPagamento,
+        })),
+      };
+    });
+
+    return {
+      data: lotesMapeados,
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+    };
   }
 
   /**
@@ -1395,12 +1702,13 @@ export class PagamentosService {
         });
 
         if (loteComRelacionamentos) {
-          // Origem genérica preparada para múltiplos tipos (atualmente apenas TURMA_COLHEITA)
-          const origemTipo = 'TURMA_COLHEITA';
-          const origemNome =
-            (dto.colheitaIds && dto.colheitaIds.length > 0)
+          // Origem genérica preparada para múltiplos tipos (TURMA_COLHEITA, FOLHA_PAGAMENTO, etc)
+          // Se não informado no DTO, usa TURMA_COLHEITA como padrão (compatibilidade com código existente)
+          const origemTipo = dto.origemTipo || 'TURMA_COLHEITA';
+          const origemNome = dto.origemNome || 
+            ((dto.colheitaIds && dto.colheitaIds.length > 0)
               ? 'Turma de Colheita'
-              : undefined;
+              : undefined);
 
           await this.notificacoesService.criarNotificacoesLiberarPagamentoParaAdministradores({
             ...loteComRelacionamentos,
@@ -2125,19 +2433,21 @@ export class PagamentosService {
         typeof respostaData?.estadoRequisicao === 'number'
           ? respostaData.estadoRequisicao
           : null;
-      const isEstadoFinal = (estado?: number | null) =>
-        estado === 6 || estado === 7;
-      let estadoRequisicao = estadoRequisicaoApi ?? estadoAnterior;
-
-      if (
-        typeof estadoAnterior === 'number' &&
-        typeof estadoRequisicao === 'number' &&
-        estadoAnterior > estadoRequisicao &&
-        !isEstadoFinal(estadoRequisicao)
-      ) {
-        // Não permitir retroceder para estados anteriores (ex: voltar para 1 ou 4 após avançar)
-        estadoRequisicao = estadoAnterior;
-      }
+      
+      /**
+       * IMPORTANTE: Aceitar sempre o estado retornado pelo BB, pois os estados NÃO seguem sequência numérica.
+       * 
+       * Sequência REAL dos estados do Banco do Brasil:
+       * 1. Estados iniciais (validação): 1, 2, 3
+       * 2. Estado 8: "Preparando remessa não liberada"
+       * 3. Estado 4: "Requisição pendente de ação pelo Conveniado" (aguarda autorização)
+       * 4. Estados 9 ou 10: "Requisição liberada via API" / "Preparando remessa liberada"
+       * 5. Estados finais: 6 (Processada) ou 7 (Rejeitada)
+       * 
+       * NÃO podemos comparar numericamente (ex: 8 > 4), pois o estado 4 vem DEPOIS do 8 no fluxo real.
+       * O BB é a fonte da verdade, então sempre aceitamos o estado que ele retorna.
+       */
+      const estadoRequisicao = estadoRequisicaoApi ?? estadoAnterior;
 
       const quantidadeValida = respostaData?.quantidadeTransferenciasValidas || 0;
       const valorTotalValido = respostaData?.valorTransferenciasValidas || 0;
@@ -2179,6 +2489,18 @@ export class PagamentosService {
                 ultimaAtualizacaoStatus: new Date(),
               },
             });
+
+            // Sincronizar status com FuncionarioPagamento se vinculado
+            if (item.funcionarioPagamentoId) {
+              const funcionarioStatus = this.mapearStatusItemParaFuncionarioPagamento(statusItem, finalizado);
+              if (funcionarioStatus) {
+                await this.prisma.funcionarioPagamento.update({
+                  where: { id: item.funcionarioPagamentoId },
+                  data: funcionarioStatus,
+                });
+                console.log(`👤 [PAGAMENTOS-SERVICE] FuncionarioPagamento ${item.funcionarioPagamentoId} atualizado: status=${funcionarioStatus.statusPagamento}`);
+              }
+            }
           })
         );
       }
@@ -2861,8 +3183,15 @@ export class PagamentosService {
     const loteIdRelacionado = item.loteId ?? item.lote?.id;
 
     if (categoriaEstado === 'SUCESSO') {
+      // Atualizar colheitas (relacionamento N:N)
       await this.atualizarColheitasDoItemParaPago(
         itemAtualizado.id,
+        dataPagamento ?? new Date(),
+      );
+      // Atualizar funcionário (relacionamento 1:1)
+      await this.atualizarFuncionarioPagamentoDoItem(
+        itemAtualizado.id,
+        'PAGO',
         dataPagamento ?? new Date(),
       );
       if (loteIdRelacionado) {
@@ -2873,6 +3202,12 @@ export class PagamentosService {
       categoriaEstado === 'REJEITADO'
     ) {
       await this.reverterColheitasDoItemParaPendente(itemAtualizado.id);
+      // Atualizar funcionário para rejeitado
+      await this.atualizarFuncionarioPagamentoDoItem(
+        itemAtualizado.id,
+        'REJEITADO',
+        null,
+      );
       if (loteIdRelacionado) {
         await this.atualizarStatusLoteAposCancelamentoItem(loteIdRelacionado);
       }
@@ -3060,6 +3395,52 @@ export class PagamentosService {
         dataPagamento: null,
       },
     });
+  }
+
+  /**
+   * Atualiza o FuncionarioPagamento associado a um PagamentoApiItem
+   * @param itemId ID do PagamentoApiItem
+   * @param status Status a ser definido ('PAGO' ou 'REJEITADO')
+   * @param dataPagamento Data do pagamento (null para rejeição)
+   */
+  private async atualizarFuncionarioPagamentoDoItem(
+    itemId: number,
+    status: 'PAGO' | 'REJEITADO',
+    dataPagamento: Date | null,
+  ): Promise<void> {
+    // Buscar o item para obter o funcionarioPagamentoId
+    const item = await this.prisma.pagamentoApiItem.findUnique({
+      where: { id: itemId },
+      select: { funcionarioPagamentoId: true },
+    });
+
+    // Se não tem funcionário associado, retornar
+    if (!item?.funcionarioPagamentoId) {
+      return;
+    }
+
+    console.log(`📝 [PAGAMENTOS-SERVICE] Atualizando FuncionarioPagamento ID ${item.funcionarioPagamentoId} para status ${status}`);
+
+    if (status === 'PAGO') {
+      await this.prisma.funcionarioPagamento.update({
+        where: { id: item.funcionarioPagamentoId },
+        data: {
+          statusPagamento: 'PAGO',
+          pagamentoEfetuado: true,
+          dataPagamento: dataPagamento,
+        },
+      });
+    } else if (status === 'REJEITADO') {
+      await this.prisma.funcionarioPagamento.update({
+        where: { id: item.funcionarioPagamentoId },
+        data: {
+          statusPagamento: 'REJEITADO',
+          pagamentoEfetuado: false,
+        },
+      });
+    }
+
+    console.log(`✅ [PAGAMENTOS-SERVICE] FuncionarioPagamento ID ${item.funcionarioPagamentoId} atualizado com sucesso`);
   }
 
   private async atualizarStatusLoteAposProcessamento(

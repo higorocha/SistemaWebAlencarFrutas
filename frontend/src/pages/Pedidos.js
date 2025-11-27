@@ -652,14 +652,22 @@ const Pedidos = () => {
       await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
       
     } catch (error) {
+      // Verificar se é erro de pedido duplicado - relançar para o modal tratar
+      const errorData = error?.response?.data;
+      if (errorData?.code === 'PEDIDO_DUPLICADO') {
+        // Relançar o erro para que o NovoPedidoModal possa tratá-lo
+        throw error;
+      }
+      
+      // Para outros erros, mostrar notificação
       console.error("Erro ao salvar pedido:", error);
-      const message = error.response?.data?.message || "Erro ao salvar pedido";
+      const message = errorData?.message || "Erro ao salvar pedido";
       showNotification("error", "Erro", message);
     } finally {
       setLoading(false);
       setCentralizedLoading(false);
     }
-  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, dateFilterType, handleCloseModal]);
+  }, [pedidoEditando, fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, dateFilterType, handleCloseModal, getActiveDateParams]);
 
   // Função para atualizar colheita
   const handleSaveColheita = useCallback(async (colheitaData) => {
@@ -1384,6 +1392,7 @@ const Pedidos = () => {
           open={modalOpen && !pedidoEditando}
           onClose={handleCloseModal}
           onSave={handleSavePedido}
+          onReload={handleRefreshPedidos}
           loading={loading}
           clientes={clientes}
           onLoadingChange={handleModalLoading}

@@ -10,6 +10,8 @@ import PropTypes from "prop-types";
 const MonetaryInput = ({
   value,
   onChange,
+  onPressEnter,
+  onPressEsc,
   placeholder = "0,00",
   addonAfter = null,
   size = "large",
@@ -35,6 +37,15 @@ const MonetaryInput = ({
         // values.formattedValue é o valor formatado (ex: 123,45)
         if (onChange) {
           onChange(values.value);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && onPressEnter) {
+          e.preventDefault();
+          onPressEnter(e);
+        } else if (e.key === 'Escape' && onPressEsc) {
+          e.preventDefault();
+          onPressEsc(e);
         }
       }}
       thousandSeparator="."

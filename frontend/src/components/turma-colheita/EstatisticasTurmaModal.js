@@ -335,7 +335,7 @@ const EstatisticasTurmaModal = ({
       },
     },
     {
-      title: "Forma Pagamento",
+      title: "Método Pag.",
       dataIndex: "formaPagamento",
       key: "formaPagamento",
       width: 140,

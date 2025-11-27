@@ -271,16 +271,95 @@ export class PagamentosController {
     description: 'Data final (ISO) para filtrar por data de criação do lote',
     type: String,
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número da página (padrão: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Itens por página (padrão: 10)',
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Lista de lotes de pagamentos da API vinculados a turmas de colheita',
-    type: [Object],
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { type: 'object' },
+        },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+      },
+    },
   })
   async listarLotesTurmaColheita(
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
   ) {
-    return this.pagamentosService.listarLotesTurmaColheita(dataInicio, dataFim);
+    return this.pagamentosService.listarLotesTurmaColheita(dataInicio, dataFim, page, limit);
+  }
+
+  /**
+   * Lista lotes de pagamentos vinculados a folhas de pagamento (PIX)
+   */
+  @Get('lotes-folha-pagamento')
+  @ApiOperation({ summary: 'Listar lotes de pagamentos vinculados a folhas de pagamento (PIX)' })
+  @ApiQuery({
+    name: 'dataInicio',
+    required: false,
+    description: 'Data inicial (ISO) para filtrar por data de criação do lote',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'dataFim',
+    required: false,
+    description: 'Data final (ISO) para filtrar por data de criação do lote',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número da página (padrão: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Itens por página (padrão: 10)',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de lotes de pagamentos da API vinculados a folhas de pagamento',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { type: 'object' },
+        },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+      },
+    },
+  })
+  async listarLotesFolhaPagamento(
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.pagamentosService.listarLotesFolhaPagamento(dataInicio, dataFim, page, limit);
   }
 
   /**

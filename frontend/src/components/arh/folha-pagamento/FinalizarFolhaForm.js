@@ -1,14 +1,17 @@
 // src/components/arh/folha-pagamento/FinalizarFolhaForm.js
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import PropTypes from "prop-types";
-import { Form, Input, Row, Col, Card, Space, Typography, DatePicker, Select, Alert } from "antd";
+import { Form, Input, Row, Col, Card, Space, Typography, DatePicker, Select, Alert, Spin } from "antd";
 import {
   BankOutlined,
   CalendarOutlined,
   FileTextOutlined,
   InfoCircleOutlined,
+  WarningOutlined,
+  ApiOutlined,
 } from "@ant-design/icons";
+import api from "../../../api/axiosConfig";
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -25,6 +28,31 @@ const currency = (value) =>
     currency: "BRL",
   }).format(Number(value || 0));
 
+// Função para formatar a referência da folha (quinzena e datas)
+const formatarReferenciaFolha = (folha) => {
+  if (!folha) return "—";
+  
+  // Se tiver referência customizada, usar ela
+  if (folha.referencia && folha.referencia.trim()) {
+    return folha.referencia;
+  }
+  
+  // Caso contrário, formatar com quinzena e datas
+  const mesAno = `${String(folha.competenciaMes || "").padStart(2, "0")}/${folha.competenciaAno || ""}`;
+  const quinzena = folha.periodo ? `${folha.periodo}ª Quinzena` : "";
+  
+  let referencia = `${mesAno}${quinzena ? ` - ${quinzena}` : ""}`;
+  
+  // Adicionar datas se disponíveis
+  if (folha.dataInicial && folha.dataFinal) {
+    const dataInicial = new Date(folha.dataInicial).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    const dataFinal = new Date(folha.dataFinal).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    referencia += ` (${dataInicial} a ${dataFinal})`;
+  }
+  
+  return referencia || "—";
+};
+
 const FinalizarFolhaForm = ({
   finalizacaoAtual,
   setFinalizacaoAtual,
@@ -32,11 +60,42 @@ const FinalizarFolhaForm = ({
   setErros,
   folha,
 }) => {
+  const [contasDisponiveis, setContasDisponiveis] = useState([]);
+  const [loadingContas, setLoadingContas] = useState(false);
+
+  // Carregar contas disponíveis quando PIX_API for selecionado
+  useEffect(() => {
+    if (finalizacaoAtual.meioPagamento === "PIX_API") {
+      const carregarContas = async () => {
+        setLoadingContas(true);
+        try {
+          const response = await api.get("/api/pagamentos/contas-disponiveis");
+          setContasDisponiveis(response.data || []);
+        } catch (error) {
+          console.error("Erro ao carregar contas disponíveis:", error);
+          setContasDisponiveis([]);
+        } finally {
+          setLoadingContas(false);
+        }
+      };
+      carregarContas();
+    }
+  }, [finalizacaoAtual.meioPagamento]);
+
   const handleChange = (field, value) => {
-    setFinalizacaoAtual((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    let newData = { ...finalizacaoAtual, [field]: value };
+
+    // Converter contaCorrenteId para número se for esse campo
+    if (field === "contaCorrenteId") {
+      newData.contaCorrenteId = value ? Number(value) : null;
+    }
+
+    // Limpar conta corrente quando mudar de PIX_API para outro método
+    if (field === "meioPagamento" && value !== "PIX_API") {
+      newData.contaCorrenteId = null;
+    }
+
+    setFinalizacaoAtual(newData);
 
     // Limpar erro do campo quando modificado
     if (erros[field]) {
@@ -80,7 +139,7 @@ const FinalizarFolhaForm = ({
               Lançamentos: {folha?.quantidadeLancamentos || 0}
             </Text>
             <Text style={{ fontSize: "13px", color: "#666" }}>
-              Referência: {folha?.referencia || "—"}
+              Referência: {formatarReferenciaFolha(folha)}
             </Text>
           </Space>
         </Card>
@@ -132,6 +191,67 @@ const FinalizarFolhaForm = ({
                 />
               </Form.Item>
             </Col>
+
+            {/* Seleção de Conta Corrente - apenas para PIX_API */}
+            {finalizacaoAtual.meioPagamento === "PIX_API" && (
+              <Col xs={24}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <ApiOutlined style={{ color: "#059669" }} />
+                      <Text strong>Conta Corrente para Débito</Text>
+                    </Space>
+                  }
+                  validateStatus={erros.contaCorrenteId ? "error" : ""}
+                  help={erros.contaCorrenteId}
+                  required
+                >
+                  <Spin spinning={loadingContas}>
+                    <Select
+                      placeholder="Selecione a conta corrente"
+                      value={finalizacaoAtual.contaCorrenteId ? Number(finalizacaoAtual.contaCorrenteId) : undefined}
+                      onChange={(value) => handleChange("contaCorrenteId", value)}
+                      options={contasDisponiveis.map((conta) => ({
+                        label: `${conta.agencia} / ${conta.contaCorrente}-${(conta.contaCorrenteDigito || 'X').toUpperCase()} (${conta.nomeBanco || conta.bancoNome || 'Banco do Brasil'})`,
+                        value: Number(conta.id), // Garantir que o value seja número
+                      }))}
+                      size="large"
+                      notFoundContent={
+                        loadingContas ? (
+                          <span>Carregando contas...</span>
+                        ) : (
+                          <span style={{ color: "#ff4d4f" }}>
+                            Nenhuma conta com credenciais de pagamento configurada
+                          </span>
+                        )
+                      }
+                    />
+                  </Spin>
+                </Form.Item>
+
+                {/* Alerta informativo sobre PIX_API */}
+                <Alert
+                  message="Integração PIX - Banco do Brasil"
+                  description={
+                    <div style={{ fontSize: "13px" }}>
+                      <p style={{ marginBottom: 8 }}>
+                        Este método utiliza a API do Banco do Brasil para processamento automático dos pagamentos.
+                      </p>
+                      <p style={{ marginBottom: 8 }}>
+                        <strong>Importante:</strong> O lote de transferências será criado apenas ao <strong>liberar a folha</strong>.
+                      </p>
+                      <p style={{ marginBottom: 0 }}>
+                        Será criada <strong>1 transferência por funcionário</strong>, utilizando as chaves PIX cadastradas.
+                      </p>
+                    </div>
+                  }
+                  type="info"
+                  icon={<WarningOutlined />}
+                  showIcon
+                  style={{ marginBottom: 0 }}
+                />
+              </Col>
+            )}
           </Row>
         </Card>
 
@@ -250,5 +370,7 @@ FinalizarFolhaForm.propTypes = {
 };
 
 export default FinalizarFolhaForm;
+
+
 
 

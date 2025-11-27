@@ -70,6 +70,7 @@ model ContaCorrente {
   lotesPagamentoApi         PagamentoApiLote[]
   sequenciaNumeroRequisicao SequenciaNumeroRequisicao? // Sequência de número de requisição para esta conta
   syncJobs                  PagamentoApiSyncJob[]
+  folhasPagamento           FolhaPagamento[] // Folhas de pagamento que usam esta conta para PIX_API
 
   @@unique([bancoCodigo, agencia, contaCorrente])
   @@map("conta_corrente")
@@ -748,30 +749,37 @@ model Funcionario {
 }
 
 model FolhaPagamento {
-  id                    Int                  @id @default(autoincrement())
+  id                    Int                       @id @default(autoincrement())
   competenciaMes        Int
   competenciaAno        Int
-  periodo               Int                  // 1 ou 2 (primeira ou segunda quinzena)
-  dataInicial           DateTime             // Data inicial da quinzena
-  dataFinal             DateTime             // Data final da quinzena
-  referencia            String?              @db.VarChar(40)
-  status                StatusFolhaPagamento @default(RASCUNHO)
+  periodo               Int                       // 1 ou 2 (primeira ou segunda quinzena)
+  dataInicial           DateTime                  // Data inicial da quinzena
+  dataFinal             DateTime                  // Data final da quinzena
+  referencia            String?                   @db.VarChar(40)
+  status                StatusFolhaPagamento      @default(RASCUNHO)
   observacoes           String?
-  totalBruto            Decimal              @default(0) @db.Decimal(14, 2)
-  totalLiquido          Decimal              @default(0) @db.Decimal(14, 2)
-  totalPago             Decimal              @default(0) @db.Decimal(14, 2)
-  totalPendente         Decimal              @default(0) @db.Decimal(14, 2)
-  quantidadeLancamentos Int                  @default(0)
+  // Campos de pagamento (definidos ao finalizar a folha)
+  meioPagamento         MeioPagamentoFuncionario? // Método de pagamento da folha
+  dataPagamento         DateTime?                 // Data prevista de pagamento
+  contaCorrenteId       Int?                      // Conta corrente para PIX_API
+  // Totais
+  totalBruto            Decimal                   @default(0) @db.Decimal(14, 2)
+  totalLiquido          Decimal                   @default(0) @db.Decimal(14, 2)
+  totalPago             Decimal                   @default(0) @db.Decimal(14, 2)
+  totalPendente         Decimal                   @default(0) @db.Decimal(14, 2)
+  quantidadeLancamentos Int                       @default(0)
   dataProcessamento     DateTime?
   dataFechamento        DateTime?
   dataLiberacao         DateTime?
   usuarioCriacaoId      Int
   usuarioLiberacaoId    Int?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  // Relações
   pagamentos            FuncionarioPagamento[]
-  usuarioCriacao        Usuario              @relation("FolhaCriacao", fields: [usuarioCriacaoId], references: [id])
-  usuarioLiberacao      Usuario?             @relation("FolhaLiberacao", fields: [usuarioLiberacaoId], references: [id])
+  usuarioCriacao        Usuario                   @relation("FolhaCriacao", fields: [usuarioCriacaoId], references: [id])
+  usuarioLiberacao      Usuario?                  @relation("FolhaLiberacao", fields: [usuarioLiberacaoId], references: [id])
+  contaCorrente         ContaCorrente?            @relation(fields: [contaCorrenteId], references: [id])
 
   @@unique([competenciaMes, competenciaAno, periodo])
   @@map("arh_folhas_pagamento")

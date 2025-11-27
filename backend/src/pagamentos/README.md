@@ -17,33 +17,183 @@ pagamentos/
 
 ## 🚀 Status Atual
 
-**✅ 95% Concluído** - Sistema completo de controle de pagamentos
+**✅ 98% Concluído** - Sistema completo de controle de pagamentos
 
 O módulo está **praticamente completo** com:
 - ✅ Persistência completa de lotes e itens
 - ✅ Consultas de lote e individuais
-- ✅ Pagamento consolidado (1 transferência para múltiplas colheitas)
-- ✅ Relacionamento N:N com tabelas de origem
+- ✅ Pagamento consolidado para colheitas (1 transferência para múltiplas colheitas)
+- ✅ Pagamento individual para funcionários (1 transferência por funcionário, até 320/lote)
+- ✅ Relacionamento N:N (colheitas) e 1:1 (funcionários) com tabelas de origem
 - ✅ Rastreabilidade completa
 - ✅ Auditoria completa
+- ✅ Jobs automáticos de sincronização (fila + worker)
+- ✅ Integração com ARH (Folha de Pagamento)
 
 **⚠️ Pendente:**
-- Jobs para consultar status automaticamente
-- Webhook para receber atualizações do BB
+- Webhook para receber atualizações do BB (atualmente usa polling via jobs)
 
-## 🧾 Integração com ARH
+## 🧾 Integração com ARH (Folha de Pagamento de Funcionários)
 
-O novo módulo de **ARH** (cargos, funções, funcionários e folha própria) já está preparado para conversar com os pagamentos automatizados:
+O módulo de **ARH** (cargos, funções, funcionários e folha de pagamento) está **totalmente integrado** com a API de Pagamentos do Banco do Brasil.
 
-- Os registros de folha vivem em `arh_folhas_pagamento` e os lançamentos em `arh_funcionarios_pagamento`.
-- Cada lançamento possui os campos `meioPagamento` (`PIX`, `PIX_API`, `ESPECIE`), `statusPagamento` (mesmo enum de `PagamentoApiItem`) e a flag `pagamentoEfetuado`.
-- Quando a folha utilizar a automação bancária, basta preencher `pagamentoApiItemId` no lançamento e o relacionamento `PagamentoApiItem.funcionarioPagamentoId` garantirá rastreabilidade completa.
-- Enquanto a integração PIX-API não é disparada, o backend permite marcar pagamentos manuais (PIX comum ou espécie) mantendo histórico e recalculando totais da folha.
-- As APIs REST estão em `src/arh/**` e seguem o padrão NestJS (controllers com prefixo `api/arh/...`). O frontend consome tudo via `@axiosConfig.js`.
-- Fluxo de status: `RASCUNHO` → `PENDENTE_LIBERACAO` → `FECHADA`. Qualquer usuário autenticado (exceto `GERENTE_CULTURA`) pode criar/finalizar folhas; apenas `ADMINISTRADOR` pode liberá-las.
-- Cada folha registra `usuarioCriacaoId`, `usuarioLiberacaoId` e `dataLiberacao`, permitindo auditoria completa.
+### Modelo de Dados
 
-> **Importante:** nenhuma alteração foi feita no `PagamentosService` agora. O link com os lançamentos da folha será habilitado somente quando os meios `PIX_API` forem validados em produção – o esquema e os serviços já estão preparados para isso.
+```
+┌───────────────────┐        ┌──────────────────────┐        ┌────────────────────┐
+│  FolhaPagamento   │  1:N   │ FuncionarioPagamento │  1:1   │  PagamentoApiItem  │
+│                   │───────▶│                      │───────▶│                    │
+│ • id              │        │ • id                 │        │ • id               │
+│ • status          │        │ • folhaId            │        │ • loteId           │
+│ • totalLiquido    │        │ • funcionarioId      │        │ • valor            │
+│                   │        │ • valorLiquido       │        │ • identificador    │
+│                   │        │ • meioPagamento      │        │ • status           │
+│                   │        │ • pagamentoApiItemId │◀───────│ • funcionarioPag.  │
+└───────────────────┘        └──────────────────────┘        └────────────────────┘
+```
+
+### Fluxo de Pagamento PIX-API
+
+```
+RASCUNHO → PENDENTE_LIBERACAO → EM_PROCESSAMENTO → FECHADA
+                    │                   │
+                    │                   │
+                    ▼                   ▼
+              Finalizar folha    Criar lote(s) BB
+              (selecionar        (1 PIX por funcionário,
+               PIX_API)          até 320 por lote)
+```
+
+### Endpoint de Processamento
+
+**POST** `/api/arh/folhas/:id/processar-pix-api`
+
+**Permissões:** `ADMINISTRADOR`, `GERENTE_GERAL`, `ESCRITORIO`
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `contaCorrenteId` | number | ✅ | ID da conta para débito |
+| `dataPagamento` | string | ✅ | Data do pagamento (ISO) |
+| `observacoes` | string | ❌ | Observações do lote |
+
+**Resposta (1 lote):**
+```json
+{
+  "sucesso": true,
+  "mensagem": "Lote de pagamentos criado com sucesso. 50 transferência(s) enviada(s).",
+  "lotes": [
+    { "id": 123, "numeroRequisicao": 10001, "quantidadeTransferencias": 50 }
+  ],
+  "resumo": {
+    "totalLotes": 1,
+    "totalTransferencias": 50,
+    "valorTotalEnviado": 75000.00
+  },
+  "proximoPasso": "Aguarde a liberação do lote por um administrador."
+}
+```
+
+**Resposta (múltiplos lotes - mais de 320 funcionários):**
+```json
+{
+  "sucesso": true,
+  "mensagem": "3 lotes de pagamentos criados com sucesso. 700 transferência(s) enviada(s).",
+  "lotes": [
+    { "id": 123, "numeroRequisicao": 10001, "quantidadeTransferencias": 320 },
+    { "id": 124, "numeroRequisicao": 10002, "quantidadeTransferencias": 320 },
+    { "id": 125, "numeroRequisicao": 10003, "quantidadeTransferencias": 60 }
+  ],
+  "resumo": {
+    "totalLotes": 3,
+    "totalTransferencias": 700,
+    "valorTotalEnviado": 1050000.00
+  },
+  "proximoPasso": "Aguarde a liberação dos 3 lotes por um administrador."
+}
+```
+
+### Fluxo de Envio ao BB
+
+O payload passa por transformação antes de chegar ao BB:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 1. FolhaPagamento.service → PagamentosService                                │
+│    Payload simplificado:                                                     │
+│    { contaCorrenteId, tipoPagamento, listaTransferencias }                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 2. PagamentosService → Banco do Brasil                                       │
+│    Payload completo (montado automaticamente):                               │
+│    {                                                                         │
+│      "numeroRequisicao": 12345,        ← Gerado automaticamente (sequencial) │
+│      "numeroContrato": 731030,         ← Obtido da conta corrente            │
+│      "agenciaDebito": "1607",          ← Obtido da conta corrente            │
+│      "contaCorrenteDebito": "99738672",← Obtido da conta corrente            │
+│      "digitoVerificadorContaCorrente": "X",                                  │
+│      "tipoPagamento": 128,                                                   │
+│      "listaTransferencias": [                                                │
+│        {                                                                     │
+│          "data": "25112024",           ← Formatado (ddmmaaaa)                │
+│          "valor": "1500.00",                                                 │
+│          "descricaoPagamento": "João Silva",                                 │
+│          "descricaoPagamentoInstantaneo": "FOLHA 11/2024 1Q",                │
+│          "formaIdentificacao": 1,                                            │
+│          "dddTelefone": "11",                                                │
+│          "telefone": "999999999"                                             │
+│        },                                                                    │
+│        // ... até 320 transferências por lote                                │
+│      ]                                                                       │
+│    }                                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Características
+
+- **1 transferência por funcionário**: Cada funcionário recebe sua própria transferência PIX
+- **Limite de 320 por lote**: Se > 320 funcionários, cria múltiplos lotes automaticamente
+- **Não há agrupamento**: O campo `responsavelChavePix` é apenas informativo
+- **Vinculação 1:1**: `FuncionarioPagamento.pagamentoApiItemId` ↔ `PagamentoApiItem.funcionarioPagamentoId`
+- **Sincronização automática**: Quando o status de um item muda, o funcionário é atualizado automaticamente
+- **Campos automáticos**: `numeroRequisicao` e `numeroContrato` são obtidos pelo backend
+
+### Diferença: Colheitas vs Folha
+
+| Aspecto | Colheitas (`TurmaColheitaPagamentosModal`) | Folha de Pagamento |
+|---------|-------------------------------------------|-------------------|
+| **Payload montado em** | Frontend | Backend |
+| **Transferências por lote** | 1 única (valor consolidado) | 1 por funcionário (até 320/lote) |
+| **Relacionamento** | N:N (`PagamentoApiItemColheita`) | 1:1 (`funcionarioPagamentoId`) |
+
+### Sincronização de Status
+
+O job de sincronização (`PagamentosSyncWorkerService`) atualiza automaticamente os status:
+
+| Estado BB (estadoPagamento) | Status Funcionário |
+|-----------------------------|-------------------|
+| `PAGO` | `PAGO` + `pagamentoEfetuado = true` |
+| `ACEITO` + lote finalizado | `PAGO` |
+| `ACEITO` + lote pendente | `PROCESSANDO` |
+| `REJEITADO` / `CANCELADO` | `REJEITADO` |
+
+Estados pendentes do BB (não altera funcionário):
+- `PENDENTE`, `CONSISTENTE`, `AGENDADO`, `AGUARDANDO DEBITO`, `DEBITADO`
+
+### Frontend
+
+No modal de "Finalizar Folha", quando `PIX_API` é selecionado:
+- Exibe select de conta corrente (apenas contas com credenciais configuradas)
+- Mostra alerta informando que o lote ficará pendente de liberação
+- Após salvar, chama automaticamente o endpoint de processamento PIX-API
+
+### Validações
+
+1. Folha deve estar em status `PENDENTE_LIBERACAO`
+2. Todos os funcionários devem ter chave PIX cadastrada (`chavePix` e `tipoChavePix`)
+3. Todos os funcionários devem ter valor líquido > 0
+4. Conta corrente deve ter credenciais de pagamentos configuradas
 
 ## 📚 Documentação
 
@@ -198,6 +348,8 @@ A API de Pagamentos utiliza scopes específicos para controlar as permissões. T
 - `gw-dev-app-key=suaAppKeyTestes`
 
 **Resposta - Estados da Requisição:**
+
+⚠️ **IMPORTANTE**: Os estados do BB **NÃO seguem sequência numérica crescente**. A sequência real é: `1,2,3` (validação) → `8` (preparando) → `4` (pendente autorização) → `9/10` (liberada) → `6/7` (final). O sistema aceita sempre o estado retornado pelo BB.
 
 | Código | Estado | Descrição |
 |--------|--------|-----------|

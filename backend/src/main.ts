@@ -158,6 +158,8 @@ async function bootstrap() {
       'Content-Type',
       'Authorization',
       'ngrok-skip-browser-warning',
+      'X-Confirmar-Duplicado',
+      'x-confirmar-duplicado',
     ],
   });
   

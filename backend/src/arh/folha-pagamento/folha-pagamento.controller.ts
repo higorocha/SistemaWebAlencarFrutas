@@ -24,6 +24,7 @@ import { AddFuncionariosFolhaDto } from './dto/add-funcionarios.dto';
 import { UpdateLancamentoDto } from './dto/update-lancamento.dto';
 import { MarcarPagamentoDto } from './dto/marcar-pagamento.dto';
 import { FinalizarFolhaDto } from './dto/finalizar-folha.dto';
+import { ProcessarPagamentoPixApiDto } from './dto/processar-pix-api.dto';
 
 const ARH_OPERADORES = [
   NivelUsuario.ADMINISTRADOR,
@@ -126,6 +127,49 @@ export class FolhaPagamentoController {
     @Request() req: any,
   ) {
     return this.service.liberarFolha(id, req.user.id);
+  }
+
+  /**
+   * Processa os pagamentos da folha via PIX-API do Banco do Brasil
+   * Cria um lote de transferências PIX (1 por funcionário)
+   * Requer que a folha esteja em status PENDENTE_LIBERACAO
+   * O lote ficará pendente de liberação por um administrador
+   */
+  @Post(':id/processar-pix-api')
+  @Niveis(NivelUsuario.ADMINISTRADOR, NivelUsuario.GERENTE_GERAL, NivelUsuario.ESCRITORIO)
+  processarPagamentoPixApi(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ProcessarPagamentoPixApiDto,
+    @Request() req: any,
+  ) {
+    return this.service.processarPagamentoPixApi(id, dto, req.user.id);
+  }
+
+  /**
+   * Reprocessa os salários brutos da folha
+   * Atualiza os valores base (salário/diária) dos lançamentos com os valores atuais dos cargos/funções
+   * Recalcula valor bruto e líquido de todos os lançamentos
+   */
+  @Patch(':id/reprocessar')
+  @Niveis(...ARH_OPERADORES)
+  reprocessarFolha(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: any,
+  ) {
+    return this.service.reprocessarFolha(id, req.user.id);
+  }
+
+  /**
+   * Exclui uma folha de pagamento
+   * Só é permitido se a folha estiver em status RASCUNHO
+   */
+  @Delete(':id')
+  @Niveis(...ARH_OPERADORES)
+  excluirFolha(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: any,
+  ) {
+    return this.service.excluirFolha(id, req.user.id);
   }
 }
 

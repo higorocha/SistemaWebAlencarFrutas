@@ -211,25 +211,25 @@ const FolhasTable = React.memo(
           onRow={(record) => {
             const isSelected = record.id === selectedFolhaId;
             return {
-              onClick: () => onSelectFolha(record.id),
-              style: {
-                cursor: "pointer",
+            onClick: () => onSelectFolha(record.id),
+            style: {
+              cursor: "pointer",
                 backgroundColor: isSelected ? "#fa8c16" : "transparent",
                 transition: "transform 0.2s ease",
                 fontWeight: isSelected ? "700" : "400",
-              },
-              onMouseEnter: (e) => {
+            },
+            onMouseEnter: (e) => {
                 if (!isSelected) {
                   // Hover para linhas não selecionadas: movimento suave
-                  e.currentTarget.style.transform = "translateX(4px)";
-                } else {
-                  // Hover para linha selecionada: apenas movimento (SEM mudança de cor)
-                  e.currentTarget.style.transform = "translateX(3px)";
-                }
-              },
-              onMouseLeave: (e) => {
+                e.currentTarget.style.transform = "translateX(4px)";
+              } else {
+                // Hover para linha selecionada: apenas movimento (SEM mudança de cor)
+                e.currentTarget.style.transform = "translateX(3px)";
+              }
+            },
+            onMouseLeave: (e) => {
                 e.currentTarget.style.transform = "translateX(0)";
-              },
+            },
             };
           }}
           locale={{

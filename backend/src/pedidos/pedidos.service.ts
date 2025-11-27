@@ -639,7 +639,98 @@ export class PedidosService {
     }
   }
 
-  async create(createPedidoDto: CreatePedidoDto, usuarioId: number, origem: 'web' | 'mobile' = 'web'): Promise<PedidoResponseDto> {
+  /**
+   * Valida se já existe um pedido duplicado para o mesmo cliente, fruta e data prevista de colheita
+   * @param createPedidoDto DTO do pedido a ser criado
+   * @returns Informações sobre pedidos duplicados encontrados ou null se não houver duplicidade
+   */
+  private async validarDuplicidadePedido(createPedidoDto: CreatePedidoDto): Promise<any[] | null> {
+    const dataPrevistaColheita = new Date(createPedidoDto.dataPrevistaColheita);
+    // Normalizar para início do dia para comparação apenas da data
+    const inicioDia = new Date(dataPrevistaColheita);
+    inicioDia.setHours(0, 0, 0, 0);
+    const fimDia = new Date(dataPrevistaColheita);
+    fimDia.setHours(23, 59, 59, 999);
+
+    // Buscar pedidos com mesmo cliente e mesma data prevista de colheita
+    const pedidosCandidatos = await this.prisma.pedido.findMany({
+      where: {
+        clienteId: createPedidoDto.clienteId,
+        dataPrevistaColheita: {
+          gte: inicioDia,
+          lte: fimDia,
+        },
+        // Excluir pedidos cancelados
+        status: {
+          not: StatusPedido.CANCELADO,
+        },
+      },
+      include: {
+        cliente: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        frutasPedidos: {
+          include: {
+            fruta: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (pedidosCandidatos.length === 0) {
+      return null;
+    }
+
+    // Verificar se alguma fruta do novo pedido já existe em algum pedido candidato
+    const frutaIdsNovoPedido = createPedidoDto.frutas.map((f) => f.frutaId);
+    const pedidosDuplicados: any[] = [];
+
+    for (const pedido of pedidosCandidatos) {
+      const frutaIdsPedidoExistente = pedido.frutasPedidos.map((fp) => fp.frutaId);
+      
+      // Verificar se há interseção entre as frutas
+      const frutasDuplicadas = frutaIdsNovoPedido.filter((frutaId) =>
+        frutaIdsPedidoExistente.includes(frutaId)
+      );
+
+      if (frutasDuplicadas.length > 0) {
+        // Buscar nomes das frutas duplicadas
+        const frutasInfo = pedido.frutasPedidos
+          .filter((fp) => frutasDuplicadas.includes(fp.frutaId))
+          .map((fp) => ({
+            id: fp.frutaId,
+            nome: fp.fruta.nome,
+            quantidadePrevista: fp.quantidadePrevista,
+            unidadeMedida1: fp.unidadeMedida1,
+          }));
+
+        pedidosDuplicados.push({
+          pedidoId: pedido.id,
+          numeroPedido: pedido.numeroPedido,
+          cliente: {
+            id: pedido.cliente.id,
+            nome: pedido.cliente.nome,
+          },
+          dataPrevistaColheita: pedido.dataPrevistaColheita,
+          dataPedido: pedido.dataPedido,
+          frutas: frutasInfo,
+          status: pedido.status,
+        });
+      }
+    }
+
+    return pedidosDuplicados.length > 0 ? pedidosDuplicados : null;
+  }
+
+  async create(createPedidoDto: CreatePedidoDto, usuarioId: number, origem: 'web' | 'mobile' = 'web', confirmarDuplicado: boolean = false): Promise<PedidoResponseDto> {
     // ✅ Validar se usuarioId foi fornecido
     if (!usuarioId) {
       throw new BadRequestException('ID do usuário não fornecido');
@@ -659,6 +750,19 @@ export class PedidosService {
     });
     if (!cliente) {
       throw new NotFoundException('Cliente não encontrado');
+    }
+
+    // ✅ NOVA VALIDAÇÃO: Verificar duplicidade de pedido (apenas se não confirmado pelo usuário)
+    if (!confirmarDuplicado) {
+      const pedidosDuplicados = await this.validarDuplicidadePedido(createPedidoDto);
+      if (pedidosDuplicados && pedidosDuplicados.length > 0) {
+        // Lançar exceção especial com código de erro e dados dos pedidos duplicados
+        throw new BadRequestException({
+          code: 'PEDIDO_DUPLICADO',
+          message: 'Já existe um pedido registrado para este cliente, fruta(s) e data prevista de colheita',
+          pedidosDuplicados: pedidosDuplicados,
+        });
+      }
     }
 
     // ✅ NOVA VALIDAÇÃO: Verificar se há frutas duplicadas no pedido

@@ -43,25 +43,49 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
     const primeiroSabado = encontrarProximoSabado(primeiroDiaMes);
 
     if (periodo === 1) {
-      // Primeira quinzena: primeiro sábado até o segundo sábado (inclusive)
+      // Primeira quinzena: primeiro sábado até 14 dias depois (15 dias no total, incluindo o sábado inicial)
       dataInicial = primeiroSabado;
-      dataFinal = primeiroSabado.add(6, 'days'); // Segundo sábado (7 dias depois)
-    } else {
-      // Segunda quinzena: terceiro sábado até o último sábado do mês
-      const terceiroSabado = primeiroSabado.add(14, 'days'); // Terceiro sábado (14 dias depois do primeiro)
+      dataFinal = primeiroSabado.add(14, 'days'); // 15 dias no total (sábado inicial + 14 dias)
       
-      // Encontrar o último sábado do mês
-      let ultimoSabado = terceiroSabado;
-      let proximoSabado = terceiroSabado.add(7, 'days');
-      
-      // Encontrar o último sábado que ainda está dentro do mês
-      while (proximoSabado.month() === mes - 1 && proximoSabado.year() === ano) {
-        ultimoSabado = proximoSabado;
-        proximoSabado = proximoSabado.add(7, 'days');
+      // Se a data final ultrapassar o mês, ajustar para o último dia do mês
+      if (dataFinal.month() !== mes - 1 || dataFinal.year() !== ano) {
+        dataFinal = ultimoDiaMes;
       }
+    } else {
+      // Segunda quinzena: começa no sábado seguinte ao final da primeira quinzena
+      const finalPrimeiraQuinzena = primeiroSabado.add(14, 'days');
+      const inicioSegundaQuinzena = finalPrimeiraQuinzena.add(1, 'day'); // Dia seguinte ao final da primeira quinzena
       
-      dataInicial = terceiroSabado;
-      dataFinal = ultimoSabado;
+      // Encontrar o sábado mais próximo do início da segunda quinzena
+      const sabadoInicialSegunda = encontrarProximoSabado(inicioSegundaQuinzena);
+      
+      // Garantir que não ultrapasse o mês
+      if (sabadoInicialSegunda.month() !== mes - 1 || sabadoInicialSegunda.year() !== ano) {
+        // Se o sábado encontrado está fora do mês, usar o dia seguinte ao final da primeira quinzena até o último dia do mês
+        dataInicial = inicioSegundaQuinzena;
+        dataFinal = ultimoDiaMes;
+      } else {
+        dataInicial = sabadoInicialSegunda;
+        
+        // Calcular 14 dias depois do sábado inicial (15 dias no total)
+        const dataFinalCalculada = sabadoInicialSegunda.add(14, 'days');
+        
+        // Se ultrapassar o mês, usar o último dia do mês
+        if (dataFinalCalculada.month() !== mes - 1 || dataFinalCalculada.year() !== ano) {
+          dataFinal = ultimoDiaMes;
+        } else {
+          // Encontrar o sábado mais próximo da data final calculada
+          const sabadoFinal = encontrarProximoSabado(dataFinalCalculada);
+          
+          // Se o sábado encontrado está dentro do mês e tem pelo menos 14 dias de diferença, usar ele
+          if (sabadoFinal.month() === mes - 1 && sabadoFinal.year() === ano && sabadoFinal.diff(sabadoInicialSegunda, 'day') >= 14) {
+            dataFinal = sabadoFinal;
+          } else {
+            // Caso contrário, usar o último dia do mês
+            dataFinal = ultimoDiaMes;
+          }
+        }
+      }
     }
 
     return { dataInicial, dataFinal };

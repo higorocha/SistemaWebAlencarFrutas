@@ -1,4 +1,5 @@
 import { IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { MeioPagamentoFuncionario } from '@prisma/client';
 
@@ -21,6 +22,15 @@ export class FinalizarFolhaDto {
   dataPagamento: string;
 
   @ApiProperty({
+    description: 'ID da conta corrente para débito (obrigatório quando meioPagamento = PIX_API)',
+    required: false,
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  contaCorrenteId?: number;
+
+  @ApiProperty({
     description: 'Observações sobre a folha/pagamento',
     required: false,
     example: 'Folha referente à primeira quinzena',
@@ -29,5 +39,9 @@ export class FinalizarFolhaDto {
   @IsString()
   observacoes?: string;
 }
+
+
+
+
 
 

@@ -764,7 +764,8 @@ export class PedidosMobileController {
     @Req() request: any,
   ): Promise<PedidoResponseDto> {
     const usuarioId = request?.user?.id;
+    const confirmarDuplicado = request.headers['x-confirmar-duplicado'] === 'true';
     // Criar pedido usando o service principal com origem 'mobile'
-    return this.pedidosService.create(createPedidoDto, usuarioId, 'mobile');
+    return this.pedidosService.create(createPedidoDto, usuarioId, 'mobile', confirmarDuplicado);
   }
 }
