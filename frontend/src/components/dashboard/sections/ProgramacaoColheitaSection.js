@@ -12,6 +12,12 @@ const CardStyled = styled.div`
   padding: ${props => props.$isMobile ? '12px' : '16px'};
   transition: transform 0.2s ease-in-out;
   position: relative;
+  ${props => !props.$isFullscreen ? `
+    height: ${props.$isMobile ? '432px' : '612px'};
+    min-height: ${props.$isMobile ? '432px' : '612px'};
+    display: flex;
+    flex-direction: column;
+  ` : ''}
 
   &:hover {
     transform: translateY(-2px);
@@ -148,10 +154,10 @@ const ProgramacaoColheitaSection = ({
           $isMobile={isMobile}
           $isFullscreen={isFullscreen}
         >
-          <ContentRow gutter={[24, 0]} $isFullscreen={isFullscreen} style={isFullscreen ? { flex: 1 } : undefined}>
+          <ContentRow gutter={[24, 0]} $isFullscreen={isFullscreen} style={isFullscreen ? { flex: 1 } : { flex: 1, minHeight: 0 }}>
             {/* Esquerda: Programação de Colheita Diária */}
-            <Col xs={24} lg={16} style={isFullscreen ? { height: '100%', display: 'flex', flexDirection: 'column' } : {}}>
-              <div style={isFullscreen ? { flex: 1, display: 'flex', flexDirection: 'column' } : {}}>
+            <Col xs={24} lg={16} style={isFullscreen ? { height: '100%', display: 'flex', flexDirection: 'column' } : { height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div style={isFullscreen ? { flex: 1, display: 'flex', flexDirection: 'column' } : { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <ProgramacaoColheitaGrid
                   programacaoColheita={programacaoColheita}
                   onColheitaClick={onColheitaClick}
@@ -167,8 +173,8 @@ const ProgramacaoColheitaSection = ({
             </Col>
 
             {/* Direita: Estatísticas de Frutas */}
-            <Col xs={24} lg={8} style={isFullscreen ? { height: '100%', display: 'flex', flexDirection: 'column' } : {}}>
-              <div style={isFullscreen ? { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } : {}}>
+            <Col xs={24} lg={8} style={isFullscreen ? { height: '100%', display: 'flex', flexDirection: 'column' } : { height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div style={isFullscreen ? { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } : { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <EstatisticasFrutasColheita 
                   programacaoColheita={programacaoColheita} 
                   activeTab={activeTab}

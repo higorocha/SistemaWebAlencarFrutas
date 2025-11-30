@@ -1,7 +1,8 @@
 // src/pages/Pagamentos.js
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Card, Tag, Space, Typography, Tooltip, Select, DatePicker, Button, Modal, Popconfirm, Dropdown, Statistic, Row, Col, Pagination } from "antd";
-import { DollarOutlined, BankOutlined, ClockCircleOutlined, CheckCircleOutlined, FilterOutlined, CloseCircleOutlined, UnlockOutlined, StopOutlined, UpOutlined, DownOutlined, EyeOutlined, KeyOutlined, PhoneOutlined, MailOutlined, IdcardOutlined, SafetyOutlined, MoreOutlined, InfoCircleOutlined, FileTextOutlined, TeamOutlined, ShoppingOutlined, RightOutlined } from "@ant-design/icons";
+import { Card, Tag, Space, Typography, Tooltip, Select, DatePicker, Button, Modal, Popconfirm, Dropdown, Divider, Segmented } from "antd";
+import { DollarOutlined, BankOutlined, ClockCircleOutlined, CheckCircleOutlined, FilterOutlined, CloseCircleOutlined, UnlockOutlined, StopOutlined, EyeOutlined, MoreOutlined } from "@ant-design/icons";
+import { SecondaryButton } from "components/common/buttons";
 import axiosInstance from "../api/axiosConfig";
 import ResponsiveTable from "../components/common/ResponsiveTable";
 import { showNotification } from "../config/notificationConfig";
@@ -10,10 +11,11 @@ import { mapearEstadoRequisicao } from "../utils/bbEstadoRequisicao";
 import useResponsive from "../hooks/useResponsive";
 import moment from "moment";
 import { Box } from "@mui/material";
-import { SearchInput } from "components/common/search";
+import SearchInputPagamentos from "../components/pagamentos/SearchInputPagamentos";
 import LotePagamentosDetalhesModal from "../components/pagamentos/LotePagamentosDetalhesModal";
 import ConsultaOnlineModal from "../components/pagamentos/ConsultaOnlineModal";
 import ConsultaItemIndividualModal from "../components/pagamentos/ConsultaItemIndividualModal";
+import SecaoLotesPagamentos from "../components/pagamentos/SecaoLotesPagamentos";
 import { useLocation } from "react-router-dom";
 
 const { Title, Text } = Typography;
@@ -30,8 +32,12 @@ const Pagamentos = () => {
   const [paginacaoTurmaColheita, setPaginacaoTurmaColheita] = useState({ page: 1, limit: 10, total: 0 });
   const [paginacaoFolhaPagamento, setPaginacaoFolhaPagamento] = useState({ page: 1, limit: 10, total: 0 });
   const [searchTerm, setSearchTerm] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState([]); // Filtros aplicados via sugestão
+  const [searchTermAplicado, setSearchTermAplicado] = useState(""); // Termo de busca aplicado (após Enter ou seleção)
   const [tipoOrigem, setTipoOrigem] = useState("TODOS");
   const [dateRange, setDateRange] = useState([]);
+  const [dateFilterType, setDateFilterType] = useState("criacao"); // 'criacao' ou 'liberacao'
+  const [contaCorrenteId, setContaCorrenteId] = useState(null);
   const [liberandoLoteId, setLiberandoLoteId] = useState(null);
   const [cancelandoLoteId, setCancelandoLoteId] = useState(null);
   const [modalDetalhesOpen, setModalDetalhesOpen] = useState(false);
@@ -48,13 +54,15 @@ const Pagamentos = () => {
     return state.loteNumeroRequisicao || null;
   });
 
-  const fetchLotesTurmaColheita = useCallback(async (dataInicio = null, dataFim = null, page = 1, limit = 10) => {
+  const fetchLotesTurmaColheita = useCallback(async (dataInicio = null, dataFim = null, page = 1, limit = 10, tipoData = 'criacao', contaId = null) => {
     try {
       setLoading(true);
 
       const params = new URLSearchParams();
       if (dataInicio) params.append("dataInicio", dataInicio);
       if (dataFim) params.append("dataFim", dataFim);
+      if (tipoData) params.append("tipoData", tipoData);
+      if (contaId) params.append("contaCorrenteId", contaId.toString());
       params.append("page", page.toString());
       params.append("limit", limit.toString());
 
@@ -75,13 +83,15 @@ const Pagamentos = () => {
     }
   }, []);
 
-  const fetchLotesFolhaPagamento = useCallback(async (dataInicio = null, dataFim = null, page = 1, limit = 10) => {
+  const fetchLotesFolhaPagamento = useCallback(async (dataInicio = null, dataFim = null, page = 1, limit = 10, tipoData = 'criacao', contaId = null) => {
     try {
       setLoadingFolha(true);
 
       const params = new URLSearchParams();
       if (dataInicio) params.append("dataInicio", dataInicio);
       if (dataFim) params.append("dataFim", dataFim);
+      if (tipoData) params.append("tipoData", tipoData);
+      if (contaId) params.append("contaCorrenteId", contaId.toString());
       params.append("page", page.toString());
       params.append("limit", limit.toString());
 
@@ -102,23 +112,73 @@ const Pagamentos = () => {
     }
   }, []);
 
+  // Extrair contas correntes únicas dos lotes já carregados
+  const contasCorrentes = useMemo(() => {
+    const contasSet = new Map();
+    
+    // Adicionar contas de lotes de turma de colheita
+    lotesTurmaColheita.forEach(lote => {
+      if (lote.contaCorrente && lote.contaCorrente.id) {
+        contasSet.set(lote.contaCorrente.id, lote.contaCorrente);
+      }
+    });
+    
+    // Adicionar contas de lotes de folha de pagamento
+    lotesFolhaPagamento.forEach(lote => {
+      if (lote.contaCorrente && lote.contaCorrente.id) {
+        contasSet.set(lote.contaCorrente.id, lote.contaCorrente);
+      }
+    });
+    
+    // Converter Map para array e ordenar por agência/conta
+    return Array.from(contasSet.values()).sort((a, b) => {
+      const agenciaA = a.agencia || '';
+      const agenciaB = b.agencia || '';
+      if (agenciaA !== agenciaB) {
+        return agenciaA.localeCompare(agenciaB);
+      }
+      const contaA = a.contaCorrente || '';
+      const contaB = b.contaCorrente || '';
+      return contaA.localeCompare(contaB);
+    });
+  }, [lotesTurmaColheita, lotesFolhaPagamento]);
+
+  // Handler para seleção de sugestão
+  const handleSuggestionSelect = useCallback((suggestion) => {
+    // Adicionar filtro aplicado
+    const novoFiltro = {
+      type: suggestion.type,
+      value: suggestion.value,
+      label: suggestion.label,
+      displayValue: suggestion.type === 'funcionario' && suggestion.metadata?.cpf
+        ? `${suggestion.metadata.nome} (${formatarCPF(suggestion.metadata.cpf)})`
+        : suggestion.value,
+      icon: suggestion.icon,
+      metadata: suggestion.metadata,
+    };
+    
+    setAppliedFilters(prev => [...prev, novoFiltro]);
+    setSearchTerm(""); // Limpar input
+    setSearchTermAplicado(""); // Limpar termo aplicado
+  }, []);
+
   useEffect(() => {
     // Se tiver range selecionado, enviar datas normalizadas (início/fim do dia)
+    let inicio = null;
+    let fim = null;
+    
     if (dateRange && dateRange.length === 2) {
-      const inicio = dateRange[0]
+      inicio = dateRange[0]
         ? moment(dateRange[0]).startOf("day").toISOString()
         : null;
-      const fim = dateRange[1]
+      fim = dateRange[1]
         ? moment(dateRange[1]).endOf("day").toISOString()
         : null;
-      fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit);
-      fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit);
-    } else {
-      // Sem filtro de data, buscar todos
-      fetchLotesTurmaColheita(null, null, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit);
-      fetchLotesFolhaPagamento(null, null, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit);
     }
-  }, [fetchLotesTurmaColheita, fetchLotesFolhaPagamento, dateRange, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit]);
+    
+    fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType, contaCorrenteId);
+    fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType, contaCorrenteId);
+  }, [fetchLotesTurmaColheita, fetchLotesFolhaPagamento, dateRange, dateFilterType, contaCorrenteId, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit]);
 
   // Após lotes carregados, se vier um numeroRequisicao da navegação (ex: clique na notificação),
   // localizar o lote correspondente e abrir o modal de detalhes automaticamente.
@@ -164,19 +224,18 @@ const Pagamentos = () => {
       setModalDetalhesOpen(false);
       setLoteSelecionado(null);
       // Recarregar lotes
+      let inicio = null;
+      let fim = null;
       if (dateRange && dateRange.length === 2) {
-        const inicio = dateRange[0]
+        inicio = dateRange[0]
           ? moment(dateRange[0]).startOf("day").toISOString()
           : null;
-        const fim = dateRange[1]
+        fim = dateRange[1]
           ? moment(dateRange[1]).endOf("day").toISOString()
           : null;
-        fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit);
-        fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit);
-      } else {
-        fetchLotesTurmaColheita(null, null, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit);
-        fetchLotesFolhaPagamento(null, null, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit);
       }
+      fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType, contaCorrenteId);
+      fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType, contaCorrenteId);
     } catch (error) {
       console.error("Erro ao liberar pagamento:", error);
       const message =
@@ -247,19 +306,18 @@ const Pagamentos = () => {
       setLoteSelecionado(null);
       
       // Recarregar lotes
+      let inicio = null;
+      let fim = null;
       if (dateRange && dateRange.length === 2) {
-        const inicio = dateRange[0]
+        inicio = dateRange[0]
           ? moment(dateRange[0]).startOf("day").toISOString()
           : null;
-        const fim = dateRange[1]
+        fim = dateRange[1]
           ? moment(dateRange[1]).endOf("day").toISOString()
           : null;
-        fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit);
-        fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit);
-      } else {
-        fetchLotesTurmaColheita(null, null, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit);
-        fetchLotesFolhaPagamento(null, null, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit);
       }
+      fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType, contaCorrenteId);
+      fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType, contaCorrenteId);
     } catch (error) {
       console.error("Erro ao cancelar item:", error);
       const message =
@@ -286,8 +344,22 @@ const Pagamentos = () => {
       loteId: lote.id,
     }));
 
-    // Aplicar filtros
-    if (termo) {
+    // Aplicar filtros de busca inteligente (chips)
+    if (appliedFilters.length > 0) {
+      lotes = lotes.filter((lote) => {
+        return appliedFilters.some((filtro) => {
+          if (filtro.type === 'colhedor') {
+            const nomeColhedor = (lote.origemNome || lote.turmaResumo?.nomeColhedor || "").trim();
+            return nomeColhedor.toLowerCase() === filtro.value.toLowerCase();
+          }
+          // Funcionário não se aplica a lotes de turma de colheita
+          return false;
+        });
+      });
+    }
+
+    // Aplicar filtro de busca por texto (fallback)
+    if (termo && appliedFilters.length === 0) {
       lotes = lotes.filter((lote) => {
         const numero = (lote.numeroRequisicao || "").toString();
         const origemNome = (lote.origemNome || "").toLowerCase();
@@ -330,11 +402,12 @@ const Pagamentos = () => {
     });
 
     return lotes;
-  }, [lotesTurmaColheita, searchTerm, tipoOrigem]);
+  }, [lotesTurmaColheita, searchTermAplicado, tipoOrigem, appliedFilters]);
 
   // Processar lotes para exibição na tabela (Folha Pagamento)
   const lotesFiltradosOrdenadosFolhaPagamento = useMemo(() => {
-    const termo = searchTerm.trim().toLowerCase();
+    // Usar searchTermAplicado ao invés de searchTerm para não filtrar durante digitação
+    const termo = searchTermAplicado.trim().toLowerCase();
 
     // Garantir que lotesFolhaPagamento é um array
     if (!Array.isArray(lotesFolhaPagamento)) {
@@ -347,8 +420,67 @@ const Pagamentos = () => {
       loteId: lote.id,
     }));
 
-    // Aplicar filtros
-    if (termo) {
+    // Aplicar filtros de busca inteligente (chips)
+    if (appliedFilters.length > 0) {
+      lotes = lotes.filter((lote) => {
+        return appliedFilters.some((filtro) => {
+          if (filtro.type === 'funcionario') {
+            const itens = lote.itensPagamento || [];
+            return itens.some(item => {
+              const funcionario = item.funcionarioPagamento?.funcionario;
+              if (!funcionario) return false;
+              
+              // Se filtro tem CPF, comparar por CPF
+              if (filtro.metadata?.cpf && funcionario.cpf) {
+                const cpfFiltro = filtro.metadata.cpf.replace(/\D/g, '');
+                const cpfFuncionario = funcionario.cpf.replace(/\D/g, '');
+                if (cpfFiltro === cpfFuncionario) return true;
+              }
+              
+              // Comparar por nome
+              const nomeFuncionario = (funcionario.nome || "").trim().toLowerCase();
+              const nomeFiltro = filtro.metadata?.nome?.toLowerCase() || filtro.value.toLowerCase();
+              if (nomeFuncionario === nomeFiltro) return true;
+              
+              // Comparar por chavePix
+              if (filtro.metadata?.chavePix && funcionario.chavePix) {
+                const chavePixFiltro = filtro.metadata.chavePix.toLowerCase();
+                const chavePixFuncionario = funcionario.chavePix.toLowerCase();
+                if (chavePixFiltro === chavePixFuncionario) return true;
+              }
+              
+              // Comparar por responsavelChavePix
+              if (filtro.metadata?.responsavelChavePix && funcionario.responsavelChavePix) {
+                const responsavelFiltro = filtro.metadata.responsavelChavePix.toLowerCase();
+                const responsavelFuncionario = funcionario.responsavelChavePix.toLowerCase();
+                if (responsavelFiltro === responsavelFuncionario) return true;
+              }
+              
+              // Comparar por apelido
+              if (filtro.metadata?.apelido && funcionario.apelido) {
+                const apelidoFiltro = filtro.metadata.apelido.toLowerCase();
+                const apelidoFuncionario = funcionario.apelido.toLowerCase();
+                if (apelidoFiltro === apelidoFuncionario) return true;
+              }
+              
+              // Comparar pelo valor do filtro diretamente (caso seja chavePix, responsavel ou apelido)
+              const valorFiltro = filtro.value.toLowerCase();
+              if (funcionario.chavePix && funcionario.chavePix.toLowerCase() === valorFiltro) return true;
+              if (funcionario.responsavelChavePix && funcionario.responsavelChavePix.toLowerCase() === valorFiltro) return true;
+              if (funcionario.apelido && funcionario.apelido.toLowerCase() === valorFiltro) return true;
+              
+              return false;
+            });
+          }
+          // Colhedor não se aplica a lotes de folha de pagamento
+          return false;
+        });
+      });
+    }
+
+    // Aplicar filtro de busca por texto (fallback - apenas se não houver filtros aplicados)
+    // IMPORTANTE: Usar searchTermAplicado, não searchTerm, para não filtrar durante digitação
+    if (termo && appliedFilters.length === 0) {
       lotes = lotes.filter((lote) => {
         const numero = (lote.numeroRequisicao || "").toString();
         const origemNome = (lote.origemNome || "").toLowerCase();
@@ -392,7 +524,48 @@ const Pagamentos = () => {
     });
 
     return lotes;
-  }, [lotesFolhaPagamento, searchTerm, tipoOrigem]);
+  }, [lotesFolhaPagamento, searchTermAplicado, tipoOrigem, appliedFilters]);
+
+  // Efeito para gerenciar expansão automática das seções baseado nos dados filtrados
+  // IMPORTANTE: Só aplicar quando há filtros aplicados (chips), não durante digitação
+  useEffect(() => {
+    // Se não há filtros aplicados, não fazer nada (manter estado atual)
+    if (appliedFilters.length === 0) {
+      return;
+    }
+
+    const temDadosTurma = lotesFiltradosOrdenadosTurmaColheita.length > 0;
+    const temDadosFolha = lotesFiltradosOrdenadosFolhaPagamento.length > 0;
+    
+    // Se ambas têm dados, deixar ambas colapsadas (não expandir automaticamente)
+    if (temDadosTurma && temDadosFolha) {
+      // Se ambas estão expandidas, manter; senão, colapsar ambas
+      setActiveKeys((prev) => {
+        const ambasExpandidas = prev.includes("turma-colheita") && prev.includes("folha-pagamento");
+        if (!ambasExpandidas) {
+          return [];
+        }
+        return prev;
+      });
+      return;
+    }
+    
+    // Se só uma tem dados, expandir ela automaticamente
+    if (temDadosTurma && !temDadosFolha) {
+      setActiveKeys((prev) => {
+        if (prev.includes("turma-colheita")) return prev;
+        return ["turma-colheita"];
+      });
+    } else if (!temDadosTurma && temDadosFolha) {
+      setActiveKeys((prev) => {
+        if (prev.includes("folha-pagamento")) return prev;
+        return ["folha-pagamento"];
+      });
+    } else {
+      // Nenhuma tem dados, ocultar ambas
+      setActiveKeys([]);
+    }
+  }, [lotesFiltradosOrdenadosTurmaColheita.length, lotesFiltradosOrdenadosFolhaPagamento.length, appliedFilters.length]);
 
   // Calcular estatísticas para Turma de Colheita
   const estatisticasTurmaColheita = useMemo(() => {
@@ -413,9 +586,37 @@ const Pagamentos = () => {
       return acc + liberados;
     }, 0);
     
-    const valorTotalEnviado = lotes.reduce((acc, lote) => acc + Number(lote.valorTotalEnviado || 0), 0);
-    const valorTotalValidado = lotes.reduce((acc, lote) => acc + Number(lote.valorTotalValidado || lote.valorTotalEnviado || 0), 0);
-    const valorTotalColheitas = lotes.reduce((acc, lote) => acc + Number(lote.valorTotalColheitas || 0), 0);
+    // Calcular valores liberados vs pendentes
+    // IMPORTANTE: Filtrar apenas lotes com colheitas vinculadas (origemTipo === 'TURMA_COLHEITA' e valorTotalColheitas > 0)
+    // Isso exclui lotes de teste sem colheitas vinculadas
+    
+    // Filtrar lotes com colheitas vinculadas
+    const lotesComColheitas = lotes.filter(lote => 
+      lote.origemTipo === 'TURMA_COLHEITA' && 
+      Number(lote.valorTotalColheitas || 0) > 0
+    );
+    
+    // Valor Total Colheitas: soma dos valores das colheitas vinculadas
+    const valorTotalColheitas = lotesComColheitas.reduce((acc, lote) => 
+      acc + Number(lote.valorTotalColheitas || 0), 0
+    );
+    
+    // Valor Liberado: soma dos valores dos itens que já foram pagos (apenas de lotes com colheitas)
+    const valorTotalLiberado = lotesComColheitas.reduce((acc, lote) => {
+      const itens = lote.itensPagamento || [];
+      const valorItensPagos = itens.reduce((sum, item) => {
+        const estado = item.estadoPagamentoIndividual || item.status;
+        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+          return sum + Number(item.valorEnviado || 0);
+        }
+        return sum;
+      }, 0);
+      return acc + valorItensPagos;
+    }, 0);
+    
+    // Valor Pendente: diferença entre valor total das colheitas e valor já pago
+    // Para colheitas, sempre deve bater: valorTotalColheitas = valorTotalLiberado + valorTotalPendente
+    const valorTotalPendente = valorTotalColheitas - valorTotalLiberado;
     
     return {
       totalLotes,
@@ -424,8 +625,8 @@ const Pagamentos = () => {
       totalPedidos,
       lotesLiberados,
       itensLiberados,
-      valorTotalEnviado,
-      valorTotalValidado,
+      valorTotalLiberado,
+      valorTotalPendente,
       valorTotalColheitas,
     };
   }, [lotesFiltradosOrdenadosTurmaColheita]);
@@ -448,8 +649,42 @@ const Pagamentos = () => {
       return acc + liberados;
     }, 0);
     
-    const valorTotalEnviado = lotes.reduce((acc, lote) => acc + Number(lote.valorTotalEnviado || 0), 0);
-    const valorTotalValidado = lotes.reduce((acc, lote) => acc + Number(lote.valorTotalValidado || lote.valorTotalEnviado || 0), 0);
+    // Calcular valores liberados vs pendentes
+    // Valor Liberado: soma dos valores dos itens que já foram pagos
+    const valorTotalLiberado = lotes.reduce((acc, lote) => {
+      const itens = lote.itensPagamento || [];
+      const valorItensPagos = itens.reduce((sum, item) => {
+        const estado = item.estadoPagamentoIndividual || item.status;
+        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+          return sum + Number(item.valorEnviado || 0);
+        }
+        return sum;
+      }, 0);
+      return acc + valorItensPagos;
+    }, 0);
+    
+    // Valor Pendente: soma dos valores enviados ao BB que ainda não foram pagos
+    // Usar valorTotalEnviado (valor real enviado ao BB)
+    const valorTotalPendente = lotes.reduce((acc, lote) => {
+      // Para funcionários, usar valorTotalFuncionarios ou valorTotalEnviado
+      const valorTotalLote = Number(lote.valorTotalFuncionarios || lote.valorTotalEnviado || 0);
+      const itens = lote.itensPagamento || [];
+      const valorItensPagos = itens.reduce((sum, item) => {
+        const estado = item.estadoPagamentoIndividual || item.status;
+        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+          return sum + Number(item.valorEnviado || 0);
+        }
+        return sum;
+      }, 0);
+      
+      if (itens.length === 0) {
+        // Se não tem itens, todo o valor enviado está pendente
+        return acc + valorTotalLote;
+      }
+      // Valor pendente = valor total enviado - valor pago
+      return acc + Math.max(0, valorTotalLote - valorItensPagos);
+    }, 0);
+    
     const valorTotalFuncionarios = lotes.reduce((acc, lote) => acc + Number(lote.valorTotalFuncionarios || 0), 0);
     
     return {
@@ -458,8 +693,8 @@ const Pagamentos = () => {
       totalFuncionarios,
       lotesLiberados,
       itensLiberados,
-      valorTotalEnviado,
-      valorTotalValidado,
+      valorTotalLiberado,
+      valorTotalPendente,
       valorTotalFuncionarios,
     };
   }, [lotesFiltradosOrdenadosFolhaPagamento]);
@@ -486,19 +721,18 @@ const Pagamentos = () => {
         );
 
         // Recarregar lista respeitando o filtro de data atual
+        let inicio = null;
+        let fim = null;
         if (dateRange && dateRange.length === 2) {
-          const inicio = dateRange[0]
+          inicio = dateRange[0]
             ? moment(dateRange[0]).startOf("day").toISOString()
             : null;
-          const fim = dateRange[1]
+          fim = dateRange[1]
             ? moment(dateRange[1]).endOf("day").toISOString()
             : null;
-          await fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit);
-          await fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit);
-        } else {
-          await fetchLotesTurmaColheita(null, null, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit);
-          await fetchLotesFolhaPagamento(null, null, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit);
         }
+        await fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType);
+        await fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType);
       } catch (error) {
         console.error("Erro ao liberar lote de pagamentos:", error);
         const message =
@@ -885,18 +1119,20 @@ const Pagamentos = () => {
             >
               Buscar por lote, beneficiário ou conta:
             </Text>
-            <SearchInput
+            <SearchInputPagamentos
               placeholder={
                 isMobile
                   ? "Buscar..."
-                  : "Buscar por lote, beneficiário ou conta..."
+                  : "Buscar por colhedor, funcionário, CPF, lote ou conta..."
               }
               value={searchTerm}
               onChange={(value) => setSearchTerm(value)}
+              onSuggestionSelect={handleSuggestionSelect}
               size={isMobile ? "small" : "middle"}
               style={{
                 width: "100%",
                 fontSize: isMobile ? "0.875rem" : "1rem",
+                marginBottom: 0,
               }}
             />
           </Box>
@@ -924,14 +1160,82 @@ const Pagamentos = () => {
               }}
             >
               <Option value="TODOS">Todos</Option>
-              <Option value="FUNCIONARIO">Funcionários</Option>
               <Option value="TURMA_COLHEITA">Turma de Colheita</Option>
               <Option value="FOLHA_PAGAMENTO">Folha de Pagamento</Option>
-              <Option value="FORNECEDOR">Fornecedores</Option>
             </Select>
           </Box>
 
-          {/* Filtro por data de criação (RangePicker) */}
+          {/* Conta Corrente */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 220px" } }}>
+            <Text
+              style={{
+                display: "block",
+                marginBottom: 8,
+                fontWeight: 500,
+                fontSize: isMobile ? "0.8125rem" : "0.875rem",
+              }}
+            >
+              Conta Corrente:
+            </Text>
+            <Select
+              value={contaCorrenteId}
+              onChange={(value) => setContaCorrenteId(value)}
+              allowClear
+              placeholder="Todas as contas"
+              size={isMobile ? "small" : "middle"}
+              style={{
+                width: "100%",
+                marginBottom: 0,
+                fontSize: isMobile ? "0.875rem" : "1rem",
+              }}
+            >
+              {contasCorrentes.map((conta) => (
+                <Option key={conta.id} value={conta.id}>
+                  {conta.agencia} / {conta.contaCorrente}-{(conta.contaCorrenteDigito || 'X').toUpperCase()} {conta.nomeBanco ? `(${conta.nomeBanco})` : ''}
+                </Option>
+              ))}
+            </Select>
+          </Box>
+
+          {/* Divider entre tipo de origem e toggle de data */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+            <Text style={{ display: "block", marginBottom: 8 }}>&nbsp;</Text>
+            <Divider 
+              type="vertical" 
+              style={{ 
+                height: isMobile ? "32px" : "48px",
+                margin: 0,
+                borderColor: "#d9d9d9",
+                borderWidth: "1px"
+              }} 
+            />
+          </Box>
+
+          {/* Toggle de Tipo de Data */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+            <Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
+              Data:
+            </Text>
+            <Segmented
+              options={[
+                { label: 'Criação', value: 'criacao' },
+                { label: 'Liberação', value: 'liberacao' }
+              ]}
+              value={dateFilterType}
+              onChange={setDateFilterType}
+              size={isMobile ? "small" : "middle"}
+              style={{
+                fontWeight: "500"
+              }}
+            />
+          </Box>
+
+          {/* Filtro por data (RangePicker) */}
           <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 260px" } }}>
             <Text
               style={{
@@ -941,7 +1245,7 @@ const Pagamentos = () => {
                 fontSize: isMobile ? "0.8125rem" : "0.875rem",
               }}
             >
-              Data de criação do lote:
+              {dateFilterType === 'criacao' ? 'Data de Criação:' : 'Data de Liberação:'}
             </Text>
             <RangePicker
               value={dateRange}
@@ -957,829 +1261,183 @@ const Pagamentos = () => {
               }}
             />
           </Box>
+
+          {/* Botão Limpar */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+            <Text style={{ display: "block", marginBottom: 8 }}>&nbsp;</Text>
+            <SecondaryButton
+              icon={<FilterOutlined />}
+              onClick={() => {
+                setTipoOrigem("TODOS");
+                setContaCorrenteId(null);
+                setDateRange([]);
+                setDateFilterType("criacao");
+                setSearchTerm("");
+                setSearchTermAplicado("");
+                setAppliedFilters([]);
+              }}
+              size={isMobile ? "small" : "middle"}
+              style={{
+                height: isMobile ? "32px" : "40px",
+                padding: isMobile ? '0 12px' : '0 16px',
+                fontSize: isMobile ? '0.75rem' : undefined
+              }}
+            >
+              Limpar
+            </SecondaryButton>
+          </Box>
         </Box>
+
+        {/* Resumo dos filtros ativos (chips) */}
+        {(tipoOrigem !== "TODOS" || contaCorrenteId || dateRange.length > 0 || appliedFilters.length > 0) && (
+          <Box
+            sx={{
+              mt: 2,
+              pt: 2,
+              borderTop: "1px solid #e8e8e8",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: isMobile ? 0.5 : 1,
+              alignItems: "center",
+            }}
+          >
+            <Text strong style={{
+              fontSize: isMobile ? "0.6875rem" : "0.75rem",
+              color: "#666"
+            }}>
+              Filtros ativos:
+            </Text>
+            
+            {tipoOrigem !== "TODOS" && (
+              <Tag
+                color="blue"
+                closable
+                onClose={() => setTipoOrigem("TODOS")}
+                style={{
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
+                }}
+              >
+                Tipo: {tipoOrigem === "TURMA_COLHEITA" ? "Turma de Colheita" : "Folha de Pagamento"}
+              </Tag>
+            )}
+            
+            {contaCorrenteId && (() => {
+              const contaSelecionada = contasCorrentes.find(c => c.id === contaCorrenteId);
+              return contaSelecionada ? (
+                <Tag
+                  color="cyan"
+                  closable
+                  onClose={() => setContaCorrenteId(null)}
+                  style={{
+                    fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                    padding: isMobile ? "2px 6px" : "4px 8px"
+                  }}
+                >
+                  Conta: {contaSelecionada.agencia} / {contaSelecionada.contaCorrente}-{(contaSelecionada.contaCorrenteDigito || 'X').toUpperCase()}
+                </Tag>
+              ) : null;
+            })()}
+            
+            {dateRange.length > 0 && (
+              <Tag
+                color="orange"
+                closable
+                onClose={() => setDateRange([])}
+                style={{
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
+                }}
+              >
+                {dateFilterType === 'criacao' ? '📅 Criação' : '📅 Liberação'}: {dateRange[0]?.format('DD/MM/YYYY')} - {dateRange[1]?.format('DD/MM/YYYY')}
+              </Tag>
+            )}
+
+            {/* Chips de filtros aplicados via busca inteligente */}
+            {appliedFilters.map((filter, index) => (
+              <Tag
+                key={`${filter.type}-${filter.value}-${index}`}
+                color={filter.type === 'colhedor' ? 'green' : 'blue'}
+                closable
+                onClose={() => {
+                  setAppliedFilters(prev => prev.filter((_, i) => i !== index));
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: isMobile ? "2px" : "4px",
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  fontWeight: "500",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
+                }}
+              >
+                <span style={{ fontSize: isMobile ? "0.75rem" : "0.875rem" }}>{filter.icon}</span>
+                {filter.label}: {filter.displayValue || filter.value}
+              </Tag>
+            ))}
+          </Box>
+        )}
       </Box>
 
       {/* Seção: Turmas de Colheita */}
-      {(tipoOrigem === "TODOS" || tipoOrigem === "TURMA_COLHEITA") && (
-        <div style={{ marginBottom: 24 }}>
-          <Card
-            style={{
-              margin: 0,
-              border: "1px solid #e8e8e8",
-              borderRadius: "8px",
-              backgroundColor: "#f9f9f9",
-            }}
-            headStyle={{
-              backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
-              color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
-              cursor: "pointer",
-            }}
-            title={
-              <div 
-                style={{ 
-                  display: "flex", 
-                  justifyContent: "space-between", 
-                  alignItems: "center", 
-                  width: "100%",
-                }}
-                onClick={() => {
-                  setActiveKeys(prev => 
-                    prev.includes('turma-colheita') 
-                      ? prev.filter(k => k !== 'turma-colheita')
-                      : [...prev, 'turma-colheita']
-                  );
-                }}
-              >
-                <Space>
-                  <DollarOutlined style={{ color: "#ffffff", fontSize: "18px" }} />
-                  <Text strong style={{ fontSize: isMobile ? "14px" : "16px", color: "#ffffff" }}>
-                    Lotes de Pagamentos - Turmas de Colheita
-                  </Text>
-                </Space>
-                <Space>
-                  <Text style={{ fontSize: "11px", color: "#ffffff", opacity: 0.9 }}>
-                    Clique para expandir/colapsar
-                  </Text>
-                  <RightOutlined 
-                    rotate={activeKeys.includes('turma-colheita') ? 90 : 0} 
-                    style={{ 
-                      color: "#ffffff", 
-                      fontSize: "14px",
-                      transition: "transform 0.3s",
-                      marginLeft: "8px"
-                    }} 
-                  />
-                </Space>
-              </div>
-            }
-            bodyStyle={{ padding: "16px" }}
-          >
-            {/* Cards de Estatísticas */}
-            <Row gutter={[16, 16]}>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Total de Lotes</Text>}
-                            value={estatisticasTurmaColheita.totalLotes}
-                            prefix={<FileTextOutlined style={{ color: "#059669", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#059669", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Total de Itens</Text>}
-                            value={estatisticasTurmaColheita.totalItens}
-                            prefix={<ShoppingOutlined style={{ color: "#1890ff", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#1890ff", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Total de Colheitas</Text>}
-                            value={estatisticasTurmaColheita.totalColheitas}
-                            prefix={<TeamOutlined style={{ color: "#722ed1", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#722ed1", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Lotes Liberados</Text>}
-                            value={estatisticasTurmaColheita.lotesLiberados}
-                            prefix={<CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Itens Liberados</Text>}
-                            value={estatisticasTurmaColheita.itensLiberados}
-                            prefix={<CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Valor Total Enviado</Text>}
-                            value={formatCurrency(estatisticasTurmaColheita.valorTotalEnviado)}
-                            prefix={<DollarOutlined style={{ color: "#059669", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#059669", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Valor Total Validado</Text>}
-                            value={formatCurrency(estatisticasTurmaColheita.valorTotalValidado)}
-                            prefix={<DollarOutlined style={{ color: "#1890ff", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#1890ff", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Valor Total Colheitas</Text>}
-                            value={formatCurrency(estatisticasTurmaColheita.valorTotalColheitas)}
-                            prefix={<DollarOutlined style={{ color: "#722ed1", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#722ed1", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                    </Row>
-            
-            {/* Tabela - Visível apenas quando expandido */}
-            {activeKeys.includes('turma-colheita') && (
-              <>
-                <div style={{ marginTop: 16, borderTop: "1px solid #e8e8e8", paddingTop: 16 }}>
-                  <style>
-                    {`
-                      .ant-table-expanded-row > td {
-                        padding: 0 !important;
-                        background-color: #f9f9f9 !important;
-                      }
-                      .ant-table-expanded-row > td > div {
-                        margin: 0 !important;
-                      }
-                    `}
-                  </style>
-                  <ResponsiveTable
-                    columns={getColumns('TURMA_COLHEITA')}
-                    dataSource={lotesFiltradosOrdenadosTurmaColheita}
-                    loading={loading}
-                    rowKey="loteId"
-                    minWidthMobile={1400}
-                    showScrollHint={true}
-                    expandable={{
-                    expandIcon: ({ expanded, onExpand, record }) => {
-                      const itens = record.itensPagamento || [];
-                      if (itens.length === 0) return null;
-                      
-                      return (
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={expanded ? <UpOutlined /> : <DownOutlined />}
-                          onClick={(e) => onExpand(record, e)}
-                          style={{
-                            padding: "4px 8px",
-                            height: "auto",
-                            color: "#059669",
-                          }}
-                        />
-                      );
-                    },
-                    expandedRowRender: (record) => {
-                      const itens = record.itensPagamento || [];
-                      
-                      if (itens.length === 0) {
-                        return (
-                          <div style={{ 
-                            padding: "12px 0", 
-                            backgroundColor: "#f9f9f9"
-                          }}>
-                            <Text type="secondary">Nenhum item neste lote.</Text>
-                          </div>
-                        );
-                      }
+      {(tipoOrigem === "TODOS" || tipoOrigem === "TURMA_COLHEITA") && lotesFiltradosOrdenadosTurmaColheita.length > 0 && (
+        <SecaoLotesPagamentos
+          titulo="Lotes de Pagamentos - Turmas de Colheita"
+          icone={<DollarOutlined style={{ color: "#ffffff", fontSize: "18px" }} />}
+          lotes={lotesFiltradosOrdenadosTurmaColheita}
+          loading={loading}
+          estatisticas={estatisticasTurmaColheita}
+          paginacao={paginacaoTurmaColheita}
+          onPageChange={handlePageChangeTurmaColheita}
+          activeKey={activeKeys.includes("turma-colheita")}
+          onToggleActive={() => {
+            setActiveKeys((prev) =>
+              prev.includes("turma-colheita")
+                ? prev.filter((k) => k !== "turma-colheita")
+                : [...prev, "turma-colheita"]
+            );
+          }}
+          columns={getColumns("TURMA_COLHEITA")}
+          rowKey="loteId"
+          onConsultarItemIndividual={(itemData) => {
+            setItemSelecionado(itemData);
+            setModalConsultaItemIndividualOpen(true);
+          }}
+        />
+      )}
 
-                      return (
-                        <div style={{ 
-                          padding: "12px 0", 
-                          backgroundColor: "#f9f9f9"
-                        }}>
-                          <Text strong style={{ fontSize: "13px", color: "#059669", marginBottom: "10px", display: "block" }}>
-                            Itens do Lote ({itens.length}):
-                          </Text>
-                          <div style={{ display: "grid", gap: "8px" }}>
-                            {itens.map((item, index) => {
-                              const colheitas = item.colheitas || [];
-                              const funcionarioPagamento = item.funcionarioPagamento;
-                              
-                              return (
-                                <Card
-                                  key={item.id || index}
-                                  size="small"
-                                  style={{
-                                    backgroundColor: "#ffffff",
-                                    border: "1px solid #d9d9d9",
-                                    borderRadius: "4px",
-                                    boxShadow: "none",
-                                  }}
-                                  bodyStyle={{ padding: "10px" }}
-                                >
-                                  <Space direction="vertical" size="small" style={{ width: "100%" }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                                      <Space size="middle" wrap>
-                                        <div>
-                                          <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                            Código Pagamento
-                                          </Text>
-                                          <Tag color="blue" style={{ fontFamily: 'monospace', marginTop: "4px" }}>
-                                            {item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento || '-'}
-                                          </Tag>
-                                        </div>
-                                        <div>
-                                          <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                            Valor
-                                          </Text>
-                                          <Text strong style={{ display: "block", marginTop: "4px", color: "#059669" }}>
-                                            R$ {formatCurrency(Number(item.valorEnviado || 0))}
-                                          </Text>
-                                        </div>
-                                        {item.chavePixEnviada && (
-                                          <div>
-                                            <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                              Chave PIX
-                                            </Text>
-                                            <Text style={{ display: "block", marginTop: "4px", fontSize: "11px" }}>
-                                              {item.chavePixEnviada}
-                                            </Text>
-                                          </div>
-                                        )}
-                                      </Space>
-                                    </div>
-                                    
-                                    {/* Para turma de colheita: mostrar colheitas */}
-                                    {colheitas.length > 0 && (
-                                      <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #e8e8e8" }}>
-                                        <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px" }}>
-                                          Colheitas ({colheitas.length}):
-                                        </Text>
-                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                                          {colheitas.map((c, idx) => (
-                                            <Tag key={idx} color="cyan">
-                                              {c.pedidoNumero} - {c.frutaNome} - R$ {formatCurrency(c.valorColheita || 0)}
-                                            </Tag>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Para folha de pagamento: mostrar funcionário */}
-                                    {funcionarioPagamento && (
-                                      <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #e8e8e8" }}>
-                                        <Space size="middle" wrap>
-                                          <div>
-                                            <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                              Funcionário
-                                            </Text>
-                                            <Text strong style={{ display: "block", marginTop: "4px" }}>
-                                              {funcionarioPagamento.funcionario?.nome || '-'}
-                                            </Text>
-                                          </div>
-                                          {funcionarioPagamento.funcionario?.cpf && (
-                                            <div>
-                                              <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                                CPF
-                                              </Text>
-                                              <Text style={{ display: "block", marginTop: "4px" }}>
-                                                {formatarCPF(funcionarioPagamento.funcionario.cpf)}
-                                              </Text>
-                                            </div>
-                                          )}
-                                          {funcionarioPagamento.folha && (
-                                            <div>
-                                              <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                                Folha
-                                              </Text>
-                                              <Text style={{ display: "block", marginTop: "4px" }}>
-                                                {String(funcionarioPagamento.folha.competenciaMes).padStart(2, '0')}/{funcionarioPagamento.folha.competenciaAno} - {funcionarioPagamento.folha.periodo}ª Quinzena
-                                              </Text>
-                                            </div>
-                                          )}
-                                          <div>
-                                            <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                              Valor Líquido
-                                            </Text>
-                                            <Text strong style={{ display: "block", marginTop: "4px", color: "#059669" }}>
-                                              R$ {formatCurrency(Number(funcionarioPagamento.valorLiquido || 0))}
-                                            </Text>
-                                          </div>
-                                        </Space>
-                                      </div>
-                                    )}
-                                  </Space>
-                                </Card>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    },
-                  }}
-                    />
-                  {/* Paginação */}
-                  {paginacaoTurmaColheita.total > 0 && (
-                    <div style={{
-                      padding: isMobile ? "0.75rem" : "1rem",
-                      borderTop: "1px solid #f0f0f0",
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      marginTop: 16
-                    }}>
-                      <Pagination
-                        current={paginacaoTurmaColheita.page}
-                        pageSize={paginacaoTurmaColheita.limit}
-                        total={paginacaoTurmaColheita.total}
-                        onChange={handlePageChangeTurmaColheita}
-                        onShowSizeChange={handlePageChangeTurmaColheita}
-                        showSizeChanger={!isMobile}
-                        showTotal={(total, range) =>
-                          isMobile
-                            ? `${range[0]}-${range[1]}/${total}`
-                            : `${range[0]}-${range[1]} de ${total} lotes`
-                        }
-                        pageSizeOptions={['10', '20', '50', '100']}
-                        size={isMobile ? "small" : "default"}
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </Card>
-        </div>
+      {/* Divider entre seções */}
+      {(tipoOrigem === "TODOS") && 
+       lotesFiltradosOrdenadosTurmaColheita.length > 0 && 
+       lotesFiltradosOrdenadosFolhaPagamento.length > 0 && (
+        <Divider style={{ margin: "24px 0", borderColor: "#d9d9d9" }} />
       )}
 
       {/* Seção: Folha de Pagamento */}
-      {(tipoOrigem === "TODOS" || tipoOrigem === "FOLHA_PAGAMENTO") && (
-        <div style={{ marginBottom: 24 }}>
-          <Card
-            style={{
-              margin: 0,
-              border: "1px solid #e8e8e8",
-              borderRadius: "8px",
-              backgroundColor: "#f9f9f9",
-            }}
-            headStyle={{
-              backgroundColor: "#059669",
-              borderBottom: "2px solid #047857",
-              color: "#ffffff",
-              borderRadius: "8px 8px 0 0",
-              cursor: "pointer",
-            }}
-            title={
-              <div 
-                style={{ 
-                  display: "flex", 
-                  justifyContent: "space-between", 
-                  alignItems: "center", 
-                  width: "100%",
-                }}
-                onClick={() => {
-                  setActiveKeys(prev => 
-                    prev.includes('folha-pagamento') 
-                      ? prev.filter(k => k !== 'folha-pagamento')
-                      : [...prev, 'folha-pagamento']
-                  );
-                }}
-              >
-                <Space>
-                  <DollarOutlined style={{ color: "#ffffff", fontSize: "18px" }} />
-                  <Text strong style={{ fontSize: isMobile ? "14px" : "16px", color: "#ffffff" }}>
-                    Lotes de Pagamentos - Folha de Pagamento
-                  </Text>
-                </Space>
-                <Space>
-                  <Text style={{ fontSize: "11px", color: "#ffffff", opacity: 0.9 }}>
-                    Clique para expandir/colapsar
-                  </Text>
-                  <RightOutlined 
-                    rotate={activeKeys.includes('folha-pagamento') ? 90 : 0} 
-                    style={{ 
-                      color: "#ffffff", 
-                      fontSize: "14px",
-                      transition: "transform 0.3s",
-                      marginLeft: "8px"
-                    }} 
-                  />
-                </Space>
-              </div>
-            }
-            bodyStyle={{ padding: "16px" }}
-          >
-            {/* Cards de Estatísticas */}
-            <Row gutter={[16, 16]}>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Total de Lotes</Text>}
-                            value={estatisticasFolhaPagamento.totalLotes}
-                            prefix={<FileTextOutlined style={{ color: "#059669", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#059669", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Total de Itens</Text>}
-                            value={estatisticasFolhaPagamento.totalItens}
-                            prefix={<ShoppingOutlined style={{ color: "#1890ff", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#1890ff", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Total de Funcionários</Text>}
-                            value={estatisticasFolhaPagamento.totalFuncionarios}
-                            prefix={<TeamOutlined style={{ color: "#722ed1", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#722ed1", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Lotes Liberados</Text>}
-                            value={estatisticasFolhaPagamento.lotesLiberados}
-                            prefix={<CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Itens Liberados</Text>}
-                            value={estatisticasFolhaPagamento.itensLiberados}
-                            prefix={<CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Valor Total Enviado</Text>}
-                            value={formatCurrency(estatisticasFolhaPagamento.valorTotalEnviado)}
-                            prefix={<DollarOutlined style={{ color: "#059669", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#059669", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Valor Total Validado</Text>}
-                            value={formatCurrency(estatisticasFolhaPagamento.valorTotalValidado)}
-                            prefix={<DollarOutlined style={{ color: "#1890ff", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#1890ff", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col xs={24} sm={12} md={6}>
-                        <Card
-                          style={{
-                            borderRadius: "0.75rem",
-                            boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
-                            border: "1px solid #f0f0f0",
-                          }}
-                          bodyStyle={{ padding: "0.75rem" }}
-                        >
-                          <Statistic
-                            title={<Text style={{ color: "#666", fontSize: "0.6875rem" }}>Valor Total Funcionários</Text>}
-                            value={formatCurrency(estatisticasFolhaPagamento.valorTotalFuncionarios)}
-                            prefix={<DollarOutlined style={{ color: "#722ed1", fontSize: "1rem" }} />}
-                            valueStyle={{ color: "#722ed1", fontSize: "1.125rem", fontWeight: "600" }}
-                          />
-                        </Card>
-                      </Col>
-                    </Row>
-            
-            {/* Tabela - Visível apenas quando expandido */}
-            {activeKeys.includes('folha-pagamento') && (
-              <>
-                <div style={{ marginTop: 16, borderTop: "1px solid #e8e8e8", paddingTop: 16 }}>
-                  <style>
-                    {`
-                      .ant-table-expanded-row > td {
-                        padding: 0 !important;
-                        background-color: #f9f9f9 !important;
-                      }
-                      .ant-table-expanded-row > td > div {
-                        margin: 0 !important;
-                      }
-                    `}
-                  </style>
-                  <ResponsiveTable
-                    columns={getColumns('FOLHA_PAGAMENTO')}
-                    dataSource={lotesFiltradosOrdenadosFolhaPagamento}
-                    loading={loadingFolha}
-                    rowKey="loteId"
-                    minWidthMobile={1400}
-                    showScrollHint={true}
-                    expandable={{
-                    expandIcon: ({ expanded, onExpand, record }) => {
-                      const itens = record.itensPagamento || [];
-                      if (itens.length === 0) return null;
-                      
-                      return (
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={expanded ? <UpOutlined /> : <DownOutlined />}
-                          onClick={(e) => onExpand(record, e)}
-                          style={{
-                            padding: "4px 8px",
-                            height: "auto",
-                            color: "#059669",
-                          }}
-                        />
-                      );
-                    },
-                    expandedRowRender: (record) => {
-                      const itens = record.itensPagamento || [];
-                      
-                      if (itens.length === 0) {
-                        return (
-                          <div style={{ 
-                            padding: "12px 16px", 
-                            backgroundColor: "#f9f9f9", 
-                            margin: "0 -16px",
-                            borderTop: "1px solid #e8e8e8"
-                          }}>
-                            <Text type="secondary">Nenhum item neste lote.</Text>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div style={{ 
-                          padding: "12px 16px", 
-                          backgroundColor: "#f9f9f9", 
-                          margin: "0 -16px",
-                          borderTop: "1px solid #e8e8e8"
-                        }}>
-                          <Text strong style={{ fontSize: "13px", color: "#059669", marginBottom: "10px", display: "block" }}>
-                            Itens do Lote ({itens.length}):
-                          </Text>
-                          <div style={{ display: "grid", gap: "8px" }}>
-                            {itens.map((item, index) => {
-                              const funcionarioPagamento = item.funcionarioPagamento;
-                              
-                              return (
-                                <Card
-                                  key={item.id || index}
-                                  size="small"
-                                  style={{
-                                    backgroundColor: "#ffffff",
-                                    border: "1px solid #d9d9d9",
-                                    borderRadius: "4px",
-                                    boxShadow: "none",
-                                  }}
-                                  bodyStyle={{ padding: "10px" }}
-                                >
-                                  <Space direction="vertical" size="small" style={{ width: "100%" }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                                      <Space size="middle" wrap>
-                                        <div>
-                                          <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                            Código Pagamento
-                                          </Text>
-                                          <Tag color="blue" style={{ fontFamily: 'monospace', marginTop: "4px" }}>
-                                            {item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento || '-'}
-                                          </Tag>
-                                        </div>
-                                        <div>
-                                          <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                            Valor
-                                          </Text>
-                                          <Text strong style={{ display: "block", marginTop: "4px", color: "#059669" }}>
-                                            R$ {formatCurrency(Number(item.valorEnviado || 0))}
-                                          </Text>
-                                        </div>
-                                        {item.chavePixEnviada && (
-                                          <div>
-                                            <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                              Chave PIX
-                                            </Text>
-                                            <Text style={{ display: "block", marginTop: "4px", fontSize: "11px" }}>
-                                              {item.chavePixEnviada}
-                                            </Text>
-                                          </div>
-                                        )}
-                                      </Space>
-                                    </div>
-                                    
-                                    {/* Mostrar funcionário */}
-                                    {funcionarioPagamento && (
-                                      <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #e8e8e8" }}>
-                                        <Space size="middle" wrap>
-                                          <div>
-                                            <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                              Funcionário
-                                            </Text>
-                                            <Text strong style={{ display: "block", marginTop: "4px" }}>
-                                              {funcionarioPagamento.funcionario?.nome || '-'}
-                                            </Text>
-                                          </div>
-                                          {funcionarioPagamento.funcionario?.cpf && (
-                                            <div>
-                                              <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                                CPF
-                                              </Text>
-                                              <Text style={{ display: "block", marginTop: "4px" }}>
-                                                {formatarCPF(funcionarioPagamento.funcionario.cpf)}
-                                              </Text>
-                                            </div>
-                                          )}
-                                          {funcionarioPagamento.folha && (
-                                            <div>
-                                              <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                                Folha
-                                              </Text>
-                                              <Text style={{ display: "block", marginTop: "4px" }}>
-                                                {String(funcionarioPagamento.folha.competenciaMes).padStart(2, '0')}/{funcionarioPagamento.folha.competenciaAno} - {funcionarioPagamento.folha.periodo}ª Quinzena
-                                              </Text>
-                                            </div>
-                                          )}
-                                          <div>
-                                            <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                              Valor Líquido
-                                            </Text>
-                                            <Text strong style={{ display: "block", marginTop: "4px", color: "#059669" }}>
-                                              R$ {formatCurrency(Number(funcionarioPagamento.valorLiquido || 0))}
-                                            </Text>
-                                          </div>
-                                          {funcionarioPagamento.statusPagamento && (
-                                            <div>
-                                              <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                                Status
-                                              </Text>
-                                              <Tag 
-                                                color={funcionarioPagamento.statusPagamento === 'PAGO' ? 'green' : funcionarioPagamento.statusPagamento === 'REJEITADO' ? 'red' : 'gold'}
-                                                style={{ marginTop: "4px" }}
-                                              >
-                                                {funcionarioPagamento.statusPagamento}
-                                              </Tag>
-                                            </div>
-                                          )}
-                                        </Space>
-                                      </div>
-                                    )}
-                                  </Space>
-                                </Card>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    },
-                    }}
-                  />
-                  {/* Paginação */}
-                  {paginacaoFolhaPagamento.total > 0 && (
-                    <div style={{
-                      padding: isMobile ? "0.75rem" : "1rem",
-                      borderTop: "1px solid #f0f0f0",
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      marginTop: 16
-                    }}>
-                      <Pagination
-                        current={paginacaoFolhaPagamento.page}
-                        pageSize={paginacaoFolhaPagamento.limit}
-                        total={paginacaoFolhaPagamento.total}
-                        onChange={handlePageChangeFolhaPagamento}
-                        onShowSizeChange={handlePageChangeFolhaPagamento}
-                        showSizeChanger={!isMobile}
-                        showTotal={(total, range) =>
-                          isMobile
-                            ? `${range[0]}-${range[1]}/${total}`
-                            : `${range[0]}-${range[1]} de ${total} lotes`
-                        }
-                        pageSizeOptions={['10', '20', '50', '100']}
-                        size={isMobile ? "small" : "default"}
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </Card>
-        </div>
+      {(tipoOrigem === "TODOS" || tipoOrigem === "FOLHA_PAGAMENTO") && lotesFiltradosOrdenadosFolhaPagamento.length > 0 && (
+        <SecaoLotesPagamentos
+          titulo="Lotes de Pagamentos - Folha de Pagamento"
+          icone={<DollarOutlined style={{ color: "#ffffff", fontSize: "18px" }} />}
+          lotes={lotesFiltradosOrdenadosFolhaPagamento}
+          loading={loadingFolha}
+          estatisticas={estatisticasFolhaPagamento}
+          paginacao={paginacaoFolhaPagamento}
+          onPageChange={handlePageChangeFolhaPagamento}
+          activeKey={activeKeys.includes("folha-pagamento")}
+          onToggleActive={() => {
+            setActiveKeys((prev) =>
+              prev.includes("folha-pagamento")
+                ? prev.filter((k) => k !== "folha-pagamento")
+                : [...prev, "folha-pagamento"]
+            );
+          }}
+          columns={getColumns("FOLHA_PAGAMENTO")}
+          rowKey="loteId"
+          onConsultarItemIndividual={(itemData) => {
+            setItemSelecionado(itemData);
+            setModalConsultaItemIndividualOpen(true);
+          }}
+        />
       )}
 
       {/* Modal de detalhes do lote e confirmação de liberação */}
@@ -1810,19 +1468,18 @@ const Pagamentos = () => {
         }}
         onAfterClose={() => {
           // Atualizar dados após fechar o modal de cancelamento
+          let inicio = null;
+          let fim = null;
           if (dateRange && dateRange.length === 2) {
-            const inicio = dateRange[0]
+            inicio = dateRange[0]
               ? moment(dateRange[0]).startOf("day").toISOString()
               : null;
-            const fim = dateRange[1]
+            fim = dateRange[1]
               ? moment(dateRange[1]).endOf("day").toISOString()
               : null;
-            fetchLotesTurmaColheita(inicio, fim);
-            fetchLotesFolhaPagamento(inicio, fim);
-          } else {
-            fetchLotesTurmaColheita();
-            fetchLotesFolhaPagamento();
           }
+          fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType);
+          fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType);
         }}
         lote={loteSelecionado}
         onConfirmCancelamento={handleCancelarItem}
@@ -1839,19 +1496,18 @@ const Pagamentos = () => {
         }}
         onAfterClose={() => {
           // Atualizar dados após fechar o modal, pois a consulta online atualiza o status no banco
+          let inicio = null;
+          let fim = null;
           if (dateRange && dateRange.length === 2) {
-            const inicio = dateRange[0]
+            inicio = dateRange[0]
               ? moment(dateRange[0]).startOf("day").toISOString()
               : null;
-            const fim = dateRange[1]
+            fim = dateRange[1]
               ? moment(dateRange[1]).endOf("day").toISOString()
               : null;
-            fetchLotesTurmaColheita(inicio, fim);
-            fetchLotesFolhaPagamento(inicio, fim);
-          } else {
-            fetchLotesTurmaColheita();
-            fetchLotesFolhaPagamento();
           }
+          fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType);
+          fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType);
         }}
         numeroRequisicao={loteSelecionado?.numeroRequisicao}
         contaCorrenteId={loteSelecionado?.contaCorrente?.id}
@@ -1866,19 +1522,18 @@ const Pagamentos = () => {
         }}
         onAfterClose={() => {
           // Atualizar dados após fechar o modal de consulta individual
+          let inicio = null;
+          let fim = null;
           if (dateRange && dateRange.length === 2) {
-            const inicio = dateRange[0]
+            inicio = dateRange[0]
               ? moment(dateRange[0]).startOf("day").toISOString()
               : null;
-            const fim = dateRange[1]
+            fim = dateRange[1]
               ? moment(dateRange[1]).endOf("day").toISOString()
               : null;
-            fetchLotesTurmaColheita(inicio, fim);
-            fetchLotesFolhaPagamento(inicio, fim);
-          } else {
-            fetchLotesTurmaColheita();
-            fetchLotesFolhaPagamento();
           }
+          fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType);
+          fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType);
         }}
         identificadorPagamento={itemSelecionado?.identificadorPagamento}
         contaCorrenteId={itemSelecionado?.contaCorrenteId}

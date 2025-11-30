@@ -36,6 +36,7 @@ import axiosInstance from "../../api/axiosConfig";
 import InputMask from "react-input-mask";
 import { showNotification } from "config/notificationConfig";
 import { PrimaryButton } from "../common/buttons";
+import { useAuth } from "../../contexts/AuthContext";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -202,6 +203,7 @@ const API_URL = {
 };
 
 const Usuarios = () => {
+  const { user: usuarioLogado } = useAuth();
   const [usuarioForm] = Form.useForm();
   const [senhaForm] = Form.useForm();
   const [editForm] = Form.useForm();
@@ -214,6 +216,9 @@ const Usuarios = () => {
   const [culturas, setCulturas] = useState([]);
   const [nivelSelecionado, setNivelSelecionado] = useState(null);
   const [nivelEdicao, setNivelEdicao] = useState(null);
+
+  // Verificar se o usuário logado é programador
+  const isProgramador = usuarioLogado?.nivel === 'PROGRAMADOR';
 
   const loadUsuarios = async () => {
     try {
@@ -444,6 +449,7 @@ const Usuarios = () => {
                   <Option value="GERENTE_GERAL">Gerente Geral</Option>
                   <Option value="ESCRITORIO">Escritório</Option>
                   <Option value="GERENTE_CULTURA">Gerente de Cultura</Option>
+                  {isProgramador && <Option value="PROGRAMADOR">Programador</Option>}
                 </Select>
               </Form.Item>
             </Col>
@@ -559,6 +565,7 @@ const Usuarios = () => {
                         usuario.nivel === 'GERENTE_GERAL' ? 'Gerente Geral' :
                         usuario.nivel === 'ESCRITORIO' ? 'Escritório' :
                         usuario.nivel === 'GERENTE_CULTURA' ? 'Gerente de Cultura' :
+                        usuario.nivel === 'PROGRAMADOR' ? 'Programador' :
                         usuario.nivel
                       } <br />
                       {usuario.culturaId && (
@@ -824,6 +831,7 @@ const Usuarios = () => {
                 <Option value="GERENTE_GERAL">Gerente Geral</Option>
                 <Option value="ESCRITORIO">Escritório</Option>
                 <Option value="GERENTE_CULTURA">Gerente de Cultura</Option>
+                {isProgramador && <Option value="PROGRAMADOR">Programador</Option>}
               </Select>
             </Form.Item>
 

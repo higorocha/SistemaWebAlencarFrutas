@@ -265,20 +265,44 @@ const NotificacaoMenu = () => {
       
       const dadosAdicionais = obterDadosAdicionais(notificacao);
       const numeroRequisicao = dadosAdicionais.numeroRequisicao;
+      const origemTipo = dadosAdicionais.origemTipo; // TURMA_COLHEITA ou FOLHA_PAGAMENTO
       
       if (!numeroRequisicao) {
         showNotification('warning', 'Atenção', 'Dados incompletos na notificação. Não foi possível abrir o modal de liberação.');
         return;
       }
       
-      // Buscar dados do lote pelo numeroRequisicao
-      const response = await axiosInstance.get(`/api/pagamentos/lotes-turma-colheita`);
-      const lotes = response.data || [];
+      // Determinar endpoint baseado no tipo de origem
+      const endpoint = origemTipo === 'FOLHA_PAGAMENTO'
+        ? '/api/pagamentos/lotes-folha-pagamento'
+        : '/api/pagamentos/lotes-turma-colheita';
       
+      // Buscar dados do lote pelo numeroRequisicao
+      // A API retorna um objeto com paginação: { data: [...], total, page, limit }
+      const response = await axiosInstance.get(endpoint, {
+        params: {
+          page: 1,
+          limit: 1000, // Buscar muitos lotes para garantir que encontremos o lote
+        },
+      });
+      
+      // Extrair array de lotes da resposta (pode ser direto ou dentro de data)
+      let lotes = [];
+      if (Array.isArray(response.data)) {
+        lotes = response.data;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        lotes = response.data.data;
+      } else {
+        console.error('Formato de resposta inesperado:', response.data);
+        showNotification('error', 'Erro', 'Formato de resposta inesperado da API.');
+        return;
+      }
+      
+      // Buscar o lote pelo numeroRequisicao
       const loteEncontrado = lotes.find(lote => lote.numeroRequisicao === numeroRequisicao);
       
       if (!loteEncontrado) {
-        showNotification('error', 'Erro', 'Lote de pagamento não encontrado.');
+        showNotification('error', 'Erro', `Lote de pagamento ${numeroRequisicao} não encontrado.`);
         return;
       }
       

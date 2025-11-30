@@ -134,6 +134,10 @@ export class FolhaPagamentoController {
    * Cria um lote de transferências PIX (1 por funcionário)
    * Requer que a folha esteja em status PENDENTE_LIBERACAO
    * O lote ficará pendente de liberação por um administrador
+   * 
+   * @deprecated Use `PATCH /api/arh/folhas/:id/liberar` que orquestra automaticamente
+   * o processamento PIX-API e a liberação em uma única operação.
+   * Este endpoint será mantido apenas para compatibilidade e uso manual em casos específicos.
    */
   @Post(':id/processar-pix-api')
   @Niveis(NivelUsuario.ADMINISTRADOR, NivelUsuario.GERENTE_GERAL, NivelUsuario.ESCRITORIO)

@@ -59,14 +59,43 @@ RASCUNHO → PENDENTE_LIBERACAO → EM_PROCESSAMENTO → FECHADA
                     │                   │
                     │                   │
                     ▼                   ▼
-              Finalizar folha    Criar lote(s) BB
-              (selecionar        (1 PIX por funcionário,
-               PIX_API)          até 320 por lote)
+              Finalizar folha    Liberar folha (orquestra tudo)
+              (selecionar        (detecta PIX_API automaticamente,
+               PIX_API)          cria lotes se necessário,
+                                 e libera em uma única operação)
 ```
 
-### Endpoint de Processamento
+### Endpoint Principal (Recomendado) ⭐
+
+**PATCH** `/api/arh/folhas/:id/liberar`
+
+**Permissões:** `ADMINISTRADOR`
+
+**Descrição:** Endpoint único que orquestra automaticamente o processamento PIX-API (se aplicável) e a liberação da folha. Detecta automaticamente o meio de pagamento e processa conforme necessário.
+
+**Características:**
+- ✅ **Idempotência**: Não cria lotes duplicados se chamado múltiplas vezes
+- ✅ **Orquestração**: Tudo em uma única operação
+- ✅ **Recuperação Automática**: Trata estados inconsistentes automaticamente
+- ✅ **Simplicidade**: Frontend faz apenas uma chamada
+
+**Lógica:**
+1. Valida folha (status `PENDENTE_LIBERACAO` ou `EM_PROCESSAMENTO`)
+2. Se `meioPagamento = PIX_API`:
+   - Verifica lotes existentes (idempotência)
+   - Cria lotes apenas se necessário
+   - Atualiza status para `EM_PROCESSAMENTO`
+3. Se `meioPagamento = PIX` ou `ESPECIE`:
+   - Pula processamento PIX-API
+4. Atualiza `statusPagamento` dos lançamentos
+5. Recalcula totais
+6. Fecha folha (status `FECHADA`)
+
+### Endpoint Legado (Deprecated) ⚠️
 
 **POST** `/api/arh/folhas/:id/processar-pix-api`
+
+**Status:** ⚠️ **DEPRECATED** - Mantido apenas para compatibilidade e uso manual
 
 **Permissões:** `ADMINISTRADOR`, `GERENTE_GERAL`, `ESCRITORIO`
 
@@ -183,10 +212,17 @@ Estados pendentes do BB (não altera funcionário):
 
 ### Frontend
 
-No modal de "Finalizar Folha", quando `PIX_API` é selecionado:
-- Exibe select de conta corrente (apenas contas com credenciais configuradas)
-- Mostra alerta informando que o lote ficará pendente de liberação
-- Após salvar, chama automaticamente o endpoint de processamento PIX-API
+**Nova Implementação (Recomendada):**
+- No botão "Liberar Folha", faz apenas **uma chamada** para `PATCH /api/arh/folhas/:id/liberar`
+- O backend orquestra automaticamente o processamento PIX-API (se necessário) e a liberação
+- Mensagens de progresso dinâmicas baseadas no meio de pagamento
+
+**Implementação Legada (Deprecated):**
+- No modal de "Finalizar Folha", quando `PIX_API` é selecionado:
+  - Exibe select de conta corrente (apenas contas com credenciais configuradas)
+  - Mostra alerta informando que o lote ficará pendente de liberação
+  - Após salvar, chamava `POST /api/arh/folhas/:id/processar-pix-api` e depois `PATCH /api/arh/folhas/:id/liberar`
+  - ⚠️ **Não use mais este fluxo** - Use apenas o endpoint `liberar` que orquestra tudo
 
 ### Validações
 

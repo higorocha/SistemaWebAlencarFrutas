@@ -5,6 +5,9 @@ import { PdfService } from './pdf.service';
 import { PedidosService } from '../pedidos/pedidos.service';
 import { ConfigService } from '../config/config.service';
 import { ClientesService } from '../clientes/clientes.service';
+import { FolhaPagamentoService } from '../arh/folha-pagamento/folha-pagamento.service';
+import { ContaCorrenteService } from '../conta-corrente/conta-corrente.service';
+import { ContaCorrenteResponseDto } from '../config/dto/conta-corrente.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   formatCurrencyBR,
@@ -29,6 +32,8 @@ export class PdfController {
     private readonly pedidosService: PedidosService,
     private readonly configService: ConfigService,
     private readonly clientesService: ClientesService,
+    private readonly folhaPagamentoService: FolhaPagamentoService,
+    private readonly contaCorrenteService: ContaCorrenteService,
   ) {}
 
   @Get('pedido/:id')
@@ -678,6 +683,619 @@ export class PdfController {
       cabecalhoColunaCxUnd: cabecalhoColunaCxUndGlobal,
       // Flag global para indicar se está usando modo inteligente
       usandoModoInteligente: temUnidadePrecificada,
+    };
+  }
+
+  @Get('folha-pagamento/:id')
+  @ApiOperation({ summary: 'Gerar PDF da folha de pagamento' })
+  @ApiParam({ name: 'id', description: 'ID da folha de pagamento' })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF gerado com sucesso',
+    content: {
+      'application/pdf': {},
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Folha de pagamento não encontrada' })
+  async downloadFolhaPagamentoPdf(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    console.log('[PDF Controller] Iniciando geração de PDF para folha ID:', id);
+
+    // 1. Buscar dados da folha
+    const folha = await this.folhaPagamentoService.detalhesFolha(+id);
+    console.log('[PDF Controller] Folha encontrada. Competência:', `${folha.competenciaMes}/${folha.competenciaAno}`);
+
+    // 2. Buscar lançamentos da folha
+    const lancamentos = await this.folhaPagamentoService.listarLancamentos(+id, {});
+
+    // 3. Buscar últimas 6 folhas para o gráfico histórico (buscar mais para garantir que temos a atual + 5 anteriores)
+    const ultimasFolhasResponse = await this.folhaPagamentoService.listarFolhas({
+      limit: 10, // Buscar mais para garantir que temos a folha atual
+      page: 1,
+    });
+    const ultimasFolhas = ultimasFolhasResponse?.data || [];
+
+    // 4. Buscar dados da empresa para o cabeçalho/rodapé
+    const dadosEmpresa = await this.configService.findDadosEmpresa();
+
+    // 5. Buscar dados da conta corrente se for PIX_API
+    let contaCorrente: ContaCorrenteResponseDto | null = null;
+    if (folha.meioPagamento === 'PIX_API' && folha.contaCorrenteId) {
+      try {
+        contaCorrente = await this.contaCorrenteService.findOne(folha.contaCorrenteId);
+      } catch (error) {
+        console.warn('[PDF Controller] ⚠️ Erro ao buscar conta corrente:', error);
+        // Não falhar a geração do PDF se a conta não for encontrada
+      }
+    }
+
+    // 6. Carregar logo em base64 para o PDF
+    const logoBase64 = await this.carregarLogoBase64();
+
+    // 7. Preparar dados para o template (formatação e agrupamento)
+    let dadosTemplate;
+    try {
+      dadosTemplate = this.prepararDadosTemplateFolha(folha, lancamentos, dadosEmpresa, logoBase64, ultimasFolhas, contaCorrente);
+    } catch (error) {
+      console.error('[PDF Controller] ❌ ERRO ao executar prepararDadosTemplateFolha:', error);
+      throw error;
+    }
+
+    // 8. Gerar o PDF
+    const buffer = await this.pdfService.gerarPdf('folha-pagamento', dadosTemplate);
+
+    // 9. Formatar nome do arquivo: folha-pagamento-01-2025-1.pdf
+    const competenciaLabel = `${String(folha.competenciaMes).padStart(2, '0')}/${folha.competenciaAno}`;
+    const periodoLabel = folha.periodo ? `-${folha.periodo}` : '';
+    const nomeArquivo = this.gerarNomeArquivo({
+      tipo: 'folha-pagamento',
+      identificador: `${String(folha.competenciaMes).padStart(2, '0')}-${folha.competenciaAno}${periodoLabel}`,
+    });
+    console.log('[PDF Controller] Nome do arquivo final:', nomeArquivo);
+
+    // 10. Configurar Headers para download
+    const contentDisposition = `attachment; filename="${nomeArquivo}"; filename*=UTF-8''${encodeURIComponent(nomeArquivo)}`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': contentDisposition,
+      'Access-Control-Expose-Headers': 'Content-Disposition',
+      'Content-Length': buffer.length.toString(),
+    });
+
+    console.log('[PDF Controller] PDF enviado com sucesso!');
+
+    // 11. Enviar o stream
+    res.end(buffer);
+  }
+
+  /**
+   * Prepara os dados da folha de pagamento para o template Handlebars
+   * Formata valores monetários, datas e agrupa lançamentos por abas (gerentes)
+   */
+  private prepararDadosTemplateFolha(folha: any, lancamentos: any[], dadosEmpresa: any, logoBase64: string | null, ultimasFolhas: any[] = [], contaCorrente: any = null): any {
+    console.log('[PDF] 📋 Preparando dados da folha:', {
+      folhaId: folha?.id,
+      competencia: `${folha?.competenciaMes}/${folha?.competenciaAno}`,
+      totalLancamentos: lancamentos?.length || 0,
+    });
+
+    // Formatar status
+    const statusMap: { [key: string]: string } = {
+      RASCUNHO: 'Rascunho',
+      PENDENTE_LIBERACAO: 'Pendente Liberação',
+      EM_PROCESSAMENTO: 'Em Processamento',
+      FECHADA: 'Fechada',
+      CANCELADA: 'Cancelada',
+    };
+
+    const statusFormatado = statusMap[folha.status] || folha.status;
+
+    // Formatar datas
+    const dataInicialFormatada = formatDateBR(folha.dataInicial);
+    const dataFinalFormatada = formatDateBR(folha.dataFinal);
+    const dataPagamentoFormatada = folha.dataPagamento ? formatDateBR(folha.dataPagamento) : null;
+    const dataGeracaoFormatada = formatDateBR(new Date());
+
+    // Formatar competência
+    const competenciaLabel = `${String(folha.competenciaMes).padStart(2, '0')}/${folha.competenciaAno}`;
+    const periodoLabel = folha.periodo ? ` - ${folha.periodo}ª Quinzena` : '';
+    const competenciaCompleta = `${competenciaLabel}${periodoLabel}`;
+
+    // Formatar valores monetários
+    const totalBrutoFormatado = formatCurrencyBR(Number(folha.totalBruto || 0));
+    const totalLiquidoFormatado = formatCurrencyBR(Number(folha.totalLiquido || 0));
+    const totalPagoFormatado = formatCurrencyBR(Number(folha.totalPago || 0));
+    const totalPendenteFormatado = formatCurrencyBR(Number(folha.totalPendente || 0));
+
+    // Formatar meio de pagamento
+    const meioPagamentoMap: { [key: string]: string } = {
+      PIX: 'PIX Manual',
+      PIX_API: 'PIX - API (Banco do Brasil)',
+      ESPECIE: 'Espécie',
+    };
+    const meioPagamentoFormatado = folha.meioPagamento ? (meioPagamentoMap[folha.meioPagamento] || folha.meioPagamento) : null;
+
+    // Agrupar lançamentos por gerente (igual ao frontend)
+    const lancamentosAgrupados = this.agruparLancamentosPorGerente(lancamentos);
+
+    // Formatar lançamentos agrupados
+    const abasFormatadas = this.formatarAbasLancamentos(lancamentosAgrupados);
+
+    // Calcular resumo detalhado
+    const resumoDetalhado = this.calcularResumoDetalhado(lancamentos);
+
+    // Preparar dados do gráfico histórico (últimas 6 folhas)
+    // Incluir a folha atual na lista se não estiver
+    const folhasComAtual = ultimasFolhas.find((f: any) => f.id === folha.id)
+      ? ultimasFolhas
+      : [folha, ...ultimasFolhas];
+    
+    const dadosGraficoHistorico = this.prepararDadosGraficoHistorico(folhasComAtual, folha.id);
+    
+    // Serializar dados do gráfico para JSON (para uso no template)
+    const dadosGraficoSerializado = dadosGraficoHistorico ? {
+      labels: JSON.stringify(dadosGraficoHistorico.labels),
+      datasets: dadosGraficoHistorico.datasets.map((dataset: any) => ({
+        label: dataset.label,
+        data: JSON.stringify(dataset.data),
+        backgroundColor: Array.isArray(dataset.backgroundColor) 
+          ? JSON.stringify(dataset.backgroundColor)
+          : dataset.backgroundColor,
+        borderColor: Array.isArray(dataset.borderColor)
+          ? JSON.stringify(dataset.borderColor)
+          : dataset.borderColor,
+        borderWidth: Array.isArray(dataset.borderWidth)
+          ? JSON.stringify(dataset.borderWidth)
+          : (typeof dataset.borderWidth === 'number' ? dataset.borderWidth : JSON.stringify(dataset.borderWidth)),
+      })),
+      legendas: JSON.stringify(dadosGraficoHistorico.legendas || []),
+      indiceFolhaAtual: dadosGraficoHistorico.indiceFolhaAtual,
+    } : null;
+
+    // Formatar dados da conta corrente (se PIX_API)
+    const contaCorrenteAgencia = contaCorrente?.agencia || null;
+    const contaCorrenteAgenciaDigito = contaCorrente?.agenciaDigito || null;
+    const contaCorrenteNumero = contaCorrente?.contaCorrente || null;
+    const contaCorrenteDigito = contaCorrente?.contaCorrenteDigito || null;
+    const contaCorrenteFormatada = contaCorrente ? true : null;
+
+    return {
+      // Dados da folha
+      folha: {
+        id: folha.id,
+        competenciaCompleta,
+        competenciaMes: folha.competenciaMes,
+        competenciaAno: folha.competenciaAno,
+        periodo: folha.periodo,
+        dataInicialFormatada,
+        dataFinalFormatada,
+        dataPagamentoFormatada,
+        referencia: folha.referencia,
+        status: folha.status,
+        statusFormatado,
+        observacoes: folha.observacoes,
+        meioPagamento: folha.meioPagamento,
+        meioPagamentoFormatado,
+        contaCorrenteAgencia,
+        contaCorrenteAgenciaDigito,
+        contaCorrenteNumero,
+        contaCorrenteDigito,
+        contaCorrenteFormatada,
+        totalBrutoFormatado,
+        totalLiquidoFormatado,
+        totalPagoFormatado,
+        totalPendenteFormatado,
+        quantidadeLancamentos: folha.quantidadeLancamentos || lancamentos.length,
+      },
+      // Dados da empresa (para header/footer)
+      empresa: dadosEmpresa,
+      // Logo em base64
+      logoPath: logoBase64,
+      // Data de geração
+      dataGeracaoFormatada,
+      // Ano atual para o rodapé
+      anoAtual: new Date().getFullYear(),
+      // Título do documento
+      titulo: 'Folha de Pagamento',
+      subtitulo: competenciaCompleta,
+      // Resumo detalhado
+      resumoDetalhado,
+      // Dados do gráfico histórico (serializado para JSON)
+      graficoHistorico: dadosGraficoSerializado,
+      // Abas de lançamentos
+      abas: abasFormatadas,
+    };
+  }
+
+  /**
+   * Prepara os dados para o gráfico histórico das últimas folhas
+   * Mostra apenas o valor líquido (efetivamente pago) de cada folha
+   */
+  private prepararDadosGraficoHistorico(ultimasFolhas: any[], folhaAtualId: number): any {
+    if (!ultimasFolhas || ultimasFolhas.length === 0) {
+      return null;
+    }
+
+    // Ordenar todas as folhas (mais recente primeiro)
+    const folhasOrdenadas = [...ultimasFolhas].sort((a, b) => {
+      // Ordenar por ano e mês (mais recente primeiro)
+      if (a.competenciaAno !== b.competenciaAno) {
+        return b.competenciaAno - a.competenciaAno;
+      }
+      if (a.competenciaMes !== b.competenciaMes) {
+        return b.competenciaMes - a.competenciaMes;
+      }
+      return (b.periodo || 0) - (a.periodo || 0);
+    });
+
+    // Pegar as últimas 6 folhas (já estão ordenadas por mais recente primeiro)
+    const todasFolhas = folhasOrdenadas.slice(0, 6);
+
+    // Reverter para mostrar mais antigas primeiro no gráfico (cronológico)
+    todasFolhas.reverse();
+
+    // Encontrar índice da folha atual na lista revertida
+    const indiceFolhaAtualReversa = todasFolhas.findIndex((f) => f.id === folhaAtualId);
+
+    // Cores diferentes para cada folha (paleta verde com variações)
+    const cores = [
+      'rgba(16, 185, 129, 0.7)',  // Verde esmeralda
+      'rgba(34, 197, 94, 0.7)',   // Verde claro
+      'rgba(74, 222, 128, 0.7)',  // Verde muito claro
+      'rgba(110, 231, 183, 0.7)', // Verde pastel
+      'rgba(167, 243, 208, 0.7)', // Verde muito pastel
+      'rgba(209, 250, 229, 0.7)', // Verde muito claro
+    ];
+    
+    const coresBorda = [
+      'rgba(16, 185, 129, 1)',
+      'rgba(34, 197, 94, 1)',
+      'rgba(74, 222, 128, 1)',
+      'rgba(110, 231, 183, 1)',
+      'rgba(167, 243, 208, 1)',
+      'rgba(209, 250, 229, 1)',
+    ];
+
+    // Cor especial para folha atual (verde mais escuro e vibrante)
+    const corFolhaAtual = 'rgba(5, 150, 105, 0.9)'; // Verde principal mais opaco
+    const corBordaFolhaAtual = 'rgba(5, 150, 105, 1)'; // Verde principal sólido
+
+    // Formatar labels (competência) e valores
+    const labels: string[] = [];
+    const valoresLiquido: number[] = [];
+    const coresBarras: string[] = [];
+    const coresBordasBarras: string[] = [];
+    const largurasBordas: number[] = [];
+    const legendas: string[] = [];
+    const indicesFolhaAtual: number[] = []; // Para marcar qual é a folha atual
+
+    todasFolhas.forEach((folha, index) => {
+      const competenciaLabel = `${String(folha.competenciaMes).padStart(2, '0')}/${folha.competenciaAno}`;
+      const periodoLabel = folha.periodo ? `-${folha.periodo}` : '';
+      const label = `${competenciaLabel}${periodoLabel}`;
+      
+      labels.push(label);
+
+      // Usar apenas o valor líquido (efetivamente pago)
+      const valorLiquido = Number(folha.totalLiquido || 0);
+      valoresLiquido.push(valorLiquido);
+      
+      // Verificar se é a folha atual
+      const isFolhaAtual = folha.id === folhaAtualId;
+      
+      if (isFolhaAtual) {
+        // Folha atual: cor destacada e borda mais grossa
+        coresBarras.push(corFolhaAtual);
+        coresBordasBarras.push(corBordaFolhaAtual);
+        largurasBordas.push(4); // Borda mais grossa
+        indicesFolhaAtual.push(index);
+      } else {
+        // Outras folhas: cores normais
+        // Usar índice ajustado para não usar a cor da folha atual
+        let corIndex = index;
+        if (indiceFolhaAtualReversa >= 0 && index > indiceFolhaAtualReversa) {
+          corIndex = index - 1; // Ajustar se folha atual estiver antes
+        }
+        coresBarras.push(cores[corIndex % cores.length]);
+        coresBordasBarras.push(coresBorda[corIndex % coresBorda.length]);
+        largurasBordas.push(2); // Borda normal
+      }
+      
+      // Formatar datas
+      const dataInicialFormatada = formatDateBR(folha.dataInicial);
+      const dataFinalFormatada = formatDateBR(folha.dataFinal);
+      const referencia = folha.referencia || '-';
+      
+      // Criar legenda com todas as informações (marcar folha atual)
+      const prefixoAtual = isFolhaAtual ? '⭐ ATUAL - ' : '';
+      const legenda = `${prefixoAtual}${label} | ${formatCurrencyBR(valorLiquido)} | Ref: ${referencia} | ${dataInicialFormatada} a ${dataFinalFormatada}`;
+      legendas.push(legenda);
+    });
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Valor Líquido',
+          data: valoresLiquido,
+          backgroundColor: coresBarras, // Array de cores, uma para cada barra
+          borderColor: coresBordasBarras, // Array de cores de borda
+          borderWidth: largurasBordas, // Array de larguras de borda (folha atual tem borda mais grossa)
+        },
+      ],
+      legendas, // Legendas customizadas para exibir no template
+      indiceFolhaAtual: indiceFolhaAtualReversa >= 0 ? indiceFolhaAtualReversa : null, // Índice da folha atual na lista revertida
+    };
+  }
+
+  /**
+   * Agrupa lançamentos por gerente (igual à lógica do frontend)
+   */
+  private agruparLancamentosPorGerente(lancamentos: any[]): {
+    gerentes: any[];
+    semGerente: any[];
+    porGerente: Record<string, { gerente: any; lancamentos: any[] }>;
+  } {
+    const grupos: {
+      gerentes: any[];
+      semGerente: any[];
+      porGerente: Record<string, { gerente: any; lancamentos: any[] }>;
+    } = {
+      gerentes: [],
+      semGerente: [],
+      porGerente: {},
+    };
+
+    lancamentos.forEach((lancamento) => {
+      const funcionario = lancamento.funcionario;
+      const tipoContrato = funcionario?.tipoContrato;
+      const cargo = lancamento.cargo;
+
+      // Verificar se é um gerente (mensalista com cargo gerencial)
+      if (tipoContrato === 'MENSALISTA' && cargo?.isGerencial === true) {
+        grupos.gerentes.push(lancamento);
+      } else {
+        // Para diaristas, verificar se têm gerente
+        const gerente = funcionario?.gerente;
+        if (gerente && gerente.id) {
+          const gerenteId = String(gerente.id);
+          if (!grupos.porGerente[gerenteId]) {
+            grupos.porGerente[gerenteId] = {
+              gerente: gerente,
+              lancamentos: [],
+            };
+          }
+          grupos.porGerente[gerenteId].lancamentos.push(lancamento);
+        } else {
+          // Diarista sem gerente
+          grupos.semGerente.push(lancamento);
+        }
+      }
+    });
+
+    return grupos;
+  }
+
+  /**
+   * Formata as abas de lançamentos para o template
+   */
+  private formatarAbasLancamentos(lancamentosAgrupados: {
+    gerentes: any[];
+    semGerente: any[];
+    porGerente: Record<string, { gerente: any; lancamentos: any[] }>;
+  }): any[] {
+    const abas: any[] = [];
+
+    // 1. Aba: Gerentes (se houver)
+    if (lancamentosAgrupados.gerentes.length > 0) {
+      abas.push({
+        titulo: `Gerentes (${lancamentosAgrupados.gerentes.length})`,
+        lancamentos: this.formatarLancamentos(lancamentosAgrupados.gerentes),
+      });
+    }
+
+    // 2. Aba: Diaristas sem gerente (se houver)
+    if (lancamentosAgrupados.semGerente.length > 0) {
+      abas.push({
+        titulo: `Sem Gerente (${lancamentosAgrupados.semGerente.length})`,
+        lancamentos: this.formatarLancamentos(lancamentosAgrupados.semGerente),
+      });
+    }
+
+    // 3. Abas: Cada gerente individual (ordenadas por nome)
+    const gerentesOrdenados = Object.values(lancamentosAgrupados.porGerente).sort(
+      (a, b) => {
+        const nomeA = a.gerente?.nome || '';
+        const nomeB = b.gerente?.nome || '';
+        return nomeA.localeCompare(nomeB);
+      }
+    );
+
+    gerentesOrdenados.forEach((grupo) => {
+      if (grupo.lancamentos.length > 0) {
+        abas.push({
+          titulo: `${capitalizeName(grupo.gerente.nome)} (${grupo.lancamentos.length})`,
+          lancamentos: this.formatarLancamentos(grupo.lancamentos),
+        });
+      }
+    });
+
+    return abas;
+  }
+
+  /**
+   * Formata uma lista de lançamentos para exibição no PDF
+   */
+  private formatarLancamentos(lancamentos: any[]): any[] {
+    return lancamentos.map((lancamento, index) => {
+      const funcionario = lancamento.funcionario;
+      const cargo = lancamento.cargo;
+      const funcao = lancamento.funcao;
+
+      // Determinar cargo/função
+      const cargoFuncao = cargo?.nome || funcao?.nome || lancamento.referenciaNomeCargo || lancamento.referenciaNomeFuncao || '-';
+      const tipoContrato = funcionario?.tipoContrato || lancamento.tipoContrato;
+
+      // Formatar valores base (salário para mensalista, diária para diarista)
+      const salarioBase = Number(lancamento.salarioBaseReferencia || 0);
+      const valorDiaria = Number(lancamento.valorDiariaAplicada || 0);
+      
+      // Determinar o valor base a ser exibido baseado no tipo de contrato
+      let baseFormatado: string | null = null;
+      let baseTipo: string | null = null; // "Salário" ou "Diária"
+      
+      if (tipoContrato === 'MENSALISTA') {
+        // Para mensalista, mostrar o salário base se existir e for maior que 0
+        if (salarioBase > 0) {
+          baseFormatado = formatCurrencyBR(salarioBase);
+          baseTipo = 'Salário';
+        }
+      } else if (tipoContrato === 'DIARISTA') {
+        // Para diarista, mostrar o valor da diária se existir e for maior que 0
+        if (valorDiaria > 0) {
+          baseFormatado = formatCurrencyBR(valorDiaria);
+          baseTipo = 'Diária';
+        }
+      } else {
+        // Para outros tipos, tentar salário primeiro, depois diária
+        if (salarioBase > 0) {
+          baseFormatado = formatCurrencyBR(salarioBase);
+          baseTipo = 'Salário';
+        } else if (valorDiaria > 0) {
+          baseFormatado = formatCurrencyBR(valorDiaria);
+          baseTipo = 'Diária';
+        }
+      }
+      
+      // Manter campos separados para compatibilidade (se necessário)
+      const salarioBaseFormatado = salarioBase > 0 ? formatCurrencyBR(salarioBase) : null;
+      const valorDiariaFormatado = valorDiaria > 0 ? formatCurrencyBR(valorDiaria) : null;
+      const horasExtrasFormatadas = lancamento.horasExtras
+        ? `${formatNumber(Number(lancamento.horasExtras))}h`
+        : null;
+      const valorHoraExtraFormatado = lancamento.valorHoraExtra
+        ? formatCurrencyBR(Number(lancamento.valorHoraExtra))
+        : null;
+      const valorHorasExtrasTotal = lancamento.horasExtras && lancamento.valorHoraExtra
+        ? formatCurrencyBR(Number(lancamento.horasExtras) * Number(lancamento.valorHoraExtra))
+        : null;
+      const ajudaCustoFormatado = lancamento.ajudaCusto
+        ? formatCurrencyBR(Number(lancamento.ajudaCusto))
+        : null;
+      const descontosExtrasFormatado = lancamento.descontosExtras
+        ? formatCurrencyBR(Number(lancamento.descontosExtras))
+        : null;
+      const adiantamentoFormatado = lancamento.adiantamento
+        ? formatCurrencyBR(Number(lancamento.adiantamento))
+        : null;
+      const valorBrutoFormatado = formatCurrencyBR(Number(lancamento.valorBruto || 0));
+      const valorLiquidoFormatado = formatCurrencyBR(Number(lancamento.valorLiquido || 0));
+
+      // Formatar status de pagamento
+      const statusPagamentoMap: { [key: string]: string } = {
+        PENDENTE: 'Pendente',
+        ENVIADO: 'Enviado',
+        ACEITO: 'Aceito',
+        PROCESSANDO: 'Processando',
+        PAGO: 'Pago',
+        REJEITADO: 'Rejeitado',
+        CANCELADO: 'Cancelado',
+        ERRO: 'Erro',
+      };
+      const statusPagamentoFormatado = statusPagamentoMap[lancamento.statusPagamento] || lancamento.statusPagamento;
+
+      return {
+        itemNumero: index + 1,
+        funcionario: {
+          nome: capitalizeName(funcionario?.nome || ''),
+          cpf: funcionario?.cpf ? formatCPF(funcionario.cpf) : null,
+        },
+        cargoFuncao: capitalizeName(cargoFuncao),
+        tipoContrato,
+        diasTrabalhados: lancamento.diasTrabalhados || 0,
+        faltas: lancamento.faltas || 0,
+        baseFormatado, // Valor base formatado (salário ou diária conforme tipo de contrato)
+        baseTipo, // Tipo do valor base ("Salário" ou "Diária")
+        salarioBaseFormatado, // Mantido para compatibilidade
+        valorDiariaFormatado, // Mantido para compatibilidade
+        horasExtrasFormatadas,
+        valorHoraExtraFormatado,
+        valorHorasExtrasTotal,
+        ajudaCustoFormatado,
+        descontosExtrasFormatado,
+        adiantamentoFormatado,
+        valorBrutoFormatado,
+        valorLiquidoFormatado,
+        statusPagamento: lancamento.statusPagamento,
+        statusPagamentoFormatado,
+        pagamentoEfetuado: lancamento.pagamentoEfetuado || false,
+      };
+    });
+  }
+
+  /**
+   * Calcula resumo detalhado dos lançamentos
+   */
+  private calcularResumoDetalhado(lancamentos: any[]): any {
+    if (!lancamentos || lancamentos.length === 0) {
+      return {
+        totalHorasExtras: 0,
+        totalValorHorasExtras: 0,
+        totalAjudaCusto: 0,
+        totalDescontos: 0,
+        totalAdiantamento: 0,
+        quantidadeFuncionarios: 0,
+        quantidadeComValores: 0,
+        quantidadePendentes: 0,
+        quantidadePagos: 0,
+      };
+    }
+
+    const totalHorasExtras = lancamentos.reduce((sum, l) => sum + Number(l.horasExtras || 0), 0);
+    const totalValorHorasExtras = lancamentos.reduce((sum, l) => {
+      const horas = Number(l.horasExtras || 0);
+      const valorHora = Number(l.valorHoraExtra || 0);
+      return sum + (horas * valorHora);
+    }, 0);
+    const totalAjudaCusto = lancamentos.reduce((sum, l) => sum + Number(l.ajudaCusto || 0), 0);
+    const totalDescontos = lancamentos.reduce((sum, l) => sum + Number(l.descontosExtras || 0), 0);
+    const totalAdiantamento = lancamentos.reduce((sum, l) => sum + Number(l.adiantamento || 0), 0);
+    const quantidadeFuncionarios = lancamentos.length;
+    const quantidadeComValores = lancamentos.filter(l => {
+      const tipoContrato = l.funcionario?.tipoContrato;
+      const temValorBruto = Number(l.valorBruto || 0) > 0;
+      const temDiasTrabalhados = l.diasTrabalhados !== null && l.diasTrabalhados !== undefined;
+
+      if (tipoContrato === 'MENSALISTA') {
+        return temValorBruto;
+      }
+      if (tipoContrato === 'DIARISTA') {
+        return temDiasTrabalhados && temValorBruto;
+      }
+      return temDiasTrabalhados;
+    }).length;
+    const quantidadePendentes = lancamentos.filter(l => l.statusPagamento === 'PENDENTE').length;
+    const quantidadePagos = lancamentos.filter(l => l.statusPagamento === 'PAGO').length;
+
+    return {
+      totalHorasExtras,
+      totalValorHorasExtras,
+      totalAjudaCusto,
+      totalDescontos,
+      totalAdiantamento,
+      quantidadeFuncionarios,
+      quantidadeComValores,
+      quantidadePendentes,
+      quantidadePagos,
+      // Formatados
+      totalHorasExtrasFormatado: `${formatNumber(totalHorasExtras)}h`,
+      totalValorHorasExtrasFormatado: formatCurrencyBR(totalValorHorasExtras),
+      totalAjudaCustoFormatado: formatCurrencyBR(totalAjudaCusto),
+      totalDescontosFormatado: formatCurrencyBR(totalDescontos),
+      totalAdiantamentoFormatado: formatCurrencyBR(totalAdiantamento),
     };
   }
 }

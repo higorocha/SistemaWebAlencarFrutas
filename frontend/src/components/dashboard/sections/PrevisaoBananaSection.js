@@ -13,7 +13,10 @@ const CardStyled = styled.div`
   box-shadow: 0 2px 5px rgba(0,0,0,0.15), 0 2px 10px rgba(0,0,0,0.05);
   background: white;
   padding: ${props => props.$isMobile ? '12px' : '16px'};
-  height: 100%;
+  height: ${props => props.$isMobile ? '432px' : '612px'};
+  min-height: ${props => props.$isMobile ? '432px' : '612px'};
+  display: flex;
+  flex-direction: column;
   transition: transform 0.2s ease-in-out;
 
   &:hover {
@@ -365,9 +368,11 @@ const PrevisaoBananaSection = ({ onSemanaClick }) => {
         $isAtual={isAtual}
         onClick={handleCardClick}
         style={{
+          flex: 1,
           minHeight: isMobile ? '200px' : '250px',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          marginBottom: '12px'
         }}
       >
         {/* Indicador de semana atual */}
@@ -388,12 +393,13 @@ const PrevisaoBananaSection = ({ onSemanaClick }) => {
         )}
 
         {/* Cabeçalho */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '12px'
-        }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '12px',
+        flexShrink: 0
+      }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -839,13 +845,14 @@ const PrevisaoBananaSection = ({ onSemanaClick }) => {
 
       {/* Legenda */}
       <div style={{
-        marginTop: '12px',
+        marginTop: 'auto',
         padding: '8px',
         backgroundColor: '#f8f9fa',
         borderRadius: '6px',
         fontSize: '10px',
         color: '#666',
-        textAlign: 'center'
+        textAlign: 'center',
+        flexShrink: 0
       }}>
         {isAtual ? 'Mostrando semana atual.' : `Mostrando semana ${dadosSemana?.semana?.numero || '-'}.`} Acesse "Produção → Banana" para o calendário completo.
       </div>

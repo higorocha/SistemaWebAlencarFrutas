@@ -977,18 +977,40 @@ export class PagamentosService {
     dataFim?: string,
     page?: number,
     limit?: number,
+    tipoData?: string,
+    contaCorrenteId?: number,
   ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     const where: Prisma.PagamentoApiLoteWhereInput = {
       tipoPagamentoApi: 'PIX',
     };
 
+    // Filtrar por conta corrente se fornecido
+    if (contaCorrenteId) {
+      where.contaCorrenteId = contaCorrenteId;
+    }
+
+    // Filtrar por data de criação ou liberação conforme tipoData
     if (dataInicio || dataFim) {
-      where.createdAt = {};
-      if (dataInicio) {
-        where.createdAt.gte = new Date(dataInicio);
-      }
-      if (dataFim) {
-        where.createdAt.lte = new Date(dataFim);
+      const tipoDataFiltro = tipoData === 'liberacao' ? 'liberacao' : 'criacao';
+      
+      if (tipoDataFiltro === 'liberacao') {
+        // Filtrar por dataLiberacao
+        where.dataLiberacao = {};
+        if (dataInicio) {
+          where.dataLiberacao.gte = new Date(dataInicio);
+        }
+        if (dataFim) {
+          where.dataLiberacao.lte = new Date(dataFim);
+        }
+      } else {
+        // Filtrar por createdAt (padrão)
+        where.createdAt = {};
+        if (dataInicio) {
+          where.createdAt.gte = new Date(dataInicio);
+        }
+        if (dataFim) {
+          where.createdAt.lte = new Date(dataFim);
+        }
       }
     }
 
@@ -1034,7 +1056,16 @@ export class PagamentosService {
                 include: {
                   turmaColheitaCusto: {
                     include: {
-                      turmaColheita: true,
+                      turmaColheita: {
+                        select: {
+                          id: true,
+                          nomeColhedor: true,
+                          chavePix: true,
+                          responsavelChavePix: true,
+                          tipoChavePix: true,
+                          modalidadeChave: true,
+                        },
+                      },
                       pedido: {
                         select: {
                           numeroPedido: true,
@@ -1168,6 +1199,10 @@ export class PagamentosService {
                 turmaId: todasColheitas[0].turmaColheitaId,
                 nomeColhedor:
                   todasColheitas[0].turmaColheita?.nomeColhedor || null,
+                chavePix:
+                  todasColheitas[0].turmaColheita?.chavePix || null,
+                responsavelChavePix:
+                  todasColheitas[0].turmaColheita?.responsavelChavePix || null,
               }
             : null,
         colheitas: todasColheitas.map((c) => ({
@@ -1207,6 +1242,8 @@ export class PagamentosService {
     dataFim?: string,
     page?: number,
     limit?: number,
+    tipoData?: string,
+    contaCorrenteId?: number,
   ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     const where: Prisma.PagamentoApiLoteWhereInput = {
       tipoPagamentoApi: 'PIX',
@@ -1219,13 +1256,33 @@ export class PagamentosService {
       },
     };
 
+    // Filtrar por conta corrente se fornecido
+    if (contaCorrenteId) {
+      where.contaCorrenteId = contaCorrenteId;
+    }
+
+    // Filtrar por data de criação ou liberação conforme tipoData
     if (dataInicio || dataFim) {
-      where.createdAt = {};
-      if (dataInicio) {
-        where.createdAt.gte = new Date(dataInicio);
-      }
-      if (dataFim) {
-        where.createdAt.lte = new Date(dataFim);
+      const tipoDataFiltro = tipoData === 'liberacao' ? 'liberacao' : 'criacao';
+      
+      if (tipoDataFiltro === 'liberacao') {
+        // Filtrar por dataLiberacao
+        where.dataLiberacao = {};
+        if (dataInicio) {
+          where.dataLiberacao.gte = new Date(dataInicio);
+        }
+        if (dataFim) {
+          where.dataLiberacao.lte = new Date(dataFim);
+        }
+      } else {
+        // Filtrar por createdAt (padrão)
+        where.createdAt = {};
+        if (dataInicio) {
+          where.createdAt.gte = new Date(dataInicio);
+        }
+        if (dataFim) {
+          where.createdAt.lte = new Date(dataFim);
+        }
       }
     }
 
@@ -1272,15 +1329,18 @@ export class PagamentosService {
                   email: true,
                 },
               },
-              funcionarioPagamento: {
-                include: {
-                  funcionario: {
-                    select: {
-                      id: true,
-                      nome: true,
-                      cpf: true,
-                    },
-                  },
+        funcionarioPagamento: {
+          include: {
+            funcionario: {
+              select: {
+                id: true,
+                nome: true,
+                cpf: true,
+                chavePix: true,
+                responsavelChavePix: true,
+                apelido: true,
+              },
+            },
                   folha: {
                     select: {
                       id: true,
@@ -1289,6 +1349,8 @@ export class PagamentosService {
                       periodo: true,
                       referencia: true,
                       status: true,
+                      dataInicial: true,
+                      dataFinal: true,
                     },
                   },
                 },
@@ -1404,6 +1466,9 @@ export class PagamentosService {
               id: item.funcionarioPagamento.funcionario.id,
               nome: item.funcionarioPagamento.funcionario.nome,
               cpf: item.funcionarioPagamento.funcionario.cpf,
+              chavePix: item.funcionarioPagamento.funcionario.chavePix,
+              responsavelChavePix: item.funcionarioPagamento.funcionario.responsavelChavePix,
+              apelido: item.funcionarioPagamento.funcionario.apelido,
             } : null,
             folha: item.funcionarioPagamento.folha ? {
               id: item.funcionarioPagamento.folha.id,
@@ -1412,9 +1477,16 @@ export class PagamentosService {
               periodo: item.funcionarioPagamento.folha.periodo,
               referencia: item.funcionarioPagamento.folha.referencia,
               status: item.funcionarioPagamento.folha.status,
+              dataInicial: item.funcionarioPagamento.folha.dataInicial,
+              dataFinal: item.funcionarioPagamento.folha.dataFinal,
             } : null,
             valorLiquido: item.funcionarioPagamento.valorLiquido,
+            valorBruto: item.funcionarioPagamento.valorBruto,
             statusPagamento: item.funcionarioPagamento.statusPagamento,
+            meioPagamento: item.funcionarioPagamento.meioPagamento,
+            tipoContrato: item.funcionarioPagamento.tipoContrato,
+            referenciaNomeCargo: item.funcionarioPagamento.referenciaNomeCargo,
+            referenciaNomeFuncao: item.funcionarioPagamento.referenciaNomeFuncao,
           } : null,
         })),
         funcionarios: funcionariosPagamento.map((fp) => ({
@@ -3703,6 +3775,219 @@ export class PagamentosService {
 
       throw new InternalServerErrorException('Erro ao consultar status individual de pagamento de guia');
     }
+  }
+
+  /**
+   * Busca inteligente de pagamentos - retorna sugestões de colhedores e funcionários
+   */
+  async buscaInteligente(term: string): Promise<any[]> {
+    const termo = term.trim().toLowerCase();
+    if (!termo || termo.length < 2) {
+      return [];
+    }
+
+    const sugestoes: any[] = [];
+
+    // Buscar colhedores (Turma de Colheita) que têm lotes de pagamento
+    // Os colhedores estão vinculados através de PagamentoApiItem -> colheitas (PagamentoApiItemColheita) -> turmaColheitaCusto (TurmaColheitaPedidoCusto) -> turmaColheita (TurmaColheita)
+    const itensComColhedores = await this.prisma.pagamentoApiItem.findMany({
+      where: {
+        lote: {
+          tipoPagamentoApi: 'PIX',
+        },
+        colheitas: {
+          some: {
+            turmaColheitaCusto: {
+              turmaColheita: {
+                nomeColhedor: {
+                  contains: termo,
+                  mode: 'insensitive',
+                },
+              },
+            },
+          },
+        },
+      },
+      include: {
+        colheitas: {
+          include: {
+            turmaColheitaCusto: {
+              include: {
+                turmaColheita: {
+                  select: {
+                    nomeColhedor: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      take: 50, // Pegar mais para ter variedade de colhedores
+    });
+
+    // Extrair colhedores únicos
+    const colhedoresSet = new Set<string>();
+    itensComColhedores.forEach(item => {
+      item.colheitas.forEach(colheita => {
+        const nomeColhedor = colheita.turmaColheitaCusto.turmaColheita.nomeColhedor;
+        if (nomeColhedor && nomeColhedor.trim()) {
+          const nomeNormalizado = nomeColhedor.trim().toLowerCase();
+          if (nomeNormalizado.includes(termo) && !colhedoresSet.has(nomeNormalizado)) {
+            colhedoresSet.add(nomeNormalizado);
+            sugestoes.push({
+              type: 'colhedor',
+              label: 'Colhedor',
+              value: nomeColhedor.trim(),
+              icon: '🧑‍🌾',
+              color: '#52c41a',
+              description: `Filtrar por colhedor: ${nomeColhedor.trim()}`,
+              metadata: {
+                nome: nomeColhedor.trim(),
+              },
+            });
+          }
+        }
+      });
+    });
+
+    // Buscar funcionários (Folha de Pagamento) que têm lotes de pagamento
+    // Buscar por: nome, CPF, chavePix, responsavelChavePix, apelido
+    const termoCpf = termo.replace(/\D/g, '');
+    const orConditions: any[] = [
+      { nome: { contains: termo, mode: 'insensitive' } },
+      { chavePix: { contains: termo, mode: 'insensitive' } },
+      { responsavelChavePix: { contains: termo, mode: 'insensitive' } },
+      { apelido: { contains: termo, mode: 'insensitive' } },
+    ];
+    
+    // Adicionar busca por CPF apenas se o termo tiver pelo menos 3 dígitos numéricos
+    if (termoCpf.length >= 3) {
+      orConditions.push({ cpf: { contains: termoCpf } });
+    }
+
+    const itensComFuncionarios = await this.prisma.pagamentoApiItem.findMany({
+      where: {
+        funcionarioPagamentoId: {
+          not: null,
+        },
+        funcionarioPagamento: {
+          funcionario: {
+            OR: orConditions,
+          },
+        },
+        lote: {
+          tipoPagamentoApi: 'PIX',
+        },
+      },
+      include: {
+        funcionarioPagamento: {
+          include: {
+            funcionario: {
+              select: {
+                nome: true,
+                cpf: true,
+                chavePix: true,
+                responsavelChavePix: true,
+                apelido: true,
+              },
+            },
+          },
+        },
+      },
+      distinct: ['funcionarioPagamentoId'],
+      take: 50, // Pegar mais para ter variedade de funcionários
+    });
+
+    // Adicionar sugestões de funcionários
+    const funcionariosAdicionados = new Set<string>();
+    itensComFuncionarios.forEach(item => {
+      const funcionario = item.funcionarioPagamento?.funcionario;
+      if (funcionario && funcionario.nome) {
+        const chave = funcionario.nome.toLowerCase();
+        if (!funcionariosAdicionados.has(chave)) {
+          funcionariosAdicionados.add(chave);
+          
+          const nomeNormalizado = funcionario.nome.toLowerCase();
+          const cpfNormalizado = funcionario.cpf?.replace(/\D/g, '') || '';
+          const chavePixNormalizada = funcionario.chavePix?.toLowerCase() || '';
+          const responsavelNormalizado = funcionario.responsavelChavePix?.toLowerCase() || '';
+          const apelidoNormalizado = funcionario.apelido?.toLowerCase() || '';
+          const termoCpf = termo.replace(/\D/g, '');
+
+          // Verificar qual campo correspondeu à busca
+          let tipoBusca = 'nome';
+          let descricao = '';
+          
+          if (nomeNormalizado.includes(termo)) {
+            tipoBusca = 'nome';
+            descricao = funcionario.cpf 
+              ? `Filtrar por funcionário: ${funcionario.nome} (CPF: ${funcionario.cpf})`
+              : `Filtrar por funcionário: ${funcionario.nome}`;
+          } else if (cpfNormalizado && cpfNormalizado.includes(termoCpf) && termoCpf.length >= 3) {
+            tipoBusca = 'cpf';
+            descricao = `Filtrar por CPF: ${funcionario.cpf} - ${funcionario.nome}`;
+          } else if (chavePixNormalizada.includes(termo)) {
+            tipoBusca = 'chavePix';
+            descricao = `Filtrar por Chave PIX: ${funcionario.chavePix} - ${funcionario.nome}`;
+          } else if (responsavelNormalizado.includes(termo)) {
+            tipoBusca = 'responsavel';
+            descricao = `Filtrar por Responsável PIX: ${funcionario.responsavelChavePix} - ${funcionario.nome}`;
+          } else if (apelidoNormalizado.includes(termo)) {
+            tipoBusca = 'apelido';
+            descricao = `Filtrar por Apelido: ${funcionario.apelido} - ${funcionario.nome}`;
+          }
+
+          // Adicionar sugestão apenas se algum campo correspondeu
+          if (tipoBusca !== 'nome' || nomeNormalizado.includes(termo)) {
+            const label = tipoBusca === 'cpf' ? 'Funcionário (CPF)' :
+                         tipoBusca === 'chavePix' ? 'Funcionário (Chave PIX)' :
+                         tipoBusca === 'responsavel' ? 'Funcionário (Responsável PIX)' :
+                         tipoBusca === 'apelido' ? 'Funcionário (Apelido)' :
+                         'Funcionário';
+
+            const value = tipoBusca === 'cpf' ? funcionario.cpf || '' :
+                         tipoBusca === 'chavePix' ? funcionario.chavePix || '' :
+                         tipoBusca === 'responsavel' ? funcionario.responsavelChavePix || '' :
+                         tipoBusca === 'apelido' ? funcionario.apelido || '' :
+                         funcionario.nome;
+
+            // Verificar se já existe uma sugestão para este funcionário
+            const jaExiste = sugestoes.some(s => 
+              s.type === 'funcionario' && 
+              s.metadata?.nome === funcionario.nome
+            );
+
+            if (!jaExiste) {
+              sugestoes.push({
+                type: 'funcionario',
+                label: label,
+                value: value,
+                icon: '👤',
+                color: '#1890ff',
+                description: descricao,
+                metadata: {
+                  nome: funcionario.nome,
+                  cpf: funcionario.cpf || null,
+                  chavePix: funcionario.chavePix || null,
+                  responsavelChavePix: funcionario.responsavelChavePix || null,
+                  apelido: funcionario.apelido || null,
+                },
+              });
+            }
+          }
+        }
+      }
+    });
+
+    // Limitar a 10 sugestões e ordenar por tipo (colhedor primeiro, depois funcionário)
+    return sugestoes
+      .sort((a, b) => {
+        if (a.type === 'colhedor' && b.type !== 'colhedor') return -1;
+        if (a.type !== 'colhedor' && b.type === 'colhedor') return 1;
+        return a.value.localeCompare(b.value);
+      })
+      .slice(0, 10);
   }
 }
 

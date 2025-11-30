@@ -47,7 +47,7 @@ export class CreateUserDto {
     enum: NivelUsuario,
     default: NivelUsuario.ESCRITORIO,
   })
-  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO ou GERENTE_CULTURA' })
+  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO, GERENTE_CULTURA ou PROGRAMADOR' })
   nivel: NivelUsuario;
 
   @ApiProperty({
@@ -96,7 +96,7 @@ export class UpdateUserDto {
     required: false,
   })
   @IsOptional()
-  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO ou GERENTE_CULTURA' })
+  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO, GERENTE_CULTURA ou PROGRAMADOR' })
   nivel?: NivelUsuario;
 
   @ApiProperty({

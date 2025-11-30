@@ -25,9 +25,11 @@ import {
   AppleOutlined,
   MessageOutlined,
   CalendarOutlined,
+  UserOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import ResponsiveTable from "../common/ResponsiveTable";
-import { formatCurrency, capitalizeName, capitalizeNameShort } from "../../utils/formatters";
+import { formatCurrency, capitalizeName, capitalizeNameShort, formatarCPF } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import { PrimaryButton } from "../common/buttons";
 import { getFruitIcon } from "../../utils/fruitIcons";
@@ -47,7 +49,37 @@ const LotePagamentosDetalhesModal = ({
   mode = "liberacao", // "liberacao" ou "cancelamento"
 }) => {
   const { isMobile } = useResponsive();
-  const colheitas = useMemo(() => lote?.colheitas || [], [lote]);
+  
+  // Detectar tipo de origem do lote
+  const origemTipo = lote?.origemTipo || 'TURMA_COLHEITA';
+  const isFolhaPagamento = origemTipo === 'FOLHA_PAGAMENTO';
+  
+  // Extrair colheitas (para TURMA_COLHEITA)
+  const colheitas = useMemo(() => {
+    if (isFolhaPagamento) return [];
+    return lote?.colheitas || [];
+  }, [lote, isFolhaPagamento]);
+  
+  // Extrair funcionários (para FOLHA_PAGAMENTO)
+  const funcionarios = useMemo(() => {
+    if (!isFolhaPagamento || !lote?.itensPagamento) return [];
+    
+    return lote.itensPagamento
+      .map((item) => item.funcionarioPagamento)
+      .filter((fp) => fp !== null && fp !== undefined)
+      .map((fp) => ({
+        id: fp.id,
+        funcionario: fp.funcionario,
+        folha: fp.folha,
+        valorLiquido: fp.valorLiquido,
+        valorBruto: fp.valorBruto,
+        statusPagamento: fp.statusPagamento,
+        meioPagamento: fp.meioPagamento,
+        tipoContrato: fp.tipoContrato,
+        referenciaNomeCargo: fp.referenciaNomeCargo,
+        referenciaNomeFuncao: fp.referenciaNomeFuncao,
+      }));
+  }, [lote, isFolhaPagamento]);
 
   const statusLoteTag = () => {
     if (!lote) return null;
@@ -90,22 +122,169 @@ const LotePagamentosDetalhesModal = ({
   };
 
   // Verificar se pode liberar o lote
+  // Segue a mesma lógica do botão "Liberar" em Pagamentos.js
   const podeLiberar = () => {
     if (!lote) return false;
     
     // Usar estadoRequisicaoAtual se disponível, senão estadoRequisicao
     const estadoRequisicao = lote.estadoRequisicaoAtual || lote.estadoRequisicao;
     
-    // Se não tem estadoRequisicao, não pode liberar
-    if (!estadoRequisicao) return false;
-    
-    // Pode liberar quando:
+    // Botão "Liberar" aparece quando:
     // - estadoRequisicao === 1 (dados consistentes, aguardando liberação)
     // - estadoRequisicao === 4 (aguardando liberação - pendente de ação pelo Conveniado)
-    // Estados 1 e 4 são os únicos que permitem liberação
-    return estadoRequisicao === 1 || estadoRequisicao === 4;
+    // - NÃO está liberado (estadoRequisicao !== 9) e NÃO está processado (estadoRequisicao !== 6)
+    // - E, CRITICAMENTE, o lote AINDA NÃO FOI LIBERADO (não possui dataLiberacao)
+    // Estados 1 e 4 são "aguardando", então podem ser liberados
+    // IMPORTANTE: Verificar dataLiberacao para evitar liberar lotes já liberados
+    // que voltaram para estado 4 após passar por estado 8 (sequência real do BB: 1,2,3 → 8 → 4 → 9/10 → 6/7)
+    const pode =
+      estadoRequisicao &&
+      (estadoRequisicao === 1 || estadoRequisicao === 4) &&
+      estadoRequisicao !== 9 &&
+      estadoRequisicao !== 6 &&
+      !lote.dataLiberacao; // Não permitir se já foi liberado anteriormente
+    
+    return !!pode;
   };
 
+  // Colunas para tabela de funcionários (FOLHA_PAGAMENTO)
+  const colunasFuncionarios = [
+    {
+      title: "Funcionário",
+      key: "funcionario",
+      width: 200,
+      render: (_, record) => (
+        <Text strong style={{ color: "#059669" }}>
+          {capitalizeName(record.funcionario?.nome || '-')}
+        </Text>
+      ),
+    },
+    {
+      title: "Chave PIX",
+      key: "chavePix",
+      width: 180,
+      render: (_, record) => (
+        record.funcionario?.chavePix ? (
+          <Text style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>
+            {record.funcionario.chavePix}
+          </Text>
+        ) : (
+          <Text type="secondary">-</Text>
+        )
+      ),
+    },
+    {
+      title: "Responsável pela Chave PIX",
+      key: "responsavelChavePix",
+      width: 200,
+      render: (_, record) => (
+        record.funcionario?.responsavelChavePix ? (
+          <Text>
+            {capitalizeName(record.funcionario.responsavelChavePix)}
+          </Text>
+        ) : (
+          <Text type="secondary">-</Text>
+        )
+      ),
+    },
+    {
+      title: "Cargo/Função",
+      key: "cargoFuncao",
+      width: 180,
+      render: (_, record) => {
+        const tipoContrato = record.tipoContrato;
+        if (tipoContrato === 'MENSALISTA' && record.referenciaNomeCargo) {
+          return <Text>{capitalizeName(record.referenciaNomeCargo)}</Text>;
+        } else if (tipoContrato === 'DIARISTA' && record.referenciaNomeFuncao) {
+          return <Text>{capitalizeName(record.referenciaNomeFuncao)}</Text>;
+        }
+        return <Text type="secondary">-</Text>;
+      },
+    },
+    {
+      title: "Tipo Contrato",
+      key: "tipoContrato",
+      width: 120,
+      render: (_, record) => (
+        <Tag color={record.tipoContrato === 'MENSALISTA' ? 'blue' : 'cyan'}>
+          {record.tipoContrato || '-'}
+        </Tag>
+      ),
+    },
+    {
+      title: "Valor Bruto",
+      dataIndex: "valorBruto",
+      key: "valorBruto",
+      width: 120,
+      align: "right",
+      render: (valor) => (
+        <Text strong style={{ color: '#333' }}>
+          {formatCurrency(valor || 0)}
+        </Text>
+      ),
+    },
+    {
+      title: "Valor Líquido",
+      dataIndex: "valorLiquido",
+      key: "valorLiquido",
+      width: 120,
+      align: "right",
+      render: (valor) => (
+        <Text strong style={{ color: '#059669' }}>
+          {formatCurrency(valor || 0)}
+        </Text>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "statusPagamento",
+      key: "statusPagamento",
+      width: 120,
+      render: (status) => {
+        const s = (status || "").toString().toUpperCase();
+        if (!s) return <Tag>-</Tag>;
+
+        let color = "default";
+        let label = s;
+
+        if (s === "PENDENTE") {
+          color = "orange";
+          label = "Pendente";
+        } else if (s === "PROCESSANDO" || s === "ENVIADO") {
+          color = "gold";
+          label = s === "ENVIADO" ? "Enviado" : "Processando";
+        } else if (s === "PAGO") {
+          color = "green";
+          label = "Pago";
+        } else if (s === "REJEITADO") {
+          color = "red";
+          label = "Rejeitado";
+        }
+
+        return <Tag color={color}>{label}</Tag>;
+      },
+    },
+    {
+      title: "Método",
+      dataIndex: "meioPagamento",
+      key: "meioPagamento",
+      width: 120,
+      render: (meio) => {
+        if (!meio) return <Text type="secondary">-</Text>;
+        let metodoFormatado = meio;
+        if (meio === "PIX_API") {
+          metodoFormatado = "PIX - API";
+        } else if (meio === "PIX") {
+          metodoFormatado = "PIX";
+        } else if (meio === "ESPECIE") {
+          metodoFormatado = "Espécie";
+        }
+        return <Tag color="blue">{metodoFormatado}</Tag>;
+      },
+    },
+  ];
+
+  // Colunas para tabela de colheitas (TURMA_COLHEITA)
   const colunasColheitas = [
     {
       title: "Pedido",
@@ -236,7 +415,46 @@ const LotePagamentosDetalhesModal = ({
 
   const isLoading = mode === "cancelamento" ? loadingCancelamento : loadingLiberacao;
   const okText = mode === "cancelamento" ? "Confirmar cancelamento" : "Confirmar liberação";
-  const title = mode === "cancelamento" ? "Cancelar Lote de Pagamentos" : "Detalhes do Lote de Pagamentos";
+  
+  // Formatar datas do período da folha (igual ao ArhFolhaPagamento.js)
+  const formatarDataPeriodo = (folha) => {
+    if (!folha?.dataInicial || !folha?.dataFinal) {
+      return "";
+    }
+    
+    const dataInicial = new Date(folha.dataInicial);
+    const dataFinal = new Date(folha.dataFinal);
+    
+    const formatarData = (data) => {
+      return data.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    };
+    
+    return ` • ${formatarData(dataInicial)} - ${formatarData(dataFinal)}`;
+  };
+
+  // Formatar título com informações da folha para FOLHA_PAGAMENTO
+  const getTitle = () => {
+    const baseTitle = mode === "cancelamento" ? "Cancelar Lote de Pagamentos" : "Detalhes do Lote de Pagamentos";
+    
+    if (isFolhaPagamento && funcionarios.length > 0 && funcionarios[0].folha) {
+      const folha = funcionarios[0].folha;
+      const mes = String(folha.competenciaMes).padStart(2, '0');
+      const ano = folha.competenciaAno;
+      const periodo = folha.periodo;
+      
+      const folhaInfo = `${mes}/${ano} - ${periodo}ª Quinzena${formatarDataPeriodo(folha)}`;
+      
+      return `${baseTitle} - Folha: ${folhaInfo}`;
+    }
+    
+    return baseTitle;
+  };
+  
+  const title = getTitle();
   const titleIcon = mode === "cancelamento" ? <StopOutlined /> : <UnlockOutlined />;
 
   const handleClose = () => {
@@ -372,11 +590,15 @@ const LotePagamentosDetalhesModal = ({
               <Col xs={24} sm={12} md={8}>
                 <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
                   <DollarOutlined style={{ marginRight: 4 }} />
-                  Valor total das colheitas:
+                  {isFolhaPagamento ? "Valor total dos funcionários:" : "Valor total das colheitas:"}
                 </Text>
                 <br />
                 <Text style={{ fontSize: "0.875rem", fontWeight: "600", color: "#059669", marginTop: "4px" }}>
-                  R$ {formatCurrency(lote.valorTotalColheitas || 0)}
+                  R$ {formatCurrency(
+                    isFolhaPagamento 
+                      ? (lote.valorTotalFuncionarios || 0)
+                      : (lote.valorTotalColheitas || 0)
+                  )}
                 </Text>
               </Col>
               <Col xs={24} sm={12} md={8}>
@@ -389,55 +611,191 @@ const LotePagamentosDetalhesModal = ({
                   R$ {formatCurrency(lote.valorTotalEnviado || 0)}
                 </Text>
               </Col>
+              {/* Informações da Folha para FOLHA_PAGAMENTO */}
+              {isFolhaPagamento && funcionarios.length > 0 && funcionarios[0].folha && (
+                <>
+                  <Col xs={24} sm={12} md={8}>
+                    <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                      <CalendarOutlined style={{ marginRight: 4 }} />
+                      Folha de Pagamento:
+                    </Text>
+                    <br />
+                    <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                      {(() => {
+                        const folha = funcionarios[0].folha;
+                        const mes = String(folha.competenciaMes).padStart(2, '0');
+                        const ano = folha.competenciaAno;
+                        const periodo = folha.periodo;
+                        return `${mes}/${ano} - ${periodo}ª Quinzena`;
+                      })()}
+                    </Text>
+                  </Col>
+                  {funcionarios[0].folha.dataInicial && funcionarios[0].folha.dataFinal && (
+                    <Col xs={24} sm={12} md={8}>
+                      <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                        <CalendarOutlined style={{ marginRight: 4 }} />
+                        Período da Folha:
+                      </Text>
+                      <br />
+                      <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                        {(() => {
+                          const folha = funcionarios[0].folha;
+                          const dataInicial = new Date(folha.dataInicial).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                          const dataFinal = new Date(folha.dataFinal).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                          return `${dataInicial} a ${dataFinal}`;
+                        })()}
+                      </Text>
+                    </Col>
+                  )}
+                </>
+              )}
+              {/* Informações do Beneficiário para TURMA_COLHEITA */}
+              {!isFolhaPagamento && (
+                <>
+                  {/* Nome do Colhedor */}
+                  {(lote.turmaResumo?.nomeColhedor || lote.origemNome) && (
+                    <Col xs={24} sm={12} md={8}>
+                      <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                        <UserOutlined style={{ marginRight: 4 }} />
+                        Beneficiário (Colhedor):
+                      </Text>
+                      <br />
+                      <Text style={{ fontSize: "0.875rem", fontWeight: "600", color: "#059669", marginTop: "4px" }}>
+                        {capitalizeName(lote.turmaResumo?.nomeColhedor || lote.origemNome || '-')}
+                      </Text>
+                    </Col>
+                  )}
+                  {/* Chave PIX - buscar do item de pagamento ou turmaResumo */}
+                  {(() => {
+                    const chavePix = lote.itensPagamento?.[0]?.chavePixEnviada || lote.turmaResumo?.chavePix || null;
+                    return chavePix ? (
+                      <Col xs={24} sm={12} md={8}>
+                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                          <BankOutlined style={{ marginRight: 4 }} />
+                          Chave PIX:
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: "0.875rem", fontFamily: 'monospace', marginTop: "4px" }}>
+                          {chavePix}
+                        </Text>
+                      </Col>
+                    ) : null;
+                  })()}
+                  {/* Responsável pela Chave PIX */}
+                  {lote.turmaResumo?.responsavelChavePix && (
+                    <Col xs={24} sm={12} md={8}>
+                      <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                        <UserOutlined style={{ marginRight: 4 }} />
+                        Responsável pela Chave PIX:
+                      </Text>
+                      <br />
+                      <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                        {capitalizeName(lote.turmaResumo.responsavelChavePix)}
+                      </Text>
+                    </Col>
+                  )}
+                </>
+              )}
             </Row>
           </Card>
 
-          {/* Card de Colheitas Vinculadas */}
-          <Card
-            title={
-              <Space>
-                <DollarOutlined style={{ color: "#ffffff" }} />
-                <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
-                  Colheitas Vinculadas
-                </span>
-              </Space>
-            }
-            style={{
-              marginBottom: isMobile ? 12 : 16,
-              border: "0.0625rem solid #e8e8e8",
-              borderRadius: "0.5rem",
-              backgroundColor: "#f9f9f9",
-            }}
-            styles={{
-              header: {
-                backgroundColor: "#059669",
-                borderBottom: "0.125rem solid #047857",
-                color: "#ffffff",
-                borderRadius: "0.5rem 0.5rem 0 0",
-                padding: isMobile ? "6px 12px" : "8px 16px"
-              },
-              body: {
-                padding: isMobile ? "12px" : "16px"
+          {/* Card de Colheitas Vinculadas (TURMA_COLHEITA) */}
+          {!isFolhaPagamento && (
+            <Card
+              title={
+                <Space>
+                  <DollarOutlined style={{ color: "#ffffff" }} />
+                  <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                    Colheitas Vinculadas
+                  </span>
+                </Space>
               }
-            }}
-          >
-            {colheitas && colheitas.length > 0 ? (
-              <ResponsiveTable
-                columns={colunasColheitas}
-                dataSource={colheitas}
-                rowKey="id"
-                minWidthMobile={1200}
-                showScrollHint={true}
-                pagination={false}
-              />
-            ) : (
-              <Empty
-                description="Nenhuma colheita vinculada a este lote"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                style={{ padding: "40px" }}
-              />
-            )}
-          </Card>
+              style={{
+                marginBottom: isMobile ? 12 : 16,
+                border: "0.0625rem solid #e8e8e8",
+                borderRadius: "0.5rem",
+                backgroundColor: "#f9f9f9",
+              }}
+              styles={{
+                header: {
+                  backgroundColor: "#059669",
+                  borderBottom: "0.125rem solid #047857",
+                  color: "#ffffff",
+                  borderRadius: "0.5rem 0.5rem 0 0",
+                  padding: isMobile ? "6px 12px" : "8px 16px"
+                },
+                body: {
+                  padding: isMobile ? "12px" : "16px"
+                }
+              }}
+            >
+              {colheitas && colheitas.length > 0 ? (
+                <ResponsiveTable
+                  columns={colunasColheitas}
+                  dataSource={colheitas}
+                  rowKey="id"
+                  minWidthMobile={1200}
+                  showScrollHint={true}
+                  pagination={false}
+                />
+              ) : (
+                <Empty
+                  description="Nenhuma colheita vinculada a este lote"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  style={{ padding: "40px" }}
+                />
+              )}
+            </Card>
+          )}
+
+          {/* Card de Funcionários Vinculados (FOLHA_PAGAMENTO) */}
+          {isFolhaPagamento && (
+            <Card
+              title={
+                <Space>
+                  <TeamOutlined style={{ color: "#ffffff" }} />
+                  <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                    Funcionários Vinculados
+                  </span>
+                </Space>
+              }
+              style={{
+                marginBottom: isMobile ? 12 : 16,
+                border: "0.0625rem solid #e8e8e8",
+                borderRadius: "0.5rem",
+                backgroundColor: "#f9f9f9",
+              }}
+              styles={{
+                header: {
+                  backgroundColor: "#059669",
+                  borderBottom: "0.125rem solid #047857",
+                  color: "#ffffff",
+                  borderRadius: "0.5rem 0.5rem 0 0",
+                  padding: isMobile ? "6px 12px" : "8px 16px"
+                },
+                body: {
+                  padding: isMobile ? "12px" : "16px"
+                }
+              }}
+            >
+              {funcionarios && funcionarios.length > 0 ? (
+                <ResponsiveTable
+                  columns={colunasFuncionarios}
+                  dataSource={funcionarios}
+                  rowKey="id"
+                  minWidthMobile={1200}
+                  showScrollHint={true}
+                  pagination={false}
+                />
+              ) : (
+                <Empty
+                  description="Nenhum funcionário vinculado a este lote"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  style={{ padding: "40px" }}
+                />
+              )}
+            </Card>
+          )}
 
           {/* Footer com botões */}
           <div style={{

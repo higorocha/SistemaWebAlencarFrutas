@@ -1135,4 +1135,422 @@ export class DashboardService {
       return [];
     }
   }
+
+  /**
+   * Obter dados para gráfico de culturas/frutas
+   * Agrupa por unidadePrecificada e retorna dados mensais
+   */
+  async getCulturasFrutas(
+    tipo: 'culturas' | 'frutas',
+    ids: number[],
+    dataInicio?: string,
+    dataFim?: string,
+  ) {
+    try {
+      const inicio = dataInicio ? new Date(dataInicio) : new Date(new Date().setMonth(new Date().getMonth() - 6));
+      const fim = dataFim ? new Date(dataFim) : new Date();
+
+      // Buscar pedidos com colheita realizada no período
+      const pedidos = await this.prisma.pedido.findMany({
+        where: {
+          dataColheita: {
+            gte: inicio,
+            lte: fim,
+          },
+          status: {
+            not: 'CANCELADO',
+          },
+        },
+        include: {
+          frutasPedidos: {
+            where: {
+              unidadePrecificada: { not: null },
+              quantidadePrecificada: { not: null, gt: 0 },
+            },
+            include: {
+              fruta: {
+                include: {
+                  cultura: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Agrupar dados por período (mês) e item (cultura ou fruta)
+      const dadosPorPeriodo: Record<string, Record<string, number>> = {};
+
+      pedidos.forEach(pedido => {
+        if (!pedido.dataColheita) return; // Pular se não tiver data de colheita
+        const mes = new Date(pedido.dataColheita).toISOString().substring(0, 7); // YYYY-MM
+        if (!dadosPorPeriodo[mes]) {
+          dadosPorPeriodo[mes] = {};
+        }
+
+        pedido.frutasPedidos.forEach(fp => {
+          if (!fp.unidadePrecificada || !fp.quantidadePrecificada) return;
+
+          let chave: string;
+          if (tipo === 'culturas') {
+            chave = `${fp.fruta.cultura.id}-${fp.unidadePrecificada}`;
+            if (ids.length > 0 && !ids.includes(fp.fruta.cultura.id)) return;
+          } else {
+            chave = `${fp.fruta.id}-${fp.unidadePrecificada}`;
+            if (ids.length > 0 && !ids.includes(fp.fruta.id)) return;
+          }
+
+          if (!dadosPorPeriodo[mes][chave]) {
+            dadosPorPeriodo[mes][chave] = 0;
+          }
+          dadosPorPeriodo[mes][chave] += fp.quantidadePrecificada;
+        });
+      });
+
+      // Gerar períodos (meses) entre início e fim
+      const periodos: string[] = [];
+      const current = new Date(inicio);
+      while (current <= fim) {
+        periodos.push(current.toISOString().substring(0, 7));
+        current.setMonth(current.getMonth() + 1);
+      }
+
+      // Criar séries agrupadas por item e unidade
+      const seriesMap: Record<string, { nome: string; unidadePrecificada: string; dados: number[] }> = {};
+
+      if (tipo === 'culturas') {
+        const culturas = await this.prisma.cultura.findMany({
+          where: ids.length > 0 ? { id: { in: ids } } : undefined,
+        });
+
+        culturas.forEach(cultura => {
+          const unidades = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+          unidades.forEach(unidade => {
+            const chave = `${cultura.id}-${unidade}`;
+            seriesMap[chave] = {
+              nome: cultura.descricao,
+              unidadePrecificada: unidade,
+              dados: periodos.map(periodo => dadosPorPeriodo[periodo]?.[chave] || 0),
+            };
+          });
+        });
+      } else {
+        const frutas = await this.prisma.fruta.findMany({
+          where: ids.length > 0 ? { id: { in: ids } } : undefined,
+        });
+
+        frutas.forEach(fruta => {
+          const unidades = ['KG', 'CX', 'TON', 'UND', 'ML', 'LT'];
+          unidades.forEach(unidade => {
+            const chave = `${fruta.id}-${unidade}`;
+            seriesMap[chave] = {
+              nome: fruta.nome,
+              unidadePrecificada: unidade,
+              dados: periodos.map(periodo => dadosPorPeriodo[periodo]?.[chave] || 0),
+            };
+          });
+        });
+      }
+
+      // Filtrar séries que têm pelo menos um valor > 0
+      const series = Object.values(seriesMap).filter(serie => 
+        serie.dados.some(valor => valor > 0)
+      );
+
+      return {
+        periodos,
+        series,
+      };
+    } catch (error) {
+      console.error('Erro ao buscar dados de culturas/frutas:', error);
+      return {
+        periodos: [],
+        series: [],
+      };
+    }
+  }
+
+  /**
+   * Obter dados para gráfico de áreas e frutas
+   * Retorna total colhido por área e fruta por mês
+   */
+  async getAreasFrutas(
+    tipoArea: 'proprias' | 'fornecedores',
+    frutaIds: number[],
+    dataInicio?: string,
+    dataFim?: string,
+  ) {
+    try {
+      const inicio = dataInicio ? new Date(dataInicio) : new Date(new Date().setMonth(new Date().getMonth() - 6));
+      const fim = dataFim ? new Date(dataFim) : new Date();
+
+      // Buscar pedidos com colheita realizada no período
+      const pedidos = await this.prisma.pedido.findMany({
+        where: {
+          dataColheita: {
+            gte: inicio,
+            lte: fim,
+          },
+          status: {
+            not: 'CANCELADO',
+          },
+        },
+        include: {
+          frutasPedidos: {
+            where: frutaIds.length > 0 ? { frutaId: { in: frutaIds } } : undefined,
+            include: {
+              fruta: true,
+              areas: {
+                include: {
+                  areaPropria: true,
+                  areaFornecedor: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Agrupar dados por período (mês), área e fruta
+      const dadosPorPeriodo: Record<string, Record<string, number>> = {};
+
+      pedidos.forEach(pedido => {
+        if (!pedido.dataColheita) return; // Pular se não tiver data de colheita
+        const mes = new Date(pedido.dataColheita).toISOString().substring(0, 7);
+        if (!dadosPorPeriodo[mes]) {
+          dadosPorPeriodo[mes] = {};
+        }
+
+        pedido.frutasPedidos.forEach(fp => {
+          fp.areas.forEach(area => {
+            // Filtrar apenas áreas do tipo selecionado
+            if (tipoArea === 'proprias' && !area.areaPropriaId) return;
+            if (tipoArea === 'fornecedores' && !area.areaFornecedorId) return;
+
+            const areaId = tipoArea === 'proprias' 
+              ? area.areaPropriaId 
+              : area.areaFornecedorId;
+            
+            let areaNome: string | undefined;
+            if (tipoArea === 'proprias' && area.areaPropria) {
+              areaNome = area.areaPropria.nome;
+            } else if (tipoArea === 'fornecedores' && area.areaFornecedor) {
+              areaNome = area.areaFornecedor.nome;
+            }
+
+            if (!areaId || !areaNome) return;
+
+            const chave = `${areaId}-${fp.frutaId}`;
+            const quantidade = area.quantidadeColhidaUnidade1 || 0;
+
+            if (!dadosPorPeriodo[mes][chave]) {
+              dadosPorPeriodo[mes][chave] = 0;
+            }
+            dadosPorPeriodo[mes][chave] += quantidade;
+          });
+        });
+      });
+
+      // Gerar períodos
+      const periodos: string[] = [];
+      const current = new Date(inicio);
+      while (current <= fim) {
+        periodos.push(current.toISOString().substring(0, 7));
+        current.setMonth(current.getMonth() + 1);
+      }
+
+      // Criar séries a partir dos dados coletados
+      const seriesMap: Record<string, { areaNome: string; frutaNome: string; dados: number[] }> = {};
+
+      // Buscar nomes de áreas e frutas
+      const areasProprias = tipoArea === 'proprias' 
+        ? await this.prisma.areaAgricola.findMany()
+        : [];
+      const areasFornecedores = tipoArea === 'fornecedores'
+        ? await this.prisma.areaFornecedor.findMany()
+        : [];
+      
+      const frutas = await this.prisma.fruta.findMany({
+        where: frutaIds.length > 0 ? { id: { in: frutaIds } } : undefined,
+      });
+
+      // Criar mapas de nomes
+      const nomesAreas: Record<number, string> = {};
+      if (tipoArea === 'proprias') {
+        areasProprias.forEach(area => {
+          nomesAreas[area.id] = area.nome;
+        });
+      } else {
+        areasFornecedores.forEach(area => {
+          nomesAreas[area.id] = area.nome;
+        });
+      }
+
+      const nomesFrutas: Record<number, string> = {};
+      frutas.forEach(fruta => {
+        nomesFrutas[fruta.id] = fruta.nome;
+      });
+
+      // Criar séries a partir dos dados coletados
+      Object.keys(dadosPorPeriodo).forEach(periodo => {
+        Object.keys(dadosPorPeriodo[periodo]).forEach(chave => {
+          const [areaId, frutaId] = chave.split('-').map(Number);
+          const serieKey = `${areaId}-${frutaId}`;
+          
+          if (!seriesMap[serieKey]) {
+            seriesMap[serieKey] = {
+              areaNome: nomesAreas[areaId] || `Área ${areaId}`,
+              frutaNome: nomesFrutas[frutaId] || `Fruta ${frutaId}`,
+              dados: periodos.map(() => 0),
+            };
+          }
+          
+          const periodoIndex = periodos.indexOf(periodo);
+          if (periodoIndex >= 0) {
+            seriesMap[serieKey].dados[periodoIndex] = dadosPorPeriodo[periodo][chave];
+          }
+        });
+      });
+
+      // Filtrar séries com dados
+      const series = Object.values(seriesMap).filter(serie => 
+        serie.dados.some(valor => valor > 0)
+      );
+
+      return {
+        periodos,
+        series,
+      };
+    } catch (error) {
+      console.error('Erro ao buscar dados de áreas/frutas:', error);
+      return {
+        periodos: [],
+        series: [],
+      };
+    }
+  }
+
+  /**
+   * Obter listagem de áreas com frutas colhidas e média por hectare
+   */
+  async getListagemAreas(
+    busca?: string,
+    frutaIds?: number[],
+    dataInicio?: string,
+    dataFim?: string,
+  ) {
+    try {
+      const inicio = dataInicio ? new Date(dataInicio) : undefined;
+      const fim = dataFim ? new Date(dataFim) : undefined;
+
+      // Buscar pedidos com filtros
+      const wherePedido: any = {
+        status: { not: 'CANCELADO' },
+      };
+
+      if (inicio || fim) {
+        wherePedido.dataColheita = {};
+        if (inicio) wherePedido.dataColheita.gte = inicio;
+        if (fim) wherePedido.dataColheita.lte = fim;
+      }
+
+      const pedidos = await this.prisma.pedido.findMany({
+        where: wherePedido,
+        include: {
+          frutasPedidos: {
+            where: frutaIds && frutaIds.length > 0 ? { frutaId: { in: frutaIds } } : undefined,
+            include: {
+              fruta: true,
+              areas: {
+                include: {
+                  areaPropria: true,
+                  areaFornecedor: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Agrupar por área
+      const areasMap: Record<string, {
+        id: number;
+        nome: string;
+        tipo: 'propria' | 'fornecedor';
+        tamanhoHa: number;
+        frutas: Array<{
+          frutaId: number;
+          frutaNome: string;
+          quantidadeColhida: number;
+          unidade: string;
+          mediaPorHectare: number;
+        }>;
+      }> = {};
+
+      pedidos.forEach(pedido => {
+        pedido.frutasPedidos.forEach(fp => {
+          fp.areas.forEach(area => {
+            let areaKey: string;
+            let areaData: any;
+
+            if (area.areaPropriaId) {
+              areaKey = `propria-${area.areaPropriaId}`;
+              areaData = area.areaPropria;
+            } else if (area.areaFornecedorId) {
+              areaKey = `fornecedor-${area.areaFornecedorId}`;
+              areaData = area.areaFornecedor;
+            } else {
+              return;
+            }
+
+            // Filtrar por busca
+            if (busca && areaData.nome.toLowerCase().indexOf(busca.toLowerCase()) === -1) {
+              return;
+            }
+
+            if (!areasMap[areaKey]) {
+              areasMap[areaKey] = {
+                id: areaData.id,
+                nome: areaData.nome,
+                tipo: area.areaPropriaId ? 'propria' : 'fornecedor',
+                tamanhoHa: area.areaPropriaId 
+                  ? areaData.areaTotal 
+                  : (areaData.quantidadeHa || 0),
+                frutas: [],
+              };
+            }
+
+            const quantidade = area.quantidadeColhidaUnidade1 || 0;
+            const tamanhoHa = areasMap[areaKey].tamanhoHa;
+            const mediaPorHectare = tamanhoHa > 0 ? quantidade / tamanhoHa : 0;
+
+            // Verificar se fruta já existe
+            const frutaIndex = areasMap[areaKey].frutas.findIndex(f => f.frutaId === fp.frutaId);
+            if (frutaIndex >= 0) {
+              areasMap[areaKey].frutas[frutaIndex].quantidadeColhida += quantidade;
+              areasMap[areaKey].frutas[frutaIndex].mediaPorHectare = 
+                tamanhoHa > 0 ? areasMap[areaKey].frutas[frutaIndex].quantidadeColhida / tamanhoHa : 0;
+            } else {
+              areasMap[areaKey].frutas.push({
+                frutaId: fp.fruta.id,
+                frutaNome: fp.fruta.nome,
+                quantidadeColhida: quantidade,
+                unidade: fp.unidadeMedida1,
+                mediaPorHectare,
+              });
+            }
+          });
+        });
+      });
+
+      return {
+        areas: Object.values(areasMap),
+      };
+    } catch (error) {
+      console.error('Erro ao buscar listagem de áreas:', error);
+      return {
+        areas: [],
+      };
+    }
+  }
 }

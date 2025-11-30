@@ -35,11 +35,11 @@ const StyledTabs = styled(Tabs)`
 
   .ant-tabs-tab:nth-child(2) {
     .ant-tabs-tab-btn {
-      color: #dc2626 !important;
+      color: #059669 !important;
     }
 
     &:hover {
-      border-bottom-color: #dc2626 !important;
+      border-bottom-color: #059669 !important;
     }
 
     &.ant-tabs-tab-active {
@@ -48,6 +48,7 @@ const StyledTabs = styled(Tabs)`
 
       .ant-tabs-tab-btn {
         font-weight: 600 !important;
+        color: #059669 !important;
       }
     }
   }

@@ -55,6 +55,37 @@ const competenciaLabel = (folha) => {
   return `${mesAno}${quinzena}`;
 };
 
+const formatarDataPeriodo = (folha) => {
+  if (!folha?.dataInicial || !folha?.dataFinal) {
+    return "";
+  }
+  
+  const dataInicial = new Date(folha.dataInicial);
+  const dataFinal = new Date(folha.dataFinal);
+  
+  const formatarData = (data) => {
+    return data.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+  
+  return ` • ${formatarData(dataInicial)} - ${formatarData(dataFinal)}`;
+};
+
+const formatarDataHora = (dataString) => {
+  if (!dataString) return "—";
+  const data = new Date(dataString);
+  return data.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 // Componente de fallback para Suspense
 const SuspenseFallback = ({ message = "Carregando..." }) => (
   <Box
@@ -488,45 +519,34 @@ const ArhFolhaPagamento = () => {
     try {
       setCentralLoading(true);
       
-      // Se a folha usa PIX_API, primeiro criar o lote no BB
-      if (folhaUsaPixApi) {
-        if (!selectedFolha.contaCorrenteId) {
-          showNotification("error", "Erro", "Conta corrente não definida para a folha. Reabra a folha e finalize novamente selecionando a conta corrente.");
-          setCentralLoading(false);
-          return;
-        }
-        
-        setCentralMessage("Criando lote de pagamentos PIX no Banco do Brasil...");
-        
-        try {
-          const respostaPixApi = await axiosInstance.post(
-            `/api/arh/folhas/${selectedFolha.id}/processar-pix-api`,
-            {
-              contaCorrenteId: selectedFolha.contaCorrenteId,
-              dataPagamento: selectedFolha.dataPagamento,
-              observacoes: selectedFolha.observacoes,
-            }
-          );
-          
-          const dados = respostaPixApi.data;
-          showNotification(
-            "success",
-            "Lote PIX Criado!",
-            `${dados?.resumo?.totalTransferencias || 0} transferência(s) enviada(s) para o Banco do Brasil. Aguardando aprovação por um administrador.`
-          );
-        } catch (pixError) {
-          const pixMessage = pixError.response?.data?.message || "Erro ao criar lote de pagamentos PIX.";
-          showNotification("error", "Erro PIX-API", pixMessage);
-          setCentralLoading(false);
-          return; // Não prossegue com a liberação se o PIX falhar
-        }
+      // Validar conta corrente se for PIX_API (antes de chamar o backend)
+      if (folhaUsaPixApi && !selectedFolha.contaCorrenteId) {
+        showNotification("error", "Erro", "Conta corrente não definida para a folha. Reabra a folha e finalize novamente selecionando a conta corrente.");
+        setCentralLoading(false);
+        return;
       }
       
-      // Liberar a folha (atualizar status e marcar pagamentos manuais como pagos)
-      setCentralMessage("Liberando folha e finalizando pagamentos...");
+      // Mensagem dinâmica baseada no meio de pagamento
+      if (folhaUsaPixApi) {
+        setCentralMessage("Processando pagamentos PIX-API e liberando folha...");
+      } else {
+        setCentralMessage("Liberando folha e finalizando pagamentos...");
+      }
+      
+      // Uma única chamada: o backend orquestra processamento PIX-API (se necessário) e liberação
       await axiosInstance.patch(`/api/arh/folhas/${selectedFolha.id}/liberar`);
       
-      showNotification("success", "Sucesso", "Folha liberada com sucesso!");
+      // Mensagem de sucesso baseada no meio de pagamento
+      if (folhaUsaPixApi) {
+        showNotification(
+          "success",
+          "Sucesso",
+          "Folha liberada com sucesso! Os lotes PIX foram criados e enviados ao Banco do Brasil."
+        );
+      } else {
+        showNotification("success", "Sucesso", "Folha liberada com sucesso!");
+      }
+      
       carregarFolhas();
       carregarLancamentos(selectedFolha.id);
     } catch (error) {
@@ -595,9 +615,42 @@ const ArhFolhaPagamento = () => {
       setCentralLoading(true);
       setCentralMessage("Gerando PDF da folha de pagamento...");
       
-      // TODO: Implementar geração de PDF quando o endpoint estiver disponível
-      // Por enquanto, apenas uma notificação
-      showNotification("info", "Em desenvolvimento", "A geração de PDF será implementada em breve.");
+      // Chamar endpoint de geração de PDF
+      const response = await axiosInstance.get(`/api/pdf/folha-pagamento/${selectedFolha.id}`, {
+        responseType: 'blob',
+      });
+
+      // Criar blob e fazer download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Extrair nome do arquivo do header Content-Disposition ou usar padrão
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `folha-pagamento-${String(selectedFolha.competenciaMes).padStart(2, '0')}-${selectedFolha.competenciaAno}${selectedFolha.periodo ? `-${selectedFolha.periodo}` : ''}.pdf`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+          // Decodificar se estiver em formato RFC 5987
+          if (filename.includes("''")) {
+            const parts = filename.split("''");
+            if (parts.length > 1) {
+              filename = decodeURIComponent(parts[1]);
+            }
+          }
+        }
+      }
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      showNotification("success", "Sucesso", "PDF gerado e baixado com sucesso!");
     } catch (error) {
       const message =
         error.response?.data?.message ||
@@ -606,6 +659,12 @@ const ArhFolhaPagamento = () => {
     } finally {
       setCentralLoading(false);
     }
+  };
+
+  const gerarRecibos = async () => {
+    if (!selectedFolha) return;
+    
+    showNotification("info", "Desenvolvimento", "Funcionalidade em desenvolvimento");
   };
 
   const handleEditLancamento = useCallback((valuesOrRecord, record) => {
@@ -1059,7 +1118,7 @@ const ArhFolhaPagamento = () => {
                 icon="mdi:chart-box"
                 style={{ marginRight: 8, color: "#059669", fontSize: 24, verticalAlign: "middle" }}
               />
-              {selectedFolha ? `Resumo ${competenciaLabel(selectedFolha)}` : "Resumo"}
+              {selectedFolha ? `Resumo ${competenciaLabel(selectedFolha)}${formatarDataPeriodo(selectedFolha)}` : "Resumo"}
             </Title>
             <Divider style={{ margin: "0 0 20px 0", borderColor: "#e8e8e8" }} />
 
@@ -1095,90 +1154,259 @@ const ArhFolhaPagamento = () => {
                   </Box>
                 </Box>
 
-                {/* Seção 2 e 3: Resumo Detalhado e Estatísticas lado a lado */}
-                <Box sx={{ mb: 3, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
-                  {/* Resumo Detalhado */}
-                  <Box sx={{ p: 2, backgroundColor: "#f8fafc", borderRadius: 2, border: "1px solid #e2e8f0" }}>
-                    <Text strong style={{ fontSize: "14px", color: "#059669", display: "block", marginBottom: "12px" }}>
-                      Resumo Detalhado
-                    </Text>
-                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
-                      <Box>
-                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                          Horas Extras
+                {/* Seção 2, 3 e 4: Resumo Detalhado, Estatísticas e Liberação lado a lado */}
+                {(() => {
+                  const mostrarCardLiberacao = selectedFolha?.status !== "RASCUNHO";
+                  const colunasGrid = mostrarCardLiberacao ? { xs: "1fr", md: "1fr 1fr 1fr" } : { xs: "1fr", md: "1fr 1fr" };
+                  
+                  return (
+                    <Box sx={{ mb: 3, display: "grid", gridTemplateColumns: colunasGrid, gap: 2 }}>
+                      {/* Resumo Detalhado */}
+                      <Box sx={{ p: 2, backgroundColor: "#f8fafc", borderRadius: 2, border: "1px solid #e2e8f0" }}>
+                        <Text strong style={{ fontSize: "14px", color: "#059669", display: "block", marginBottom: "12px" }}>
+                          Resumo Detalhado
                         </Text>
-                        <Text strong style={{ fontSize: "14px", color: "#334155" }}>
-                          {resumoDetalhado.totalHorasExtras.toFixed(1)}h - {currency(resumoDetalhado.totalValorHorasExtras)}
-                        </Text>
+                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Horas Extras
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#334155" }}>
+                              {resumoDetalhado.totalHorasExtras.toFixed(1)}h - {currency(resumoDetalhado.totalValorHorasExtras)}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Ajuda de Custo
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#52c41a" }}>
+                              {currency(resumoDetalhado.totalAjudaCusto)}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Descontos
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#ff4d4f" }}>
+                              {currency(resumoDetalhado.totalDescontos)}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Adiantamentos
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#fa8c16" }}>
+                              {currency(resumoDetalhado.totalAdiantamento)}
+                            </Text>
+                          </Box>
+                        </Box>
                       </Box>
-                      <Box>
-                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                          Ajuda de Custo
-                        </Text>
-                        <Text strong style={{ fontSize: "14px", color: "#52c41a" }}>
-                          {currency(resumoDetalhado.totalAjudaCusto)}
-                        </Text>
-                      </Box>
-                      <Box>
-                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                          Descontos
-                        </Text>
-                        <Text strong style={{ fontSize: "14px", color: "#ff4d4f" }}>
-                          {currency(resumoDetalhado.totalDescontos)}
-                        </Text>
-                      </Box>
-                      <Box>
-                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                          Adiantamentos
-                        </Text>
-                        <Text strong style={{ fontSize: "14px", color: "#fa8c16" }}>
-                          {currency(resumoDetalhado.totalAdiantamento)}
-                        </Text>
-                      </Box>
-                    </Box>
-                  </Box>
 
-                  {/* Estatísticas */}
-                  <Box sx={{ p: 2, backgroundColor: "#f0fdf4", borderRadius: 2, border: "1px solid #bbf7d0" }}>
-                    <Text strong style={{ fontSize: "14px", color: "#059669", display: "block", marginBottom: "12px" }}>
-                      Estatísticas
-                    </Text>
-                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
-                      <Box>
-                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                          Total de Funcionários
+                      {/* Estatísticas */}
+                      <Box sx={{ p: 2, backgroundColor: "#f0fdf4", borderRadius: 2, border: "1px solid #bbf7d0" }}>
+                        <Text strong style={{ fontSize: "14px", color: "#059669", display: "block", marginBottom: "12px" }}>
+                          Estatísticas
                         </Text>
-                        <Text strong style={{ fontSize: "14px", color: "#334155" }}>
-                          {resumoDetalhado.quantidadeFuncionarios}
-                        </Text>
+                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Total de Funcionários
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#334155" }}>
+                              {resumoDetalhado.quantidadeFuncionarios}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Com Valores Informados
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#059669" }}>
+                              {resumoDetalhado.quantidadeComValores} / {resumoDetalhado.quantidadeFuncionarios}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Pagos
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#52c41a" }}>
+                              {resumoDetalhado.quantidadePagos}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Pendentes
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#faad14" }}>
+                              {resumoDetalhado.quantidadePendentes}
+                            </Text>
+                          </Box>
+                        </Box>
                       </Box>
-                      <Box>
-                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                          Com Valores Informados
-                        </Text>
-                        <Text strong style={{ fontSize: "14px", color: "#059669" }}>
-                          {resumoDetalhado.quantidadeComValores} / {resumoDetalhado.quantidadeFuncionarios}
-                        </Text>
-                      </Box>
-                      <Box>
-                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                          Pagos
-                        </Text>
-                        <Text strong style={{ fontSize: "14px", color: "#52c41a" }}>
-                          {resumoDetalhado.quantidadePagos}
-                        </Text>
-                      </Box>
-                      <Box>
-                        <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                          Pendentes
-                        </Text>
-                        <Text strong style={{ fontSize: "14px", color: "#faad14" }}>
-                          {resumoDetalhado.quantidadePendentes}
-                        </Text>
-                      </Box>
+
+                      {/* Card Liberação - Mostrar apenas se não estiver em RASCUNHO */}
+                      {mostrarCardLiberacao && (
+                        <Box sx={{ p: 2, backgroundColor: "#fef3c7", borderRadius: 2, border: "1px solid #fde68a" }}>
+                          <Text strong style={{ fontSize: "14px", color: "#059669", display: "block", marginBottom: "12px" }}>
+                            Liberação
+                          </Text>
+                          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                            <Box>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, marginBottom: "4px" }}>
+                                <Text style={{ fontSize: "12px", color: "#64748b" }}>
+                                  Data de Criação
+                                </Text>
+                                <Tooltip
+                                  title="Data e hora em que a folha de pagamento foi criada no sistema. Esta é a primeira etapa do processo."
+                                  placement="top"
+                                >
+                                  <InfoCircleOutlined style={{ fontSize: "12px", color: "#94a3b8", cursor: "help" }} />
+                                </Tooltip>
+                              </Box>
+                              <Text strong style={{ fontSize: "13px", color: "#334155" }}>
+                                {formatarDataHora(selectedFolha?.createdAt)}
+                              </Text>
+                            </Box>
+                            {selectedFolha?.dataProcessamento && (
+                              <Box>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, marginBottom: "4px" }}>
+                                  <Text style={{ fontSize: "12px", color: "#64748b" }}>
+                                    Data de Finalização
+                                  </Text>
+                                  <Tooltip
+                                    title="Data e hora em que a folha foi finalizada. Nesta etapa, o meio de pagamento e a data de pagamento são definidos. A folha muda para status 'Pendente Liberação' e aguarda aprovação de um administrador."
+                                    placement="top"
+                                  >
+                                    <InfoCircleOutlined style={{ fontSize: "12px", color: "#94a3b8", cursor: "help" }} />
+                                  </Tooltip>
+                                </Box>
+                                <Text strong style={{ fontSize: "13px", color: "#334155" }}>
+                                  {formatarDataHora(selectedFolha.dataProcessamento)}
+                                </Text>
+                              </Box>
+                            )}
+                            {selectedFolha?.dataFechamento && (
+                              <Box>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, marginBottom: "4px" }}>
+                                  <Text style={{ fontSize: "12px", color: "#64748b" }}>
+                                    Data de Fechamento
+                                  </Text>
+                                  <Tooltip
+                                    title="Data e hora em que a folha foi fechada definitivamente. Esta data é registrada quando um administrador libera a folha, finalizando o processo e processando os pagamentos."
+                                    placement="top"
+                                  >
+                                    <InfoCircleOutlined style={{ fontSize: "12px", color: "#94a3b8", cursor: "help" }} />
+                                  </Tooltip>
+                                </Box>
+                                <Text strong style={{ fontSize: "13px", color: "#334155" }}>
+                                  {formatarDataHora(selectedFolha.dataFechamento)}
+                                </Text>
+                              </Box>
+                            )}
+                            {selectedFolha?.dataLiberacao && (
+                              <Box>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, marginBottom: "4px" }}>
+                                  <Text style={{ fontSize: "12px", color: "#64748b" }}>
+                                    Data de Liberação
+                                  </Text>
+                                  <Tooltip
+                                    title="Data e hora em que um administrador liberou a folha. Nesta etapa, os pagamentos são processados: para PIX-API, os lotes são criados e enviados ao Banco do Brasil; para PIX/Espécie, os lançamentos são marcados como pagos. A folha muda para status 'Fechada'."
+                                    placement="top"
+                                  >
+                                    <InfoCircleOutlined style={{ fontSize: "12px", color: "#94a3b8", cursor: "help" }} />
+                                  </Tooltip>
+                                </Box>
+                                <Text strong style={{ fontSize: "13px", color: "#334155" }}>
+                                  {formatarDataHora(selectedFolha.dataLiberacao)}
+                                </Text>
+                              </Box>
+                            )}
+                            {selectedFolha?.meioPagamento && (
+                              <Box>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, marginBottom: "4px" }}>
+                                  <Text style={{ fontSize: "12px", color: "#64748b" }}>
+                                    Meio de Pagamento
+                                  </Text>
+                                  <Tooltip
+                                    title="Método de pagamento escolhido ao finalizar a folha. PIX-API: pagamentos automáticos via Banco do Brasil; PIX Manual: pagamentos PIX realizados manualmente; Espécie: pagamentos em dinheiro."
+                                    placement="top"
+                                  >
+                                    <InfoCircleOutlined style={{ fontSize: "12px", color: "#94a3b8", cursor: "help" }} />
+                                  </Tooltip>
+                                </Box>
+                                <Text strong style={{ fontSize: "13px", color: "#334155" }}>
+                                  {selectedFolha.meioPagamento === "PIX_API" 
+                                    ? "PIX - API (Banco do Brasil)" 
+                                    : selectedFolha.meioPagamento === "PIX" 
+                                    ? "PIX Manual" 
+                                    : selectedFolha.meioPagamento === "ESPECIE" 
+                                    ? "Espécie" 
+                                    : selectedFolha.meioPagamento}
+                                </Text>
+                              </Box>
+                            )}
+                            {selectedFolha?.meioPagamento === "PIX_API" && selectedFolha?.contaCorrente && (
+                              <Box>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, marginBottom: "4px" }}>
+                                  <Text style={{ fontSize: "12px", color: "#64748b" }}>
+                                    Conta para Débito
+                                  </Text>
+                                  <Tooltip
+                                    title="Conta corrente do Banco do Brasil selecionada para débito dos pagamentos PIX-API. Esta conta será usada para criar os lotes de pagamento que serão enviados ao banco."
+                                    placement="top"
+                                  >
+                                    <InfoCircleOutlined style={{ fontSize: "12px", color: "#94a3b8", cursor: "help" }} />
+                                  </Tooltip>
+                                </Box>
+                                <Text strong style={{ fontSize: "13px", color: "#334155" }}>
+                                  Ag: {selectedFolha.contaCorrente.agencia}
+                                  {selectedFolha.contaCorrente.agenciaDigito ? `-${selectedFolha.contaCorrente.agenciaDigito}` : ""} / 
+                                  CC: {selectedFolha.contaCorrente.contaCorrente}
+                                  {selectedFolha.contaCorrente.contaCorrenteDigito ? `-${selectedFolha.contaCorrente.contaCorrenteDigito}` : ""}
+                                </Text>
+                              </Box>
+                            )}
+                            {selectedFolha?.usuarioCriacao && (
+                              <Box>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, marginBottom: "4px" }}>
+                                  <Text style={{ fontSize: "12px", color: "#64748b" }}>
+                                    Criado por
+                                  </Text>
+                                  <Tooltip
+                                    title="Usuário que criou a folha de pagamento. Esta informação é registrada automaticamente quando a folha é criada no sistema."
+                                    placement="top"
+                                  >
+                                    <InfoCircleOutlined style={{ fontSize: "12px", color: "#94a3b8", cursor: "help" }} />
+                                  </Tooltip>
+                                </Box>
+                                <Text strong style={{ fontSize: "13px", color: "#334155" }}>
+                                  {capitalizeName(selectedFolha.usuarioCriacao.nome)}
+                                </Text>
+                              </Box>
+                            )}
+                            {selectedFolha?.usuarioLiberacao && (
+                              <Box>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, marginBottom: "4px" }}>
+                                  <Text style={{ fontSize: "12px", color: "#64748b" }}>
+                                    Liberado por
+                                  </Text>
+                                  <Tooltip
+                                    title="Administrador que liberou a folha de pagamento. Apenas administradores podem liberar folhas, processando os pagamentos e fechando a folha definitivamente."
+                                    placement="top"
+                                  >
+                                    <InfoCircleOutlined style={{ fontSize: "12px", color: "#94a3b8", cursor: "help" }} />
+                                  </Tooltip>
+                                </Box>
+                                <Text strong style={{ fontSize: "13px", color: "#334155" }}>
+                                  {capitalizeName(selectedFolha.usuarioLiberacao.nome)}
+                                </Text>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      )}
                     </Box>
-                  </Box>
-                </Box>
+                  );
+                })()}
 
                 {/* Seção 4: Botões de Ação */}
                 <Divider style={{ margin: "20px 0", borderColor: "#e8e8e8" }} />
@@ -1323,14 +1551,27 @@ const ArhFolhaPagamento = () => {
                       onClick={gerarPDF}
                       disabled={!selectedFolha}
                       size={isMobile ? "small" : "large"}
-                      tooltip="Exportar folha de pagamento para PDF"
+                      tooltip="Gerar folha de pagamento em PDF"
                       style={{
                         height: isMobile ? "32px" : "40px",
                         padding: isMobile ? "0 12px" : "0 16px",
                         fontSize: isMobile ? "0.75rem" : undefined,
                       }}
                     >
-                      Exportar PDF
+                      Gerar Folha
+                    </PDFButton>
+                    <PDFButton
+                      onClick={gerarRecibos}
+                      disabled={!selectedFolha}
+                      size={isMobile ? "small" : "large"}
+                      tooltip="Gerar recibos em PDF"
+                      style={{
+                        height: isMobile ? "32px" : "40px",
+                        padding: isMobile ? "0 12px" : "0 16px",
+                        fontSize: isMobile ? "0.75rem" : undefined,
+                      }}
+                    >
+                      Gerar Recibos
                     </PDFButton>
                   </Space>
                 </Box>

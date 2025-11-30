@@ -1254,6 +1254,35 @@ console.log('Número da requisição gerado:', response.data.numeroRequisicao);
      - Chama `POST /liberar-pagamentos` no BB.
      - Atualiza o lote com auditoria (`observacoes` e `payloadRespostaAtual`).
 
+#### 4.1.1. Liberação Tardia de Lotes
+
+**Comportamento Especial:** O sistema permite liberar um lote de pagamentos mesmo após a data de pagamento informada ter passado.
+
+**Cenário:**
+- Um lote é criado no dia **25** com `dataPagamento` configurada para o dia **25**.
+- O lote não é liberado imediatamente e permanece pendente.
+- No dia **28**, o administrador decide liberar o lote (mesmo com a data de pagamento já passada).
+
+**O que acontece:**
+
+1. **Jobs de Sincronização Automática:**
+   - Os jobs de sincronização (`PagamentosSyncWorkerService`) consultam periodicamente o status dos itens no BB.
+   - Quando a data de pagamento passa e o lote ainda não foi liberado, o BB retorna o estado `BLOQUEADO` para os itens.
+   - O sistema atualiza automaticamente o campo `estadoPagamentoIndividual` para `"Bloqueado"` nos itens afetados.
+
+2. **Liberação Tardia:**
+   - O administrador pode liberar o lote normalmente via `POST /api/pagamentos/liberar`, mesmo com os itens já marcados como `BLOQUEADO`.
+   - O BB aceita a liberação e processa a requisição normalmente.
+   - Após a liberação, os jobs continuam monitorando os itens para verificar se o BB processa os pagamentos bloqueados.
+
+3. **Estados dos Itens:**
+   - **Antes da liberação tardia:** `estadoPagamentoIndividual = "Bloqueado"` (atualizado automaticamente pelos jobs).
+   - **Após a liberação tardia:** O sistema aguarda a resposta do BB para verificar se os itens são processados ou permanecem bloqueados.
+
+**Observação Importante:**
+- Este comportamento está sendo monitorado para validar se o Banco do Brasil processa efetivamente os pagamentos de itens que estavam bloqueados quando a liberação é feita após a data de pagamento.
+- A documentação será atualizada conforme os resultados observados na prática.
+
 #### 4.2. Cancelamento de Pagamentos
 
 - **Recurso BB:** `POST /cancelar-pagamentos`
@@ -1543,23 +1572,50 @@ GET /api/pagamentos/pix/96494633731030000/individual
 ```
 RASCUNHO → PENDENTE_LIBERACAO → EM_PROCESSAMENTO → FECHADA
                     │                   │
-              Finalizar folha    Criar lote(s) BB
-              (selecionar        (1 PIX por funcionário,
-               PIX_API)          até 320 por lote)
+              Finalizar folha    Liberar folha (orquestra tudo)
+              (selecionar        (detecta PIX_API automaticamente,
+               PIX_API)          cria lotes se necessário,
+                                 e libera em uma única operação)
 ```
 
-#### Endpoint: `POST /api/arh/folhas/:id/processar-pix-api`
+#### Endpoint Principal: `PATCH /api/arh/folhas/:id/liberar` ⭐ RECOMENDADO
+- **Permissões:** `ADMINISTRADOR`
+- **Payload:** Nenhum (usa dados já salvos na folha)
+- **Lógica Orquestrada:**
+  1. Valida folha (status `PENDENTE_LIBERACAO` ou `EM_PROCESSAMENTO`)
+  2. **Se `meioPagamento = PIX_API`:**
+     - Verifica se já existem lotes criados (idempotência)
+     - Se não existem, cria lotes no BB automaticamente
+     - Se já existem, pula criação (não duplica)
+  3. **Se `meioPagamento = PIX` ou `ESPECIE`:**
+     - Pula processamento PIX-API
+  4. Atualiza `statusPagamento` dos lançamentos:
+     - PIX_API: `ENVIADO` (aguarda processamento BB)
+     - PIX/ESPECIE: `PAGO` + `pagamentoEfetuado = true`
+  5. Recalcula totais da folha
+  6. Fecha folha (status `FECHADA`)
+
+**Vantagens:**
+- ✅ **Idempotência**: Não cria lotes duplicados se chamado múltiplas vezes
+- ✅ **Orquestração**: Tudo em uma única operação
+- ✅ **Recuperação Automática**: Trata estados inconsistentes automaticamente
+- ✅ **Simplicidade**: Frontend faz apenas uma chamada
+
+#### Endpoint Legado: `POST /api/arh/folhas/:id/processar-pix-api` ⚠️ DEPRECATED
+- **Status:** ⚠️ **DEPRECATED** - Mantido apenas para compatibilidade e uso manual
+- **Recomendação:** Use `PATCH /api/arh/folhas/:id/liberar` que orquestra automaticamente
 - **Permissões:** `ADMINISTRADOR`, `GERENTE_GERAL`, `ESCRITORIO`
 - **Payload:** `{ contaCorrenteId, dataPagamento, observacoes }`
 - **Lógica:**
   1. Valida folha (status `PENDENTE_LIBERACAO`)
-  2. Busca lançamentos com `meioPagamento = PIX_API` e `pagamentoEfetuado = false`
+  2. Busca lançamentos com `meioPagamento = PIX_API`, `pagamentoEfetuado = false` e `pagamentoApiItemId = null`
   3. Valida chave PIX de todos os funcionários
   4. Monta 1 transferência por funcionário
   5. **Divide em chunks de 320** (limite do BB)
   6. Para cada chunk, cria 1 lote com até 320 transferências em `listaTransferencias`
   7. Vincula cada `PagamentoApiItem` ao respectivo `FuncionarioPagamento`
   8. Atualiza `statusPagamento = ENVIADO` para cada funcionário
+  9. Atualiza status da folha para `EM_PROCESSAMENTO`
 
 #### Sincronização Automática
 Quando o job de sincronização (`PagamentosSyncWorkerService`) atualiza um `PagamentoApiItem` que tem `funcionarioPagamentoId`:
@@ -1573,10 +1629,25 @@ Quando o job de sincronização (`PagamentosSyncWorkerService`) atualiza um `Pag
 | Transferências/lote | 1 única (consolidada) | Até 320 (1 por funcionário) |
 | Payload montado | Frontend | Backend |
 
+#### Idempotência e Recuperação Automática
+
+O endpoint `PATCH /api/arh/folhas/:id/liberar` implementa idempotência:
+
+- **Verificação de Lotes Existentes**: Antes de criar lotes, verifica se já existem através do campo `pagamentoApiItemId` nos lançamentos
+- **Não Duplica Lotes**: Se todos os lançamentos já têm `pagamentoApiItemId`, pula a criação de lotes
+- **Recuperação Automática**: Se alguns lançamentos têm lote e outros não (estado inconsistente), cria lotes apenas para os faltantes
+- **Chamadas Múltiplas**: Pode ser chamado múltiplas vezes sem criar lotes duplicados
+
+**Cenários de Uso:**
+- ✅ Primeira vez: Cria lotes e libera folha
+- ✅ Segunda vez (após falha): Detecta lotes existentes, não duplica, apenas libera
+- ✅ Estado inconsistente: Recupera automaticamente criando lotes apenas para os faltantes
+
 #### Outros Detalhes
-- Fluxo manual (PIX comum ou espécie) permanece independente.
+- Fluxo manual (PIX comum ou espécie) permanece independente e simples.
 - Endpoints REST para cargos, funções, funcionários e folha estão sob `api/arh/...`.
 - Campos `usuarioCriacaoId`, `usuarioLiberacaoId` e `dataLiberacao` registram auditoria.
+- Endpoint `POST /api/arh/folhas/:id/processar-pix-api` está **deprecated** mas mantido para compatibilidade.
 
 ---
 

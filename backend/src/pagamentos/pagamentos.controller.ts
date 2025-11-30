@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, HttpStatus, UseGuards, ParseIntPipe, Request } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, HttpStatus, UseGuards, ParseIntPipe, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { PagamentosService } from './pagamentos.service';
 import {
@@ -262,14 +262,27 @@ export class PagamentosController {
   @ApiQuery({
     name: 'dataInicio',
     required: false,
-    description: 'Data inicial (ISO) para filtrar por data de criação do lote',
+    description: 'Data inicial (ISO) para filtrar por data de criação ou liberação do lote',
     type: String,
   })
   @ApiQuery({
     name: 'dataFim',
     required: false,
-    description: 'Data final (ISO) para filtrar por data de criação do lote',
+    description: 'Data final (ISO) para filtrar por data de criação ou liberação do lote',
     type: String,
+  })
+  @ApiQuery({
+    name: 'tipoData',
+    required: false,
+    description: 'Tipo de data para filtrar: "criacao" (padrão) ou "liberacao"',
+    enum: ['criacao', 'liberacao'],
+    type: String,
+  })
+  @ApiQuery({
+    name: 'contaCorrenteId',
+    required: false,
+    description: 'ID da conta corrente para filtrar os lotes',
+    type: Number,
   })
   @ApiQuery({
     name: 'page',
@@ -302,10 +315,13 @@ export class PagamentosController {
   async listarLotesTurmaColheita(
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: string,
+    @Query('contaCorrenteId') contaCorrenteId?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.pagamentosService.listarLotesTurmaColheita(dataInicio, dataFim, page, limit);
+    const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    return this.pagamentosService.listarLotesTurmaColheita(dataInicio, dataFim, page, limit, tipoData, contaId);
   }
 
   /**
@@ -316,14 +332,27 @@ export class PagamentosController {
   @ApiQuery({
     name: 'dataInicio',
     required: false,
-    description: 'Data inicial (ISO) para filtrar por data de criação do lote',
+    description: 'Data inicial (ISO) para filtrar por data de criação ou liberação do lote',
     type: String,
   })
   @ApiQuery({
     name: 'dataFim',
     required: false,
-    description: 'Data final (ISO) para filtrar por data de criação do lote',
+    description: 'Data final (ISO) para filtrar por data de criação ou liberação do lote',
     type: String,
+  })
+  @ApiQuery({
+    name: 'tipoData',
+    required: false,
+    description: 'Tipo de data para filtrar: "criacao" (padrão) ou "liberacao"',
+    enum: ['criacao', 'liberacao'],
+    type: String,
+  })
+  @ApiQuery({
+    name: 'contaCorrenteId',
+    required: false,
+    description: 'ID da conta corrente para filtrar os lotes',
+    type: Number,
   })
   @ApiQuery({
     name: 'page',
@@ -356,10 +385,58 @@ export class PagamentosController {
   async listarLotesFolhaPagamento(
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: string,
+    @Query('contaCorrenteId') contaCorrenteId?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.pagamentosService.listarLotesFolhaPagamento(dataInicio, dataFim, page, limit);
+    const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    return this.pagamentosService.listarLotesFolhaPagamento(dataInicio, dataFim, page, limit, tipoData, contaId);
+  }
+
+  /**
+   * Busca inteligente de pagamentos com sugestões categorizadas
+   */
+  @Get('busca-inteligente')
+  @ApiOperation({ summary: 'Busca inteligente de pagamentos com sugestões categorizadas' })
+  @ApiQuery({
+    name: 'term',
+    required: true,
+    type: String,
+    description: 'Termo de busca (mínimo 2 caracteres)',
+    example: 'João'
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Sugestões encontradas com sucesso',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', example: 'colhedor' },
+          label: { type: 'string', example: 'Colhedor' },
+          value: { type: 'string', example: 'João Silva' },
+          icon: { type: 'string', example: '🧑‍🌾' },
+          color: { type: 'string', example: '#52c41a' },
+          description: { type: 'string', example: 'Filtrar por colhedor: João Silva' },
+          metadata: {
+            type: 'object',
+            example: { nome: 'João Silva' }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Termo de busca deve ter pelo menos 2 caracteres',
+  })
+  buscaInteligente(@Query('term') term: string) {
+    if (!term || term.length < 2) {
+      throw new BadRequestException('Termo de busca deve ter pelo menos 2 caracteres');
+    }
+    return this.pagamentosService.buscaInteligente(term);
   }
 
   /**

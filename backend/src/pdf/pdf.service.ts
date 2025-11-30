@@ -14,7 +14,7 @@ export class PdfService {
   private chromeInstallAttempted = false; // Evitar múltiplas tentativas de instalação
 
   /**
-   * Registra os partials do Handlebars (cabeçalho e rodapé reutilizáveis)
+   * Registra os partials e helpers do Handlebars
    * Sempre recarrega para evitar cache e garantir que mudanças sejam aplicadas
    */
   private async registrarPartials() {
@@ -31,8 +31,18 @@ export class PdfService {
       hbs.registerPartial('header', headerTemplate);
       hbs.registerPartial('footer', footerTemplate);
 
+      // Registrar helper para comparação de igualdade
+      hbs.registerHelper('eq', function(a: any, b: any) {
+        return a === b;
+      });
+
+      // Registrar helper para serializar JSON
+      hbs.registerHelper('json', function(context: any) {
+        return JSON.stringify(context);
+      });
+
       this.partialsRegistered = true;
-      this.logger.debug('Partials do Handlebars recarregados (sem cache)');
+      this.logger.debug('Partials e helpers do Handlebars recarregados (sem cache)');
     } catch (error: any) {
       this.logger.warn(`Erro ao registrar partials: ${error.message}. Continuando sem partials.`);
     }
@@ -152,8 +162,14 @@ export class PdfService {
         `
       });
 
-      // Aguardar um pouco para garantir renderização completa
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Aguardar renderização completa (incluindo gráficos Chart.js se houver)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Se houver gráfico, aguardar um pouco mais para garantir renderização
+      const hasChart = htmlContent.includes('graficoHistorico');
+      if (hasChart) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
 
       // 4. Gerar o PDF com footer customizado usando displayHeaderFooter
       this.logger.debug('Gerando PDF...');

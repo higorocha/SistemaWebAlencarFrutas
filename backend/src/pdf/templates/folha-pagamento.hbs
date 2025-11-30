@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Folha de Pagamento {{folha.competenciaCompleta}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      color: #333;
+      font-size: 10.8px;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.9);
+      transform-origin: top left;
+      width: 111.11%;
+    }
+    
+    .content-wrapper {
+      flex: 1;
+      padding-bottom: 63px;
+    }
+
+    .pdf-content {
+      padding: 0 9px 18px 9px;
+    }
+
+    .cards-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background-color: #ffffff;
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+      page-break-inside: avoid;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 7px;
+      background-color: #059669;
+      color: #ffffff;
+      padding: 7px 11px;
+      border-radius: 7px 7px 0 0;
+      border-bottom: 2px solid #047857;
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    .card-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background-color: rgba(255, 255, 255, 0.15);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .card-chip {
+      font-size: 9px;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      white-space: nowrap;
+    }
+
+    .card-body {
+      padding: 9px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 5px 13px;
+      margin-bottom: 4px;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .info-item.full-span {
+      grid-column: 1 / -1;
+    }
+
+    .info-label {
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #059669;
+      text-transform: uppercase;
+    }
+
+    .info-value {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    /* Estilos do Cabeçalho Reutilizável */
+    .pdf-header {
+      background-color: #ffffff;
+      border-bottom: 3px solid #059669;
+      padding: 22px 20px 12px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      page-break-inside: avoid;
+    }
+
+    .header-top {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      margin-bottom: 10px;
+    }
+
+    .header-logo,
+    .header-center,
+    .header-qualificacao {
+      display: table-cell;
+      vertical-align: middle;
+    }
+
+    .header-logo {
+      width: 180px;
+      padding-right: 15px;
+    }
+
+    .logo-img {
+      max-width: 180px;
+      max-height: 80px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+
+    .header-center {
+      text-align: center;
+      padding: 0 20px;
+      vertical-align: middle;
+    }
+
+    .header-center h1.empresa-nome {
+      font-size: 24px;
+      margin: 0 0 5px 0;
+      font-weight: bold;
+      color: #059669;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      line-height: 1.2;
+    }
+
+    .header-center p.empresa-razao-social {
+      font-size: 12px;
+      margin: 0;
+      color: #6b7280;
+      font-style: italic;
+      line-height: 1.3;
+    }
+
+    .header-qualificacao {
+      width: 220px;
+      text-align: right;
+      padding-left: 15px;
+      vertical-align: top;
+    }
+
+    .qualificacao-item {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .qualificacao-value {
+      font-size: 10px;
+      color: #6b7280;
+      font-weight: 600;
+      display: block;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+
+    /* Título do Documento */
+    .folha-header-interno {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background-color: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      border-radius: 999px;
+      padding: 6px 16px;
+      margin: 4px auto 8px auto;
+      font-weight: 700;
+      color: #047857;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .folha-header-interno .folha-header-text {
+      font-size: 13px;
+    }
+
+    /* Tabela de Lançamentos */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      margin-bottom: 14px;
+      font-size: 9px;
+    }
+
+    thead {
+      background-color: #059669;
+      color: white;
+    }
+
+    th {
+      padding: 6px 4px;
+      text-align: left;
+      font-size: 9px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    td {
+      padding: 6px 4px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 9px;
+    }
+
+    tbody tr:hover {
+      background-color: #f9fafb;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    /* Aba de Lançamentos */
+    .aba-lancamentos {
+      page-break-before: always;
+      margin-top: 20px;
+    }
+
+    .aba-lancamentos:first-of-type {
+      page-break-before: auto;
+    }
+
+    .aba-titulo {
+      background-color: #059669;
+      color: #ffffff;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+
+    /* Resumo */
+    .resumo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .resumo-card {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .resumo-card-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #059669;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .resumo-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 10px;
+    }
+
+    .resumo-label {
+      color: #64748b;
+    }
+
+    .resumo-value {
+      font-weight: 600;
+      color: #334155;
+    }
+  </style>
+</head>
+<body>
+  {{!-- Cabeçalho Reutilizável --}}
+  {{> header}}
+
+  <div class="content-wrapper">
+    <div class="pdf-content">
+      <div class="cards-wrapper">
+
+        <div class="folha-header-interno">
+          <span class="folha-header-text">FOLHA DE PAGAMENTO</span>
+        </div>
+
+        {{!-- Card: Resumo da Folha --}}
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">RS</span>
+              <span>Resumo da Folha</span>
+            </div>
+            <span class="card-chip">{{folha.statusFormatado}}</span>
+          </div>
+          <div class="card-body">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Competência</span>
+                <span class="info-value">{{folha.competenciaCompleta}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Período</span>
+                <span class="info-value">{{folha.dataInicialFormatada}} - {{folha.dataFinalFormatada}}</span>
+              </div>
+              {{#if folha.dataPagamentoFormatada}}
+              <div class="info-item">
+                <span class="info-label">Data de Pagamento</span>
+                <span class="info-value">{{folha.dataPagamentoFormatada}}</span>
+              </div>
+              {{/if}}
+              {{#if folha.meioPagamentoFormatado}}
+              <div class="info-item">
+                <span class="info-label">Meio de Pagamento</span>
+                <span class="info-value">{{folha.meioPagamentoFormatado}}</span>
+              </div>
+              {{/if}}
+              {{#if folha.contaCorrenteFormatada}}
+              <div class="info-item">
+                <span class="info-label">Conta para Débito</span>
+                <span class="info-value">Ag: {{folha.contaCorrenteAgencia}}{{#if folha.contaCorrenteAgenciaDigito}}-{{folha.contaCorrenteAgenciaDigito}}{{/if}} / CC: {{folha.contaCorrenteNumero}}{{#if folha.contaCorrenteDigito}}-{{folha.contaCorrenteDigito}}{{/if}}</span>
+              </div>
+              {{/if}}
+              <div class="info-item">
+                <span class="info-label">Total Bruto</span>
+                <span class="info-value">{{folha.totalBrutoFormatado}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Total Líquido</span>
+                <span class="info-value" style="color: #059669;">{{folha.totalLiquidoFormatado}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Total Pago</span>
+                <span class="info-value" style="color: #52c41a;">{{folha.totalPagoFormatado}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Total Pendente</span>
+                <span class="info-value" style="color: #faad14;">{{folha.totalPendenteFormatado}}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Quantidade de Funcionários</span>
+                <span class="info-value">{{folha.quantidadeLancamentos}}</span>
+              </div>
+            </div>
+
+            {{!-- Resumo Detalhado --}}
+            <div class="resumo-grid" style="margin-top: 15px;">
+              <div class="resumo-card">
+                <div class="resumo-card-title">Resumo Detalhado</div>
+                <div class="resumo-item">
+                  <span class="resumo-label">Horas Extras</span>
+                  <span class="resumo-value">{{resumoDetalhado.totalHorasExtrasFormatado}} - {{resumoDetalhado.totalValorHorasExtrasFormatado}}</span>
+                </div>
+                <div class="resumo-item">
+                  <span class="resumo-label">Ajuda de Custo</span>
+                  <span class="resumo-value" style="color: #52c41a;">{{resumoDetalhado.totalAjudaCustoFormatado}}</span>
+                </div>
+                <div class="resumo-item">
+                  <span class="resumo-label">Descontos</span>
+                  <span class="resumo-value" style="color: #ff4d4f;">{{resumoDetalhado.totalDescontosFormatado}}</span>
+                </div>
+                <div class="resumo-item">
+                  <span class="resumo-label">Adiantamentos</span>
+                  <span class="resumo-value" style="color: #fa8c16;">{{resumoDetalhado.totalAdiantamentoFormatado}}</span>
+                </div>
+              </div>
+              <div class="resumo-card">
+                <div class="resumo-card-title">Estatísticas</div>
+                <div class="resumo-item">
+                  <span class="resumo-label">Total de Funcionários</span>
+                  <span class="resumo-value">{{resumoDetalhado.quantidadeFuncionarios}}</span>
+                </div>
+                <div class="resumo-item">
+                  <span class="resumo-label">Com Valores Informados</span>
+                  <span class="resumo-value" style="color: #059669;">{{resumoDetalhado.quantidadeComValores}} / {{resumoDetalhado.quantidadeFuncionarios}}</span>
+                </div>
+                <div class="resumo-item">
+                  <span class="resumo-label">Pagos</span>
+                  <span class="resumo-value" style="color: #52c41a;">{{resumoDetalhado.quantidadePagos}}</span>
+                </div>
+                <div class="resumo-item">
+                  <span class="resumo-label">Pendentes</span>
+                  <span class="resumo-value" style="color: #faad14;">{{resumoDetalhado.quantidadePendentes}}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {{!-- Card: Gráfico Histórico --}}
+        {{#if graficoHistorico}}
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">GH</span>
+              <span>Gráfico Histórico - Últimas 6 Folhas</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <canvas id="graficoHistorico" style="max-height: 250px; width: 100%;"></canvas>
+          </div>
+        </div>
+        {{/if}}
+
+        {{!-- Abas de Lançamentos --}}
+        {{#each abas}}
+        <div class="aba-lancamentos">
+          <div class="aba-titulo">{{titulo}}</div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th class="text-center" style="width: 30px;">#</th>
+                <th style="width: 200px;">Funcionário</th>
+                <th>Cargo/Função</th>
+                <th class="text-center" style="width: 50px;">Dias</th>
+                <th class="text-center" style="width: 50px;">Faltas</th>
+                <th class="text-right" style="width: 80px;">Base</th>
+                <th class="text-right" style="width: 80px;">H. Extras</th>
+                <th class="text-right" style="width: 80px;">Ajuda</th>
+                <th class="text-right" style="width: 80px;">Desc.</th>
+                <th class="text-right" style="width: 80px;">Adiant.</th>
+                <th class="text-right" style="width: 90px;">Bruto</th>
+                <th class="text-right" style="width: 90px;">Líquido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each lancamentos}}
+              <tr>
+                <td class="text-center">{{itemNumero}}</td>
+                <td>
+                  <div style="font-weight: 600; color: #1f2937;">{{funcionario.nome}}</div>
+                  {{#if funcionario.cpf}}
+                  <div style="font-size: 8px; color: #6b7280;">{{funcionario.cpf}}</div>
+                  {{/if}}
+                </td>
+                <td>
+                  <div>{{cargoFuncao}}</div>
+                  <div style="font-size: 8px; color: #6b7280; text-transform: uppercase;">{{tipoContrato}}</div>
+                </td>
+                <td class="text-center">{{diasTrabalhados}}</td>
+                <td class="text-center">{{faltas}}</td>
+                <td class="text-right">
+                  {{#if baseFormatado}}
+                    <div>{{baseFormatado}}</div>
+                    {{#if baseTipo}}
+                    <div style="font-size: 8px; color: #6b7280; text-transform: uppercase;">{{baseTipo}}</div>
+                    {{/if}}
+                  {{else}}-{{/if}}
+                </td>
+                <td class="text-right">
+                  {{#if horasExtrasFormatadas}}
+                    <div>{{horasExtrasFormatadas}}</div>
+                    {{#if valorHorasExtrasTotal}}<div style="font-size: 8px; color: #6b7280;">{{valorHorasExtrasTotal}}</div>{{/if}}
+                  {{else}}-{{/if}}
+                </td>
+                <td class="text-right">{{#if ajudaCustoFormatado}}{{ajudaCustoFormatado}}{{else}}-{{/if}}</td>
+                <td class="text-right">{{#if descontosExtrasFormatado}}{{descontosExtrasFormatado}}{{else}}-{{/if}}</td>
+                <td class="text-right">{{#if adiantamentoFormatado}}{{adiantamentoFormatado}}{{else}}-{{/if}}</td>
+                <td class="text-right" style="font-weight: 600;">{{valorBrutoFormatado}}</td>
+                <td class="text-right" style="font-weight: 700; color: #059669;">{{valorLiquidoFormatado}}</td>
+              </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+        {{/each}}
+
+      </div>
+    </div>
+  </div>
+
+  {{!-- Rodapé removido - agora é gerado via displayHeaderFooter do Puppeteer --}}
+
+  {{!-- Chart.js para gráfico histórico --}}
+  {{#if graficoHistorico}}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    (function() {
+      // Aguardar carregamento completo
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', criarGrafico);
+      } else {
+        criarGrafico();
+      }
+
+      function criarGrafico() {
+        const ctx = document.getElementById('graficoHistorico');
+        if (!ctx) return;
+
+        const dados = {
+          labels: {{{graficoHistorico.labels}}},
+          datasets: [
+            {{#each graficoHistorico.datasets}}
+            {
+              label: '{{label}}',
+              data: {{{data}}},
+              backgroundColor: {{{backgroundColor}}},
+              borderColor: {{{borderColor}}},
+              borderWidth: {{{borderWidth}}},
+            },
+            {{/each}}
+          ],
+        };
+
+        const legendas = {{{graficoHistorico.legendas}}};
+        const indiceFolhaAtual = {{#if graficoHistorico.indiceFolhaAtual}}{{graficoHistorico.indiceFolhaAtual}}{{else}}null{{/if}};
+        
+        new Chart(ctx, {
+          type: 'bar',
+          data: dados,
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                  font: {
+                    size: 8,
+                  },
+                  padding: 4,
+                  boxWidth: 12,
+                  boxHeight: 12,
+                  generateLabels: function(chart) {
+                    // Criar labels customizados com todas as informações
+                    const labels = [];
+                    const dataset = chart.data.datasets[0];
+                    
+                    if (dataset && legendas && legendas.length > 0) {
+                      chart.data.labels.forEach((label, index) => {
+                        const cor = Array.isArray(dataset.backgroundColor) 
+                          ? dataset.backgroundColor[index] 
+                          : dataset.backgroundColor;
+                        
+                        const corBorda = Array.isArray(dataset.borderColor) 
+                          ? dataset.borderColor[index] 
+                          : dataset.borderColor;
+                        
+                        const larguraBorda = Array.isArray(dataset.borderWidth)
+                          ? dataset.borderWidth[index]
+                          : dataset.borderWidth || 2;
+                        
+                        const isAtual = indiceFolhaAtual !== null && index === indiceFolhaAtual;
+                        
+                        labels.push({
+                          text: legendas[index] || label,
+                          fillStyle: cor,
+                          strokeStyle: corBorda,
+                          lineWidth: larguraBorda,
+                          hidden: false,
+                          index: index,
+                          fontStyle: isAtual ? 'bold' : 'normal',
+                          fontColor: isAtual ? '#047857' : '#333',
+                        });
+                      });
+                    }
+                    
+                    return labels;
+                  },
+                },
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const index = context.dataIndex;
+                    return legendas && legendas[index] 
+                      ? legendas[index]
+                      : context.dataset.label + ': R$ ' + context.parsed.y.toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        });
+                  },
+                },
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  font: {
+                    size: 9,
+                  },
+                  callback: function(value) {
+                    if (value >= 1000000) {
+                      return 'R$ ' + (value / 1000000).toFixed(1) + 'M';
+                    } else if (value >= 1000) {
+                      return 'R$ ' + (value / 1000).toFixed(0) + 'k';
+                    }
+                    return 'R$ ' + value.toLocaleString('pt-BR', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    });
+                  },
+                },
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.05)',
+                },
+              },
+              x: {
+                ticks: {
+                  font: {
+                    size: 9,
+                  },
+                  maxRotation: 45,
+                  minRotation: 45,
+                },
+                grid: {
+                  display: false,
+                },
+              },
+            },
+          },
+        });
+      }
+    })();
+  </script>
+  {{/if}}
+</body>
+</html>
+

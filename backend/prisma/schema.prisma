@@ -833,6 +833,7 @@ enum NivelUsuario {
   GERENTE_GERAL
   ESCRITORIO
   GERENTE_CULTURA
+  PROGRAMADOR
 }
 
 enum TipoNotificacao {

@@ -19,7 +19,10 @@ const CardStyled = styled.div`
   box-shadow: 0 2px 5px rgba(0,0,0,0.15), 0 2px 10px rgba(0,0,0,0.05);
   background: white;
   padding: ${props => props.$isMobile ? '12px' : '16px'};
-  height: 100%;
+  height: ${props => props.$isMobile ? '432px' : '612px'};
+  min-height: ${props => props.$isMobile ? '432px' : '612px'};
+  display: flex;
+  flex-direction: column;
   transition: transform 0.2s ease-in-out;
 
   &:hover {
@@ -105,8 +108,9 @@ const AcoesRapidasSection = () => {
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(140px, 1fr))',
         gap: isMobile ? '8px' : '12px',
-        maxHeight: isMobile ? '300px' : '450px',
-        overflowY: 'auto'
+        flex: 1,
+        overflowY: 'auto',
+        alignContent: 'start'
       }}>
         {acoes.map((acao, index) => (
           <ActionButton

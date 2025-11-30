@@ -65,6 +65,29 @@ export class FolhaPagamentoService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: [{ competenciaAno: 'desc' }, { competenciaMes: 'desc' }],
+        include: {
+          usuarioCriacao: {
+            select: {
+              id: true,
+              nome: true,
+            },
+          },
+          usuarioLiberacao: {
+            select: {
+              id: true,
+              nome: true,
+            },
+          },
+          contaCorrente: {
+            select: {
+              id: true,
+              agencia: true,
+              agenciaDigito: true,
+              contaCorrente: true,
+              contaCorrenteDigito: true,
+            },
+          },
+        },
       }),
       this.prisma.folhaPagamento.count({ where }),
     ]);
@@ -482,6 +505,14 @@ export class FolhaPagamentoService {
     return this.detalhesFolha(id);
   }
 
+  /**
+   * Libera uma folha de pagamento
+   * Orquestra automaticamente o processamento PIX-API (se aplicável) e a liberação
+   * 
+   * @param id ID da folha de pagamento
+   * @param usuarioId ID do usuário que está liberando
+   * @returns Detalhes da folha liberada
+   */
   async liberarFolha(id: number, usuarioId: number) {
     const folha = await this.ensureFolha(id);
 
@@ -495,11 +526,379 @@ export class FolhaPagamentoService {
       );
     }
 
+    // Se PIX_API, processar internamente primeiro (com idempotência)
+    if (folha.meioPagamento === MeioPagamentoFuncionario.PIX_API) {
+      await this.processarPixApiSeNecessario(folha.id, usuarioId);
+    }
+
+    // Liberar folha (funciona para todos os meios de pagamento)
+    await this.liberarFolhaInterna(folha.id, usuarioId);
+
+    return this.detalhesFolha(id);
+  }
+
+  /**
+   * Processa PIX-API se necessário (com idempotência)
+   * Verifica se já existem lotes criados antes de criar novos
+   * 
+   * @param folhaId ID da folha de pagamento
+   * @param usuarioId ID do usuário
+   * @private
+   */
+  private async processarPixApiSeNecessario(
+    folhaId: number,
+    usuarioId: number,
+  ): Promise<void> {
+    // Buscar lançamentos sem lote criado (idempotência)
+    const lancamentos = await this.prisma.funcionarioPagamento.findMany({
+      where: {
+        folhaId,
+        meioPagamento: MeioPagamentoFuncionario.PIX_API,
+        pagamentoEfetuado: false,
+        pagamentoApiItemId: null, // ⭐ IDEMPOTÊNCIA: só os que não têm lote
+      },
+      include: {
+        funcionario: {
+          select: {
+            id: true,
+            nome: true,
+            cpf: true,
+            chavePix: true,
+            tipoChavePix: true,
+            responsavelChavePix: true,
+          },
+        },
+      },
+    });
+
+    // ⭐ IDEMPOTÊNCIA: Se todos já têm lote, não precisa processar
+    if (lancamentos.length === 0) {
+      console.log(
+        `✅ [LIBERAR-FOLHA] Todos os lançamentos da folha ${folhaId} já têm lotes criados. Pulando criação de lotes.`,
+      );
+      return;
+    }
+
+    // Verificar estado inconsistente (alguns têm lote, outros não)
+    const todosLancamentos = await this.prisma.funcionarioPagamento.findMany({
+      where: {
+        folhaId,
+        meioPagamento: MeioPagamentoFuncionario.PIX_API,
+        pagamentoEfetuado: false,
+      },
+      select: {
+        id: true,
+        pagamentoApiItemId: true,
+      },
+    });
+
+    const algunsComLote = todosLancamentos.some(
+      (l) => l.pagamentoApiItemId !== null,
+    );
+
+    if (algunsComLote) {
+      console.warn(
+        `⚠️ [LIBERAR-FOLHA] Estado inconsistente detectado na folha ${folhaId}: alguns lançamentos já têm lotes. Criando lotes apenas para os faltantes.`,
+      );
+    }
+
+    // Buscar dados da folha e conta
+    const folha = await this.prisma.folhaPagamento.findUnique({
+      where: { id: folhaId },
+    });
+
+    if (!folha) {
+      throw new NotFoundException('Folha não encontrada.');
+    }
+
+    if (!folha.contaCorrenteId) {
+      throw new BadRequestException(
+        'Conta corrente não definida para a folha. Reabra a folha e finalize novamente selecionando a conta corrente.',
+      );
+    }
+
+    // Validar tudo antes de chamar BB
+    // Validar chaves PIX
+    const funcionariosSemChave = lancamentos.filter(
+      (l) => !l.funcionario.chavePix || !l.funcionario.tipoChavePix,
+    );
+
+    if (funcionariosSemChave.length > 0) {
+      const nomes = funcionariosSemChave
+        .map((l) => l.funcionario.nome)
+        .join(', ');
+      throw new BadRequestException(
+        `Os seguintes funcionários não possuem chave PIX cadastrada: ${nomes}. Configure a chave PIX antes de processar.`,
+      );
+    }
+
+    // Validar valores > 0
+    const lancamentosSemValor = lancamentos.filter(
+      (l) => Number(l.valorLiquido) <= 0,
+    );
+
+    if (lancamentosSemValor.length > 0) {
+      const nomes = lancamentosSemValor
+        .map((l) => l.funcionario.nome)
+        .join(', ');
+      throw new BadRequestException(
+        `Os seguintes funcionários têm valor líquido igual a zero: ${nomes}. Ajuste os valores antes de processar.`,
+      );
+    }
+
+    // Buscar conta corrente
+    const contaCorrente = await this.prisma.contaCorrente.findUnique({
+      where: { id: folha.contaCorrenteId },
+    });
+
+    if (!contaCorrente) {
+      throw new NotFoundException(
+        `Conta corrente ID ${folha.contaCorrenteId} não encontrada.`,
+      );
+    }
+
+    // Criar lotes para os lançamentos que não têm
+    await this.criarLotesParaLancamentos(
+      lancamentos,
+      folha,
+      contaCorrente,
+      usuarioId,
+    );
+  }
+
+  /**
+   * Cria lotes de pagamento PIX no BB para os lançamentos fornecidos
+   * 
+   * @param lancamentos Lançamentos que precisam de lotes (já validados com chave PIX)
+   * @param folha Folha de pagamento
+   * @param contaCorrente Conta corrente para débito
+   * @param usuarioId ID do usuário
+   * @private
+   */
+  private async criarLotesParaLancamentos(
+    lancamentos: Array<{
+      id: number;
+      valorLiquido: Prisma.Decimal;
+      funcionario: {
+        id: number;
+        nome: string;
+        cpf: string;
+        chavePix: string | null;
+        tipoChavePix: number | null;
+      };
+    }>,
+    folha: {
+      id: number;
+      competenciaMes: number;
+      competenciaAno: number;
+      periodo: number | null;
+      observacoes: string | null;
+    },
+    contaCorrente: {
+      id: number;
+      agencia: string;
+      contaCorrente: string;
+      contaCorrenteDigito: string | null;
+    },
+    usuarioId: number,
+  ): Promise<void> {
+    // Montar lista de transferências (1 por funcionário)
+    const dataAtual = new Date();
+    const dataPagamentoFormatada = formatarDataParaAPIBB(dataAtual.toISOString());
+    const competenciaRef = `${String(folha.competenciaMes).padStart(2, '0')}/${folha.competenciaAno}`;
+    const quinzenaRef = folha.periodo === 1 ? '1Q' : '2Q';
+
+    const transferenciasComLancamento = lancamentos.map((lancamento) => {
+      const func = lancamento.funcionario;
+      const valor = Number(lancamento.valorLiquido).toFixed(2);
+
+      // Validação: chave PIX e tipo devem estar presentes (já validado antes, mas TypeScript precisa)
+      if (!func.chavePix || !func.tipoChavePix) {
+        throw new BadRequestException(
+          `Funcionário ${func.nome} não possui chave PIX cadastrada.`,
+        );
+      }
+
+      const descricaoPagamento = func.nome.substring(0, 40);
+      const descricaoPagamentoInstantaneo = `FOLHA ${competenciaRef} ${quinzenaRef}`.substring(0, 26);
+
+      const transferencia: any = {
+        data: dataPagamentoFormatada,
+        valor,
+        descricaoPagamento,
+        descricaoPagamentoInstantaneo,
+        formaIdentificacao: func.tipoChavePix,
+      };
+
+      const chavePix = func.chavePix.trim();
+
+      switch (func.tipoChavePix) {
+        case 1: // Telefone
+          const telefoneLimpo = chavePix.replace(/\D/g, '');
+          transferencia.dddTelefone = telefoneLimpo.substring(0, 2);
+          transferencia.telefone = telefoneLimpo.substring(2);
+          break;
+        case 2: // Email
+          transferencia.email = chavePix;
+          break;
+        case 3: // CPF/CNPJ
+          const documento = chavePix.replace(/\D/g, '');
+          if (documento.length === 11) {
+            transferencia.cpf = documento;
+          } else if (documento.length === 14) {
+            transferencia.cnpj = documento;
+          }
+          break;
+        case 4: // Chave Aleatória
+          transferencia.identificacaoAleatoria = chavePix;
+          break;
+      }
+
+      return { transferencia, lancamento };
+    });
+
+    // Dividir em lotes de no máximo 320 transferências
+    const LIMITE_TRANSFERENCIAS_POR_LOTE = 320;
+    const chunks: typeof transferenciasComLancamento[] = [];
+
+    for (
+      let i = 0;
+      i < transferenciasComLancamento.length;
+      i += LIMITE_TRANSFERENCIAS_POR_LOTE
+    ) {
+      chunks.push(
+        transferenciasComLancamento.slice(i, i + LIMITE_TRANSFERENCIAS_POR_LOTE),
+      );
+    }
+
+    const periodoLabel = folha.periodo === 1 ? '1ª Quinzena' : '2ª Quinzena';
+    const origemNomeFolha = `Folha de Pagamento ${competenciaRef} - ${periodoLabel}`;
+
+    console.log(
+      `📤 [LIBERAR-FOLHA] Processando ${lancamentos.length} transferência(s) em ${chunks.length} lote(s) para folha ${folha.id}`,
+    );
+
+    // Processar cada lote
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      const chunk = chunks[chunkIndex];
+      const listaTransferencias = chunk.map((c) => c.transferencia);
+
+      const payloadPagamento = {
+        contaCorrenteId: contaCorrente.id,
+        agenciaDebito: contaCorrente.agencia,
+        contaCorrenteDebito: contaCorrente.contaCorrente,
+        digitoVerificadorContaCorrente: contaCorrente.contaCorrenteDigito || 'X',
+        tipoPagamento: 128, // 128 = Pagamentos diversos
+        listaTransferencias,
+        origemTipo: 'FOLHA_PAGAMENTO',
+        origemNome: origemNomeFolha,
+      };
+
+      console.log(
+        `📤 [LIBERAR-FOLHA] Enviando lote ${chunkIndex + 1}/${chunks.length} com ${listaTransferencias.length} transferência(s)`,
+      );
+
+      let respostaApi;
+      try {
+        respostaApi = await this.pagamentosService.solicitarTransferenciaPix(
+          payloadPagamento,
+          usuarioId,
+        );
+      } catch (error) {
+        console.error(
+          `❌ [LIBERAR-FOLHA] Erro ao criar lote ${chunkIndex + 1}:`,
+          error.message,
+        );
+        throw new InternalServerErrorException(
+          `Erro ao criar lote de pagamentos ${chunkIndex + 1}/${chunks.length} no Banco do Brasil: ${error.message}`,
+        );
+      }
+
+      const numeroRequisicao = respostaApi?.numeroRequisicao;
+      if (!numeroRequisicao) {
+        throw new InternalServerErrorException(
+          `Resposta da API do lote ${chunkIndex + 1} não contém número da requisição.`,
+        );
+      }
+
+      const lote = await this.prisma.pagamentoApiLote.findUnique({
+        where: { numeroRequisicao },
+        include: {
+          itensPagamento: {
+            orderBy: { indiceLote: 'asc' },
+          },
+        },
+      });
+
+      if (!lote) {
+        throw new InternalServerErrorException(
+          `Lote ${numeroRequisicao} não encontrado após criação.`,
+        );
+      }
+
+      // Vincular cada item do lote ao respectivo lançamento (1:1)
+      await this.prisma.$transaction(async (tx) => {
+        for (let i = 0; i < chunk.length; i++) {
+          const { lancamento } = chunk[i];
+          const item = lote.itensPagamento[i];
+
+          if (item) {
+            await tx.funcionarioPagamento.update({
+              where: { id: lancamento.id },
+              data: {
+                pagamentoApiItemId: item.id,
+                statusPagamento: StatusFuncionarioPagamento.ENVIADO,
+              },
+            });
+
+            await tx.pagamentoApiItem.update({
+              where: { id: item.id },
+              data: {
+                funcionarioPagamentoId: lancamento.id,
+              },
+            });
+          }
+        }
+      });
+
+      console.log(
+        `✅ [LIBERAR-FOLHA] Lote ${chunkIndex + 1}/${chunks.length} (numeroRequisicao: ${numeroRequisicao}) criado com ${chunk.length} transferência(s)`,
+      );
+    }
+
+    // Atualizar status da folha para EM_PROCESSAMENTO
+    await this.prisma.$transaction(async (tx) => {
+      await tx.folhaPagamento.update({
+        where: { id: folha.id },
+        data: {
+          status: StatusFolhaPagamento.EM_PROCESSAMENTO,
+        },
+      });
+
+      await this.recalcularFolha(tx, folha.id);
+    });
+
+    console.log(
+      `✅ [LIBERAR-FOLHA] ${chunks.length} lote(s) criado(s) com total de ${lancamentos.length} transferência(s) para folha ${folha.id}`,
+    );
+  }
+
+  /**
+   * Libera a folha internamente (atualiza status dos lançamentos e fecha a folha)
+   * 
+   * @param folhaId ID da folha de pagamento
+   * @param usuarioId ID do usuário
+   * @private
+   */
+  private async liberarFolhaInterna(
+    folhaId: number,
+    usuarioId: number,
+  ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       // Buscar todos os lançamentos não pagos
       const lancamentosPendentes = await tx.funcionarioPagamento.findMany({
         where: {
-          folhaId: id,
+          folhaId,
           pagamentoEfetuado: false,
         },
       });
@@ -507,7 +906,7 @@ export class FolhaPagamentoService {
       // Processar cada lançamento conforme o meio de pagamento
       for (const lancamento of lancamentosPendentes) {
         if (lancamento.meioPagamento === MeioPagamentoFuncionario.PIX_API) {
-          // PIX_API: Manter pendente, aguardar processamento da API (futuro)
+          // PIX_API: Manter ENVIADO (já foi atualizado no processamento)
           await tx.funcionarioPagamento.update({
             where: { id: lancamento.id },
             data: {
@@ -527,11 +926,11 @@ export class FolhaPagamentoService {
       }
 
       // Recalcular totais da folha
-      await this.recalcularFolha(tx, id);
+      await this.recalcularFolha(tx, folhaId);
 
       // Fechar a folha
       await tx.folhaPagamento.update({
-        where: { id },
+        where: { id: folhaId },
         data: {
           status: StatusFolhaPagamento.FECHADA,
           dataFechamento: new Date(),
@@ -540,14 +939,15 @@ export class FolhaPagamentoService {
         },
       });
     });
-
-    return this.detalhesFolha(id);
   }
 
   /**
    * Processa pagamentos da folha via PIX-API do Banco do Brasil
    * Cria um lote de transferências PIX com 1 item por funcionário
    * O lote ficará pendente de liberação por um administrador
+   * 
+   * @deprecated Use `liberarFolha` que orquestra automaticamente o processamento PIX-API e a liberação.
+   * Este método será mantido apenas para compatibilidade e uso manual em casos específicos.
    * 
    * @param folhaId ID da folha de pagamento
    * @param dto Dados do processamento (conta corrente, data, observações)
@@ -900,13 +1300,36 @@ export class FolhaPagamentoService {
   private async ensureFolha(id: number, withLancamentos = false) {
     const folha = await this.prisma.folhaPagamento.findUnique({
       where: { id },
-      include: withLancamentos
-        ? {
-            pagamentos: {
-              include: { funcionario: { select: { nome: true, cpf: true } } },
-            },
-          }
-        : undefined,
+      include: {
+        usuarioCriacao: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        usuarioLiberacao: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        contaCorrente: {
+          select: {
+            id: true,
+            agencia: true,
+            agenciaDigito: true,
+            contaCorrente: true,
+            contaCorrenteDigito: true,
+          },
+        },
+        ...(withLancamentos
+          ? {
+              pagamentos: {
+                include: { funcionario: { select: { nome: true, cpf: true } } },
+              },
+            }
+          : {}),
+      },
     });
 
     if (!folha) {

@@ -41,6 +41,7 @@ import axiosInstance from "../api/axiosConfig";
 import { useTheme } from '@mui/material/styles';
 import usePedidoStatusColors from "../hooks/usePedidoStatusColors";
 import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
+import { useAuth } from "../contexts/AuthContext";
 import ModalDetalhesSemana from "../components/producao/ModalDetalhesSemana";
 import ColheitaModal from "../components/pedidos/ColheitaModal";
 import ProgramacaoColheitaGrid from "../components/dashboard/ProgramacaoColheitaGrid";
@@ -52,8 +53,24 @@ import {
   PrevisaoBananaSection,
   AcoesRapidasSection
 } from "../components/dashboard/sections";
+import StyledTabs from "../components/common/StyledTabs";
+import PainelFrutas from "../components/dashboard/painel-frutas/PainelFrutas";
 
 const { Title } = Typography;
+
+// Estilos globais para animações de transição
+const GlobalAnimations = styled.div`
+  @keyframes fadeInSlide {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
 
 // Componente de ícone personalizado para Dashboard Geral
 const DashboardGeralIcon = ({ isMobile }) => {
@@ -199,6 +216,8 @@ const persistFaturamentoVisibilidade = (valor) => {
 const Dashboard = () => {
   const { isMobile, isTablet, screenSize, isSmallMobile } = useResponsive();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isProgramador = user?.nivel === 'PROGRAMADOR';
   const [loading, setLoading] = useState(true);
   const [bananaPrevisoes, setBananaPrevisoes] = useState([]);
   const [modoPagamentos, setModoPagamentos] = useState(PAGAMENTOS_MODOS.PENDENTES);
@@ -221,6 +240,10 @@ const Dashboard = () => {
   const [erroPagamentosEfetuados, setErroPagamentosEfetuados] = useState(null);
   const [cacheTimestamp, setCacheTimestamp] = useState(null); // Timestamp do último carregamento
   const [cacheCountdown, setCacheCountdown] = useState(0); // Contador regressivo do cache
+  const [isPagamentosExpandido, setIsPagamentosExpandido] = useState(false); // Estado para controlar expansão da seção de pagamentos
+  const [activeTab, setActiveTab] = useState('dashboard'); // Estado para controlar a aba ativa
+  const [painelFrutasCarregado, setPainelFrutasCarregado] = useState(false); // Estado para controlar se o painel de frutas já foi carregado
+  const [loadingPainelFrutas, setLoadingPainelFrutas] = useState(false); // Estado para controlar loading do painel de frutas
   const [dashboardData, setDashboardData] = useState({
     // Cards principais
     faturamentoTotal: 0,
@@ -555,7 +578,9 @@ const Dashboard = () => {
   }
 
   return (
-    <div style={{ padding: isMobile ? '12px' : '24px' }}>
+    <>
+      <GlobalAnimations />
+      <div style={{ padding: isMobile ? '12px' : '24px' }}>
       <div
         className="dashboard-header"
         style={{
@@ -1025,46 +1050,199 @@ const Dashboard = () => {
         </Row>
       )}
 
-      {/* Seção de Programação de Colheita - Largura Total */}
-      <ProgramacaoColheitaSection
-        programacaoColheita={dashboardData.programacaoColheita || []}
-        onColheitaClick={abrirModalColheita}
-      />
+      {/* Sistema de Abas */}
+      <StyledTabs
+        activeKey={activeTab}
+        onChange={(key) => {
+          // Verificar se está tentando acessar 'painel-frutas' e não é PROGRAMADOR
+          if (key === 'painel-frutas' && !isProgramador) {
+            message.warning({
+              content: 'Esta funcionalidade está em desenvolvimento.',
+              duration: 4,
+              style: {
+                marginTop: '20vh',
+              },
+            });
+            return; // Não muda a aba
+          }
+          
+          // Se está acessando o painel de frutas pela primeira vez, carregar dados
+          if (key === 'painel-frutas' && !painelFrutasCarregado && isProgramador) {
+            setLoadingPainelFrutas(true);
+            // Simular carregamento inicial (será substituído pelo carregamento real dos dados)
+            setTimeout(() => {
+              setPainelFrutasCarregado(true);
+              setLoadingPainelFrutas(false);
+            }, 500);
+          }
+          
+          setActiveTab(key);
+        }}
+        type="card"
+        items={[
+          {
+            key: 'dashboard',
+            label: (
+              <span className="tab-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="mdi:monitor-dashboard" className="tab-icon" style={{ fontSize: '18px' }} />
+                Dashboard
+              </span>
+            ),
+            children: (
+              <div>
+                {/* Seção de Programação de Colheita - Largura Total */}
+                <ProgramacaoColheitaSection
+                  programacaoColheita={dashboardData.programacaoColheita || []}
+                  onColheitaClick={abrirModalColheita}
+                />
 
-      {/* Seção de Gráficos e Pagamentos - Responsivos */}
-      <Row gutter={isMobile ? [8, 8] : [24, 24]} style={{ marginBottom: isMobile ? '16px' : '32px' }}>
-        <Col xs={24} lg={12}>
-          <ReceitaMensalSection receitaMensal={dashboardData.receitaMensal || []} />
-        </Col>
-
-        <Col xs={24} lg={12}>
-          <PagamentosSection
-            modoPagamentos={modoPagamentos}
-            dadosPagamentosAtuais={dadosPagamentosAtuais}
-            dadosFornecedores={dadosFornecedores}
-            dadosFornecedoresEfetuados={dadosFornecedoresEfetuados}
-            loadingPagamentosEfetuados={loadingPagamentosEfetuados}
-            erroPagamentosEfetuados={erroPagamentosEfetuados}
-            onToggleModo={toggleModoPagamentos}
-            onTentarNovamente={() => {
-              setErroPagamentosEfetuados(null);
-              setPagamentosEfetuadosCarregados(false);
-              toggleModoPagamentos();
+                {/* Seção de Gráficos e Pagamentos - Responsivos */}
+                {isPagamentosExpandido ? (
+                  // Layout expandido: Pagamentos ocupa toda a largura, Receita Mensal vai para baixo
+                  <>
+          <Row 
+            gutter={isMobile ? [8, 8] : [24, 24]} 
+            style={{ 
+              marginBottom: isMobile ? '16px' : '32px',
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              animation: 'fadeInSlide 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
             }}
-            onPagamentosProcessados={handlePagamentosProcessados}
-          />
-        </Col>
-      </Row>
+          >
+            <Col xs={24}>
+              <PagamentosSection
+                modoPagamentos={modoPagamentos}
+                dadosPagamentosAtuais={dadosPagamentosAtuais}
+                dadosFornecedores={dadosFornecedores}
+                dadosFornecedoresEfetuados={dadosFornecedoresEfetuados}
+                loadingPagamentosEfetuados={loadingPagamentosEfetuados}
+                erroPagamentosEfetuados={erroPagamentosEfetuados}
+                onToggleModo={toggleModoPagamentos}
+                onTentarNovamente={() => {
+                  setErroPagamentosEfetuados(null);
+                  setPagamentosEfetuadosCarregados(false);
+                  toggleModoPagamentos();
+                }}
+                onPagamentosProcessados={handlePagamentosProcessados}
+                isExpandido={isPagamentosExpandido}
+                onToggleExpandir={() => setIsPagamentosExpandido(false)}
+              />
+            </Col>
+          </Row>
+          {/* Seção: Receita Mensal (esquerda) + Previsão de Banana (direita) */}
+          <Row 
+            gutter={isMobile ? [8, 8] : [24, 24]} 
+            style={{ 
+              marginBottom: isMobile ? '16px' : '32px',
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              animation: 'fadeInSlide 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.1s both'
+            }}
+          >
+            <Col xs={24} lg={12}>
+              <ReceitaMensalSection receitaMensal={dashboardData.receitaMensal || []} />
+            </Col>
+            <Col xs={24} lg={12}>
+              <PrevisaoBananaSection onSemanaClick={abrirModalSemana} />
+            </Col>
+          </Row>
+          {/* Seção: Ações Rápidas (sozinha na última linha) */}
+          <Row 
+            gutter={isMobile ? [8, 8] : [24, 24]} 
+            style={{ 
+              marginBottom: isMobile ? '16px' : '32px',
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              animation: 'fadeInSlide 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.2s both'
+            }}
+          >
+            <Col xs={24}>
+              <AcoesRapidasSection />
+            </Col>
+          </Row>
+        </>
+      ) : (
+        // Layout normal: Receita Mensal e Pagamentos lado a lado
+        <Row 
+          gutter={isMobile ? [8, 8] : [24, 24]} 
+          style={{ 
+            marginBottom: isMobile ? '16px' : '32px',
+            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+          }}
+        >
+          <Col xs={24} lg={12}>
+            <ReceitaMensalSection receitaMensal={dashboardData.receitaMensal || []} />
+          </Col>
 
-      {/* Seção: Previsão de Banana (esquerda) + Ações Rápidas (direita) */}
-      <Row gutter={isMobile ? [8, 8] : [24, 24]} style={{ marginBottom: isMobile ? '16px' : '32px' }}>
-        <Col xs={24} lg={12}>
-          <PrevisaoBananaSection onSemanaClick={abrirModalSemana} />
-        </Col>
-        <Col xs={24} lg={12}>
-          <AcoesRapidasSection />
-        </Col>
-      </Row>
+          <Col xs={24} lg={12}>
+            <PagamentosSection
+              modoPagamentos={modoPagamentos}
+              dadosPagamentosAtuais={dadosPagamentosAtuais}
+              dadosFornecedores={dadosFornecedores}
+              dadosFornecedoresEfetuados={dadosFornecedoresEfetuados}
+              loadingPagamentosEfetuados={loadingPagamentosEfetuados}
+              erroPagamentosEfetuados={erroPagamentosEfetuados}
+              onToggleModo={toggleModoPagamentos}
+              onTentarNovamente={() => {
+                setErroPagamentosEfetuados(null);
+                setPagamentosEfetuadosCarregados(false);
+                toggleModoPagamentos();
+              }}
+              onPagamentosProcessados={handlePagamentosProcessados}
+              isExpandido={isPagamentosExpandido}
+              onToggleExpandir={() => setIsPagamentosExpandido(true)}
+            />
+          </Col>
+        </Row>
+                  )}
+
+                  {/* Seção: Previsão de Banana (esquerda) + Ações Rápidas (direita) - Apenas quando não expandido */}
+                {!isPagamentosExpandido && (
+                  <Row gutter={isMobile ? [8, 8] : [24, 24]} style={{ marginBottom: isMobile ? '16px' : '32px' }}>
+                    <Col xs={24} lg={12}>
+                      <PrevisaoBananaSection onSemanaClick={abrirModalSemana} />
+                    </Col>
+                    <Col xs={24} lg={12}>
+                      <AcoesRapidasSection />
+                    </Col>
+                  </Row>
+                )}
+              </div>
+            )
+          },
+          {
+            key: 'painel-frutas',
+            label: (
+              <span className="tab-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="healthicons:fruits" className="tab-icon" style={{ fontSize: '18px' }} />
+                Painel de Frutas
+              </span>
+            ),
+            children: isProgramador ? (
+              painelFrutasCarregado ? (
+                <PainelFrutas />
+              ) : (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#8c8c8c', minHeight: '400px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                  <Icon icon="healthicons:fruits" style={{ fontSize: '64px', marginBottom: '16px', color: '#d9d9d9' }} />
+                  <Typography.Title level={4} type="secondary">
+                    Painel de Frutas
+                  </Typography.Title>
+                  <Typography.Text type="secondary">
+                    Clique na aba para carregar os dados.
+                  </Typography.Text>
+                </div>
+              )
+            ) : (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#8c8c8c' }}>
+                <Icon icon="mdi:lock" style={{ fontSize: '64px', marginBottom: '16px', color: '#d9d9d9' }} />
+                <Typography.Title level={4} type="secondary">
+                  Acesso Restrito
+                </Typography.Title>
+                <Typography.Text type="secondary">
+                  Esta funcionalidade está em desenvolvimento e disponível apenas para programadores.
+                </Typography.Text>
+              </div>
+            )
+          }
+        ]}
+      />
 
       {/* Modal de Detalhes da Semana */}
       <ModalDetalhesSemana
@@ -1093,7 +1271,22 @@ const Dashboard = () => {
         message="Carregando dados do pedido..."
         subMessage="Preparando informações para colheita"
       />
-    </div>
+
+      {/* CentralizedLoader para carregamento do Painel de Frutas */}
+      <CentralizedLoader
+        visible={loadingPainelFrutas}
+        message="Carregando Painel de Frutas..."
+        subMessage="Buscando dados de culturas, frutas e áreas"
+      />
+
+      {/* CentralizedLoader para carregamento do Painel de Frutas */}
+      <CentralizedLoader
+        visible={loadingPainelFrutas}
+        message="Carregando Painel de Frutas..."
+        subMessage="Buscando dados de culturas, frutas e áreas"
+      />
+      </div>
+    </>
   );
 };
 

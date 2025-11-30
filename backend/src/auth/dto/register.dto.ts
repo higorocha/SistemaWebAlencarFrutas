@@ -6,6 +6,7 @@ export enum NivelUsuario {
   GERENTE_GERAL = 'GERENTE_GERAL',
   ESCRITORIO = 'ESCRITORIO',
   GERENTE_CULTURA = 'GERENTE_CULTURA',
+  PROGRAMADOR = 'PROGRAMADOR',
 }
 
 export class RegisterDto {
@@ -48,7 +49,7 @@ export class RegisterDto {
     required: false,
   })
   @IsOptional()
-  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO ou GERENTE_CULTURA' })
+  @IsEnum(NivelUsuario, { message: 'Nível deve ser ADMINISTRADOR, GERENTE_GERAL, ESCRITORIO, GERENTE_CULTURA ou PROGRAMADOR' })
   nivel?: NivelUsuario;
 
   @ApiProperty({
