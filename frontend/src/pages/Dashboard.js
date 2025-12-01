@@ -38,6 +38,7 @@ import {
   Legend
 } from 'recharts';
 import axiosInstance from "../api/axiosConfig";
+import { showNotification } from "../config/notificationConfig";
 import { useTheme } from '@mui/material/styles';
 import usePedidoStatusColors from "../hooks/usePedidoStatusColors";
 import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
@@ -1056,13 +1057,11 @@ const Dashboard = () => {
         onChange={(key) => {
           // Verificar se está tentando acessar 'painel-frutas' e não é PROGRAMADOR
           if (key === 'painel-frutas' && !isProgramador) {
-            message.warning({
-              content: 'Esta funcionalidade está em desenvolvimento.',
-              duration: 4,
-              style: {
-                marginTop: '20vh',
-              },
-            });
+            showNotification(
+              "info",
+              "Em desenvolvimento",
+              "Esta funcionalidade está em desenvolvimento."
+            );
             return; // Não muda a aba
           }
           
