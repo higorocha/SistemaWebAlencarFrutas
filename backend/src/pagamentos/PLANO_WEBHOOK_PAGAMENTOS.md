@@ -1,6 +1,6 @@
 # 📬 Plano de Implementação – Webhook Pagamentos BB
 
-> **Status:** planejamento – nenhum código aplicado
+> **Status:** ✅ **IMPLEMENTADO** - Webhook funcional e alinhado com comportamento dos jobs
 
 ## 1. Objetivo
 - Receber notificações de **pagamentos efetivados** enviadas pelo Banco do Brasil (PIX, transferências, boletos, guias).
@@ -100,10 +100,45 @@
 
 > Campos novos podem ser adicionados em migration após validação.
 
-## 7. Tratamento de Estados
-- `codigoTextoEstado = 1` → marcar item como **Pago**.
-- `codigoTextoEstado = 2` → manter como **Não pago** (log e investigar).
-- Atualizar `estadoRequisicaoAtual` do lote para `9 - Liberado/Pago` quando todos os itens chegarem como "Pago".
+## 7. Tratamento de Estados (Implementado ✅)
+
+O webhook agora trata **todos os estados**, não apenas "Pago", seguindo o mesmo comportamento dos jobs:
+
+### Estados Tratados
+- **PAGO** (`codigoTextoEstado = 1` ou `textoEstado` contém "Pago"):
+  - Marca item como `PROCESSADO`
+  - Atualiza colheitas/funcionários como pagos
+  - Se todos os itens foram pagos e não há itens bloqueados, marca lote como `CONCLUIDO`
+
+- **BLOQUEADO** (`textoEstado` contém "Bloqueado"):
+  - Marca item como `REJEITADO` (se não está pago)
+  - Reverte colheitas para `PENDENTE` (se não estão pagas)
+  - Atualiza `FuncionarioPagamento` para `REJEITADO` (se não está pago)
+  - **Marca lote como rejeitado (estado 7)** - impede liberação pois crédito não pode ser efetuado
+
+- **REJEITADO** (`textoEstado` contém "Rejeitado"):
+  - Marca item como `REJEITADO` (se não está pago)
+  - Reverte colheitas para `PENDENTE` (se não estão pagas)
+  - Atualiza `FuncionarioPagamento` para `REJEITADO` (se não está pago)
+
+- **CANCELADO** (`textoEstado` contém "Cancelado"):
+  - Marca item como `REJEITADO` (se não está pago)
+  - Reverte colheitas para `PENDENTE` (se não estão pagas)
+  - Atualiza `FuncionarioPagamento` para `REJEITADO` (se não está pago)
+
+- **PENDENTE** (`codigoTextoEstado = 2` ou `textoEstado` contém "Não pago"):
+  - Atualiza apenas `estadoPagamentoIndividual` e payload
+  - Mantém status atual do item
+
+### Preservação de Itens Já Pagos
+- **IMPORTANTE:** Se o item já está como `PROCESSADO` (pago), o status é **preservado** mesmo se o webhook indicar outro estado
+- Colheitas e funcionários já pagos não são revertidos
+- Garante que pagamentos efetivados não sejam perdidos
+
+### Verificação de Itens Bloqueados no Lote
+- Antes de atualizar o lote, verifica se há itens bloqueados
+- Se houver itens bloqueados, o lote é marcado como rejeitado (estado 7)
+- Isso impede a liberação do lote, pois itens bloqueados impedem o processamento dos créditos
 
 ### 7.1 Atualização Condicional por Tipo de Pagamento
 

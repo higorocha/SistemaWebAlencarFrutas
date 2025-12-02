@@ -23,6 +23,7 @@ import {
 } from './dto/pagamentos.dto';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { PagamentosSyncQueueService } from './pagamentos-sync-queue.service';
+import { FolhaPagamentoService } from '../arh/folha-pagamento/folha-pagamento.service';
 
 /**
  * Service para integração com a API de Pagamentos do Banco do Brasil
@@ -64,6 +65,8 @@ export class PagamentosService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => NotificacoesService))
     private readonly notificacoesService: NotificacoesService,
+    @Inject(forwardRef(() => FolhaPagamentoService))
+    private readonly folhaPagamentoService: FolhaPagamentoService,
     private readonly pagamentosSyncQueueService: PagamentosSyncQueueService,
   ) {}
 
@@ -651,19 +654,34 @@ export class PagamentosService {
    */
   private async obterProximoNumeroRequisicao(contaCorrenteId: number): Promise<number> {
     try {
-      // Números sequenciais simples (1, 2, 3...) POR CONTA CORRENTE
+      // Números sequenciais compartilhados por numeroContratoPagamento
+      // Contas com o mesmo numeroContratoPagamento compartilham a mesma sequência
       // Usar transação para garantir atomicidade e evitar race conditions
       return await this.prisma.$transaction(async (tx) => {
-        // Buscar sequência específica desta conta ou criar se não existir
+        // Buscar conta para obter numeroContratoPagamento
+        const contaCorrente = await this.contaCorrenteService.findOne(contaCorrenteId);
+        if (!contaCorrente) {
+          throw new NotFoundException(`Conta corrente ID ${contaCorrenteId} não encontrada.`);
+        }
+
+        if (!contaCorrente.numeroContratoPagamento) {
+          throw new BadRequestException(
+            `A conta corrente ID ${contaCorrenteId} não possui número de contrato de pagamentos configurado.`
+          );
+        }
+
+        const numeroContratoPagamento = contaCorrente.numeroContratoPagamento;
+
+        // Buscar sequência por numeroContratoPagamento (compartilhada entre contas com mesmo contrato)
         let sequencia = await tx.sequenciaNumeroRequisicao.findUnique({
-          where: { contaCorrenteId },
+          where: { numeroContratoPagamento },
         });
 
         if (!sequencia) {
-          // Se não existe, verificar se há pagamentos existentes no nosso banco
-          // para inicializar com o maior numeroRequisicao já usado
+          // Se não existe sequência, verificar se há pagamentos existentes no banco
+          // para este numeroContratoPagamento (pode ter sido criado por outra conta com mesmo contrato)
           const maiorNumeroExistente = await tx.pagamentoApiLote.findFirst({
-            where: { contaCorrenteId },
+            where: { numeroContrato: numeroContratoPagamento },
             orderBy: { numeroRequisicao: 'desc' },
             select: { numeroRequisicao: true },
           });
@@ -671,28 +689,32 @@ export class PagamentosService {
           let ultimoNumeroInicial: number;
           
           if (maiorNumeroExistente) {
-            // Se encontrou pagamento no banco, usar esse número
+            // Se encontrou pagamento no banco para este contrato, usar esse número
             ultimoNumeroInicial = maiorNumeroExistente.numeroRequisicao;
-            console.log(`📝 [PAGAMENTOS-SERVICE] Inicializando sequência para conta ${contaCorrenteId}...`);
+            console.log(`📝 [PAGAMENTOS-SERVICE] Inicializando sequência para contrato ${numeroContratoPagamento}...`);
             console.log(`   ℹ️  Encontrado pagamento existente com numeroRequisicao=${ultimoNumeroInicial}, inicializando sequência a partir deste valor`);
           } else {
-            // ⚠️ IMPORTANTE: Se não há pagamentos no banco, pode ser que já existam no BB
-            // Inicializar com um número seguro (10000) para evitar conflitos com números antigos
-            // Se você souber qual foi o último numeroRequisicao usado no BB para esta conta,
-            // ajuste manualmente a sequência ou configure via variável de ambiente
-            ultimoNumeroInicial = parseInt(process.env.BB_ULTIMO_NUMERO_REQUISICAO_INICIAL || '10000', 10);
-            console.log(`📝 [PAGAMENTOS-SERVICE] Inicializando sequência para conta ${contaCorrenteId}...`);
-            console.log(`   ⚠️  Nenhum pagamento existente no banco. Inicializando com numeroRequisicao=${ultimoNumeroInicial} para evitar conflitos com números já usados no BB.`);
-            console.log(`   💡 Se você souber o último numeroRequisicao usado no BB para esta conta, ajuste manualmente ou configure BB_ULTIMO_NUMERO_REQUISICAO_INICIAL`);
+            // Se não há pagamentos no banco, inicializar com valor baseado no ambiente
+            // Produção: 1000, Desenvolvimento: 100
+            // Pode ser sobrescrito pela variável de ambiente BB_ULTIMO_NUMERO_REQUISICAO_INICIAL
+            const isProduction = process.env.NODE_ENV === 'production';
+            const valorPadrao = isProduction ? 1000 : 100;
+            ultimoNumeroInicial = parseInt(
+              process.env.BB_ULTIMO_NUMERO_REQUISICAO_INICIAL || String(valorPadrao),
+              10
+            );
+            console.log(`📝 [PAGAMENTOS-SERVICE] Inicializando sequência para contrato ${numeroContratoPagamento}...`);
+            console.log(`   ⚠️  Nenhum pagamento existente no banco. Inicializando com numeroRequisicao=${ultimoNumeroInicial} (${isProduction ? 'produção' : 'desenvolvimento'})`);
+            console.log(`   💡 Se você souber o último numeroRequisicao usado no BB para este contrato, ajuste manualmente ou configure BB_ULTIMO_NUMERO_REQUISICAO_INICIAL no .env`);
           }
 
           sequencia = await tx.sequenciaNumeroRequisicao.create({
             data: {
-              contaCorrenteId,
+              numeroContratoPagamento,
               ultimoNumero: ultimoNumeroInicial,
             },
           });
-          console.log(`✅ [PAGAMENTOS-SERVICE] Sequência inicializada para conta ${contaCorrenteId} com ultimoNumero=${ultimoNumeroInicial}`);
+          console.log(`✅ [PAGAMENTOS-SERVICE] Sequência inicializada para contrato ${numeroContratoPagamento} com ultimoNumero=${ultimoNumeroInicial}`);
         }
 
         // Incrementar até encontrar um número não utilizado globalmente
@@ -713,7 +735,7 @@ export class PagamentosService {
         });
 
         console.log(
-          `🔢 [PAGAMENTOS-SERVICE] Novo numeroRequisicao sequencial gerado: ${proximoNumero} (Conta: ${contaCorrenteId})`,
+          `🔢 [PAGAMENTOS-SERVICE] Novo numeroRequisicao sequencial gerado: ${proximoNumero} (Conta: ${contaCorrenteId}, Contrato: ${numeroContratoPagamento})`,
         );
 
         return proximoNumero;
@@ -982,6 +1004,17 @@ export class PagamentosService {
   ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     const where: Prisma.PagamentoApiLoteWhereInput = {
       tipoPagamentoApi: 'PIX',
+      // Filtrar apenas lotes que têm itens vinculados a colheitas (não a funcionários)
+      itensPagamento: {
+        some: {
+          // Deve ter pelo menos um item com colheitas vinculadas
+          colheitas: {
+            some: {},
+          },
+          // E não deve ter funcionarioPagamentoId (para garantir que não é de folha de pagamento)
+          funcionarioPagamentoId: null,
+        },
+      },
     };
 
     // Filtrar por conta corrente se fornecido
@@ -1247,6 +1280,7 @@ export class PagamentosService {
   ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     const where: Prisma.PagamentoApiLoteWhereInput = {
       tipoPagamentoApi: 'PIX',
+      // Filtrar apenas lotes que têm itens vinculados a funcionários (não a colheitas)
       itensPagamento: {
         some: {
           funcionarioPagamentoId: {
@@ -2518,37 +2552,44 @@ export class PagamentosService {
        * 
        * NÃO podemos comparar numericamente (ex: 8 > 4), pois o estado 4 vem DEPOIS do 8 no fluxo real.
        * O BB é a fonte da verdade, então sempre aceitamos o estado que ele retorna.
+       * 
+       * EXCEÇÃO: Se houver itens bloqueados, o lote deve ser marcado como rejeitado (estado 7),
+       * independente do estado retornado pela API do lote.
        */
       const estadoRequisicao = estadoRequisicaoApi ?? estadoAnterior;
 
       const quantidadeValida = respostaData?.quantidadeTransferenciasValidas || 0;
       const valorTotalValido = respostaData?.valorTransferenciasValidas || 0;
-      const statusLote = this.mapearStatusLote(estadoRequisicao);
       const finalizado = estadoRequisicao === 6;
 
-      await this.prisma.pagamentoApiLote.update({
-        where: { id: lote.id },
-        data: {
-          payloadRespostaAtual: respostaData as any,
-          estadoRequisicaoAtual: estadoRequisicao,
-          quantidadeValida,
-          valorTotalValido,
-          status: statusLote,
-          processadoComSucesso: finalizado,
-          ultimaConsultaStatus: new Date(),
-        },
-      });
-
-      // Atualizar itens com resposta mais recente
+      // Atualizar itens com resposta mais recente ANTES de verificar itens bloqueados
+      // Isso garante que os itens tenham os dados mais recentes para a verificação
+      // IMPORTANTE: Se um item já tem estadoPagamentoIndividual = 'BLOQUEADO' (de consulta individual),
+      // não devemos sobrescrever seu status para algo diferente de REJEITADO
+      const folhasParaRecalcular = new Set<number>();
+      
       if (respostaData?.listaTransferencias && Array.isArray(respostaData.listaTransferencias)) {
         await Promise.all(
           respostaData.listaTransferencias.map(async (transferencia, index) => {
             const item = lote.itensPagamento[index];
             if (!item) return;
 
+            // Verificar se o item já está bloqueado (de consulta individual anterior)
+            const estadoPagamentoIndividualNormalizado = this.normalizarEstadoPagamentoPix(item.estadoPagamentoIndividual);
+            const itemJaBloqueado = estadoPagamentoIndividualNormalizado === 'BLOQUEADO';
+
             const indicadorMovimentoAceito = transferencia.indicadorMovimentoAceito;
             const erros = transferencia.erros || [];
             const statusItem = this.mapearStatusItem(indicadorMovimentoAceito, erros);
+
+            // Se o item já está bloqueado, manter status como REJEITADO
+            // IMPORTANTE: Se o item já está como PROCESSADO (pago), preservar esse status
+            // Apenas itens bloqueados devem ser marcados como rejeitados
+            const statusFinal = itemJaBloqueado && item.status !== StatusPagamentoItem.PROCESSADO
+              ? StatusPagamentoItem.REJEITADO
+              : item.status === StatusPagamentoItem.PROCESSADO
+                ? StatusPagamentoItem.PROCESSADO // Preservar status de pago
+                : statusItem;
 
             await this.prisma.pagamentoApiItem.update({
               where: { id: item.id },
@@ -2557,27 +2598,95 @@ export class PagamentosService {
                 indicadorMovimentoAceitoAtual: indicadorMovimentoAceito,
                 erros: erros.length > 0 ? erros as any : item.erros,
                 payloadItemRespostaAtual: transferencia as any,
-                status: statusItem,
+                status: statusFinal,
                 ultimaAtualizacaoStatus: new Date(),
               },
             });
 
             // Sincronizar status com FuncionarioPagamento se vinculado
             if (item.funcionarioPagamentoId) {
-              const funcionarioStatus = this.mapearStatusItemParaFuncionarioPagamento(statusItem, finalizado);
+              // Buscar folhaId antes de atualizar
+              const funcionarioPagamento = await this.prisma.funcionarioPagamento.findUnique({
+                where: { id: item.funcionarioPagamentoId },
+                select: { folhaId: true },
+              });
+
+              if (funcionarioPagamento?.folhaId) {
+                folhasParaRecalcular.add(funcionarioPagamento.folhaId);
+              }
+
+              // IMPORTANTE: Verificar o status FINAL que será aplicado ao item
+              // Se o item já está como PROCESSADO (pago), preservar status PAGO do funcionário
+              // Se o item está bloqueado E não está pago, marcar funcionário como rejeitado
+              const itemJaPago = item.status === StatusPagamentoItem.PROCESSADO || statusFinal === StatusPagamentoItem.PROCESSADO;
+              let funcionarioStatus = itemJaBloqueado && !itemJaPago
+                ? { statusPagamento: StatusFuncionarioPagamento.REJEITADO, pagamentoEfetuado: false }
+                : itemJaPago
+                  ? { statusPagamento: StatusFuncionarioPagamento.PAGO, pagamentoEfetuado: true, dataPagamento: new Date() } // Preservar status de pago
+                  : this.mapearStatusItemParaFuncionarioPagamento(statusItem, finalizado);
+              
+              // Garantir que se o status for PAGO, pagamentoEfetuado seja true
+              if (funcionarioStatus && funcionarioStatus.statusPagamento === StatusFuncionarioPagamento.PAGO) {
+                funcionarioStatus = {
+                  ...funcionarioStatus,
+                  pagamentoEfetuado: true,
+                  dataPagamento: funcionarioStatus.dataPagamento || new Date(),
+                };
+              }
+              
               if (funcionarioStatus) {
                 await this.prisma.funcionarioPagamento.update({
                   where: { id: item.funcionarioPagamentoId },
                   data: funcionarioStatus,
                 });
-                console.log(`👤 [PAGAMENTOS-SERVICE] FuncionarioPagamento ${item.funcionarioPagamentoId} atualizado: status=${funcionarioStatus.statusPagamento}`);
+                console.log(`👤 [PAGAMENTOS-SERVICE] FuncionarioPagamento ${item.funcionarioPagamentoId} atualizado: status=${funcionarioStatus.statusPagamento}, pagamentoEfetuado=${funcionarioStatus.pagamentoEfetuado}${itemJaBloqueado && !itemJaPago ? ' (item bloqueado)' : itemJaPago ? ' (item já pago, preservado)' : ''}`);
               }
             }
           })
         );
+
+        // Recalcular folhas após todas as atualizações
+        for (const folhaId of folhasParaRecalcular) {
+          try {
+            await this.folhaPagamentoService.recalcularFolhaNoBanco(folhaId);
+            console.log(`✅ [PAGAMENTOS-SERVICE] Folha ${folhaId} recalculada após atualização de pagamentos do lote ${lote.id}`);
+          } catch (error) {
+            console.error(`❌ [PAGAMENTOS-SERVICE] Erro ao recalcular folha ${folhaId}:`, error.message);
+            // Não lançar erro para não interromper o fluxo principal
+          }
+        }
       }
 
-      console.log(`💾 [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} atualizado no banco: estadoRequisicaoAtual=${estadoRequisicao}, status=${statusLote}`);
+      // Verificar se há itens bloqueados ANTES de atualizar o lote
+      // Se houver itens bloqueados, o lote será marcado como rejeitado (estado 7)
+      // e não será sobrescrito pelo estado retornado pela API
+      const temItensBloqueados = await this.verificarEAtualizarLoteComItensBloqueados(lote.id);
+
+      // Se não há itens bloqueados, atualizar lote com estado retornado pela API
+      // Se há itens bloqueados, o método acima já atualizou o lote como rejeitado (estado 7)
+      let estadoRequisicaoFinal = estadoRequisicao;
+      let statusLoteFinal = this.mapearStatusLote(estadoRequisicao);
+      
+      if (temItensBloqueados) {
+        // Lote já foi marcado como rejeitado (estado 7) pelo método acima
+        estadoRequisicaoFinal = 7;
+        statusLoteFinal = StatusPagamentoLote.REJEITADO;
+      }
+
+      await this.prisma.pagamentoApiLote.update({
+        where: { id: lote.id },
+        data: {
+          payloadRespostaAtual: respostaData as any,
+          estadoRequisicaoAtual: estadoRequisicaoFinal,
+          quantidadeValida,
+          valorTotalValido,
+          status: statusLoteFinal,
+          processadoComSucesso: finalizado && !temItensBloqueados,
+          ultimaConsultaStatus: new Date(),
+        },
+      });
+
+      console.log(`💾 [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} atualizado no banco: estadoRequisicaoAtual=${estadoRequisicaoFinal}, status=${statusLoteFinal}${temItensBloqueados ? ' (rejeitado devido a itens bloqueados)' : ''}`);
 
       return respostaData;
 
@@ -3245,6 +3354,14 @@ export class PagamentosService {
       if (item.status !== StatusPagamentoItem.REJEITADO) {
         dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
       }
+    } else if (categoriaEstado === 'BLOQUEADO') {
+      // Item bloqueado: atualizar status mas manter item para rastreamento
+      // O lote será marcado como rejeitado pela verificação posterior
+      // IMPORTANTE: Se o item já está como PROCESSADO (pago), preservar esse status
+      // Apenas itens bloqueados que não estão pagos devem ser marcados como rejeitados
+      if (item.status !== StatusPagamentoItem.PROCESSADO && item.status !== StatusPagamentoItem.REJEITADO) {
+        dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
+      }
     }
 
     const itemAtualizado = await this.prisma.pagamentoApiItem.update({
@@ -3253,6 +3370,11 @@ export class PagamentosService {
     });
 
     const loteIdRelacionado = item.loteId ?? item.lote?.id;
+
+    // Se o item está bloqueado, verificar e atualizar o lote
+    if (categoriaEstado === 'BLOQUEADO' && loteIdRelacionado) {
+      await this.verificarEAtualizarLoteComItensBloqueados(loteIdRelacionado);
+    }
 
     if (categoriaEstado === 'SUCESSO') {
       // Atualizar colheitas (relacionamento N:N)
@@ -3271,18 +3393,109 @@ export class PagamentosService {
       }
     } else if (
       categoriaEstado === 'CANCELADO' ||
-      categoriaEstado === 'REJEITADO'
+      categoriaEstado === 'REJEITADO' ||
+      categoriaEstado === 'BLOQUEADO'
     ) {
-      await this.reverterColheitasDoItemParaPendente(itemAtualizado.id);
-      // Atualizar funcionário para rejeitado
-      await this.atualizarFuncionarioPagamentoDoItem(
-        itemAtualizado.id,
-        'REJEITADO',
-        null,
-      );
-      if (loteIdRelacionado) {
-        await this.atualizarStatusLoteAposCancelamentoItem(loteIdRelacionado);
+      // IMPORTANTE: Se o item já está como PROCESSADO (pago), não reverter colheitas nem funcionário
+      // Apenas itens bloqueados que não estão pagos devem ser tratados como rejeitados
+      const itemJaPago = itemAtualizado.status === StatusPagamentoItem.PROCESSADO;
+      
+      if (!itemJaPago) {
+        // Tratar BLOQUEADO da mesma forma que CANCELADO/REJEITADO:
+        // reverter colheitas e atualizar funcionário
+        await this.reverterColheitasDoItemParaPendente(itemAtualizado.id);
+        // Atualizar funcionário para rejeitado
+        await this.atualizarFuncionarioPagamentoDoItem(
+          itemAtualizado.id,
+          'REJEITADO',
+          null,
+        );
+      } else {
+        // Item já está pago, preservar status
+        console.log(`ℹ️ [PAGAMENTOS-SERVICE] Item ${itemAtualizado.id} já está como PROCESSADO (pago), preservando status mesmo com categoria ${categoriaEstado}`);
       }
+      
+      if (loteIdRelacionado) {
+        // Para BLOQUEADO, o lote já foi atualizado anteriormente
+        // Para CANCELADO/REJEITADO, atualizar status do lote normalmente
+        if (categoriaEstado !== 'BLOQUEADO') {
+          await this.atualizarStatusLoteAposCancelamentoItem(loteIdRelacionado);
+        }
+      }
+    }
+  }
+
+  /**
+   * Verifica se há itens bloqueados no lote e atualiza o lote como rejeitado se necessário
+   * Quando um item está bloqueado, a liberação do lote não processa os créditos,
+   * então o lote deve ser marcado como rejeitado (estado 7)
+   * @param loteId ID do lote a ser verificado
+   * @returns true se há itens bloqueados e o lote foi atualizado, false caso contrário
+   */
+  async verificarEAtualizarLoteComItensBloqueados(loteId: number): Promise<boolean> {
+    try {
+      // Buscar lote com todos os itens
+      const lote = await this.prisma.pagamentoApiLote.findUnique({
+        where: { id: loteId },
+        include: {
+          itensPagamento: true,
+        },
+      });
+
+      if (!lote) {
+        console.warn(`⚠️ [PAGAMENTOS-SERVICE] Lote ID ${loteId} não encontrado para verificação de itens bloqueados`);
+        return false;
+      }
+
+      // Verificar se há itens bloqueados
+      // IMPORTANTE: estadoPagamentoIndividual só é preenchido na consulta individual de item
+      // Na consulta de lote completo, precisamos verificar se algum item já foi consultado individualmente
+      // e tem estadoPagamentoIndividual = 'BLOQUEADO'
+      const itensBloqueados = lote.itensPagamento.filter(
+        (item) => {
+          const estadoNormalizado = this.normalizarEstadoPagamentoPix(item.estadoPagamentoIndividual);
+          return estadoNormalizado === 'BLOQUEADO';
+        }
+      );
+
+      if (itensBloqueados.length === 0) {
+        // Não há itens bloqueados, não precisa atualizar
+        return false;
+      }
+
+      // Se já está marcado como rejeitado (estado 7), não precisa atualizar novamente
+      if (lote.estadoRequisicaoAtual === 7) {
+        console.log(`ℹ️ [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) já está marcado como rejeitado (estado 7)`);
+        return true; // Retorna true porque há itens bloqueados
+      }
+
+      // Atualizar lote como rejeitado (estado 7)
+      const observacaoAtual = lote.observacoes || '';
+      const novaObservacao = `Item(s) bloqueado(s) detectado(s) em ${new Date().toISOString()}. Lote marcado como rejeitado (estado 7) pois itens bloqueados impedem o processamento dos créditos na liberação.`;
+      const observacoesCombinadas = observacaoAtual
+        ? `${observacaoAtual} | ${novaObservacao}`
+        : novaObservacao;
+
+      await this.prisma.pagamentoApiLote.update({
+        where: { id: loteId },
+        data: {
+          estadoRequisicaoAtual: 7,
+          status: StatusPagamentoLote.REJEITADO,
+          observacoes: observacoesCombinadas,
+        },
+      });
+
+      console.log(
+        `🚫 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) marcado como REJEITADO (estado 7) devido a ${itensBloqueados.length} item(ns) bloqueado(s)`
+      );
+      
+      return true; // Retorna true indicando que há itens bloqueados
+    } catch (error) {
+      console.error(
+        `❌ [PAGAMENTOS-SERVICE] Erro ao verificar/atualizar lote com itens bloqueados (loteId ${loteId}):`,
+        error instanceof Error ? error.message : `${error}`
+      );
+      return false;
     }
   }
 
@@ -3442,7 +3655,7 @@ export class PagamentosService {
     }
   }
 
-  private async reverterColheitasDoItemParaPendente(
+  async reverterColheitasDoItemParaPendente(
     itemId: number,
   ): Promise<void> {
     const colheitas = await this.prisma.pagamentoApiItemColheita.findMany({
@@ -3475,21 +3688,28 @@ export class PagamentosService {
    * @param status Status a ser definido ('PAGO' ou 'REJEITADO')
    * @param dataPagamento Data do pagamento (null para rejeição)
    */
-  private async atualizarFuncionarioPagamentoDoItem(
+  async atualizarFuncionarioPagamentoDoItem(
     itemId: number,
     status: 'PAGO' | 'REJEITADO',
     dataPagamento: Date | null,
   ): Promise<void> {
-    // Buscar o item para obter o funcionarioPagamentoId
+    // Buscar o item para obter o funcionarioPagamentoId e folhaId
     const item = await this.prisma.pagamentoApiItem.findUnique({
       where: { id: itemId },
-      select: { funcionarioPagamentoId: true },
+      select: { 
+        funcionarioPagamentoId: true,
+        funcionarioPagamento: {
+          select: { folhaId: true },
+        },
+      },
     });
 
     // Se não tem funcionário associado, retornar
-    if (!item?.funcionarioPagamentoId) {
+    if (!item?.funcionarioPagamentoId || !item.funcionarioPagamento?.folhaId) {
       return;
     }
+
+    const folhaId = item.funcionarioPagamento.folhaId;
 
     console.log(`📝 [PAGAMENTOS-SERVICE] Atualizando FuncionarioPagamento ID ${item.funcionarioPagamentoId} para status ${status}`);
 
@@ -3513,6 +3733,15 @@ export class PagamentosService {
     }
 
     console.log(`✅ [PAGAMENTOS-SERVICE] FuncionarioPagamento ID ${item.funcionarioPagamentoId} atualizado com sucesso`);
+
+    // Recalcular totais da folha após atualização
+    try {
+      await this.folhaPagamentoService.recalcularFolhaNoBanco(folhaId);
+      console.log(`✅ [PAGAMENTOS-SERVICE] Folha ${folhaId} recalculada após atualização de pagamento`);
+    } catch (error) {
+      console.error(`❌ [PAGAMENTOS-SERVICE] Erro ao recalcular folha ${folhaId}:`, error.message);
+      // Não lançar erro para não interromper o fluxo principal
+    }
   }
 
   private async atualizarStatusLoteAposProcessamento(

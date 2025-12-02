@@ -4,6 +4,7 @@ import { PagamentosService } from './pagamentos.service';
 import { CredenciaisAPIModule } from '../credenciais-api/credenciais-api.module';
 import { ContaCorrenteModule } from '../conta-corrente/conta-corrente.module';
 import { NotificacoesModule } from '../notificacoes/notificacoes.module';
+import { FolhaPagamentoModule } from '../arh/folha-pagamento/folha-pagamento.module';
 import { PagamentosSyncQueueService } from './pagamentos-sync-queue.service';
 import { PagamentosSyncWorkerService } from './pagamentos-sync-worker.service';
 
@@ -27,6 +28,7 @@ import { PagamentosSyncWorkerService } from './pagamentos-sync-worker.service';
     CredenciaisAPIModule, // Importa o módulo de credenciais para buscar dados de pagamentos
     ContaCorrenteModule,  // Importa o módulo de conta corrente para buscar dados da conta
     forwardRef(() => NotificacoesModule), // Importa notificações (liberação de lote)
+    forwardRef(() => FolhaPagamentoModule), // Importa folha de pagamento para recalcular totais
   ],
   controllers: [
     PagamentosController, // Controller com endpoints de pagamentos

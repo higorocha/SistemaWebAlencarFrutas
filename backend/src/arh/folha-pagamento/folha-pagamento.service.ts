@@ -13,6 +13,7 @@ import {
   StatusFolhaPagamento,
   StatusFuncionario,
   StatusFuncionarioPagamento,
+  StatusPagamentoLote,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateFolhaDto } from './dto/create-folha.dto';
@@ -23,6 +24,7 @@ import { ListLancamentosQueryDto } from './dto/list-lancamentos-query.dto';
 import { MarcarPagamentoDto } from './dto/marcar-pagamento.dto';
 import { FinalizarFolhaDto } from './dto/finalizar-folha.dto';
 import { ProcessarPagamentoPixApiDto } from './dto/processar-pix-api.dto';
+import { ReprocessarPagamentosRejeitadosDto } from './dto/reprocessar-pagamentos-rejeitados.dto';
 import { FolhaCalculoService } from './folha-calculo.service';
 import { FuncionarioPagamentoStatusService } from './funcionario-pagamento-status.service';
 import { PagamentosService } from '../../pagamentos/pagamentos.service';
@@ -64,7 +66,11 @@ export class FolhaPagamentoService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: [{ competenciaAno: 'desc' }, { competenciaMes: 'desc' }],
+        orderBy: [
+          { competenciaAno: 'desc' }, 
+          { competenciaMes: 'desc' },
+          { periodo: 'desc' }, // 2ª quinzena antes da 1ª quinzena (mais recente primeiro)
+        ],
         include: {
           usuarioCriacao: {
             select: {
@@ -92,8 +98,26 @@ export class FolhaPagamentoService {
       this.prisma.folhaPagamento.count({ where }),
     ]);
 
+    // Adicionar informação sobre rejeitados em cada folha
+    const folhasComRejeitados = await Promise.all(
+      data.map(async (folha) => {
+        const quantidadeRejeitados = await this.prisma.funcionarioPagamento.count({
+          where: {
+            folhaId: folha.id,
+            statusPagamento: StatusFuncionarioPagamento.REJEITADO,
+            pagamentoEfetuado: false,
+          },
+        });
+        return {
+          ...folha,
+          temRejeitados: quantidadeRejeitados > 0,
+          quantidadeRejeitados,
+        };
+      }),
+    );
+
     return {
-      data,
+      data: folhasComRejeitados,
       meta: {
         total,
         page,
@@ -1348,6 +1372,7 @@ export class FolhaPagamentoService {
       },
     });
 
+    // Calcular total pago: usar apenas pagamentoEfetuado (que deve estar sempre atualizado quando status é PAGO)
     const pagos = await tx.funcionarioPagamento.aggregate({
       where: { folhaId, pagamentoEfetuado: true },
       _sum: {
@@ -1370,6 +1395,74 @@ export class FolhaPagamentoService {
         totalPendente: new Prisma.Decimal(Math.max(totalLiquido - totalPago, 0)),
         quantidadeLancamentos: quantidade,
       },
+    });
+  }
+
+  /**
+   * Recalcula os totais da folha de pagamento (método público para uso externo)
+   * Usado após atualizações de pagamento via jobs/webhook
+   * Verifica se todos os pagamentos estão PAGO e fecha a folha automaticamente se for PIX-API
+   * @param folhaId ID da folha de pagamento
+   */
+  async recalcularFolhaNoBanco(folhaId: number): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await this.recalcularFolha(tx, folhaId);
+
+      // Verificar se a folha deve ser fechada automaticamente (PIX-API com todos os pagamentos concluídos)
+      const folha = await tx.folhaPagamento.findUnique({
+        where: { id: folhaId },
+        select: {
+          status: true,
+          meioPagamento: true,
+        },
+      });
+
+      if (
+        folha &&
+        folha.status === StatusFolhaPagamento.EM_PROCESSAMENTO &&
+        folha.meioPagamento === MeioPagamentoFuncionario.PIX_API
+      ) {
+        // Verificar se todos os lançamentos estão pagos (pagamentoEfetuado: true)
+        const totalLancamentos = await tx.funcionarioPagamento.count({
+          where: { folhaId },
+        });
+
+        const lancamentosPagos = await tx.funcionarioPagamento.count({
+          where: {
+            folhaId,
+            pagamentoEfetuado: true,
+          },
+        });
+
+        // Verificar se há algum lançamento rejeitado
+        const lancamentosRejeitados = await tx.funcionarioPagamento.count({
+          where: {
+            folhaId,
+            statusPagamento: StatusFuncionarioPagamento.REJEITADO,
+          },
+        });
+
+        // Fechar folha automaticamente apenas se:
+        // 1. Todos os lançamentos estão pagos
+        // 2. Não há lançamentos rejeitados (todos foram processados com sucesso)
+        if (
+          totalLancamentos > 0 &&
+          lancamentosPagos === totalLancamentos &&
+          lancamentosRejeitados === 0
+        ) {
+          await tx.folhaPagamento.update({
+            where: { id: folhaId },
+            data: {
+              status: StatusFolhaPagamento.FECHADA,
+              dataFechamento: new Date(),
+            },
+          });
+
+          console.log(
+            `✅ [FOLHA-PAGAMENTO] Folha ${folhaId} fechada automaticamente: todos os ${totalLancamentos} pagamento(s) PIX-API foram concluídos com sucesso`,
+          );
+        }
+      }
     });
   }
 
@@ -1447,6 +1540,143 @@ export class FolhaPagamentoService {
     return {
       mensagem: `Folha reprocessada com sucesso. ${lancamentos.length} lançamento(s) atualizado(s).`,
       quantidadeLancamentos: lancamentos.length,
+    };
+  }
+
+  /**
+   * Reprocessa pagamentos rejeitados de uma folha
+   * Limpa os vínculos antigos e cria novos lotes ou marca como pago conforme o meio de pagamento
+   */
+  async reprocessarPagamentosRejeitados(
+    folhaId: number,
+    dto: ReprocessarPagamentosRejeitadosDto,
+    usuarioId: number,
+  ) {
+    const folha = await this.ensureFolha(folhaId);
+
+    // Verificar se a folha usa PIX_API
+    if (folha.meioPagamento !== MeioPagamentoFuncionario.PIX_API) {
+      throw new BadRequestException(
+        'Este endpoint é apenas para folhas que usam PIX-API.',
+      );
+    }
+
+    // Buscar funcionários rejeitados na folha
+    const funcionariosRejeitados = await this.prisma.funcionarioPagamento.findMany({
+      where: {
+        folhaId,
+        statusPagamento: StatusFuncionarioPagamento.REJEITADO,
+        pagamentoApiItemId: { not: null },
+        pagamentoEfetuado: false,
+        pagamentoApiItem: {
+          lote: {
+            status: StatusPagamentoLote.REJEITADO,
+          },
+        },
+      },
+      include: {
+        funcionario: {
+          include: {
+            cargo: true,
+            funcao: true,
+          },
+        },
+        pagamentoApiItem: {
+          include: {
+            lote: true,
+          },
+        },
+      },
+    });
+
+    if (funcionariosRejeitados.length === 0) {
+      throw new BadRequestException(
+        'Não há funcionários rejeitados para reprocessar nesta folha.',
+      );
+    }
+
+    // Validar conta corrente se for PIX_API
+    if (dto.meioPagamento === MeioPagamentoFuncionario.PIX_API) {
+      if (!dto.contaCorrenteId) {
+        throw new BadRequestException(
+          'Conta corrente é obrigatória para pagamento via PIX-API.',
+        );
+      }
+    }
+
+    // Limpar vínculos antigos e atualizar status
+    await this.prisma.$transaction(async (tx) => {
+      for (const funcionario of funcionariosRejeitados) {
+        await tx.funcionarioPagamento.update({
+          where: { id: funcionario.id },
+          data: {
+            pagamentoApiItemId: null,
+            statusPagamento: StatusFuncionarioPagamento.PENDENTE,
+            meioPagamento: dto.meioPagamento,
+          },
+        });
+      }
+    });
+
+    // Processar conforme o meio de pagamento
+    if (dto.meioPagamento === MeioPagamentoFuncionario.PIX_API) {
+      // Buscar conta corrente
+      const contaCorrente = await this.prisma.contaCorrente.findUnique({
+        where: { id: dto.contaCorrenteId },
+      });
+
+      if (!contaCorrente) {
+        throw new NotFoundException('Conta corrente não encontrada.');
+      }
+
+      // Preparar lançamentos para criar novo lote
+      const lancamentosParaReprocessar = funcionariosRejeitados.map((f) => ({
+        id: f.id,
+        valorLiquido: f.valorLiquido,
+        funcionario: {
+          id: f.funcionario.id,
+          nome: f.funcionario.nome,
+          cpf: f.funcionario.cpf,
+          chavePix: f.funcionario.chavePix,
+          tipoChavePix: f.funcionario.tipoChavePix,
+        },
+      }));
+
+      // Criar novo lote apenas para os rejeitados
+      await this.criarLotesParaLancamentos(
+        lancamentosParaReprocessar,
+        folha,
+        {
+          id: contaCorrente.id,
+          agencia: contaCorrente.agencia,
+          contaCorrente: contaCorrente.contaCorrente,
+          contaCorrenteDigito: contaCorrente.contaCorrenteDigito,
+        },
+        usuarioId,
+      );
+    } else {
+      // PIX Manual ou ESPÉCIE: Marcar como PAGO
+      await this.prisma.$transaction(async (tx) => {
+        for (const funcionario of funcionariosRejeitados) {
+          await tx.funcionarioPagamento.update({
+            where: { id: funcionario.id },
+            data: {
+              statusPagamento: StatusFuncionarioPagamento.PAGO,
+              pagamentoEfetuado: true,
+              dataPagamento: new Date(dto.dataPagamento),
+              meioPagamento: dto.meioPagamento,
+            },
+          });
+        }
+
+        // Recalcular totais da folha
+        await this.recalcularFolha(tx, folhaId);
+      });
+    }
+
+    return {
+      mensagem: `${funcionariosRejeitados.length} pagamento(s) rejeitado(s) reprocessado(s) com sucesso.`,
+      quantidadeReprocessados: funcionariosRejeitados.length,
     };
   }
 

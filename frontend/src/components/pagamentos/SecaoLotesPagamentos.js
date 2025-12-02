@@ -81,6 +81,37 @@ const SecaoLotesPagamentos = ({
             <Text strong style={{ fontSize: isMobile ? "14px" : "16px", color: "#ffffff" }}>
               {titulo}
             </Text>
+            {titulo.includes("Folha de Pagamento") && (
+              <Tooltip
+                title={
+                  <div style={{ maxWidth: "400px" }}>
+                    <div style={{ marginBottom: "8px", fontWeight: "500" }}>
+                      Como funciona o processamento de pagamentos bloqueados:
+                    </div>
+                    <div style={{ marginBottom: "6px" }}>
+                      • Quando um pagamento está <strong>bloqueado</strong>, todo o lote é marcado como <strong>rejeitado</strong> para impedir a liberação, pois o crédito não poderá ser efetuado.
+                    </div>
+                    <div style={{ marginBottom: "6px" }}>
+                      • Quando um lote está <strong>rejeitado</strong>, os funcionários e colheitas têm seus status revertidos para que o pagamento possa ser feito novamente em um novo lote.
+                    </div>
+                    <div style={{ marginTop: "8px", fontSize: "11px", opacity: 0.9, fontStyle: "italic" }}>
+                      Nota: Se algum item já estiver como "pago" no lote rejeitado, ele permanece como pago. Apenas os itens bloqueados são marcados como rejeitados.
+                    </div>
+                  </div>
+                }
+                placement="bottomLeft"
+              >
+                <InfoCircleOutlined
+                  style={{
+                    color: "#ffffff",
+                    fontSize: "16px",
+                    cursor: "help",
+                    opacity: 0.9,
+                    marginLeft: "4px",
+                  }}
+                />
+              </Tooltip>
+            )}
           </Space>
           <Space>
             <Text style={{ fontSize: "11px", color: "#ffffff", opacity: 0.9 }}>

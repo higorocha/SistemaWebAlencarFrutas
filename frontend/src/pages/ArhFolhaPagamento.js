@@ -21,7 +21,7 @@ import { useAuth } from "../contexts/AuthContext";
 import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
 import ConfirmActionModal from "../components/common/modals/ConfirmActionModal";
 import { Box, Chip } from "@mui/material";
-import { capitalizeName } from "../utils/formatters";
+import { capitalizeName, formatarDataSemTimezone } from "../utils/formatters";
 import StyledTabs from "../components/common/StyledTabs";
 import { UserOutlined, DeleteOutlined, ReloadOutlined } from "@ant-design/icons";
 
@@ -60,18 +60,11 @@ const formatarDataPeriodo = (folha) => {
     return "";
   }
   
-  const dataInicial = new Date(folha.dataInicial);
-  const dataFinal = new Date(folha.dataFinal);
+  // Usa formatarDataSemTimezone que extrai diretamente da string sem conversão de timezone
+  const dataInicialFormatada = formatarDataSemTimezone(folha.dataInicial);
+  const dataFinalFormatada = formatarDataSemTimezone(folha.dataFinal);
   
-  const formatarData = (data) => {
-    return data.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-  
-  return ` • ${formatarData(dataInicial)} - ${formatarData(dataFinal)}`;
+  return ` • ${dataInicialFormatada} - ${dataFinalFormatada}`;
 };
 
 const formatarDataHora = (dataString) => {
@@ -127,6 +120,7 @@ const ArhFolhaPagamento = () => {
   const [activeTabLancamentos, setActiveTabLancamentos] = useState("all");
   const [excluirModalOpen, setExcluirModalOpen] = useState(false);
   const [reprocessarModalOpen, setReprocessarModalOpen] = useState(false);
+  const [reprocessarRejeitadosModalOpen, setReprocessarRejeitadosModalOpen] = useState(false);
   const [contasDisponiveis, setContasDisponiveis] = useState([]);
   const [contaCorrenteSelecionada, setContaCorrenteSelecionada] = useState(null);
   const [loadingContas, setLoadingContas] = useState(false);
@@ -243,6 +237,33 @@ const ArhFolhaPagamento = () => {
   const folhaUsaPixApi = useMemo(() => {
     return selectedFolha?.meioPagamento === "PIX_API";
   }, [selectedFolha]);
+
+  // Calcular resumo dos rejeitados
+  const resumoRejeitados = useMemo(() => {
+    if (!lancamentos || lancamentos.length === 0) {
+      return {
+        quantidadeTotal: 0,
+        quantidadeRejeitados: 0,
+        quantidadeSucesso: 0,
+        valorTotal: 0,
+      };
+    }
+
+    const rejeitados = lancamentos.filter(l => l.statusPagamento === "REJEITADO");
+    const sucesso = lancamentos.filter(l => l.statusPagamento === "PAGO" || l.statusPagamento === "PROCESSADO");
+    
+    return {
+      quantidadeTotal: lancamentos.length,
+      quantidadeRejeitados: rejeitados.length,
+      quantidadeSucesso: sucesso.length,
+      valorTotal: rejeitados.reduce((sum, l) => sum + Number(l.valorLiquido || 0), 0),
+    };
+  }, [lancamentos]);
+
+  // Verificar se deve mostrar botão de reprocessar rejeitados
+  const mostrarBotaoReprocessarRejeitados = useMemo(() => {
+    return folhaUsaPixApi && resumoRejeitados.quantidadeRejeitados > 0;
+  }, [folhaUsaPixApi, resumoRejeitados]);
 
   // Carregar dados da conta quando abrir modal de Liberar (se PIX_API)
   useEffect(() => {
@@ -608,6 +629,45 @@ const ArhFolhaPagamento = () => {
     }
   };
 
+  const reprocessarPagamentosRejeitados = async (dadosReprocessamento) => {
+    if (!selectedFolha) return;
+    
+    // Fechar modal de confirmação
+    setReprocessarRejeitadosModalOpen(false);
+    
+    try {
+      setCentralLoading(true);
+      setCentralMessage("Reprocessando pagamentos rejeitados...");
+      
+      const payload = {
+        meioPagamento: dadosReprocessamento.meioPagamento,
+        dataPagamento: dadosReprocessamento.dataPagamento.toISOString(),
+        observacoes: dadosReprocessamento.observacoes || undefined,
+      };
+      
+      // Incluir contaCorrenteId se for PIX_API
+      if (dadosReprocessamento.meioPagamento === "PIX_API" && dadosReprocessamento.contaCorrenteId) {
+        payload.contaCorrenteId = Number(dadosReprocessamento.contaCorrenteId);
+      }
+      
+      const response = await axiosInstance.patch(
+        `/api/arh/folhas/${selectedFolha.id}/reprocessar-pagamentos-rejeitados`,
+        payload
+      );
+      
+      showNotification("success", "Sucesso", response.data.mensagem || "Pagamentos rejeitados reprocessados com sucesso!");
+      carregarFolhas();
+      carregarLancamentos(selectedFolha.id);
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Erro ao reprocessar pagamentos rejeitados.";
+      showNotification("error", "Erro", message);
+    } finally {
+      setCentralLoading(false);
+    }
+  };
+
   const gerarPDF = async () => {
     if (!selectedFolha) return;
     
@@ -748,6 +808,7 @@ const ArhFolhaPagamento = () => {
     }).length;
     const quantidadePendentes = lancamentos.filter(l => l.statusPagamento === "PENDENTE").length;
     const quantidadePagos = lancamentos.filter(l => l.statusPagamento === "PAGO").length;
+    const quantidadeRejeitados = lancamentos.filter(l => l.statusPagamento === "REJEITADO").length;
 
     return {
       totalHorasExtras,
@@ -759,6 +820,7 @@ const ArhFolhaPagamento = () => {
       quantidadeComValores,
       quantidadePendentes,
       quantidadePagos,
+      quantidadeRejeitados,
     };
   }, [lancamentos]);
 
@@ -1507,6 +1569,27 @@ const ArhFolhaPagamento = () => {
                   </Space>
                 </Box>
 
+                {/* Botão Reprocessar Rejeitados - Aparece apenas se houver rejeitados e for PIX_API */}
+                {mostrarBotaoReprocessarRejeitados && (
+                  <Box sx={{ mb: 2 }}>
+                    <Text strong style={{ fontSize: "13px", color: "#64748b", display: "block", marginBottom: "8px" }}>
+                      Reprocessamento
+                    </Text>
+                    <Space wrap style={{ width: "100%" }}>
+                      <PrimaryButton
+                        icon={<ReloadOutlined />}
+                        onClick={() => setReprocessarRejeitadosModalOpen(true)}
+                        style={{
+                          backgroundColor: "#fa8c16",
+                          borderColor: "#fa8c16",
+                        }}
+                      >
+                        Reprocessar Pagamentos Rejeitados ({resumoRejeitados.quantidadeRejeitados})
+                      </PrimaryButton>
+                    </Space>
+                  </Box>
+                )}
+
                 {/* Botões Secundários */}
                 <Box>
                   <Text strong style={{ fontSize: "13px", color: "#64748b", display: "block", marginBottom: "8px" }}>
@@ -1807,6 +1890,18 @@ const ArhFolhaPagamento = () => {
         icon={<ReloadOutlined />}
         iconColor="#1890ff"
       />
+
+      {/* Modal Reprocessar Rejeitados - Reutilizando FinalizarFolhaDialog */}
+      <Suspense fallback={<SuspenseFallback message="Carregando..." />}>
+        <FinalizarFolhaDialog
+          open={reprocessarRejeitadosModalOpen}
+          onClose={() => setReprocessarRejeitadosModalOpen(false)}
+          onSave={reprocessarPagamentosRejeitados}
+          folha={selectedFolha}
+          modoReprocessamento={true}
+          resumoRejeitados={resumoRejeitados}
+        />
+      </Suspense>
     </Box>
   );
 };

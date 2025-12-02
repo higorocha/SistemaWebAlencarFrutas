@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BbWebhookEvent, $Enums } from '@prisma/client';
+import { PagamentosService } from '../../pagamentos/pagamentos.service';
 
 interface WebhookPagamentoItem {
   numeroRequisicaoPagamento: number;
@@ -21,6 +22,7 @@ export class PagamentosWebhookService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly pagamentosService: PagamentosService,
   ) {}
 
   /**
@@ -77,24 +79,20 @@ export class PagamentosWebhookService {
 
   /**
    * Processa um item individual do webhook
+   * Agora trata todos os estados, não apenas "Pago", seguindo o mesmo comportamento dos jobs
    */
   private async processarItem(
     item: WebhookPagamentoItem,
   ): Promise<{ processado: boolean; motivo?: string }> {
     console.log(
-      `[PAGAMENTOS-WEBHOOK] Recebido item: ${item.codigoIdentificadorPagamento} (Requisicao: ${item.numeroRequisicaoPagamento}, Estado: ${item.textoEstado})`,
+      `[PAGAMENTOS-WEBHOOK] Recebido item: ${item.codigoIdentificadorPagamento} (Requisicao: ${item.numeroRequisicaoPagamento}, Estado: ${item.textoEstado}, CodigoEstado: ${item.codigoTextoEstado})`,
     );
 
-    // Verificar se o estado é "Pago" (codigoTextoEstado = 1)
-    if (item.codigoTextoEstado !== 1) {
-      console.log(
-        `[PAGAMENTOS-WEBHOOK] Item ${item.codigoIdentificadorPagamento} não está pago (estado: ${item.codigoTextoEstado}). Ignorando.`,
-      );
-      return {
-        processado: false,
-        motivo: `Estado não é "Pago" (codigoTextoEstado: ${item.codigoTextoEstado})`,
-      };
-    }
+    // Normalizar estado do webhook para o formato usado no sistema
+    const estadoNormalizado = this.normalizarEstadoWebhook(item.textoEstado, item.codigoTextoEstado);
+    console.log(
+      `[PAGAMENTOS-WEBHOOK] Estado normalizado: ${estadoNormalizado}`,
+    );
 
     // Buscar lote por numeroRequisicaoPagamento
     const lote = await this.prisma.pagamentoApiLote.findUnique({
@@ -127,6 +125,7 @@ export class PagamentosWebhookService {
             turmaColheitaCusto: true,
           },
         },
+        funcionarioPagamento: true,
       },
     });
 
@@ -140,8 +139,9 @@ export class PagamentosWebhookService {
       };
     }
 
-    // Converter dataPagamento (formato: "2024-05-10") para Date
-    const dataPagamentoEfetivo = new Date(item.dataPagamento + 'T12:00:00Z');
+    // IMPORTANTE: Verificar se o item já está como PROCESSADO (pago)
+    // Se estiver, preservar esse status mesmo se o webhook indicar outro estado
+    const itemJaPago = itemPagamento.status === $Enums.StatusPagamentoItem.PROCESSADO;
 
     // Preparar payload atualizado com dados do webhook
     const payloadAtualizado = {
@@ -152,38 +152,139 @@ export class PagamentosWebhookService {
       },
     };
 
-    // Atualizar item de pagamento
-    await this.prisma.pagamentoApiItem.update({
-      where: { id: itemPagamento.id },
-      data: {
-        status: $Enums.StatusPagamentoItem.PROCESSADO,
-        processadoComSucesso: true,
-        estadoPagamentoIndividual: 'Pago',
-        payloadItemRespostaAtual: payloadAtualizado as any,
-        ultimaAtualizacaoStatus: new Date(),
-        indicadorMovimentoAceitoAtual: 'S', // Pago = aceito (PIX)
-        indicadorAceiteAtual: 'S', // Para boleto/guia
-        indicadorAceiteGuiaAtual: 'S', // Para guia
-      },
-    });
+    // Tratar diferentes estados do webhook
+    if (estadoNormalizado === 'PAGO') {
+      // Item foi pago
+      if (!itemJaPago) {
+        // Converter dataPagamento (formato: "2024-05-10") para Date
+        const dataPagamentoEfetivo = item.dataPagamento 
+          ? new Date(item.dataPagamento + 'T12:00:00Z')
+          : new Date();
 
-    console.log(
-      `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} atualizado como PAGO`,
-    );
+        // Atualizar item de pagamento
+        await this.prisma.pagamentoApiItem.update({
+          where: { id: itemPagamento.id },
+          data: {
+            status: $Enums.StatusPagamentoItem.PROCESSADO,
+            processadoComSucesso: true,
+            estadoPagamentoIndividual: 'Pago',
+            payloadItemRespostaAtual: payloadAtualizado as any,
+            ultimaAtualizacaoStatus: new Date(),
+            indicadorMovimentoAceitoAtual: 'S',
+            indicadorAceiteAtual: 'S',
+            indicadorAceiteGuiaAtual: 'S',
+          },
+        });
 
-    // Atualizar colheitas (APENAS se for pagamento de colheitas)
-    if (itemPagamento.colheitas && itemPagamento.colheitas.length > 0) {
-      await this.atualizarColheitas(itemPagamento.id, dataPagamentoEfetivo);
+        console.log(
+          `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} atualizado como PAGO`,
+        );
+
+        // Atualizar colheitas (APENAS se for pagamento de colheitas)
+        if (itemPagamento.colheitas && itemPagamento.colheitas.length > 0) {
+          await this.atualizarColheitas(itemPagamento.id, dataPagamentoEfetivo);
+        }
+
+        // Atualizar funcionário (APENAS se for pagamento de funcionário)
+        if (itemPagamento.funcionarioPagamento) {
+          await this.pagamentosService.atualizarFuncionarioPagamentoDoItem(
+            itemPagamento.id,
+            'PAGO',
+            dataPagamentoEfetivo,
+          );
+        }
+      } else {
+        console.log(
+          `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} já está como PROCESSADO (pago), preservando status`,
+        );
+      }
+    } else if (estadoNormalizado === 'BLOQUEADO' || estadoNormalizado === 'REJEITADO' || estadoNormalizado === 'CANCELADO') {
+      // Item bloqueado, rejeitado ou cancelado
+      if (!itemJaPago) {
+        // Atualizar item
+        await this.prisma.pagamentoApiItem.update({
+          where: { id: itemPagamento.id },
+          data: {
+            status: $Enums.StatusPagamentoItem.REJEITADO,
+            processadoComSucesso: false,
+            estadoPagamentoIndividual: estadoNormalizado,
+            payloadItemRespostaAtual: payloadAtualizado as any,
+            ultimaAtualizacaoStatus: new Date(),
+          },
+        });
+
+        console.log(
+          `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} atualizado como ${estadoNormalizado}`,
+        );
+
+        // Reverter colheitas (APENAS se for pagamento de colheitas)
+        if (itemPagamento.colheitas && itemPagamento.colheitas.length > 0) {
+          await this.pagamentosService.reverterColheitasDoItemParaPendente(itemPagamento.id);
+        }
+
+        // Atualizar funcionário (APENAS se for pagamento de funcionário)
+        if (itemPagamento.funcionarioPagamento) {
+          await this.pagamentosService.atualizarFuncionarioPagamentoDoItem(
+            itemPagamento.id,
+            'REJEITADO',
+            null,
+          );
+        }
+
+        // Verificar e atualizar lote com itens bloqueados
+        await this.pagamentosService.verificarEAtualizarLoteComItensBloqueados(lote.id);
+      } else {
+        console.log(
+          `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} já está como PROCESSADO (pago), preservando status mesmo com estado ${estadoNormalizado}`,
+        );
+      }
     } else {
+      // Estado desconhecido ou pendente - apenas atualizar payload
+      await this.prisma.pagamentoApiItem.update({
+        where: { id: itemPagamento.id },
+        data: {
+          estadoPagamentoIndividual: estadoNormalizado,
+          payloadItemRespostaAtual: payloadAtualizado as any,
+          ultimaAtualizacaoStatus: new Date(),
+        },
+      });
+
       console.log(
-        `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} não possui colheitas vinculadas (não é pagamento de colheitas)`,
+        `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} atualizado com estado ${estadoNormalizado} (sem alteração de status interno)`,
       );
     }
 
-    // Atualizar lote (verificar se todos os itens foram pagos)
+    // Atualizar lote (verificar se todos os itens foram pagos ou se há itens bloqueados)
     await this.atualizarLote(lote.id);
 
     return { processado: true };
+  }
+
+  /**
+   * Normaliza o estado recebido do webhook para o formato usado no sistema
+   */
+  private normalizarEstadoWebhook(textoEstado: string, codigoEstado: number): string {
+    const estadoUpper = textoEstado?.toUpperCase() || '';
+    
+    // Mapear estados do webhook para estados do sistema
+    if (codigoEstado === 1 || estadoUpper.includes('PAGO')) {
+      return 'Pago';
+    }
+    if (estadoUpper.includes('BLOQUEADO')) {
+      return 'BLOQUEADO';
+    }
+    if (estadoUpper.includes('REJEITADO') || estadoUpper.includes('REJEITADO')) {
+      return 'REJEITADO';
+    }
+    if (estadoUpper.includes('CANCELADO')) {
+      return 'CANCELADO';
+    }
+    if (codigoEstado === 2 || estadoUpper.includes('NÃO PAGO') || estadoUpper.includes('NAO PAGO')) {
+      return 'PENDENTE';
+    }
+    
+    // Estado desconhecido - retornar como está
+    return textoEstado || 'DESCONHECIDO';
   }
 
   /**
@@ -266,8 +367,21 @@ export class PagamentosWebhookService {
 
   /**
    * Atualiza o lote após processar um item
+   * Segue o mesmo comportamento dos jobs: verifica itens bloqueados e preserva status
    */
   private async atualizarLote(loteId: number): Promise<void> {
+    // IMPORTANTE: Verificar se há itens bloqueados ANTES de atualizar o lote
+    // Se houver itens bloqueados, o lote será marcado como rejeitado (estado 7)
+    const temItensBloqueados = await this.pagamentosService.verificarEAtualizarLoteComItensBloqueados(loteId);
+
+    if (temItensBloqueados) {
+      // Lote já foi atualizado como rejeitado pelo método acima
+      console.log(
+        `[PAGAMENTOS-WEBHOOK] Lote ${loteId} marcado como rejeitado devido a itens bloqueados`,
+      );
+      return;
+    }
+
     // Buscar todos os itens do lote
     const itens = await this.prisma.pagamentoApiItem.findMany({
       where: { loteId },

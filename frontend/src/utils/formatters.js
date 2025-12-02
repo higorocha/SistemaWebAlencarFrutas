@@ -156,6 +156,32 @@ export const formatarDataBR = (dataString) => {
   }
 };
 
+/**
+ * Formata uma data extraindo diretamente da string, sem usar Date ou moment
+ * Evita completamente problemas de timezone ao extrair apenas os componentes da data
+ * @param {string} dataString - Data no formato "YYYY-MM-DD" ou "YYYY-MM-DD HH:mm:ss" ou ISO
+ * @returns {string} - Data formatada como "DD/MM/YYYY"
+ */
+export const formatarDataSemTimezone = (dataString) => {
+  if (!dataString) return "N/A";
+  
+  try {
+    // Extrair diretamente da string usando regex para evitar qualquer conversão de timezone
+    // Funciona com formatos: "2025-11-22", "2025-11-22 00:00:00", "2025-11-22T00:00:00.000Z"
+    const match = dataString.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const [, ano, mes, dia] = match;
+      return `${dia}/${mes}/${ano}`;
+    }
+    
+    // Se não conseguir extrair, retorna o valor original ou "N/A"
+    return "N/A";
+  } catch (error) {
+    console.error('Erro ao formatar data:', error);
+    return 'N/A';
+  }
+};
+
 // Formatar um valor numérico para exibição monetária (R$)
 export const formatarValorMonetario = (valor) => {
   if (valor === null || valor === undefined || valor === '') return 'R$ 0,00';

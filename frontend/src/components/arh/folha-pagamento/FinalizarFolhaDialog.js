@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { Modal, Button } from "antd";
 import PropTypes from "prop-types";
-import { SaveOutlined, CloseOutlined, LockOutlined } from "@ant-design/icons";
+import { SaveOutlined, CloseOutlined, LockOutlined, WarningOutlined, ReloadOutlined } from "@ant-design/icons";
 import FinalizarFolhaForm from "./FinalizarFolhaForm";
 import ConfirmCloseModal from "../../common/modals/ConfirmCloseModal";
 import useConfirmClose from "../../../hooks/useConfirmClose";
 
-const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
+const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessamento = false, resumoRejeitados = null }) => {
   const [finalizacaoAtual, setFinalizacaoAtual] = useState({
-    meioPagamento: "PIX",
+    meioPagamento: modoReprocessamento ? "PIX_API" : "PIX",
     dataPagamento: undefined,
     contaCorrenteId: null,
     observacoes: "",
@@ -34,14 +34,14 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
   useEffect(() => {
     if (open) {
       setFinalizacaoAtual({
-        meioPagamento: "PIX",
+        meioPagamento: modoReprocessamento ? "PIX_API" : "PIX",
         dataPagamento: undefined,
         contaCorrenteId: null,
         observacoes: "",
       });
       setErros({});
     }
-  }, [open]);
+  }, [open, modoReprocessamento]);
 
   const validarFormulario = () => {
     const novosErros = {};
@@ -94,7 +94,7 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
 
   const handleConfirmarCancelar = () => {
     setFinalizacaoAtual({
-      meioPagamento: "PIX",
+      meioPagamento: modoReprocessamento ? "PIX_API" : "PIX",
       dataPagamento: undefined,
       contaCorrenteId: null,
       observacoes: "",
@@ -119,8 +119,8 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
               borderRadius: "8px 8px 0 0",
             }}
           >
-            <LockOutlined style={{ marginRight: 8 }} />
-            Finalizar Folha de Pagamento
+            {modoReprocessamento ? <WarningOutlined style={{ marginRight: 8 }} /> : <LockOutlined style={{ marginRight: 8 }} />}
+            {modoReprocessamento ? "Reprocessar Pagamentos Rejeitados" : "Finalizar Folha de Pagamento"}
           </span>
         }
         open={open}
@@ -150,6 +150,8 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
           erros={erros}
           setErros={setErros}
           folha={folha}
+          modoReprocessamento={modoReprocessamento}
+          resumoRejeitados={resumoRejeitados}
         />
 
         <div
@@ -171,7 +173,7 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
           </Button>
           <Button
             type="primary"
-            icon={<SaveOutlined />}
+            icon={modoReprocessamento ? <ReloadOutlined /> : <SaveOutlined />}
             onClick={handleFinalizar}
             size="large"
             style={{
@@ -179,7 +181,7 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha }) => {
               borderColor: "#059669",
             }}
           >
-            Finalizar Folha
+            {modoReprocessamento ? "Reprocessar" : "Finalizar Folha"}
           </Button>
         </div>
       </Modal>
@@ -203,6 +205,13 @@ FinalizarFolhaDialog.propTypes = {
   onClose: PropTypes.func.isRequired,
   onSave: PropTypes.func.isRequired,
   folha: PropTypes.object,
+  modoReprocessamento: PropTypes.bool,
+  resumoRejeitados: PropTypes.shape({
+    quantidadeTotal: PropTypes.number,
+    quantidadeRejeitados: PropTypes.number,
+    quantidadeSucesso: PropTypes.number,
+    valorTotal: PropTypes.number,
+  }),
 };
 
 export default FinalizarFolhaDialog;

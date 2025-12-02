@@ -68,7 +68,6 @@ model ContaCorrente {
   conveniosCobranca         ConvenioCobranca[]
   credenciaisAPI            CredenciaisAPI[]
   lotesPagamentoApi         PagamentoApiLote[]
-  sequenciaNumeroRequisicao SequenciaNumeroRequisicao? // Sequência de número de requisição para esta conta
   syncJobs                  PagamentoApiSyncJob[]
   folhasPagamento           FolhaPagamento[] // Folhas de pagamento que usam esta conta para PIX_API
 
@@ -1032,12 +1031,11 @@ model HistoricoPedido {
 // IMPORTANTE: Uma sequência por conta corrente (separação entre CNPJ e PF)
 // Use o script seed-sequencia-numero-requisicao.ts para inicializar
 model SequenciaNumeroRequisicao {
-  id              Int      @id @default(autoincrement())
-  contaCorrenteId Int      @unique // Uma sequência por conta
-  ultimoNumero     Int      @default(0) // Último número usado para esta conta
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  contaCorrente    ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  id                    Int      @id @default(autoincrement())
+  numeroContratoPagamento Int    @unique // Uma sequência por contrato de pagamento (compartilhada entre contas com mesmo contrato)
+  ultimoNumero          Int      @default(0) // Último número usado para este contrato
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@map("sequencia_numero_requisicao")
 }

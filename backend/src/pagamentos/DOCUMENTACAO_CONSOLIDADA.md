@@ -17,7 +17,7 @@ Sistema completo de controle e rastreabilidade de pagamentos via API do Banco do
 - **Jobs automáticos de sincronização** (fila + worker) com delay configurado
 - **Integração completa com ARH (Folha de Pagamento)**
 
-**⚠️ Pendente:**
+**✅ Implementado:**
 - Webhook para receber atualizações do BB (vide seção 🔔 Webhook de Pagamentos)
 
 ---
@@ -40,26 +40,37 @@ O sistema utiliza **5 tabelas principais** para controlar todos os pagamentos:
 
 ### 1. `sequencia_numero_requisicao`
 
-**Propósito:** Controlar números sequenciais de requisição (1, 2, 3...)
+**Propósito:** Controlar números sequenciais de requisição compartilhados por contrato de pagamento
 
 **Campos:**
 - `id` (Int, PK) - Identificador único
-- `ultimoNumero` (Int) - Último número usado (inicia em 0)
+- `numeroContratoPagamento` (Int, UNIQUE) - Número do contrato de pagamentos (chave única)
+- `ultimoNumero` (Int) - Último número usado para este contrato
 - `createdAt` (DateTime) - Data de criação
 - `updatedAt` (DateTime) - Data de atualização
 
 **Lógica:**
-- A tabela é **inicializada automaticamente** na primeira requisição de pagamento
+- **Sequência compartilhada por contrato**: Contas correntes com o mesmo `numeroContratoPagamento` compartilham a mesma sequência
+- A tabela é **inicializada automaticamente** na primeira requisição de pagamento para cada contrato
 - Não é necessário executar script manual de seed
 - Usa **transação** para garantir atomicidade e evitar race conditions
 - Cada nova requisição incrementa `ultimoNumero` em 1
+- **Valor inicial automático**:
+  - **Produção** (`NODE_ENV=production`): 1000
+  - **Desenvolvimento** (`NODE_ENV=development` ou não definido): 100
+  - Pode ser sobrescrito pela variável de ambiente `BB_ULTIMO_NUMERO_REQUISICAO_INICIAL`
 
 **Exemplo:**
 ```sql
--- Primeira requisição: ultimoNumero = 0 → numeroRequisicao = 1
--- Segunda requisição: ultimoNumero = 1 → numeroRequisicao = 2
--- Terceira requisição: ultimoNumero = 2 → numeroRequisicao = 3
+-- Contas 19222 e 8249 compartilham contrato 731030
+-- Primeira requisição (Conta 19222): ultimoNumero = 1000 → numeroRequisicao = 1001
+-- Segunda requisição (Conta 8249): ultimoNumero = 1001 → numeroRequisicao = 1002
+-- Terceira requisição (Conta 19222): ultimoNumero = 1002 → numeroRequisicao = 1003
 ```
+
+**Configuração:**
+- Variável de ambiente opcional: `BB_ULTIMO_NUMERO_REQUISICAO_INICIAL` (sobrescreve valor automático)
+- Se não configurada, usa valor baseado em `NODE_ENV` (100 em dev, 1000 em produção)
 
 ---
 
@@ -316,7 +327,9 @@ const lote = await this.prisma.pagamentoApiLote.create({
 - **Logs** mostram hora local (`America/Sao_Paulo`), início de cada job e o resumo final (sucessos/falhas). Reagendamentos também geram log.
 - **Reagendamento automático (lotes)**: repete enquanto o BB responder estados intermediários (`1`, `2`, `4`, `5`, `8`, `9`, `10`). Só encerra quando chega em `6` (processado) ou `7` (rejeitado). **IMPORTANTE**: O sistema aceita sempre o estado retornado pelo BB, pois os estados não seguem sequência numérica crescente (ver seção "Sequência Real dos Estados do BB").
 - **Reagendamento automático (itens)**: repete quando o estado do PIX = `PENDENTE`, `CONSISTENTE`, `AGENDADO`, `AGUARDANDO DÉBITO` ou `DEBITADO`. Estados finais (`PAGO`, `CANCELADO`, `REJEITADO`, `DEVOLVIDO`, `VENCIDO`, `BLOQUEADO`) encerram o job.
-- **Propagação Turma Colheita**: quando o item chega em `PAGO`, o job replica o mesmo fluxo do webhook — marca as colheitas vinculadas como pagas e, se todos os itens do lote estiverem `PROCESSADOS`, atualiza o lote para `estadoRequisicao=6`/`CONCLUIDO`.
+- **Tratamento de itens bloqueados**: Quando um item está bloqueado, o sistema marca o lote inteiro como rejeitado (estado 7) para impedir a liberação, pois itens bloqueados impedem o processamento dos créditos. Itens já pagos são preservados e não são alterados. Ver seção detalhada em "4.1.1. Tratamento de Itens Bloqueados".
+- **Propagação Turma Colheita**: quando o item chega em `PAGO`, tanto o job quanto o webhook marcam as colheitas vinculadas como pagas e, se todos os itens do lote estiverem `PROCESSADOS`, atualiza o lote para `estadoRequisicao=6`/`CONCLUIDO`.
+- **Tratamento de itens bloqueados**: Quando um item está bloqueado, tanto o job quanto o webhook marcam o lote inteiro como rejeitado (estado 7) e revertem colheitas/funcionários para pendente (apenas se não estão pagos).
 - **Backoff de erros**: 15 → 30 → 60 → 180 min; após 5 tentativas falhas, status `FAILED` + mensagem registrada.
 
 ---
@@ -415,12 +428,14 @@ if (usuarioId && itensPagamento.length > 0) {
 
 ---
 
-## 🔔 Webhook de Pagamentos (Planejado)
+## 🔔 Webhook de Pagamentos (Implementado ✅)
 
 ### Visão Geral
-- A API do Banco do Brasil envia **webhooks** sempre que um pagamento em lote é efetivado.
-- Evento disponível para: **Transferências**, **PIX**, **Boletos** e **Guias** (quando o estado for **Pago**).
+- A API do Banco do Brasil envia **webhooks** sempre que um pagamento em lote é efetivado ou quando há mudanças de estado.
+- Evento disponível para: **Transferências**, **PIX**, **Boletos** e **Guias**.
 - O payload vem em formato **JSON Array** onde cada objeto representa um pagamento individual dentro do lote.
+- **Endpoint:** `POST /api/webhooks/bb/pagamentos`
+- **Autenticação:** mTLS (mutual TLS) com validação de certificados do Banco do Brasil
 
 ### Payload Oficial (BB)
 ```json
@@ -450,8 +465,8 @@ if (usuarioId && itensPagamento.length > 0) {
 | `numeroCPFouCNPJ` | Documento do favorecido. |
 | `dataPagamento` | Data em que o pagamento foi efetivado (formato `YYYY-MM-DD`). |
 | `valorPagamento` | Valor efetivamente pago. |
-| `codigoTextoEstado` | Código do estado (1=Pago, 2=Não pago). |
-| `textoEstado` | Texto do estado (`Pago`, `Não pago`). |
+| `codigoTextoEstado` | Código do estado (1=Pago, 2=Não pago, outros estados possíveis). |
+| `textoEstado` | Texto do estado (`Pago`, `Não pago`, `Bloqueado`, `Rejeitado`, `Cancelado`, etc.). |
 | `codigoIdentificadorInformadoCliente` | Descrição enviada por nós (ex: número do pedido). |
 | `codigoDescricaoTipoPagamento` | Código interno de modalidade (ex: `12845`). |
 | `descricaoTipoPagamento` | Texto da modalidade (ex: `Pagamentos Diversos Pix Transferência`). |
@@ -462,16 +477,58 @@ if (usuarioId && itensPagamento.length > 0) {
 | **Transferências / Fornecedores** | 1261 Crédito em Conta, 1263 TED, 12613 Guia c/ código barras, 12621 Guia arrecadação, 12630 Títulos BB, 12631 Títulos outros bancos, 12645 Pix Transferência, 12647 Pix QR Code |
 | **Pagamentos Diversos** | 1281 Crédito em Conta, 1283 TED, 12813 Guia c/ código barras, 12821 Guia arrecadação, 12830 Títulos BB, 12831 Títulos outros bancos, 12845 Pix Transferência, 12847 Pix QR Code |
 
-### Próximos Passos
-- Implementar endpoint dedicado (mTLS + autenticação BB) para receber o webhook.
-- Validar certificados e assinatura semelhante ao projeto `@exemploWebhook`.
-- Localizar lote/itens pelo `numeroRequisicaoPagamento` e `codigoIdentificadorPagamento`.
-- Atualizar:
-  - `pagamento_api_lote.ultimaAtualizacaoWebhook` / `payloadRespostaAtual`.
-  - `pagamento_api_item.estadoPagamentoIndividual`, `payloadItemRespostaAtual`, `status`.
-- Registrar auditoria e evitar reprocessamentos (idempotência por `codigoIdentificadorPagamento` + `textoEstado`).
+### Comportamento Implementado
 
-> Consulte `PLANO_WEBHOOK_PAGAMENTOS.md` para a estratégia completa de implementação.
+O webhook segue o **mesmo comportamento dos jobs de sincronização**, garantindo consistência entre atualizações via webhook e via polling:
+
+#### 1. Tratamento de Todos os Estados
+- **PAGO** (`codigoTextoEstado = 1`): Marca item como `PROCESSADO`, atualiza colheitas/funcionários como pagos
+- **BLOQUEADO**: Marca item como `REJEITADO`, reverte colheitas para `PENDENTE`, marca lote como rejeitado (estado 7)
+- **REJEITADO**: Marca item como `REJEITADO`, reverte colheitas para `PENDENTE`
+- **CANCELADO**: Marca item como `REJEITADO`, reverte colheitas para `PENDENTE`
+- **PENDENTE** (`codigoTextoEstado = 2`): Atualiza apenas payload, mantém status atual
+
+#### 2. Preservação de Itens Já Pagos
+- Se o item já está como `PROCESSADO` (pago), o status é **preservado** mesmo se o webhook indicar outro estado
+- Colheitas e funcionários já pagos não são revertidos
+
+#### 3. Detecção e Tratamento de Itens Bloqueados
+- Quando recebe estado **BLOQUEADO**:
+  - Marca item como `REJEITADO` (se não está pago)
+  - Reverte colheitas para `PENDENTE` (se não estão pagas)
+  - Atualiza `FuncionarioPagamento` para `REJEITADO` (se não está pago)
+  - Chama `verificarEAtualizarLoteComItensBloqueados()` para marcar o lote como rejeitado (estado 7)
+
+#### 4. Atualização de Lote
+- Verifica itens bloqueados antes de atualizar o lote
+- Se houver itens bloqueados, o lote é marcado como rejeitado (estado 7), mesmo que a API retorne outro estado
+- Se todos os itens foram pagos e não há itens bloqueados, marca lote como `CONCLUIDO`
+
+#### 5. Atualização Condicional por Tipo
+- **Pagamentos de Colheitas**: Atualiza `turma_colheita_pedido_custo` quando item é pago ou revertido
+- **Pagamentos de Funcionários**: Atualiza `arh_funcionarios_pagamento` quando item é pago ou revertido
+- **Outros tipos**: Apenas atualiza `pagamento_api_item`
+
+### Fluxo de Processamento
+1. BB envia webhook → Endpoint recebe via mTLS
+2. Validação de certificado e origem (BbWebhookMtlsGuard)
+3. Evento é persistido em `bb_webhook_events` para auditoria
+4. Handler processa cada item do payload:
+   - Normaliza estado do webhook para formato do sistema
+   - Busca lote e item no banco de dados
+   - Verifica se item já está pago (preserva se estiver)
+   - Atualiza item conforme estado recebido
+   - Atualiza colheitas/funcionários (se aplicável)
+   - Verifica itens bloqueados e atualiza lote se necessário
+5. Logs detalhados em cada etapa: `[PAGAMENTOS-WEBHOOK]`
+
+### Campos Atualizados
+- `pagamento_api_lote.ultimaAtualizacaoWebhook` / `payloadRespostaAtual` / `estadoRequisicaoAtual` / `status`
+- `pagamento_api_item.estadoPagamentoIndividual` / `payloadItemRespostaAtual` / `status` / `ultimaAtualizacaoStatus`
+- `turma_colheita_pedido_custo.statusPagamento` / `pagamentoEfetuado` / `dataPagamento` (apenas para pagamentos de colheitas)
+- `arh_funcionarios_pagamento.statusPagamento` / `pagamentoEfetuado` / `dataPagamento` (apenas para pagamentos de funcionários)
+
+> Consulte `PLANO_WEBHOOK_PAGAMENTOS.md` para detalhes técnicos da implementação.
 
 ---
 
@@ -660,34 +717,53 @@ PagamentoApiLote (ID: 1, numeroRequisicao: 1, Valor: R$ 1.000,00)
 
 ### 2. Geração de `numeroRequisicao`
 
-#### Função: `obterProximoNumeroRequisicao()`
+#### Função: `obterProximoNumeroRequisicao(contaCorrenteId)`
 
 **Lógica:**
-1. Inicia **transação** no banco de dados
-2. Busca registro de sequência (deve ter apenas 1 registro)
-3. Se não existe, **cria registro inicial** com `ultimoNumero = 0`
-4. Incrementa `ultimoNumero` em 1
-5. Atualiza registro com novo número
-6. Retorna o novo número
-7. Commit da transação
+1. Recebe `contaCorrenteId` como parâmetro
+2. Busca a conta corrente para obter `numeroContratoPagamento`
+3. Inicia **transação** no banco de dados
+4. Busca sequência por `numeroContratoPagamento` (compartilhada entre contas com mesmo contrato)
+5. Se não existe sequência:
+   - Busca maior `numeroRequisicao` no banco onde `numeroContrato = numeroContratoPagamento`
+   - Se encontrar, usa esse valor como base
+   - Se não encontrar, inicializa com valor baseado no ambiente:
+     - **Produção**: 1000
+     - **Desenvolvimento**: 100
+     - Pode ser sobrescrito por `BB_ULTIMO_NUMERO_REQUISICAO_INICIAL`
+   - Cria sequência com `numeroContratoPagamento` e `ultimoNumero` inicial
+6. Incrementa `ultimoNumero` em 1
+7. Verifica se o número já existe globalmente (evita duplicação)
+8. Se já existe, incrementa até encontrar número disponível
+9. Atualiza sequência com novo número
+10. Retorna o novo número
+11. Commit da transação
 
 **Vantagens:**
 - ✅ Inicialização automática (não precisa de script manual)
 - ✅ Thread-safe (usa transação)
-- ✅ Sequencial (1, 2, 3...)
-- ✅ Sem risco de duplicação
+- ✅ Sequencial compartilhado por contrato (contas com mesmo contrato compartilham sequência)
+- ✅ Sem risco de duplicação (verifica globalmente)
+- ✅ Valor inicial automático baseado em ambiente (100 em dev, 1000 em produção)
 
 **Exemplo:**
 ```typescript
-// Primeira requisição
-const numeroRequisicao = await obterProximoNumeroRequisicao(); // Retorna: 1
+// Conta 19222 e 8249 compartilham contrato 731030
 
-// Segunda requisição
-const numeroRequisicao = await obterProximoNumeroRequisicao(); // Retorna: 2
+// Primeira requisição (Conta 19222)
+const numeroRequisicao = await obterProximoNumeroRequisicao(19222); // Retorna: 1001 (inicia em 1000)
 
-// Terceira requisição
-const numeroRequisicao = await obterProximoNumeroRequisicao(); // Retorna: 3
+// Segunda requisição (Conta 8249 - mesmo contrato)
+const numeroRequisicao = await obterProximoNumeroRequisicao(8249); // Retorna: 1002 (continua sequência)
+
+// Terceira requisição (Conta 19222 - mesmo contrato)
+const numeroRequisicao = await obterProximoNumeroRequisicao(19222); // Retorna: 1003 (continua sequência)
 ```
+
+**Configuração de Ambiente:**
+- **Desenvolvimento**: Valor inicial automático = 100
+- **Produção**: Valor inicial automático = 1000
+- **Sobrescrita**: Configure `BB_ULTIMO_NUMERO_REQUISICAO_INICIAL` no `.env` para usar valor customizado
 
 ---
 
@@ -1148,12 +1224,11 @@ const valorTotalConsolidado = colheitasParaPagar.reduce((acc, colheita) =>
 const transferenciaConsolidada = {
   data: dataFormatada,
   valor: valorTotalConsolidado.toFixed(2),
-  descricaoPagamento: quantidadeColheitas === 1
-    ? `Pagamento de colheita - ${colheitasParaPagar[0].fruta?.nome || 'Fruta'} - ${colheitasParaPagar[0].pedidoNumero || colheitasParaPagar[0].id}`
-    : `Pagamento consolidado - ${quantidadeColheitas} colheita(s) - Turma ${turmaNome}`,
-  descricaoPagamentoInstantaneo: quantidadeColheitas === 1
-    ? `Colheita ${colheitasParaPagar[0].id} - ${colheitasParaPagar[0].cliente?.nome || 'Cliente'}`
-    : `Pagamento consolidado - ${quantidadeColheitas} colheita(s) - Turma ${turmaNome}`,
+  // descricaoPagamento: nome do colhedor (limitado a 40 caracteres)
+  descricaoPagamento: limitarString(turmaNome || '', 40),
+  // descricaoPagamentoInstantaneo: número do pedido (limitado a 26 caracteres)
+  descricaoPagamentoInstantaneo: limitarString(numeroPedido, 26),
+  // documentoDebito: não está sendo enviado (opcional - não implementado)
   formaIdentificacao: chavePixInfo.tipo,
   // ... campos condicionais baseados no tipo de chave ...
 };
@@ -1190,6 +1265,63 @@ const response = await axiosInstance.post('/api/pagamentos/transferencias-pix', 
 // ✅ numeroRequisicao agora vem na resposta (gerado pelo backend)
 console.log('Número da requisição gerado:', response.data.numeroRequisicao);
 ```
+
+### 4. Campos de Descrição e Documento de Débito
+
+#### 4.1. `documentoDebito` (Não Implementado)
+
+**Status:** ❌ Não está sendo enviado no payload
+
+**Comportamento Atual:**
+- Quando `documentoDebito` não é informado (ou todos os lançamentos de uma mesma requisição têm o mesmo número), o Banco do Brasil consolida todos os débitos em um único registro no extrato da conta do pagador, exibindo o valor total dos lançamentos validados.
+- O número de documento do débito é consolidado a partir do dia seguinte da efetivação dos lançamentos.
+
+**Observação:** Este campo pode ser implementado no futuro para individualizar os débitos no extrato, permitindo que cada lançamento apareça separadamente.
+
+---
+
+#### 4.2. `descricaoPagamento` (Implementado)
+
+**Status:** ✅ Implementado
+
+**Limite:** 40 caracteres
+
+**Valores por Tipo de Origem:**
+
+**Turmas de Colheita:**
+- **Fonte:** Frontend (`TurmaColheitaPagamentosModal.js`)
+- **Valor:** Nome do colhedor (limitado a 40 caracteres)
+- **Exemplo:** `"João Silva"`
+
+**Folha de Pagamento:**
+- **Fonte:** Backend (`folha-pagamento.service.ts`)
+- **Valor:** Nome do funcionário (limitado a 40 caracteres)
+- **Exemplo:** `"Maria Santos"`
+
+**Observação:** Campo de uso livre pelo cliente conveniado, sem tratamento pelo Banco do Brasil.
+
+---
+
+#### 4.3. `descricaoPagamentoInstantaneo` (Implementado)
+
+**Status:** ✅ Implementado
+
+**Limite:** 26 caracteres
+
+**Valores por Tipo de Origem:**
+
+**Turmas de Colheita:**
+- **Fonte:** Frontend (`TurmaColheitaPagamentosModal.js`)
+- **Valor:** Número do pedido (limitado a 26 caracteres)
+- **Exemplo:** `"PED-2025-001"`
+
+**Folha de Pagamento:**
+- **Fonte:** Backend (`folha-pagamento.service.ts`)
+- **Valor:** Formato `"FOLHA MM/YYYY Q"` (limitado a 26 caracteres)
+- **Exemplo:** `"FOLHA 11/2025 1Q"` (Folha de novembro/2025, 1ª quinzena)
+- **Exemplo:** `"FOLHA 11/2025 2Q"` (Folha de novembro/2025, 2ª quinzena)
+
+**Observação:** Descrição do pagamento instantâneo para fins de conciliação do próprio cliente.
 
 ---
 
@@ -1254,34 +1386,145 @@ console.log('Número da requisição gerado:', response.data.numeroRequisicao);
      - Chama `POST /liberar-pagamentos` no BB.
      - Atualiza o lote com auditoria (`observacoes` e `payloadRespostaAtual`).
 
-#### 4.1.1. Liberação Tardia de Lotes
+#### 4.1.1. Tratamento de Itens Bloqueados
 
-**Comportamento Especial:** O sistema permite liberar um lote de pagamentos mesmo após a data de pagamento informada ter passado.
+**Comportamento Especial:** O sistema detecta automaticamente quando itens de pagamento estão bloqueados e marca o lote inteiro como rejeitado para impedir a liberação, pois itens bloqueados impedem o processamento dos créditos.
 
 **Cenário:**
 - Um lote é criado no dia **25** com `dataPagamento` configurada para o dia **25**.
 - O lote não é liberado imediatamente e permanece pendente.
-- No dia **28**, o administrador decide liberar o lote (mesmo com a data de pagamento já passada).
+- Quando a data de pagamento passa e o lote ainda não foi liberado, o BB retorna o estado `BLOQUEADO` para os itens afetados.
 
 **O que acontece:**
 
-1. **Jobs de Sincronização Automática:**
+1. **Detecção de Itens Bloqueados:**
    - Os jobs de sincronização (`PagamentosSyncWorkerService`) consultam periodicamente o status dos itens no BB.
-   - Quando a data de pagamento passa e o lote ainda não foi liberado, o BB retorna o estado `BLOQUEADO` para os itens.
-   - O sistema atualiza automaticamente o campo `estadoPagamentoIndividual` para `"Bloqueado"` nos itens afetados.
+   - Quando um item é consultado individualmente e retorna `estadoPagamento = "BLOQUEADO"`, o sistema:
+     - Atualiza `estadoPagamentoIndividual = "BLOQUEADO"` no item
+     - Marca o item como `status = REJEITADO` (status interno)
+     - Verifica se há outros itens bloqueados no mesmo lote
 
-2. **Liberação Tardia:**
-   - O administrador pode liberar o lote normalmente via `POST /api/pagamentos/liberar`, mesmo com os itens já marcados como `BLOQUEADO`.
-   - O BB aceita a liberação e processa a requisição normalmente.
-   - Após a liberação, os jobs continuam monitorando os itens para verificar se o BB processa os pagamentos bloqueados.
+2. **Marcação Automática do Lote como Rejeitado:**
+   - Quando **qualquer item** do lote está bloqueado, o sistema automaticamente:
+     - Marca o lote como `estadoRequisicaoAtual = 7` (Rejeitado)
+     - Atualiza `status = REJEITADO` no lote
+     - Adiciona observação explicando que itens bloqueados foram detectados
+   - **IMPORTANTE:** O estado do lote é marcado como rejeitado **independente** do estado retornado pela API do BB para o lote (ex: mesmo que a API retorne estado 5 = PROCESSANDO, o sistema força estado 7 se houver itens bloqueados)
 
-3. **Estados dos Itens:**
-   - **Antes da liberação tardia:** `estadoPagamentoIndividual = "Bloqueado"` (atualizado automaticamente pelos jobs).
-   - **Após a liberação tardia:** O sistema aguarda a resposta do BB para verificar se os itens são processados ou permanecem bloqueados.
+3. **Preservação de Itens Já Pagos:**
+   - **Itens já pagos são preservados:** Se um item já está com `status = PROCESSADO` (pago), ele **não é alterado** mesmo que outros itens do lote estejam bloqueados
+   - **FuncionarioPagamento:** Se o item já está pago, o status do funcionário permanece como `PAGO` na tabela `arh_funcionarios_pagamento`
+   - **Colheitas:** Se o item já está pago, as colheitas vinculadas permanecem como pagas
+   - Apenas itens bloqueados que **não estão pagos** são marcados como rejeitados
 
-**Observação Importante:**
-- Este comportamento está sendo monitorado para validar se o Banco do Brasil processa efetivamente os pagamentos de itens que estavam bloqueados quando a liberação é feita após a data de pagamento.
-- A documentação será atualizada conforme os resultados observados na prática.
+4. **Atualização de Status:**
+   - **Item bloqueado (não pago):**
+     - `estadoPagamentoIndividual = "BLOQUEADO"` (preservado da API)
+     - `status = REJEITADO` (status interno)
+     - `FuncionarioPagamento.statusPagamento = REJEITADO`
+     - Colheitas revertidas para pendente
+   - **Item bloqueado (já pago):**
+     - `estadoPagamentoIndividual = "BLOQUEADO"` (preservado da API)
+     - `status = PROCESSADO` (preservado - não alterado)
+     - `FuncionarioPagamento.statusPagamento = PAGO` (preservado - não alterado)
+     - Colheitas permanecem como pagas
+
+5. **Comportamento na Consulta de Lote Completo:**
+   - A consulta de lote completo (`consultarSolicitacaoTransferenciaPixOnline`) **não retorna** `estadoPagamento` individual dos itens
+   - O sistema verifica se algum item já tem `estadoPagamentoIndividual = 'BLOQUEADO'` (de consulta individual anterior)
+   - Se encontrar itens bloqueados, marca o lote como rejeitado mesmo que a API retorne outro estado
+   - Itens já pagos são preservados durante a atualização
+
+6. **Comportamento na Consulta Individual:**
+   - A consulta individual (`consultarStatusTransferenciaIndividual`) retorna `estadoPagamento = "BLOQUEADO"` quando aplicável
+   - O sistema atualiza o item e verifica o lote automaticamente
+   - Se houver itens bloqueados, o lote é marcado como rejeitado
+
+**Fluxo Completo:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Job consulta ITEM INDIVIDUAL                             │
+│    - API retorna: estadoPagamento = "BLOQUEADO"            │
+│    - Sistema atualiza:                                      │
+│      → estadoPagamentoIndividual = 'BLOQUEADO'             │
+│      → status = REJEITADO (se não está pago)               │
+│      → FuncionarioPagamento = REJEITADO (se não está pago) │
+└─────────────────────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Sistema verifica lote                                    │
+│    - Busca todos os itens do lote                           │
+│    - Verifica se algum tem estadoPagamentoIndividual =      │
+│      'BLOQUEADO'                                            │
+│    - Se encontrar → Marca lote como REJEITADO (estado 7)   │
+└─────────────────────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Job consulta LOTE COMPLETO                               │
+│    - API retorna: estadoRequisicao = 5 (PROCESSANDO)       │
+│    - Sistema verifica itens bloqueados                      │
+│    - Se houver itens bloqueados:                            │
+│      → Força estadoRequisicaoAtual = 7 (ignora estado 5)   │
+│      → status = REJEITADO                                   │
+│    - Preserva itens já pagos (não altera status)            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Observações Importantes:**
+- Itens bloqueados impedem a liberação do lote, pois o crédito não poderá ser efetuado
+- Quando um lote está rejeitado por itens bloqueados, os funcionários e colheitas têm seus status revertidos para que o pagamento possa ser feito novamente em um novo lote
+- Itens já pagos são sempre preservados, mesmo em lotes rejeitados
+- O sistema garante consistência entre consulta individual e consulta de lote completo
+
+**Implementação Técnica:**
+
+O método `verificarEAtualizarLoteComItensBloqueados()` é chamado em dois momentos:
+
+1. **Após consulta individual de item** (`consultarStatusTransferenciaIndividual`):
+   - Quando um item retorna `estadoPagamento = "BLOQUEADO"`
+   - O método verifica todos os itens do lote
+   - Se encontrar itens bloqueados, marca o lote como rejeitado (estado 7)
+
+2. **Após consulta de lote completo** (`consultarSolicitacaoTransferenciaPixOnline`):
+   - Após atualizar todos os itens com dados do lote
+   - Verifica se algum item tem `estadoPagamentoIndividual = 'BLOQUEADO'` (de consulta individual anterior)
+   - Se encontrar, marca o lote como rejeitado mesmo que a API retorne outro estado
+
+**Lógica de Preservação de Itens Pagos:**
+
+```typescript
+// Na consulta de lote completo
+const itemJaPago = item.status === StatusPagamentoItem.PROCESSADO || 
+                   statusFinal === StatusPagamentoItem.PROCESSADO;
+
+// Na consulta individual
+const itemJaPago = itemAtualizado.status === StatusPagamentoItem.PROCESSADO;
+
+// Só atualiza se NÃO está pago
+if (!itemJaPago) {
+  // Marcar como rejeitado
+} else {
+  // Preservar status de pago
+}
+```
+
+**Campos Atualizados no Lote quando há itens bloqueados:**
+- `estadoRequisicaoAtual = 7` (Rejeitado)
+- `status = REJEITADO`
+- `observacoes`: Adiciona observação explicando que itens bloqueados foram detectados e o motivo da rejeição
+
+**Campos Atualizados no Item quando está bloqueado (se não está pago):**
+- `estadoPagamentoIndividual = "BLOQUEADO"` (preservado da API)
+- `status = REJEITADO` (status interno)
+- `FuncionarioPagamento.statusPagamento = REJEITADO` (se vinculado)
+- Colheitas revertidas para pendente (se vinculadas)
+
+**Campos Preservados no Item quando está bloqueado mas já está pago:**
+- `estadoPagamentoIndividual = "BLOQUEADO"` (preservado da API)
+- `status = PROCESSADO` (preservado - não alterado)
+- `FuncionarioPagamento.statusPagamento = PAGO` (preservado - não alterado)
+- Colheitas permanecem como pagas (não revertidas)
 
 #### 4.2. Cancelamento de Pagamentos
 
@@ -1391,8 +1634,11 @@ const podeLiberar =
     {
       data: "15122024",
       valor: "1000.00",
-      descricaoPagamento: "Pagamento consolidado - 10 colheita(s) - Turma João Silva",
-      descricaoPagamentoInstantaneo: "Pagamento consolidado - 10 colheita(s) - Turma João Silva",
+      // descricaoPagamento: nome do colhedor (limitado a 40 caracteres)
+      descricaoPagamento: "João Silva",
+      // descricaoPagamentoInstantaneo: número do pedido (limitado a 26 caracteres)
+      descricaoPagamentoInstantaneo: "PED-2025-001",
+      // documentoDebito: não está sendo enviado (opcional - não implementado)
       formaIdentificacao: 1,
       dddTelefone: "11",
       telefone: "985732102"
@@ -1547,10 +1793,15 @@ GET /api/pagamentos/pix/96494633731030000/individual
 - ✅ Worker cron serial + logs narrativos
 - ✅ Backoff, reagendamento automático e resumo por execução
 
-### Fase 8: Webhook (Pendente)
-- ⚠️ Implementar endpoint para receber webhooks do BB
-- ⚠️ Atualizar status automaticamente via webhook
-- ⚠️ Validar assinatura do webhook
+### Fase 8: Webhook (Concluído ✅)
+- ✅ Endpoint implementado: `POST /api/webhooks/bb/pagamentos`
+- ✅ Autenticação mTLS com validação de certificados do BB
+- ✅ Tratamento de todos os estados (PAGO, BLOQUEADO, REJEITADO, CANCELADO, PENDENTE)
+- ✅ Preservação de itens já pagos
+- ✅ Detecção e tratamento de itens bloqueados (marca lote como rejeitado)
+- ✅ Atualização condicional de colheitas e funcionários
+- ✅ Persistência de eventos em `bb_webhook_events` para auditoria
+- ✅ Logs detalhados em cada etapa do processamento
 
 ### Futuro: Integração com Fornecedores
 - ⚠️ Integrar com `FornecedorPagamento`
@@ -1617,10 +1868,43 @@ RASCUNHO → PENDENTE_LIBERACAO → EM_PROCESSAMENTO → FECHADA
   8. Atualiza `statusPagamento = ENVIADO` para cada funcionário
   9. Atualiza status da folha para `EM_PROCESSAMENTO`
 
-#### Sincronização Automática
-Quando o job de sincronização (`PagamentosSyncWorkerService`) atualiza um `PagamentoApiItem` que tem `funcionarioPagamentoId`:
+#### Sincronização Automática de Status
+Quando o job de sincronização (`PagamentosSyncWorkerService`) ou webhook atualiza um `PagamentoApiItem` que tem `funcionarioPagamentoId`:
 - `estadoPagamento = "PAGO"` → `FuncionarioPagamento.statusPagamento = 'PAGO'`, `pagamentoEfetuado = true`
-- `estadoPagamento = "REJEITADO"` → `FuncionarioPagamento.statusPagamento = 'REJEITADO'`
+- `estadoPagamento = "REJEITADO"` → `FuncionarioPagamento.statusPagamento = 'REJEITADO'`, `pagamentoEfetuado = false`
+- `estadoPagamento = "BLOQUEADO"` → `FuncionarioPagamento.statusPagamento = 'REJEITADO'`, `pagamentoEfetuado = false` (apenas se o item não está pago)
+  - **IMPORTANTE:** Se o item já está como `PROCESSADO` (pago), o status do funcionário permanece como `PAGO` e não é alterado
+
+#### Recálculo Automático de Folhas
+Após cada atualização de `FuncionarioPagamento` via jobs ou webhook, o sistema automaticamente:
+1. **Recalcula os totais da folha** (`totalBruto`, `totalLiquido`, `totalPago`, `totalPendente`)
+2. **Atualiza a coluna "Pago"** na listagem de folhas, considerando apenas `pagamentoEfetuado = true`
+3. **Garante sincronização** entre `statusPagamento` e `pagamentoEfetuado`:
+   - `statusPagamento = PAGO` → sempre `pagamentoEfetuado = true`
+   - `statusPagamento = REJEITADO` → sempre `pagamentoEfetuado = false`
+
+**Pontos de Recálculo:**
+- ✅ Após atualização via `atualizarFuncionarioPagamentoDoItem` (jobs e webhook)
+- ✅ Após atualização em lote via `consultarSolicitacaoTransferenciaPixOnline` (consulta de lote completo)
+- ✅ Método público `recalcularFolhaNoBanco` disponível para uso externo
+
+#### Fechamento Automático de Folhas PIX-API
+Quando uma folha está em `EM_PROCESSAMENTO` com `meioPagamento = PIX_API`, o sistema verifica automaticamente após cada recálculo:
+
+**Condições para Fechamento Automático:**
+1. Folha está em status `EM_PROCESSAMENTO`
+2. Meio de pagamento é `PIX_API`
+3. **Todos** os lançamentos têm `pagamentoEfetuado = true` (todos foram pagos)
+4. **Nenhum** lançamento está com `statusPagamento = REJEITADO`
+
+**Comportamento:**
+- ✅ **Fechamento Automático**: Quando todas as condições são atendidas, a folha é fechada automaticamente (status `FECHADA`)
+- ⚠️ **Mantém EM_PROCESSAMENTO**: Se houver lançamentos rejeitados, a folha permanece em `EM_PROCESSAMENTO` para permitir reprocessamento
+- ✅ **Após Reprocessamento**: Se todos os rejeitados forem reprocessados e pagos, a folha será fechada automaticamente na próxima atualização
+
+**Diferença entre Meios de Pagamento:**
+- **PIX Manual ou Espécie**: Folha é fechada imediatamente ao clicar em "Finalizar Folha" (pagamentos são marcados como PAGO instantaneamente)
+- **PIX-API**: Folha vai para `EM_PROCESSAMENTO` e é fechada automaticamente quando todos os pagamentos são concluídos
 
 #### Diferença: Colheitas vs Funcionários
 | Aspecto | Colheitas | Funcionários |
@@ -1643,11 +1927,36 @@ O endpoint `PATCH /api/arh/folhas/:id/liberar` implementa idempotência:
 - ✅ Segunda vez (após falha): Detecta lotes existentes, não duplica, apenas libera
 - ✅ Estado inconsistente: Recupera automaticamente criando lotes apenas para os faltantes
 
+#### Reprocessamento de Pagamentos Rejeitados
+Quando uma folha PIX-API tem pagamentos rejeitados, o sistema oferece funcionalidade de reprocessamento:
+
+**Endpoint:** `PATCH /api/arh/folhas/:id/reprocessar-pagamentos-rejeitados`
+- **Permissões:** `ADMINISTRADOR`
+- **Payload:** `{ meioPagamento, dataPagamento, contaCorrenteId?, observacoes? }`
+
+**Lógica:**
+1. Busca todos os lançamentos com `statusPagamento = REJEITADO` na folha
+2. Limpa o vínculo anterior: `pagamentoApiItemId = null`, `statusPagamento = PENDENTE`
+3. **Se `meioPagamento = PIX_API`:**
+   - Solicita conta corrente novamente
+   - Cria novos lotes apenas para os funcionários rejeitados
+   - Mantém folha em `EM_PROCESSAMENTO`
+4. **Se `meioPagamento = PIX` ou `ESPECIE`:**
+   - Marca lançamentos como `PAGO` e `pagamentoEfetuado = true` imediatamente
+   - Não cria novos lotes
+
+**Frontend:**
+- Botão "Reprocessar Pagamentos Rejeitados" aparece na seção "Resumo" quando:
+  - Folha tem `meioPagamento = PIX_API`
+  - Folha tem `quantidadeRejeitados > 0`
+- Alerta visual (ícone ⚠️) na coluna "Status" da tabela de folhas para folhas `FECHADA` ou `EM_PROCESSAMENTO` com rejeitados
+
 #### Outros Detalhes
 - Fluxo manual (PIX comum ou espécie) permanece independente e simples.
 - Endpoints REST para cargos, funções, funcionários e folha estão sob `api/arh/...`.
 - Campos `usuarioCriacaoId`, `usuarioLiberacaoId` e `dataLiberacao` registram auditoria.
 - Endpoint `POST /api/arh/folhas/:id/processar-pix-api` está **deprecated** mas mantido para compatibilidade.
+- **Garantia de Consistência**: `pagamentoEfetuado` sempre está sincronizado com `statusPagamento` em todos os pontos do sistema (jobs, webhook, processamento manual)
 
 ---
 
@@ -1688,10 +1997,17 @@ Se o Prisma Client não reconhece a nova tabela:
 
 ---
 
-**Última atualização:** 2025-11-20
+**Última atualização:** 2025-01-XX
 
-**Versão:** 1.0.0
+**Versão:** 1.1.0
 
-**Status:** 95% Concluído
+**Status:** 98% Concluído
+
+**Mudanças Recentes (v1.1.0):**
+- ✅ Recálculo automático de folhas após atualizações de pagamento (jobs/webhook)
+- ✅ Fechamento automático de folhas PIX-API quando todos os pagamentos estão PAGO
+- ✅ Sincronização garantida de `pagamentoEfetuado` com `statusPagamento` em todos os pontos
+- ✅ Alerta visual para folhas com pagamentos rejeitados (FECHADA ou EM_PROCESSAMENTO)
+- ✅ Reprocessamento de pagamentos rejeitados com suporte a mudança de meio de pagamento
 
 

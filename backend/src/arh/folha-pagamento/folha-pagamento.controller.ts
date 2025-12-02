@@ -25,6 +25,7 @@ import { UpdateLancamentoDto } from './dto/update-lancamento.dto';
 import { MarcarPagamentoDto } from './dto/marcar-pagamento.dto';
 import { FinalizarFolhaDto } from './dto/finalizar-folha.dto';
 import { ProcessarPagamentoPixApiDto } from './dto/processar-pix-api.dto';
+import { ReprocessarPagamentosRejeitadosDto } from './dto/reprocessar-pagamentos-rejeitados.dto';
 
 const ARH_OPERADORES = [
   NivelUsuario.ADMINISTRADOR,
@@ -161,6 +162,20 @@ export class FolhaPagamentoController {
     @Request() req: any,
   ) {
     return this.service.reprocessarFolha(id, req.user.id);
+  }
+
+  /**
+   * Reprocessa pagamentos rejeitados de uma folha
+   * Limpa os vínculos antigos e cria novos lotes ou marca como pago conforme o meio de pagamento
+   */
+  @Patch(':id/reprocessar-pagamentos-rejeitados')
+  @Niveis(...ARH_OPERADORES)
+  reprocessarPagamentosRejeitados(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ReprocessarPagamentosRejeitadosDto,
+    @Request() req: any,
+  ) {
+    return this.service.reprocessarPagamentosRejeitados(id, dto, req.user.id);
   }
 
   /**

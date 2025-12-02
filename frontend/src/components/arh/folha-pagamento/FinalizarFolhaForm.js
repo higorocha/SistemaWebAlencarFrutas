@@ -59,6 +59,8 @@ const FinalizarFolhaForm = ({
   erros,
   setErros,
   folha,
+  modoReprocessamento = false,
+  resumoRejeitados = null,
 }) => {
   const [contasDisponiveis, setContasDisponiveis] = useState([]);
   const [loadingContas, setLoadingContas] = useState(false);
@@ -112,36 +114,75 @@ const FinalizarFolhaForm = ({
         {/* Alerta informativo */}
         <Alert
           message="Atenção"
-          description="Ao finalizar a folha, todos os lançamentos serão configurados com o meio de pagamento e data informados abaixo. A folha ficará travada para edições até que seja liberada pelo administrador ou reaberta para correções."
+          description={
+            modoReprocessamento
+              ? "Os pagamentos rejeitados serão reprocessados conforme o meio de pagamento selecionado. Os vínculos antigos serão limpos e novos lotes serão criados (se PIX-API) ou os pagamentos serão marcados como pagos (se PIX/Espécie)."
+              : "Ao finalizar a folha, todos os lançamentos serão configurados com o meio de pagamento e data informados abaixo. A folha ficará travada para edições até que seja liberada pelo administrador ou reaberta para correções."
+          }
           type="warning"
           icon={<InfoCircleOutlined />}
           showIcon
           style={{ marginBottom: 16 }}
         />
 
-        {/* Resumo da Folha */}
+        {/* Resumo da Folha ou Rejeitados */}
         <Card
           style={{
             marginBottom: 16,
-            border: "1px solid #e8e8e8",
+            border: modoReprocessamento ? "1px solid #fef2f2" : "1px solid #e8e8e8",
             borderRadius: "8px",
-            backgroundColor: "#f0f9ff",
+            backgroundColor: modoReprocessamento ? "#fef2f2" : "#f0f9ff",
           }}
         >
-          <Title level={5} style={{ marginTop: 0, color: "#059669" }}>
-            Resumo da Folha
+          <Title level={5} style={{ marginTop: 0, color: modoReprocessamento ? "#dc2626" : "#059669" }}>
+            {modoReprocessamento ? "Resumo dos Pagamentos Rejeitados" : "Resumo da Folha"}
           </Title>
-          <Space direction="vertical" size="small" style={{ width: "100%" }}>
-            <Text strong style={{ fontSize: "14px" }}>
-              Total Líquido: {currency(folha?.totalLiquido || 0)}
-            </Text>
-            <Text style={{ fontSize: "13px", color: "#666" }}>
-              Lançamentos: {folha?.quantidadeLancamentos || 0}
-            </Text>
-            <Text style={{ fontSize: "13px", color: "#666" }}>
-              Referência: {formatarReferenciaFolha(folha)}
-            </Text>
-          </Space>
+          {modoReprocessamento && resumoRejeitados ? (
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={8}>
+                <div style={{ textAlign: "center" }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: 4 }}>
+                    Total de Funcionários
+                  </Text>
+                  <Text strong style={{ fontSize: "20px", color: "#334155" }}>
+                    {resumoRejeitados.quantidadeTotal || 0}
+                  </Text>
+                </div>
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ textAlign: "center" }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: 4 }}>
+                    Rejeitados
+                  </Text>
+                  <Text strong style={{ fontSize: "20px", color: "#dc2626" }}>
+                    {resumoRejeitados.quantidadeRejeitados || 0}
+                  </Text>
+                </div>
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ textAlign: "center" }}>
+                  <Text style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: 4 }}>
+                    Valor Total
+                  </Text>
+                  <Text strong style={{ fontSize: "20px", color: "#dc2626" }}>
+                    {currency(resumoRejeitados.valorTotal || 0)}
+                  </Text>
+                </div>
+              </Col>
+            </Row>
+          ) : (
+            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+              <Text strong style={{ fontSize: "14px" }}>
+                Total Líquido: {currency(folha?.totalLiquido || 0)}
+              </Text>
+              <Text style={{ fontSize: "13px", color: "#666" }}>
+                Lançamentos: {folha?.quantidadeLancamentos || 0}
+              </Text>
+              <Text style={{ fontSize: "13px", color: "#666" }}>
+                Referência: {formatarReferenciaFolha(folha)}
+              </Text>
+            </Space>
+          )}
         </Card>
 
         {/* Seção: Forma de Pagamento */}
@@ -367,6 +408,13 @@ FinalizarFolhaForm.propTypes = {
   erros: PropTypes.object,
   setErros: PropTypes.func,
   folha: PropTypes.object,
+  modoReprocessamento: PropTypes.bool,
+  resumoRejeitados: PropTypes.shape({
+    quantidadeTotal: PropTypes.number,
+    quantidadeRejeitados: PropTypes.number,
+    quantidadeSucesso: PropTypes.number,
+    valorTotal: PropTypes.number,
+  }),
 };
 
 export default FinalizarFolhaForm;

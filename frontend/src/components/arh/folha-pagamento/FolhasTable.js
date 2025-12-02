@@ -1,7 +1,8 @@
 // src/components/arh/folha-pagamento/FolhasTable.js
 
 import React from "react";
-import { Tag, Empty, Typography } from "antd";
+import { Tag, Empty, Typography, Tooltip } from "antd";
+import { WarningOutlined } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import ResponsiveTable from "../../common/ResponsiveTable";
 
@@ -132,18 +133,37 @@ const FolhasTable = React.memo(
         render: (status, record) => {
           const meta = STATUS_FOLHA[status] || {};
           const isSelected = record.id === selectedFolhaId;
+          // Mostrar alerta para folhas FECHADA ou EM_PROCESSAMENTO com rejeitados
+          const temRejeitados = record.temRejeitados && (record.status === "FECHADA" || record.status === "EM_PROCESSAMENTO");
+          
           return (
-            <Tag 
-              color={isSelected ? "default" : (meta.color || "default")}
-              style={isSelected ? { 
-                backgroundColor: "#ffffff", 
-                color: "#fa8c16",
-                borderColor: "#ffffff",
-                fontWeight: "700",
-              } : {}}
-            >
-              {meta.label || status}
-            </Tag>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Tag 
+                color={isSelected ? "default" : (meta.color || "default")}
+                style={isSelected ? { 
+                  backgroundColor: "#ffffff", 
+                  color: "#fa8c16",
+                  borderColor: "#ffffff",
+                  fontWeight: "700",
+                } : {}}
+              >
+                {meta.label || status}
+              </Tag>
+              {temRejeitados && (
+                <Tooltip
+                  title={`Esta folha possui ${record.quantidadeRejeitados || 0} pagamento(s) rejeitado(s) que precisam de atenção.`}
+                  placement="top"
+                >
+                  <WarningOutlined 
+                    style={{ 
+                      color: "#ff4d4f", 
+                      fontSize: "16px",
+                      cursor: "help",
+                    }} 
+                  />
+                </Tooltip>
+              )}
+            </div>
           );
         },
       },
