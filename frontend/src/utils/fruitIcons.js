@@ -173,11 +173,12 @@ export const fruitIconMap = {
   'melão-cantaloupe': MelaoIcon,
 };
 
-// Função para obter o ícone SVG de uma fruta
-export const getFruitIcon = (frutaNome, props = {}) => {
-  if (!frutaNome) return null;
+// Função para obter o ícone SVG de uma fruta ou cultura
+// Para culturas, usa o mesmo mapeamento das frutas (ex: "Banana" cultura -> ícone de banana)
+export const getFruitIcon = (frutaOuCulturaNome, props = {}) => {
+  if (!frutaOuCulturaNome) return null;
   
-  const nome = frutaNome.toLowerCase().trim();
+  const nome = frutaOuCulturaNome.toLowerCase().trim();
   
   // Busca por correspondência exata primeiro
   if (fruitIconMap[nome]) {
@@ -194,6 +195,126 @@ export const getFruitIcon = (frutaNome, props = {}) => {
 
   // Fallback: retorna ícone padrão (banana)
   return <BananaIcon {...props} />;
+};
+
+// Função para obter o caminho do ícone (para uso em src de img tags)
+export const getFruitIconPath = (frutaOuCulturaNome) => {
+  if (!frutaOuCulturaNome) return "/icons/frutas_64x64.png";
+  
+  const nome = frutaOuCulturaNome.toLowerCase().trim();
+  
+  // Mapeamento direto baseado nos arquivos da pasta public/icons ou assets/icons
+  const fruitMap = {
+    'banana': '/assets/icons/banana.png',
+    'bananas': '/assets/icons/banana.png',
+    'maçã': '/icons/apple.svg',
+    'maca': '/icons/apple.svg',
+    'melancia': '/assets/icons/melancia.png',
+    'melancias': '/assets/icons/melancia.png',
+    'uva': '/icons/uvas.svg',
+    'uvas': '/icons/uvas.svg',
+    'coco': '/assets/icons/coco-seco.png',
+    'coco-verde': '/assets/icons/coco-verde.png',
+    'coco verde': '/assets/icons/coco-verde.png',
+    'coco-seco': '/assets/icons/coco-seco.png',
+    'coco seco': '/assets/icons/coco-seco.png',
+    'cacau': '/icons/cacao.svg',
+    'tomate': '/icons/tomate.svg',
+    'milho': '/icons/milho.svg',
+    'cenoura': '/icons/cenoura.svg',
+    'limao': '/assets/icons/limao.png',
+    'limão': '/assets/icons/limao.png',
+    'mamao': '/assets/icons/mamao.png',
+    'mamão': '/assets/icons/mamao.png',
+    'melao': '/assets/icons/melao.png',
+    'melão': '/assets/icons/melao.png',
+  };
+
+  // 1. Tenta match exato
+  if (fruitMap[nome]) return fruitMap[nome];
+
+  // 2. Tenta match parcial (ex: "Banana Prata" -> banana)
+  for (const [key, icon] of Object.entries(fruitMap)) {
+    if (nome.includes(key)) return icon;
+  }
+
+  // 3. Fallback genérico
+  return "/icons/frutas_64x64.png";
+};
+
+// Mapeamento de culturas para imports processados pelo webpack
+// Usa os imports já existentes para garantir que os caminhos sejam processados corretamente
+const culturaIconImports = {
+  // Match exato com nomes completos (prioridade)
+  'banana prata': bananaIcon,
+  'coco seco': cocoSecoIcon,
+  'coco verde': cocoVerdeIcon,
+  'limao taiti': limaoIcon,
+  'mamao formosa': mamaoIcon,
+  'mamao havai': mamaoIcon,
+  'mamao sanrais': mamaoIcon,
+  'melancia': melanciaIcon,
+  'melo': melaoIcon,
+  'melao': melaoIcon,
+  
+  // Match por primeira palavra (fallback)
+  'banana': bananaIcon,
+  'coco': cocoSecoIcon, // Default para coco (sem especificação)
+  'limao': limaoIcon,
+  'mamao': mamaoIcon,
+};
+
+// Função específica para obter ícone de CULTURA (mapeia pelo nome da cultura)
+// Culturas do sistema: "Banana Prata", "Coco Seco", "Coco Verde", "Limão Taiti", 
+// "Mamão Formosa", "Mamão Havaí", "Mamão Sanrais", "Melancia", "Melão"
+// Extrai a palavra principal do nome (ex: "Banana Prata" -> "Banana")
+export const getCulturaIconPath = (culturaNome) => {
+  if (!culturaNome) {
+    console.log('[getCulturaIconPath] Nome vazio, retornando fallback');
+    return "/icons/frutas_64x64.png";
+  }
+  
+  console.log('[getCulturaIconPath] Nome original:', culturaNome);
+  
+  // Normaliza o nome: lowercase, remove acentos e espaços extras
+  const nome = culturaNome.toLowerCase().trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .replace(/\s+/g, ' '); // Normaliza espaços
+  
+  console.log('[getCulturaIconPath] Nome normalizado:', nome);
+  
+  // Extrai a primeira palavra (cultura principal)
+  // Ex: "banana prata" -> "banana", "coco verde" -> "coco", "limao taiti" -> "limao"
+  const primeiraPalavra = nome.split(' ')[0];
+  
+  console.log('[getCulturaIconPath] Primeira palavra:', primeiraPalavra);
+  
+  // 1. Tenta match exato com o nome completo normalizado (ex: "coco verde")
+  if (culturaIconImports[nome]) {
+    console.log('[getCulturaIconPath] Match exato encontrado:', nome, '->', culturaIconImports[nome]);
+    return culturaIconImports[nome];
+  }
+  
+  // 2. Tenta match com a primeira palavra (ex: "banana prata" -> "banana")
+  if (culturaIconImports[primeiraPalavra]) {
+    console.log('[getCulturaIconPath] Match por primeira palavra:', primeiraPalavra, '->', culturaIconImports[primeiraPalavra]);
+    return culturaIconImports[primeiraPalavra];
+  }
+
+  // 3. Tenta match parcial - verifica se o nome contém alguma chave do mapa
+  // Ex: "coco verde" contém "coco", "mamão formosa" contém "mamão"
+  for (const [key, icon] of Object.entries(culturaIconImports)) {
+    // Evita matches muito genéricos (chave deve ter pelo menos 3 caracteres)
+    if (key.length >= 3 && nome.includes(key)) {
+      console.log('[getCulturaIconPath] Match parcial encontrado:', key, 'em', nome, '->', icon);
+      return icon;
+    }
+  }
+
+  // 4. Fallback genérico (usa ícone de /public/icons/ que é servido estaticamente)
+  console.log('[getCulturaIconPath] Nenhum match encontrado, usando fallback');
+  return "/icons/frutas_64x64.png";
 };
 
 // Função para obter apenas o componente (sem renderizar)
@@ -245,6 +366,8 @@ export const isFruitSupported = (frutaNome) => {
 export default {
   fruitIconMap,
   getFruitIcon,
+  getFruitIconPath,
+  getCulturaIconPath,
   getFruitIconComponent,
   supportedFruits,
   isFruitSupported

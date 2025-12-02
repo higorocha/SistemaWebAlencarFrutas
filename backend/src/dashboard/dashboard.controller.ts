@@ -97,4 +97,14 @@ export class DashboardController {
       dataFim,
     );
   }
+
+  @Get('painel-frutas')
+  async getPainelFrutas(
+    @Query('mes') mes?: number,
+    @Query('ano') ano?: number,
+  ) {
+    const mesNum = mes ? Number(mes) : undefined;
+    const anoNum = ano ? Number(ano) : undefined;
+    return this.dashboardService.getDadosPainelFrutas(mesNum, anoNum);
+  }
 }

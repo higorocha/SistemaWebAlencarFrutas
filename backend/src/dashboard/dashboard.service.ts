@@ -3,7 +3,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DashboardResponseDto, ReceitaMensalDto, ProgramacaoColheitaDto, PrevisaoBananaDto, PagamentoEfetuadoDto, PagamentoFornecedorEfetuadoDto } from './dto/dashboard-response.dto';
-import { StatusPagamentoFornecedor } from '@prisma/client';
+import { StatusPagamentoFornecedor, StatusPedido } from '@prisma/client';
 
 @Injectable()
 export class DashboardService {
@@ -1552,5 +1552,177 @@ export class DashboardService {
         areas: [],
       };
     }
+  }
+
+  async getDadosPainelFrutas(mes?: number, ano?: number) {
+    const whereDataColheita: any = {};
+
+    // Se mês e ano forem fornecidos, aplica o filtro. 
+    // Caso contrário, traz todo o histórico (limitado aos status válidos).
+    if (mes && ano) {
+      const dataInicio = new Date(ano, mes - 1, 1);
+      const dataFim = new Date(ano, mes, 0, 23, 59, 59);
+      whereDataColheita.dataColheita = {
+        gte: dataInicio,
+        lte: dataFim
+      };
+    } else if (ano) {
+      // Filtro apenas por ano (opcional, mas útil)
+      const dataInicio = new Date(ano, 0, 1);
+      const dataFim = new Date(ano, 11, 31, 23, 59, 59);
+      whereDataColheita.dataColheita = {
+        gte: dataInicio,
+        lte: dataFim
+      };
+    }
+
+    // Status considerados como "Colheita Realizada" e válidos para estatísticas
+    const statusValidos: StatusPedido[] = [
+      StatusPedido.COLHEITA_REALIZADA,
+      StatusPedido.AGUARDANDO_PRECIFICACAO,
+      StatusPedido.PRECIFICACAO_REALIZADA,
+      StatusPedido.AGUARDANDO_PAGAMENTO,
+      StatusPedido.PAGAMENTO_PARCIAL,
+      StatusPedido.PAGAMENTO_REALIZADO,
+      StatusPedido.PEDIDO_FINALIZADO
+    ];
+
+    // 1. Buscar todas as culturas ativas para estruturar o retorno
+    const culturas = await this.prisma.cultura.findMany({
+      include: { frutas: true }
+    });
+
+    // 2. Buscar pedidos no período
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        status: { in: statusValidos },
+        ...whereDataColheita // Espalha o filtro de data (ou vazio se for tudo)
+      },
+      include: {
+        frutasPedidos: {
+          where: {
+            quantidadePrecificada: { not: null, gt: 0 } // Apenas itens precificados
+          },
+          include: {
+            fruta: true,
+            areas: {
+              include: {
+                areaPropria: true,
+                areaFornecedor: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // 3. Processar e Agrupar Dados
+    const resultado = culturas.map(cultura => {
+      // Filtrar itens deste pedido que são desta cultura
+      const itensCultura = pedidos.flatMap(p => {
+        const pedido = p as any;
+        return (pedido.frutasPedidos || []).filter((fp: any) => fp.fruta?.culturaId === cultura.id);
+      });
+
+      if (itensCultura.length === 0) return null; // Pula cultura sem dados
+
+      // Unidade padrão da cultura (pega a primeira encontrada ou define padrão)
+      const unidadePadrao = itensCultura[0]?.unidadePrecificada || 'KG';
+
+      // Totais da Cultura
+      const totalQtd = itensCultura.reduce((acc, item) => acc + (item.quantidadePrecificada || 0), 0);
+      const totalValor = itensCultura.reduce((acc, item) => acc + (item.valorTotal || 0), 0);
+
+      // Agrupamento por Fruta (para gráficos e detalhes)
+      const frutasDados = cultura.frutas.map(fruta => {
+        const itensFruta = itensCultura.filter(i => i.frutaId === fruta.id);
+        if (itensFruta.length === 0) return null;
+
+        const totalFruta = itensFruta.reduce((acc, item) => acc + (item.quantidadePrecificada || 0), 0);
+
+        // Agrupamento por Área (para produtividade)
+        const areasMap = new Map();
+        
+        itensFruta.forEach(item => {
+          item.areas.forEach(areaRel => {
+            const area = areaRel.areaPropria || areaRel.areaFornecedor;
+            if (!area) return;
+            
+            const areaId = `${areaRel.areaPropriaId ? 'P' : 'F'}-${area.id}`;
+            
+            if (!areasMap.has(areaId)) {
+              areasMap.set(areaId, {
+                nome: area.nome,
+                tipo: areaRel.areaPropriaId ? 'Propria' : 'Fornecedor',
+                tamanhoHa: areaRel.areaPropria ? areaRel.areaPropria.areaTotal : (areaRel.areaFornecedor.quantidadeHa || 0),
+                totalColhido: 0
+              });
+            }
+            
+            // Distribuição simples: Soma o que foi apontado na área
+            // Nota: Para precisão exata com precificação, idealmente faríamos rateio, 
+            // mas usar a qtd da área é mais seguro para "produtividade física".
+            const qtdArea = areaRel.quantidadeColhidaUnidade1 || 0; 
+            areasMap.get(areaId).totalColhido += qtdArea;
+          });
+        });
+
+        // Calcular produtividade
+        const areas = Array.from(areasMap.values()).map((a: any) => ({
+          ...a,
+          produtividade: a.tamanhoHa > 0 ? (a.totalColhido / a.tamanhoHa) : 0
+        })).sort((a, b) => b.produtividade - a.produtividade);
+
+        // Agrupar dados por dia para o gráfico
+        const dadosGraficoMap = new Map();
+        itensFruta.forEach(item => {
+          const pedido = pedidos.find(p => p.id === item.pedidoId);
+          if(pedido && pedido.dataColheita) {
+            const dia = pedido.dataColheita.getDate();
+            dadosGraficoMap.set(dia, (dadosGraficoMap.get(dia) || 0) + item.quantidadePrecificada);
+          }
+        });
+
+        const dadosGrafico = Array.from(dadosGraficoMap.entries())
+          .map(([dia, qtd]) => ({ dia, qtd }))
+          .sort((a, b) => a.dia - b.dia);
+
+        return {
+          id: fruta.id,
+          nome: fruta.nome,
+          total: totalFruta,
+          unidade: unidadePadrao,
+          areas,
+          dadosGrafico
+        };
+      }).filter(Boolean);
+
+      // Calcular área total envolvida (soma de todas as áreas únicas que tiveram colheita)
+      const areasUnicas = new Set();
+      let areaTotalHa = 0;
+      frutasDados.forEach((f: any) => {
+        f.areas.forEach((a: any) => {
+          if (!areasUnicas.has(a.nome)) { // Usando nome como chave única simples
+            areasUnicas.add(a.nome);
+            areaTotalHa += a.tamanhoHa;
+          }
+        });
+      });
+
+      return {
+        cultura: cultura.descricao,
+        culturaId: cultura.id,
+        resumo: {
+          totalColhido: totalQtd,
+          valorTotal: totalValor,
+          areaTotalHa,
+          unidade: unidadePadrao,
+          produtividadeMedia: areaTotalHa > 0 ? totalQtd / areaTotalHa : 0
+        },
+        frutas: frutasDados
+      };
+    }).filter(Boolean);
+
+    return resultado;
   }
 }
