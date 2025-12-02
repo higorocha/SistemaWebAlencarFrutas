@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { List, Progress, Tooltip, Select, Avatar, Typography, Empty } from 'antd';
 import { getFruitIconPath } from '../../../../utils/fruitIcons';
 import { EnvironmentOutlined, UserOutlined } from '@ant-design/icons';
+import { capitalizeName, formataLeitura } from '../../../../utils/formatters';
 
 const { Text } = Typography;
 
@@ -23,7 +24,7 @@ const SafeAvatar = ({ src, size, ...props }) => {
   );
 };
 
-const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, corBase }) => {
+const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, culturaIcon }) => {
   const [frutaSelecionada, setFrutaSelecionada] = useState('Todas');
 
   const getDadosTabela = () => {
@@ -72,8 +73,8 @@ const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, corBase }) => {
           {frutas.map(f => (
             <Select.Option key={f.id} value={f.nome}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <SafeAvatar size={20} src={getFruitIconPath(f.nome)} /> 
-                <span>{f.nome}</span>
+                <SafeAvatar size={20} src={culturaIcon || getFruitIconPath(f.nome)} /> 
+                <span>{capitalizeName(f.nome)}</span>
               </div>
             </Select.Option>
           ))}
@@ -90,10 +91,10 @@ const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, corBase }) => {
             split={false}
             renderItem={item => {
               const percentual = mediaGeral > 0 ? (item.produtividade / mediaGeral) * 100 : 0;
-              // Cores baseadas no desempenho
-              let statusColor = '#faad14'; // Médio
-              if (percentual >= 100) statusColor = '#52c41a'; // Bom
-              if (percentual < 60) statusColor = '#ff4d4f'; // Ruim
+              // Cores baseadas no desempenho (usando tons de verde para consistência)
+              let statusColor = '#f59e0b'; // Médio (Amber, não vermelho)
+              if (percentual >= 100) statusColor = '#059669'; // Bom (Verde principal)
+              if (percentual < 60) statusColor = '#dc2626'; // Ruim (Vermelho, mas mais escuro)
 
               return (
                 <List.Item style={{ 
@@ -106,11 +107,11 @@ const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, corBase }) => {
                   <div style={{ width: '100%' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text strong style={{ color: '#333' }}>
-                        {item.tipo === 'Propria' ? <EnvironmentOutlined style={{ marginRight: 6, color: corBase }} /> : <UserOutlined style={{ marginRight: 6, color: '#888' }} />}
+                        {item.tipo === 'Propria' ? <EnvironmentOutlined style={{ marginRight: 6, color: '#059669' }} /> : <UserOutlined style={{ marginRight: 6, color: '#888' }} />}
                         {item.nome}
                       </Text>
                       <Text strong style={{ color: '#333' }}>
-                        {item.totalColhido.toLocaleString()} {unidade}
+                        {formataLeitura ? formataLeitura(item.totalColhido) : item.totalColhido.toLocaleString('pt-BR')} {unidade}
                       </Text>
                     </div>
                     
@@ -119,7 +120,7 @@ const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, corBase }) => {
                       <span>Eficiência: {percentual.toFixed(0)}% da média</span>
                     </div>
 
-                    <Tooltip title={`Produtividade: ${item.produtividade.toFixed(0)} ${unidade}/ha (Média da Cultura: ${mediaGeral.toFixed(0)})`}>
+                    <Tooltip title={`Produtividade: ${formataLeitura ? formataLeitura(Math.round(item.produtividade)) : item.produtividade.toFixed(0)} ${unidade}/ha (Média da Cultura: ${formataLeitura ? formataLeitura(Math.round(mediaGeral)) : mediaGeral.toFixed(0)})`}>
                       <Progress 
                         percent={Math.min(percentual, 100)} 
                         strokeColor={statusColor} 
@@ -131,7 +132,7 @@ const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, corBase }) => {
                     </Tooltip>
                     <div style={{ textAlign: 'right', marginTop: 2 }}>
                       <Text style={{ fontSize: 10, color: statusColor, fontWeight: 600 }}>
-                        {item.produtividade.toFixed(0)} {unidade}/ha
+                        {formataLeitura ? formataLeitura(Math.round(item.produtividade)) : item.produtividade.toFixed(0)} {unidade}/ha
                       </Text>
                     </div>
                   </div>

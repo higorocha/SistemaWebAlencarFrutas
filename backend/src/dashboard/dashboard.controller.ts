@@ -107,4 +107,5 @@ export class DashboardController {
     const anoNum = ano ? Number(ano) : undefined;
     return this.dashboardService.getDadosPainelFrutas(mesNum, anoNum);
   }
+
 }

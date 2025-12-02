@@ -245,23 +245,32 @@ export const getFruitIconPath = (frutaOuCulturaNome) => {
 // Mapeamento de culturas para imports processados pelo webpack
 // Usa os imports já existentes para garantir que os caminhos sejam processados corretamente
 const culturaIconImports = {
-  // Match exato com nomes completos (prioridade)
+  // Match exato com nomes completos (prioridade) - sem acentos, lowercase
   'banana prata': bananaIcon,
   'coco seco': cocoSecoIcon,
   'coco verde': cocoVerdeIcon,
   'limao taiti': limaoIcon,
+  'limão taiti': limaoIcon, // Com acento também
   'mamao formosa': mamaoIcon,
+  'mamão formosa': mamaoIcon, // Com acento também
   'mamao havai': mamaoIcon,
+  'mamão havai': mamaoIcon, // Com acento também
+  'mamao havaí': mamaoIcon, // Com acento no í
+  'mamão havaí': mamaoIcon, // Com acento também
   'mamao sanrais': mamaoIcon,
+  'mamão sanrais': mamaoIcon, // Com acento também
   'melancia': melanciaIcon,
   'melo': melaoIcon,
+  'melão': melaoIcon, // Com acento também
   'melao': melaoIcon,
   
   // Match por primeira palavra (fallback)
   'banana': bananaIcon,
   'coco': cocoSecoIcon, // Default para coco (sem especificação)
   'limao': limaoIcon,
+  'limão': limaoIcon, // Com acento também
   'mamao': mamaoIcon,
+  'mamão': mamaoIcon, // Com acento também
 };
 
 // Função específica para obter ícone de CULTURA (mapeia pelo nome da cultura)
@@ -270,11 +279,8 @@ const culturaIconImports = {
 // Extrai a palavra principal do nome (ex: "Banana Prata" -> "Banana")
 export const getCulturaIconPath = (culturaNome) => {
   if (!culturaNome) {
-    console.log('[getCulturaIconPath] Nome vazio, retornando fallback');
     return "/icons/frutas_64x64.png";
   }
-  
-  console.log('[getCulturaIconPath] Nome original:', culturaNome);
   
   // Normaliza o nome: lowercase, remove acentos e espaços extras
   const nome = culturaNome.toLowerCase().trim()
@@ -282,23 +288,17 @@ export const getCulturaIconPath = (culturaNome) => {
     .replace(/[\u0300-\u036f]/g, '') // Remove acentos
     .replace(/\s+/g, ' '); // Normaliza espaços
   
-  console.log('[getCulturaIconPath] Nome normalizado:', nome);
-  
   // Extrai a primeira palavra (cultura principal)
   // Ex: "banana prata" -> "banana", "coco verde" -> "coco", "limao taiti" -> "limao"
   const primeiraPalavra = nome.split(' ')[0];
   
-  console.log('[getCulturaIconPath] Primeira palavra:', primeiraPalavra);
-  
   // 1. Tenta match exato com o nome completo normalizado (ex: "coco verde")
   if (culturaIconImports[nome]) {
-    console.log('[getCulturaIconPath] Match exato encontrado:', nome, '->', culturaIconImports[nome]);
     return culturaIconImports[nome];
   }
   
   // 2. Tenta match com a primeira palavra (ex: "banana prata" -> "banana")
   if (culturaIconImports[primeiraPalavra]) {
-    console.log('[getCulturaIconPath] Match por primeira palavra:', primeiraPalavra, '->', culturaIconImports[primeiraPalavra]);
     return culturaIconImports[primeiraPalavra];
   }
 
@@ -307,13 +307,11 @@ export const getCulturaIconPath = (culturaNome) => {
   for (const [key, icon] of Object.entries(culturaIconImports)) {
     // Evita matches muito genéricos (chave deve ter pelo menos 3 caracteres)
     if (key.length >= 3 && nome.includes(key)) {
-      console.log('[getCulturaIconPath] Match parcial encontrado:', key, 'em', nome, '->', icon);
       return icon;
     }
   }
 
   // 4. Fallback genérico (usa ícone de /public/icons/ que é servido estaticamente)
-  console.log('[getCulturaIconPath] Nenhum match encontrado, usando fallback');
   return "/icons/frutas_64x64.png";
 };
 

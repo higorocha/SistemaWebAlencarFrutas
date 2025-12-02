@@ -1,22 +1,48 @@
 // src/components/dashboard/painel-frutas/PainelFrutas.js
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Button, Select, Spin, Empty, Typography, Space, Tooltip } from 'antd';
+import { Row, Col, Card, Button, Select, Spin, Empty, Typography, Space, Tooltip, Avatar } from 'antd';
 import { ReloadOutlined, FilterOutlined, ClearOutlined } from '@ant-design/icons';
 import axiosInstance from '../../../api/axiosConfig';
 import SecaoCultura from './components/SecaoCultura';
-import moment from 'moment';
+import moment from '../../../config/momentConfig';
+import { getCulturaIconPath } from '../../../utils/fruitIcons';
 
 const { Option } = Select;
 const { Text } = Typography;
 
+// Componente auxiliar para Avatar com tratamento de erro seguro
+const SafeAvatar = ({ src, size, ...props }) => {
+  const [imgSrc, setImgSrc] = useState(src);
+  
+  const handleError = () => {
+    setImgSrc('/icons/frutas_64x64.png');
+  };
+
+  return (
+    <Avatar 
+      src={imgSrc} 
+      size={size}
+      onError={handleError}
+      {...props}
+    />
+  );
+};
+
 const PainelFrutas = () => {
   const [loading, setLoading] = useState(false);
   const [dados, setDados] = useState([]);
+  const [culturaFiltro, setCulturaFiltro] = useState('todas'); // Valor padrão com ícone
   
   // Filtros inicializados como NULL (busca tudo)
   const [filtros, setFiltros] = useState({
     mes: null,
     ano: null
+  });
+
+  // Estado para períodos disponíveis
+  const [periodosDisponiveis, setPeriodosDisponiveis] = useState({ 
+    anos: [], 
+    mesesPorAno: {} 
   });
 
   const fetchDados = async () => {
@@ -27,7 +53,17 @@ const PainelFrutas = () => {
       if (filtros.ano) params.ano = filtros.ano;
 
       const response = await axiosInstance.get('/api/dashboard/painel-frutas', { params });
-      setDados(response.data);
+      
+      // O backend agora retorna { dados, periodosDisponiveis }
+      setDados(response.data.dados || response.data); // Compatibilidade: se não vier no novo formato, usa o antigo
+      
+      // Atualizar períodos disponíveis se vierem na resposta
+      if (response.data.periodosDisponiveis) {
+        setPeriodosDisponiveis({
+          anos: response.data.periodosDisponiveis.anos || [],
+          mesesPorAno: response.data.periodosDisponiveis.mesesPorAno || {}
+        });
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -43,11 +79,10 @@ const PainelFrutas = () => {
     setFiltros({ mes: null, ano: null });
   };
 
-  // Helper para pegar cor do tema de forma cíclica
-  const getCorCultura = (index) => {
-    const cores = ['#52c41a', '#fadb14', '#fa8c16', '#722ed1', '#1890ff', '#f5222d'];
-    return cores[index % cores.length];
-  };
+  // Filtrar culturas baseado no select
+  const culturasFiltradas = culturaFiltro && culturaFiltro !== 'todas'
+    ? dados.filter(c => c.culturaId === culturaFiltro)
+    : dados;
 
   return (
     <div style={{ animation: 'fadeIn 0.5s ease-in-out', padding: '24px' }}>
@@ -66,50 +101,70 @@ const PainelFrutas = () => {
             <Space size="large" wrap>
               <Space align="center">
                 <FilterOutlined style={{ color: '#059669', fontSize: 18 }} />
-                <Text strong style={{ fontSize: 16 }}>Filtros:</Text>
+                <Text strong style={{ fontSize: 16 }}>Filtrar por Cultura:</Text>
               </Space>
               
-              <Space>
-                <Select 
-                  placeholder="Todos os Meses"
-                  value={filtros.mes} 
-                  onChange={(v) => setFiltros(prev => ({ ...prev, mes: v }))}
-                  style={{ width: 160, borderBottom: '1px solid #d9d9d9' }}
-                  allowClear
-                  bordered={false}
-                >
-                  {moment.months().map((mes, i) => (
-                    <Option key={i + 1} value={i + 1}>{mes}</Option>
-                  ))}
-                </Select>
+              <Select 
+                value={culturaFiltro} 
+                onChange={setCulturaFiltro}
+                style={{ width: 250, borderBottom: '1px solid #d9d9d9' }}
+                bordered={false}
+                showSearch
+                optionLabelProp="label"
+                filterOption={(input, option) => {
+                  // Busca pelo nome da cultura no texto da opção
+                  const cultura = dados.find(c => c.culturaId === option.value);
+                  if (cultura) {
+                    return cultura.cultura.toLowerCase().includes(input.toLowerCase());
+                  }
+                  if (option.value === 'todas') {
+                    return 'todas as culturas'.includes(input.toLowerCase());
+                  }
+                  return false;
+                }}
+              >
+                <Option value="todas" label={
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <SafeAvatar size={20} src="/icons/frutas_64x64.png" shape="square" /> 
+                    <span style={{ fontWeight: 500 }}>Todas as Culturas</span>
+                  </div>
+                }>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <SafeAvatar size={20} src="/icons/frutas_64x64.png" shape="square" /> 
+                    <span style={{ fontWeight: 500 }}>Todas as Culturas</span>
+                  </div>
+                </Option>
+                {dados.map((cultura) => (
+                  <Option 
+                    key={cultura.culturaId} 
+                    value={cultura.culturaId}
+                    label={
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <SafeAvatar size={20} src={getCulturaIconPath(cultura.cultura)} /> 
+                        <span>{cultura.cultura}</span>
+                      </div>
+                    }
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <SafeAvatar size={20} src={getCulturaIconPath(cultura.cultura)} /> 
+                      <span>{cultura.cultura}</span>
+                    </div>
+                  </Option>
+                ))}
+              </Select>
 
-                <Select 
-                  placeholder="Todos os Anos"
-                  value={filtros.ano} 
-                  onChange={(v) => setFiltros(prev => ({ ...prev, ano: v }))}
-                  style={{ width: 120, borderBottom: '1px solid #d9d9d9' }}
-                  allowClear
-                  bordered={false}
-                >
-                  {[0, 1, 2, 3, 4].map(i => {
-                    const ano = moment().year() - i;
-                    return <Option key={ano} value={ano}>{ano}</Option>;
-                  })}
-                </Select>
-
-                {(filtros.mes || filtros.ano) && (
-                  <Tooltip title="Limpar filtros e ver tudo">
-                    <Button 
-                      type="text" 
-                      icon={<ClearOutlined />} 
-                      onClick={limparFiltros}
-                      danger
-                    >
-                      Limpar
-                    </Button>
-                  </Tooltip>
-                )}
-              </Space>
+              {culturaFiltro && culturaFiltro !== 'todas' && (
+                <Tooltip title="Mostrar todas as culturas">
+                  <Button 
+                    type="text" 
+                    icon={<ClearOutlined />} 
+                    onClick={() => setCulturaFiltro('todas')}
+                    danger
+                  >
+                    Limpar
+                  </Button>
+                </Tooltip>
+              )}
             </Space>
           </Col>
 
@@ -145,11 +200,13 @@ const PainelFrutas = () => {
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {dados.map((cultura, index) => (
+          {culturasFiltradas.map((cultura) => (
             <SecaoCultura 
               key={cultura.culturaId} 
-              dados={cultura} 
-              corTema={getCorCultura(index)} 
+              dados={cultura}
+              filtros={filtros}
+              onFiltrosChange={setFiltros}
+              periodosDisponiveis={periodosDisponiveis}
             />
           ))}
         </div>

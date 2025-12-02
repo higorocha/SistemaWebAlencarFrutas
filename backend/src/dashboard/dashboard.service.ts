@@ -1592,7 +1592,44 @@ export class DashboardService {
       include: { frutas: true }
     });
 
-    // 2. Buscar pedidos no período
+    // 2. Buscar TODOS os pedidos válidos (sem filtro de data) para calcular períodos disponíveis
+    const todosPedidosParaPeriodos = await this.prisma.pedido.findMany({
+      where: {
+        status: { in: statusValidos },
+        dataColheita: { not: null }
+      },
+      select: {
+        dataColheita: true
+      }
+    });
+
+    // 3. Calcular períodos disponíveis (anos e meses)
+    const anosSet = new Set<number>();
+    const mesesPorAno = new Map<number, Set<number>>();
+
+    todosPedidosParaPeriodos.forEach(pedido => {
+      if (pedido.dataColheita) {
+        const ano = pedido.dataColheita.getFullYear();
+        const mes = pedido.dataColheita.getMonth() + 1; // getMonth() retorna 0-11
+
+        anosSet.add(ano);
+        
+        if (!mesesPorAno.has(ano)) {
+          mesesPorAno.set(ano, new Set<number>());
+        }
+        mesesPorAno.get(ano)!.add(mes);
+      }
+    });
+
+    // Converter para arrays ordenados
+    const anos = Array.from(anosSet).sort((a, b) => b - a); // Mais recente primeiro
+    const mesesPorAnoObj: Record<number, number[]> = {};
+
+    mesesPorAno.forEach((meses, ano) => {
+      mesesPorAnoObj[ano] = Array.from(meses).sort((a, b) => a - b); // Ordem crescente
+    });
+
+    // 4. Buscar pedidos no período filtrado
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         status: { in: statusValidos },
@@ -1723,6 +1760,12 @@ export class DashboardService {
       };
     }).filter(Boolean);
 
-    return resultado;
+    return {
+      dados: resultado,
+      periodosDisponiveis: {
+        anos,
+        mesesPorAno: mesesPorAnoObj
+      }
+    };
   }
 }
