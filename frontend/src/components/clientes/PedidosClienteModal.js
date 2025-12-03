@@ -24,6 +24,7 @@ import Chart from "react-apexcharts";
 import { formatCurrency, capitalizeName } from "../../utils/formatters";
 import MiniSelectPersonalizavel from "../common/MiniComponents/MiniSelectPersonalizavel";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
+import useCoresPorTempo from "../../hooks/useCoresPorTempo";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import moment from "moment";
@@ -54,6 +55,8 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
     pedidosFinalizados: 0,
     valorTotal: 0,
     valorPendente: 0,
+    faturamentoPago: 0,
+    faturamentoAberto: 0,
   });
 
   // Carregar pedidos do cliente
@@ -109,6 +112,8 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         pedidosFinalizados: 0,
         valorTotal: 0,
         valorPendente: 0,
+        faturamentoPago: 0,
+        faturamentoAberto: 0,
       });
     }
   }, [cliente?.id]);
@@ -129,6 +134,8 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         pedidosFinalizados: 0,
         valorTotal: 0,
         valorPendente: 0,
+        faturamentoPago: 0,
+        faturamentoAberto: 0,
       };
     }
 
@@ -145,12 +152,27 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       .filter(p => !['PEDIDO_FINALIZADO', 'CANCELADO'].includes(p.status))
       .reduce((total, p) => total + (p.valorFinal || 0), 0);
 
+    // Calcular faturamento pago (soma de valorRecebido de todos os pedidos)
+    const faturamentoPago = pedidos.reduce((total, p) => total + (p.valorRecebido || 0), 0);
+
+    // Calcular faturamento em aberto (soma de saldo devedor dos pedidos não finalizados/cancelados)
+    const faturamentoAberto = pedidos
+      .filter(p => !['PEDIDO_FINALIZADO', 'CANCELADO'].includes(p.status))
+      .reduce((total, p) => {
+        const valorFinal = p.valorFinal || 0;
+        const valorRecebido = p.valorRecebido || 0;
+        const saldoDevedor = valorFinal - valorRecebido;
+        return total + Math.max(0, saldoDevedor); // Garantir que não seja negativo
+      }, 0);
+
     return {
       totalPedidos,
       pedidosAtivos,
       pedidosFinalizados,
       valorTotal,
       valorPendente,
+      faturamentoPago,
+      faturamentoAberto,
     };
   };
 
@@ -333,6 +355,9 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         pedidosAtivos: 0,
         pedidosFinalizados: 0,
         valorTotal: 0,
+        valorPendente: 0,
+        faturamentoPago: 0,
+        faturamentoAberto: 0,
       });
     }
   }, [open]);
@@ -351,6 +376,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
 
   // Hook para cores de status centralizadas
   const { getStatusConfig } = usePedidoStatusColors();
+  const { getCorPorData } = useCoresPorTempo();
 
   // Função para formatar status do pedido (cores centralizadas do tema)
   const formatarStatusPedido = (status) => {
@@ -469,6 +495,63 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       ),
       width: "15%",
       sorter: (a, b) => (a.valorFinal || 0) - (b.valorFinal || 0),
+    },
+    {
+      title: "Dias",
+      key: "tempoPagamento",
+      width: "10%",
+      align: "center",
+      sorter: (a, b) => {
+        // Função auxiliar para obter data de referência (mesma lógica do render)
+        const obterDataReferencia = (record) => {
+          let dataReferencia = record.dataColheita;
+
+          // Se houver pagamentos, usar a data do último pagamento
+          if (record.pagamentosPedidos && record.pagamentosPedidos.length > 0) {
+            const ultimoPagamento = [...record.pagamentosPedidos].sort((a, b) => 
+              new Date(b.dataPagamento) - new Date(a.dataPagamento)
+            )[0];
+            dataReferencia = ultimoPagamento.dataPagamento;
+          }
+
+          return dataReferencia;
+        };
+
+        const dataA = obterDataReferencia(a);
+        const dataB = obterDataReferencia(b);
+
+        const diasA = dataA ? moment().diff(moment(dataA), 'days') : -1;
+        const diasB = dataB ? moment().diff(moment(dataB), 'days') : -1;
+        
+        return diasA - diasB;
+      },
+      render: (_, record) => {
+        if (!['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL'].includes(record.status)) {
+          return <Text type="secondary">-</Text>;
+        }
+
+        let dataReferencia = record.dataColheita;
+
+        // Se houver pagamentos, usar a data do último pagamento
+        if (record.pagamentosPedidos && record.pagamentosPedidos.length > 0) {
+          const ultimoPagamento = [...record.pagamentosPedidos].sort((a, b) => 
+            new Date(b.dataPagamento) - new Date(a.dataPagamento)
+          )[0];
+          dataReferencia = ultimoPagamento.dataPagamento;
+        }
+
+        if (!dataReferencia) {
+          return <Text type="secondary">-</Text>;
+        }
+
+        const { cor, texto } = getCorPorData(dataReferencia);
+        
+        return (
+          <Tag color={cor} style={{ fontWeight: 'bold', margin: 'auto' }}>
+            {texto}
+          </Tag>
+        );
+      },
     },
     {
       title: "Observações",
@@ -694,7 +777,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         }}
       >
         <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
-          <Col xs={12} sm={12} md={6}>
+          <Col xs={12} sm={12} md={8}>
             <Statistic
               title={isMobile ? "Total" : "Total de Pedidos"}
               value={estatisticas.totalPedidos}
@@ -702,7 +785,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
               prefix={<ShoppingCartOutlined />}
             />
           </Col>
-          <Col xs={12} sm={12} md={6}>
+          <Col xs={12} sm={12} md={8}>
             <Statistic
               title={isMobile ? "Ativos" : "Pedidos Ativos"}
               value={estatisticas.pedidosAtivos}
@@ -710,7 +793,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
               prefix={<ClockCircleOutlined />}
             />
           </Col>
-          <Col xs={12} sm={12} md={6}>
+          <Col xs={12} sm={12} md={8}>
             <Statistic
               title={isMobile ? "Finalizados" : "Pedidos Finalizados"}
               value={estatisticas.pedidosFinalizados}
@@ -718,13 +801,31 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
               prefix={<CheckCircleOutlined />}
             />
           </Col>
-          <Col xs={12} sm={12} md={6}>
+          <Col xs={12} sm={12} md={8}>
             <Statistic
               title={isMobile ? "Valor" : "Valor Total"}
               value={estatisticas.valorTotal}
               formatter={(value) => formatarValor(value)}
               valueStyle={{ color: "#059669", fontSize: isMobile ? "1.125rem" : "1.5rem" }}
               prefix={<DollarOutlined />}
+            />
+          </Col>
+          <Col xs={12} sm={12} md={8}>
+            <Statistic
+              title={isMobile ? "Faturado" : "Faturamento Pago"}
+              value={estatisticas.faturamentoPago}
+              formatter={(value) => formatarValor(value)}
+              valueStyle={{ color: "#52c41a", fontSize: isMobile ? "1.125rem" : "1.5rem" }}
+              prefix={<CheckCircleOutlined />}
+            />
+          </Col>
+          <Col xs={12} sm={12} md={8}>
+            <Statistic
+              title={isMobile ? "Em Aberto" : "Faturamento em Aberto"}
+              value={estatisticas.faturamentoAberto}
+              formatter={(value) => formatarValor(value)}
+              valueStyle={{ color: "#ff4d4f", fontSize: isMobile ? "1.125rem" : "1.5rem" }}
+              prefix={<ExclamationCircleOutlined />}
             />
           </Col>
         </Row>
@@ -977,7 +1078,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           dataSource={pedidosFiltrados}
           loading={loading}
           rowKey="id"
-          minWidthMobile={1200}
+          minWidthMobile={1300}
           showScrollHint={true}
           onRow={(record) => ({
             onClick: () => handleOpenVisualizarModal(record),

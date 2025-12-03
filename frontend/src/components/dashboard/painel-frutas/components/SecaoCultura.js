@@ -1,7 +1,8 @@
 // src/components/dashboard/painel-frutas/components/SecaoCultura.js
-import React, { useState } from 'react';
-import { Card, Row, Col, Typography, Segmented, Divider, Space, Select, Tooltip, Button } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, Row, Col, Typography, Segmented, Divider, Space, Select, Tooltip, Button, Spin } from 'antd';
 import { BarChartOutlined, LineChartOutlined, EnvironmentOutlined, CalendarOutlined, ClearOutlined } from '@ant-design/icons';
+import axiosInstance from '../../../../api/axiosConfig';
 import CulturaHeader from './CulturaHeader';
 import GraficoProdutividade from './GraficoProdutividade';
 import TabelaDesempenhoAreas from './TabelaDesempenhoAreas';
@@ -13,29 +14,70 @@ import './SecaoCultura.css';
 
 const { Option } = Select;
 
-const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) => {
+const SecaoCultura = ({ culturaId, dadosIniciais, periodosDisponiveis }) => {
   const { isMobile } = useResponsive();
-  const [tipoGrafico, setTipoGrafico] = useState('bar'); 
+  const [tipoGrafico, setTipoGrafico] = useState('bar');
+  const [loading, setLoading] = useState(false);
+  const [dados, setDados] = useState(dadosIniciais);
+  
+  // Filtros locais para esta seção específica
+  const [filtros, setFiltros] = useState({
+    mes: null,
+    ano: null
+  }); 
 
   // Prepara dados para o gráfico
+  const dadosAtuais = dados || dadosIniciais;
   const prepararDadosGrafico = () => {
+    if (!dadosAtuais?.frutas || dadosAtuais.frutas.length === 0) return [];
     const map = new Map();
-    dados.frutas.forEach(fruta => {
-      fruta.dadosGrafico.forEach(d => {
-        const key = d.dia; 
-        if (!map.has(key)) map.set(key, { name: key }); 
-        map.get(key)[fruta.nome] = d.qtd;
-      });
+    dadosAtuais.frutas.forEach(fruta => {
+      if (fruta.dadosGrafico) {
+        fruta.dadosGrafico.forEach(d => {
+          const key = d.dia; 
+          if (!map.has(key)) map.set(key, { name: key }); 
+          map.get(key)[fruta.nome] = d.qtd;
+        });
+      }
     });
     return Array.from(map.values()).sort((a, b) => a.name - b.name);
   };
 
   const dadosGrafico = prepararDadosGrafico();
-  const chavesFrutas = dados.frutas.map(f => ({ key: f.nome }));
+  const chavesFrutas = dadosAtuais?.frutas ? dadosAtuais.frutas.map(f => ({ key: f.nome })) : [];
 
   // Ícone principal da cultura (Branco para o header)
   // Usa useState para gerenciar o ícone e permitir fallback em caso de erro
-  const [iconMain, setIconMain] = React.useState(() => getCulturaIconPath(dados.cultura));
+  const culturaNome = dados?.cultura || dadosIniciais?.cultura;
+  const [iconMain, setIconMain] = React.useState(() => getCulturaIconPath(culturaNome));
+
+  // Buscar dados específicos desta cultura com filtros
+  const fetchDadosCultura = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (filtros.mes) params.mes = filtros.mes;
+      if (filtros.ano) params.ano = filtros.ano;
+
+      const response = await axiosInstance.get('/api/dashboard/painel-frutas', { params });
+      const todasCulturas = response.data.dados || response.data;
+      
+      // Encontrar a cultura específica
+      const culturaEncontrada = todasCulturas.find(c => c.culturaId === culturaId);
+      if (culturaEncontrada) {
+        setDados(culturaEncontrada);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados da cultura:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Recarregar dados quando os filtros mudarem
+  useEffect(() => {
+    fetchDadosCultura();
+  }, [filtros, culturaId]);
 
   // Obter anos e meses disponíveis
   const anosDisponiveis = periodosDisponiveis?.anos || [];
@@ -48,12 +90,10 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
 
   // Quando o ano mudar, limpar o mês se ele não for válido para o novo ano
   const handleAnoChange = (ano) => {
-    if (onFiltrosChange) {
-      const novoMes = ano && filtros?.mes && mesesPorAno[ano]?.includes(filtros.mes)
-        ? filtros.mes
-        : null;
-      onFiltrosChange({ ...filtros, ano, mes: novoMes });
-    }
+    const novoMes = ano && filtros?.mes && mesesPorAno[ano]?.includes(filtros.mes)
+      ? filtros.mes
+      : null;
+    setFiltros(prev => ({ ...prev, ano, mes: novoMes }));
   };
 
   return (
@@ -75,7 +115,7 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
             }}>
               <img 
                 src={iconMain} 
-                alt={dados.cultura} 
+                alt={dados?.cultura || dadosIniciais?.cultura} 
                 style={{ width: 20, height: 20, objectFit: 'contain' }} 
                 onError={() => {
                   setIconMain('/icons/frutas_64x64.png');
@@ -89,7 +129,7 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
               textTransform: "uppercase",
               letterSpacing: "0.5px"
             }}>
-              {dados.cultura}
+              {dados?.cultura || dadosIniciais?.cultura}
             </span>
           </Space>
           
@@ -152,15 +192,15 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
               title={!filtros?.ano ? "Selecione um ano primeiro" : mesesDisponiveis.length === 0 ? "Nenhum mês disponível para este ano" : ""}
               placement="top"
             >
-              <Select 
-                placeholder={
-                  <Space size={6}>
-                    <CalendarOutlined style={{ fontSize: 12 }} />
-                    <span>Mês</span>
-                  </Space>
-                }
-                value={filtros?.mes} 
-                onChange={(v) => onFiltrosChange && onFiltrosChange(prev => ({ ...prev, mes: v }))}
+            <Select 
+              placeholder={
+                <Space size={6}>
+                  <CalendarOutlined style={{ fontSize: 12 }} />
+                  <span>Mês</span>
+                </Space>
+              }
+              value={filtros?.mes} 
+              onChange={(v) => setFiltros(prev => ({ ...prev, mes: v }))}
                 style={{ 
                   width: isMobile ? 120 : 140,
                   minWidth: isMobile ? 120 : 140
@@ -202,7 +242,7 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
                 <Button 
                   type="text" 
                   icon={<ClearOutlined />} 
-                  onClick={() => onFiltrosChange && onFiltrosChange({ mes: null, ano: null })}
+                  onClick={() => setFiltros({ mes: null, ano: null })}
                   size="small"
                   style={{ 
                     color: 'rgba(255,255,255,0.85)',
@@ -225,7 +265,7 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
         borderRadius: '8px',
         border: '1px solid #e8e8e8',
         boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-        overflow: 'hidden'
+        overflow: 'visible' // Permite que a toolbar do gráfico apareça
       }}
       styles={{ 
         header: { 
@@ -241,11 +281,17 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
       }}
     >
       {/* KPIs Superiores */}
-      <CulturaHeader dados={dados} />
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Spin size="large" tip="Carregando dados..." />
+        </div>
+      ) : (
+        <>
+          <CulturaHeader dados={dadosAtuais} />
 
-      <Divider style={{ margin: '24px 0', borderColor: '#f0f0f0' }} />
+          <Divider style={{ margin: '24px 0', borderColor: '#f0f0f0' }} />
 
-      <Row gutter={[32, 24]}>
+          <Row gutter={[32, 24]}>
         {/* Coluna Principal: Gráficos */}
         <Col xs={24} lg={15}>
           <div style={{ 
@@ -271,18 +317,19 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
 
           {/* Container do Gráfico com visual "clean" */}
           <div style={{ 
-            height: 360, 
+            minHeight: 400, 
             background: '#ffffff', 
             borderRadius: 8, 
             border: '1px solid #f0f0f0',
             padding: '16px',
-            boxShadow: 'inset 0 0 8px rgba(0,0,0,0.02)' // Sutil profundidade interna
+            boxShadow: 'inset 0 0 8px rgba(0,0,0,0.02)', // Sutil profundidade interna
+            overflow: 'visible' // Permite que a toolbar apareça
           }}>
             <GraficoProdutividade 
               data={dadosGrafico} 
               keys={chavesFrutas} 
               type={tipoGrafico}
-              unidade={dados.resumo.unidade}
+              unidade={dadosAtuais?.resumo?.unidade}
             />
           </div>
         </Col>
@@ -302,14 +349,16 @@ const SecaoCultura = ({ dados, filtros, onFiltrosChange, periodosDisponiveis }) 
             backgroundColor: '#ffffff'
           }}>
             <TabelaDesempenhoAreas 
-              frutas={dados.frutas} 
-              mediaGeral={dados.resumo.produtividadeMedia}
-              unidade={dados.resumo.unidade}
+              frutas={dadosAtuais?.frutas || []} 
+              mediaGeral={dadosAtuais?.resumo?.produtividadeMedia || 0}
+              unidade={dadosAtuais?.resumo?.unidade || 'Unidade'}
               culturaIcon={iconMain}
             />
           </div>
-        </Col>
-      </Row>
+          </Col>
+        </Row>
+        </>
+      )}
     </Card>
   );
 };

@@ -32,14 +32,8 @@ const PainelFrutas = () => {
   const [loading, setLoading] = useState(false);
   const [dados, setDados] = useState([]);
   const [culturaFiltro, setCulturaFiltro] = useState('todas'); // Valor padrão com ícone
-  
-  // Filtros inicializados como NULL (busca tudo)
-  const [filtros, setFiltros] = useState({
-    mes: null,
-    ano: null
-  });
 
-  // Estado para períodos disponíveis
+  // Estado para períodos disponíveis (compartilhado entre todas as seções)
   const [periodosDisponiveis, setPeriodosDisponiveis] = useState({ 
     anos: [], 
     mesesPorAno: {} 
@@ -48,13 +42,10 @@ const PainelFrutas = () => {
   const fetchDados = async () => {
     setLoading(true);
     try {
-      const params = {};
-      if (filtros.mes) params.mes = filtros.mes;
-      if (filtros.ano) params.ano = filtros.ano;
-
-      const response = await axiosInstance.get('/api/dashboard/painel-frutas', { params });
+      // Busca todos os dados sem filtros para obter períodos disponíveis e lista de culturas
+      const response = await axiosInstance.get('/api/dashboard/painel-frutas');
       
-      // O backend agora retorna { dados, periodosDisponiveis }
+      // O backend retorna { dados, periodosDisponiveis }
       setDados(response.data.dados || response.data); // Compatibilidade: se não vier no novo formato, usa o antigo
       
       // Atualizar períodos disponíveis se vierem na resposta
@@ -73,11 +64,7 @@ const PainelFrutas = () => {
 
   useEffect(() => {
     fetchDados();
-  }, [filtros]); // Recarrega sempre que mudar filtro
-
-  const limparFiltros = () => {
-    setFiltros({ mes: null, ano: null });
-  };
+  }, []); // Carrega apenas uma vez na montagem
 
   // Filtrar culturas baseado no select
   const culturasFiltradas = culturaFiltro && culturaFiltro !== 'todas'
@@ -203,9 +190,8 @@ const PainelFrutas = () => {
           {culturasFiltradas.map((cultura) => (
             <SecaoCultura 
               key={cultura.culturaId} 
-              dados={cultura}
-              filtros={filtros}
-              onFiltrosChange={setFiltros}
+              culturaId={cultura.culturaId}
+              dadosIniciais={cultura}
               periodosDisponiveis={periodosDisponiveis}
             />
           ))}

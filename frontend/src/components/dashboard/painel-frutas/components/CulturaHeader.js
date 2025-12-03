@@ -102,7 +102,7 @@ const CulturaHeader = ({ dados }) => {
         <Col xs={24} sm={12} md={6}>
           <KpiCard 
             title="Área Colhida"
-            value={`${dados.resumo.areaTotalHa.toFixed(1)} ha`}
+            value={`${dados.resumo.areaTotalHa.toFixed(2)} ha`}
             subValue="Área produtiva"
             icon={<EnvironmentOutlined />}
           />
