@@ -63,11 +63,16 @@
 
     .card-pedidos-lista {
       page-break-before: auto;
+      page-break-inside: auto;
     }
 
     .card-pedidos-lista .card-header {
       page-break-after: avoid;
       page-break-inside: avoid;
+    }
+
+    .card-pedidos-lista .card-body {
+      page-break-inside: auto;
     }
 
     .card-header {
@@ -140,6 +145,26 @@
 
     .info-item-razao-social {
       grid-column: span 2;
+    }
+
+    .info-item-half {
+      flex: 1;
+      min-width: 0;
+      max-width: 50%;
+    }
+
+    .info-item-half .info-value {
+      word-break: break-all;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      max-width: 100%;
+    }
+
+    .info-item-half-wrapper {
+      display: flex;
+      gap: 13px;
+      grid-column: 1 / -1;
+      width: 100%;
     }
 
     .info-label {
@@ -328,11 +353,14 @@
     }
 
     tbody tr {
-      page-break-inside: avoid;
+      page-break-inside: auto;
       page-break-after: auto;
     }
 
-    tbody tr:last-child {
+    /* Linha de total: evitar quebra dentro dela, mas permitir quebra antes se necessário */
+    tbody tr.table-total-row {
+      page-break-inside: avoid;
+      page-break-before: auto;
       page-break-after: auto;
     }
 
@@ -424,7 +452,22 @@
                 <span class="info-value">{{cliente.telefone1}}</span>
               </div>
               {{/if}}
-              {{#if cliente.logradouro}}
+              {{#if cliente.logradouro}}{{#if cliente.email1}}
+              <div class="info-item-half-wrapper">
+                <div class="info-item info-item-half">
+                  <span class="info-label">Endereço</span>
+                  <span class="info-value">
+                    {{cliente.logradouro}}{{#if cliente.numero}}, {{cliente.numero}}{{/if}}{{#if cliente.complemento}} - {{cliente.complemento}}{{/if}}
+                    {{#if cliente.bairro}}, {{cliente.bairro}}{{/if}}
+                    {{#if cliente.cidade}} - {{cliente.cidade}}{{/if}}{{#if cliente.estado}} ({{cliente.estado}}){{/if}}{{#if cliente.cep}} | {{cliente.cep}}{{/if}}
+                  </span>
+                </div>
+                <div class="info-item info-item-half">
+                  <span class="info-label">E-mail</span>
+                  <span class="info-value email-value">{{cliente.email1}}</span>
+                </div>
+              </div>
+              {{else}}
               <div class="info-item full-span">
                 <span class="info-label">Endereço</span>
                 <span class="info-value">
@@ -433,13 +476,13 @@
                   {{#if cliente.cidade}} - {{cliente.cidade}}{{/if}}{{#if cliente.estado}} ({{cliente.estado}}){{/if}}{{#if cliente.cep}} | {{cliente.cep}}{{/if}}
                 </span>
               </div>
-              {{/if}}
-              {{#if cliente.email1}}
+              {{/if}}{{/if}}
+              {{#if cliente.email1}}{{#unless cliente.logradouro}}
               <div class="info-item full-span">
                 <span class="info-label">E-mail</span>
                 <span class="info-value email-value">{{cliente.email1}}</span>
               </div>
-              {{/if}}
+              {{/unless}}{{/if}}
             </div>
           </div>
         </div>
@@ -468,6 +511,7 @@
                   {{/if}}
                   <th style="min-width: 100px;">Data Pedido</th>
                   <th style="min-width: 100px;">Data Colheita</th>
+                  <th class="text-center" style="min-width: 80px;">Dias</th>
                   <th class="text-right" style="min-width: 120px;">Valor Total</th>
                 </tr>
               </thead>
@@ -503,7 +547,28 @@
                   </td>
                   {{/if}}
                   <td>{{dataPedidoFormatada}}</td>
-                  <td>{{#if dataColheitaFormatada}}{{dataColheitaFormatada}}{{else}}-{{/if}}</td>
+                  <td>
+                    {{#if dataColheitaFormatada}}
+                      {{dataColheitaFormatada}}
+                      {{#if usaDataPrevista}}
+                        <span style="color: #fa8c16; font-size: 0.7rem; display: block; margin-top: 2px;">(Prevista)</span>
+                      {{/if}}
+                    {{else}}
+                      -
+                    {{/if}}
+                  </td>
+                  <td class="text-center">
+                    {{#if mostrarDias}}
+                      <div style="display: inline-block;">
+                        <span class="produto-nome" style="color: {{diasCor}}; font-weight: bold;">{{diasTexto}}</span>
+                        {{#if diasVencido}}
+                          <span style="color: #ff4d4f; font-size: 0.65rem; display: block; margin-top: 2px; font-weight: bold;">(Vencido)</span>
+                        {{/if}}
+                      </div>
+                    {{else}}
+                      <span style="color: #9ca3af;">-</span>
+                    {{/if}}
+                  </td>
                   <td class="text-right">
                     {{#if valorFinalFormatado}}
                       <span class="produto-nome">{{valorFinalFormatado}}</span>
@@ -514,7 +579,7 @@
                 </tr>
                 {{/each}}
                 <tr class="table-total-row">
-                  <td colspan="{{#if cliente.industria}}6{{else}}5{{/if}}" class="table-total-label text-right">Total Geral dos Pedidos:</td>
+                  <td colspan="{{#if cliente.industria}}7{{else}}6{{/if}}" class="table-total-label text-right">Total Geral dos Pedidos:</td>
                   <td class="table-total-value text-right">{{valorTotalFormatado}}</td>
                 </tr>
               </tbody>

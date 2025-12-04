@@ -570,19 +570,34 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     },
     {
-      title: "Data Prevista",
-      dataIndex: "dataPrevistaColheita",
-      key: "dataPrevistaColheita",
-      render: (data) => (
-        <Space>
-          <CalendarOutlined style={{ color: "#059669", fontSize: "0.75rem" }} />
-          <Text style={{ fontSize: "0.75rem" }}>
-            {formatarData(data)}
-          </Text>
-        </Space>
-      ),
+      title: "Data Colheita",
+      key: "dataColheita",
       width: "12%",
-      sorter: (a, b) => new Date(a.dataPrevistaColheita || 0) - new Date(b.dataPrevistaColheita || 0),
+      sorter: (a, b) => {
+        const dataA = a.dataColheita || a.dataPrevistaColheita || 0;
+        const dataB = b.dataColheita || b.dataPrevistaColheita || 0;
+        return new Date(dataA) - new Date(dataB);
+      },
+      render: (_, record) => {
+        const temDataColheita = !!record.dataColheita;
+        const dataExibicao = record.dataColheita || record.dataPrevistaColheita;
+        
+        return (
+          <Space direction="vertical" size={0}>
+            <Space>
+              <CalendarOutlined style={{ color: "#059669", fontSize: "0.75rem" }} />
+              <Text style={{ fontSize: "0.75rem" }}>
+                {formatarData(dataExibicao)}
+              </Text>
+            </Space>
+            {!temDataColheita && record.dataPrevistaColheita && (
+              <Text type="secondary" style={{ fontSize: "0.625rem", color: "#fa8c16" }}>
+                (Prevista)
+              </Text>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: "Status",
@@ -615,7 +630,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       sorter: (a, b) => {
         // Função auxiliar para obter data de referência (mesma lógica do render)
         const obterDataReferencia = (record) => {
-          let dataReferencia = record.dataColheita;
+          let dataReferencia = null;
 
           // Se houver pagamentos, usar a data do último pagamento
           if (record.pagamentosPedidos && record.pagamentosPedidos.length > 0) {
@@ -623,6 +638,12 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
               new Date(b.dataPagamento) - new Date(a.dataPagamento)
             )[0];
             dataReferencia = ultimoPagamento.dataPagamento;
+          } else if (record.dataColheita) {
+            // Se tiver dataColheita, usar ela
+            dataReferencia = record.dataColheita;
+          } else if (record.dataPrevistaColheita) {
+            // Caso contrário, usar dataPrevistaColheita
+            dataReferencia = record.dataPrevistaColheita;
           }
 
           return dataReferencia;
@@ -641,7 +662,8 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           return <Text type="secondary">-</Text>;
         }
 
-        let dataReferencia = record.dataColheita;
+        // Determinar data de referência: último pagamento > dataColheita > dataPrevistaColheita
+        let dataReferencia = null;
 
         // Se houver pagamentos, usar a data do último pagamento
         if (record.pagamentosPedidos && record.pagamentosPedidos.length > 0) {
@@ -649,6 +671,12 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
             new Date(b.dataPagamento) - new Date(a.dataPagamento)
           )[0];
           dataReferencia = ultimoPagamento.dataPagamento;
+        } else if (record.dataColheita) {
+          // Se tiver dataColheita, usar ela
+          dataReferencia = record.dataColheita;
+        } else if (record.dataPrevistaColheita) {
+          // Caso contrário, usar dataPrevistaColheita
+          dataReferencia = record.dataPrevistaColheita;
         }
 
         if (!dataReferencia) {

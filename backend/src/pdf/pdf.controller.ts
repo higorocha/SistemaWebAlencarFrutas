@@ -1496,13 +1496,141 @@ export class PdfController {
       return partes.length > 0 ? partes[partes.length - 1] : numeroPedido;
     };
 
+    // Ordenar pedidos por data de colheita (mais antigo primeiro)
+    // Usa dataColheita se tiver, senão dataPrevistaColheita
+    // Pedidos sem nenhuma das duas ficam no final
+    const pedidosOrdenados = [...pedidos].sort((a: any, b: any) => {
+      // Obter data de referência para cada pedido (dataColheita > dataPrevistaColheita)
+      const dataA = a.dataColheita || a.dataPrevistaColheita;
+      const dataB = b.dataColheita || b.dataPrevistaColheita;
+      
+      const temDataA = !!dataA;
+      const temDataB = !!dataB;
+      
+      // Se ambos têm data, ordenar por data (mais antigo primeiro)
+      if (temDataA && temDataB) {
+        return new Date(dataA).getTime() - new Date(dataB).getTime();
+      }
+      
+      // Se só A tem data, A vem antes
+      if (temDataA && !temDataB) return -1;
+      
+      // Se só B tem data, B vem antes
+      if (!temDataA && temDataB) return 1;
+      
+      // Se nenhum tem data, manter ordem original
+      return 0;
+    });
+
     // Normalizar unidade
     const normalizarUnidade = (valor?: string | null) =>
       valor ? valor.toString().trim().toUpperCase() : null;
 
+    // Função auxiliar para calcular cor baseada no prazo (mesma lógica do hook useCoresPorTempo)
+    const calcularCorPorDias = (dias: number, prazoCliente: number | null): string => {
+      // Se não houver prazo específico do cliente, usar comportamento padrão
+      if (!prazoCliente || prazoCliente <= 0) {
+        if (dias <= 7) {
+          return '#52c41a'; // Verde
+        } else if (dias <= 15) {
+          return '#faad14'; // Amarelo
+        } else if (dias <= 30) {
+          return '#fa8c16'; // Laranja
+        } else {
+          return '#ff4d4f'; // Vermelho
+        }
+      } else {
+        // Calcular faixas proporcionais baseadas no prazo do cliente
+        // Proporções do padrão: 7/30 = 0.233, 15/30 = 0.5, 30/30 = 1.0
+        const limiteVerde = Math.round(prazoCliente * (7 / 30));
+        const limiteAmarelo = Math.round(prazoCliente * (15 / 30));
+        const limiteLaranja = prazoCliente; // 100% do prazo
+
+        if (dias <= limiteVerde) {
+          return '#52c41a'; // Verde
+        } else if (dias <= limiteAmarelo) {
+          return '#faad14'; // Amarelo
+        } else if (dias <= limiteLaranja) {
+          return '#fa8c16'; // Laranja
+        } else {
+          return '#ff4d4f'; // Vermelho
+        }
+      }
+    };
+
+    // Função auxiliar para calcular dias desde uma data
+    const calcularDias = (pedido: any, prazoCliente: number | null): { 
+      dias: number | null; 
+      texto: string | null; 
+      cor: string | null;
+      vencido: boolean;
+      mostrar: boolean 
+    } => {
+      // Só calcular para status específicos
+      const statusValidos = ['PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL'];
+      if (!statusValidos.includes(pedido.status)) {
+        return { dias: null, texto: null, cor: null, vencido: false, mostrar: false };
+      }
+
+      // Determinar data de referência
+      // Prioridade: último pagamento > dataColheita > dataPrevistaColheita
+      let dataReferencia: Date | null = null;
+
+      // Se houver pagamentos, usar a data do último pagamento
+      if (pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0) {
+        const pagamentosOrdenados = [...pedido.pagamentosPedidos].sort(
+          (a: any, b: any) => new Date(b.dataPagamento).getTime() - new Date(a.dataPagamento).getTime()
+        );
+        dataReferencia = new Date(pagamentosOrdenados[0].dataPagamento);
+      } else if (pedido.dataColheita) {
+        // Se tiver dataColheita, usar ela
+        dataReferencia = new Date(pedido.dataColheita);
+      } else if (pedido.dataPrevistaColheita) {
+        // Caso contrário, usar dataPrevistaColheita
+        dataReferencia = new Date(pedido.dataPrevistaColheita);
+      }
+
+      if (!dataReferencia) {
+        return { dias: null, texto: null, cor: null, vencido: false, mostrar: false };
+      }
+
+      // Calcular diferença em dias (mesma lógica do frontend com moment().diff())
+      // O moment().diff() calcula dias completos arredondando para baixo usando a data/hora exata
+      // Não normalizar para meia-noite - usar a data/hora exata como o moment faz
+      const hoje = new Date();
+      const dataRef = new Date(dataReferencia);
+      
+      // Calcular diferença em milissegundos e converter para dias
+      // Math.floor garante que arredonda para baixo (mesma lógica do moment().diff())
+      // O moment().diff() com 'days' retorna a diferença em dias completos, arredondando para baixo
+      const diferencaMs = hoje.getTime() - dataRef.getTime();
+      const dias = Math.floor(diferencaMs / (1000 * 60 * 60 * 24));
+
+      // Calcular cor baseada no prazo do cliente
+      const cor = calcularCorPorDias(dias, prazoCliente);
+
+      // Verificar se está vencido (dias > prazo do cliente)
+      const prazoPadrao = prazoCliente && prazoCliente > 0 ? prazoCliente : 30;
+      const vencido = dias > prazoPadrao;
+
+      return {
+        dias,
+        texto: `${dias} dia${dias !== 1 ? 's' : ''}`,
+        cor,
+        vencido,
+        mostrar: true,
+      };
+    };
+
+    // Obter prazo do cliente (campo 'dias')
+    const prazoCliente = cliente.dias && cliente.dias > 0 ? cliente.dias : null;
+
     // Formatar pedidos
-    const pedidosFormatados = pedidos.map((pedido: any) => {
+    const pedidosFormatados = pedidosOrdenados.map((pedido: any) => {
       const numeroPedidoFormatado = formatarNumeroPedido(pedido.numeroPedido || '');
+
+      // Calcular dias com cor e status de vencido
+      const { dias, texto: diasTexto, cor: diasCor, vencido, mostrar: mostrarDias } = calcularDias(pedido, prazoCliente);
 
       // Formatar frutas do pedido
       const frutasPedidosFormatadas = (pedido.frutasPedidos || []).map((frutaPedido: any) => {
@@ -1545,6 +1673,11 @@ export class PdfController {
         };
       });
 
+      // Determinar data de colheita para exibição (dataColheita se tiver, senão dataPrevistaColheita)
+      const temDataColheita = !!pedido.dataColheita;
+      const dataColheitaExibicao = pedido.dataColheita || pedido.dataPrevistaColheita;
+      const dataColheitaFormatada = dataColheitaExibicao ? formatDateBR(dataColheitaExibicao) : null;
+
       return {
         id: pedido.id,
         numeroPedido: pedido.numeroPedido,
@@ -1554,15 +1687,23 @@ export class PdfController {
         dataPedido: pedido.dataPedido,
         dataPedidoFormatada: formatDateBR(pedido.dataPedido),
         dataColheita: pedido.dataColheita,
-        dataColheitaFormatada: pedido.dataColheita ? formatDateBR(pedido.dataColheita) : null,
+        dataColheitaFormatada,
+        dataPrevistaColheita: pedido.dataPrevistaColheita,
+        dataPrevistaColheitaFormatada: pedido.dataPrevistaColheita ? formatDateBR(pedido.dataPrevistaColheita) : null,
+        usaDataPrevista: !temDataColheita && !!pedido.dataPrevistaColheita, // Flag para indicar que está usando data prevista
         valorFinal: pedido.valorFinal || 0,
         valorFinalFormatado: pedido.valorFinal && pedido.valorFinal > 0 ? formatCurrencyBR(pedido.valorFinal) : null,
         clienteIndustria: cliente.industria || false,
         frutasPedidos: frutasPedidosFormatadas,
+        dias: mostrarDias ? dias : null,
+        diasTexto: mostrarDias ? diasTexto : null,
+        diasCor: mostrarDias ? diasCor : null,
+        diasVencido: mostrarDias ? vencido : false,
+        mostrarDias,
       };
     });
 
-    // Calcular total
+    // Calcular total (usar pedidos originais, não ordenados)
     const valorTotal = pedidos.reduce((total, pedido) => total + (pedido.valorFinal || 0), 0);
     const valorTotalFormatado = formatCurrencyBR(valorTotal);
 
