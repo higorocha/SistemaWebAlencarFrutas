@@ -361,6 +361,12 @@ export class LancamentoExtratoResponseDto {
   @ApiPropertyOptional({ description: 'ID da conta corrente' })
   contaCorrenteId?: number;
 
+  @ApiPropertyOptional({ description: 'Agência da conta (referência)', example: '2273' })
+  agenciaConta?: string;
+
+  @ApiPropertyOptional({ description: 'Número da conta (referência)', example: '8249' })
+  numeroConta?: string;
+
   @ApiProperty({ description: 'Se já foi processado' })
   processado: boolean;
 

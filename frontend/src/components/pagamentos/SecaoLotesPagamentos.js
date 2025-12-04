@@ -26,12 +26,111 @@ import {
   EyeOutlined,
   InfoCircleOutlined,
   ClockCircleOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import ResponsiveTable from "../common/ResponsiveTable";
-import { formatCurrency, formatarCPF } from "../../utils/formatters";
+import { formatCurrency, formatarCPF, capitalizeName, formatarChavePixPorTipo } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 
 const { Text } = Typography;
+
+// Função para obter cor e tooltip do Status do Item (status do pagamento_api_item)
+const getStatusItemConfig = (statusItem) => {
+  const statusUpper = (statusItem || '').toUpperCase();
+  
+  const configs = {
+    'PENDENTE': {
+      color: '#d9d9d9',
+      tooltip: 'Item criado, aguardando envio ao Banco do Brasil'
+    },
+    'ENVIADO': {
+      color: '#1890ff',
+      tooltip: 'Item enviado ao Banco do Brasil, aguardando validação'
+    },
+    'ACEITO': {
+      color: '#52c41a',
+      tooltip: 'Banco do Brasil validou os dados do item. Item aceito e pronto para processamento'
+    },
+    'REJEITADO': {
+      color: '#ff4d4f',
+      tooltip: 'Item rejeitado pelo Banco do Brasil devido a dados inconsistentes'
+    },
+    'BLOQUEADO': {
+      color: '#fa8c16',
+      tooltip: 'Item bloqueado porque o lote foi rejeitado. Não será processado nem liberado'
+    },
+    'PROCESSADO': {
+      color: '#52c41a',
+      tooltip: 'Item processado com sucesso. Pagamento efetivado'
+    },
+    'PAGO': {
+      color: '#52c41a',
+      tooltip: 'Item pago. Pagamento efetivado'
+    },
+    'ERRO': {
+      color: '#ff4d4f',
+      tooltip: 'Erro no processamento do item'
+    }
+  };
+  
+  return configs[statusUpper] || {
+    color: '#d9d9d9',
+    tooltip: `Status: ${statusItem || 'N/A'}`
+  };
+};
+
+// Função para obter cor e tooltip do Status do Funcionário (status do funcionarioPagamento)
+const getStatusFuncionarioConfig = (statusFuncionario) => {
+  const statusUpper = (statusFuncionario || '').toUpperCase();
+  
+  const configs = {
+    'PENDENTE': {
+      color: '#d9d9d9',
+      tooltip: 'Pagamento pendente. Aguardando processamento'
+    },
+    'ENVIADO': {
+      color: '#1890ff',
+      tooltip: 'Pagamento enviado ao Banco do Brasil'
+    },
+    'ACEITO': {
+      color: '#52c41a',
+      tooltip: 'Pagamento aceito pelo Banco do Brasil'
+    },
+    'PROCESSANDO': {
+      color: '#1890ff',
+      tooltip: 'Pagamento em processamento'
+    },
+    'PAGO': {
+      color: '#52c41a',
+      tooltip: 'Pagamento efetivado com sucesso'
+    },
+    'REJEITADO': {
+      color: '#ff4d4f',
+      tooltip: 'Pagamento rejeitado. Dados inconsistentes detectados pelo Banco do Brasil'
+    },
+    'REPROCESSAR': {
+      color: '#fa8c16',
+      tooltip: 'Pagamento bloqueado em lote rejeitado. Aguardando reprocessamento'
+    },
+    'BLOQUEADO': {
+      color: '#fa8c16',
+      tooltip: 'Pagamento bloqueado. Não será processado'
+    },
+    'CANCELADO': {
+      color: '#8c8c8c',
+      tooltip: 'Pagamento cancelado'
+    },
+    'ERRO': {
+      color: '#ff4d4f',
+      tooltip: 'Erro no processamento do pagamento'
+    }
+  };
+  
+  return configs[statusUpper] || {
+    color: '#d9d9d9',
+    tooltip: `Status: ${statusFuncionario || 'N/A'}`
+  };
+};
 
 const SecaoLotesPagamentos = ({
   titulo,
@@ -49,6 +148,10 @@ const SecaoLotesPagamentos = ({
 }) => {
   const { isMobile } = useResponsive();
   const isExpanded = activeKey;
+  
+  // Determinar o contexto baseado no título
+  const isFolhaPagamento = titulo.includes("Folha de Pagamento");
+  const contextoTexto = isFolhaPagamento ? "de folha de pagamento" : "de turma de colheita";
 
   return (
     <Card
@@ -242,19 +345,40 @@ const SecaoLotesPagamentos = ({
             }}
             bodyStyle={{ padding: "0.75rem" }}
           >
-            <Statistic
-              title={
-                <Space size={4}>
-                  <Text style={{ color: "#666", fontSize: "0.6875rem" }}>Lotes Liberados</Text>
-                  <Tooltip title="Quantidade de lotes que já foram liberados para processamento no Banco do Brasil.">
-                    <InfoCircleOutlined style={{ color: "#d9d9d9", fontSize: "0.75rem", cursor: "help" }} />
-                  </Tooltip>
-                </Space>
-              }
-              value={estatisticas.lotesLiberados}
-              prefix={<CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem" }} />}
-              valueStyle={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}
-            />
+            <div>
+              <Space size={4} style={{ marginBottom: "8px" }}>
+                <Text style={{ color: "#666", fontSize: "0.6875rem" }}>Lotes Liberados / Rejeitados</Text>
+                <Tooltip
+                  title={
+                    <div>
+                      <div style={{ marginBottom: "4px" }}>
+                        <strong>Lotes Liberados:</strong> Quantidade de lotes que já foram liberados para processamento no Banco do Brasil.
+                      </div>
+                      <div style={{ marginTop: "8px", marginBottom: "4px" }}>
+                        <strong>Lotes Rejeitados:</strong> Quantidade de lotes que foram rejeitados pelo Banco do Brasil ou que contêm itens bloqueados.
+                      </div>
+                    </div>
+                  }
+                >
+                  <InfoCircleOutlined style={{ color: "#d9d9d9", fontSize: "0.75rem", cursor: "help" }} />
+                </Tooltip>
+              </Space>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Tooltip title={`Lotes ${contextoTexto} liberados: ${estatisticas.lotesLiberados || 0}`}>
+                  <CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem", cursor: "help" }} />
+                </Tooltip>
+                <span style={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}>
+                  {estatisticas.lotesLiberados || 0}
+                </span>
+                <span style={{ color: "#d9d9d9", fontSize: "1rem" }}>/</span>
+                <span style={{ color: "#ff4d4f", fontSize: "1.125rem", fontWeight: "600" }}>
+                  {estatisticas.lotesRejeitados || 0}
+                </span>
+                <Tooltip title={`Lotes ${contextoTexto} rejeitados: ${estatisticas.lotesRejeitados || 0}`}>
+                  <CloseCircleOutlined style={{ color: "#ff4d4f", fontSize: "1rem", marginLeft: "4px", cursor: "help" }} />
+                </Tooltip>
+              </div>
+            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
@@ -266,19 +390,40 @@ const SecaoLotesPagamentos = ({
             }}
             bodyStyle={{ padding: "0.75rem" }}
           >
-            <Statistic
-              title={
-                <Space size={4}>
-                  <Text style={{ color: "#666", fontSize: "0.6875rem" }}>Itens Liberados</Text>
-                  <Tooltip title="Quantidade de itens (transferências) que já foram processados e pagos pelo Banco do Brasil.">
-                    <InfoCircleOutlined style={{ color: "#d9d9d9", fontSize: "0.75rem", cursor: "help" }} />
-                  </Tooltip>
-                </Space>
-              }
-              value={estatisticas.itensLiberados}
-              prefix={<CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem" }} />}
-              valueStyle={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}
-            />
+            <div>
+              <Space size={4} style={{ marginBottom: "8px" }}>
+                <Text style={{ color: "#666", fontSize: "0.6875rem" }}>Itens Liberados / Rejeitados</Text>
+                <Tooltip
+                  title={
+                    <div>
+                      <div style={{ marginBottom: "4px" }}>
+                        <strong>Itens Liberados:</strong> Quantidade de itens (transferências) que já foram processados e pagos pelo Banco do Brasil.
+                      </div>
+                      <div style={{ marginTop: "8px", marginBottom: "4px" }}>
+                        <strong>Itens Rejeitados:</strong> Quantidade de itens (transferências) que foram rejeitados ou bloqueados pelo Banco do Brasil.
+                      </div>
+                    </div>
+                  }
+                >
+                  <InfoCircleOutlined style={{ color: "#d9d9d9", fontSize: "0.75rem", cursor: "help" }} />
+                </Tooltip>
+              </Space>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Tooltip title={`Itens ${contextoTexto} liberados: ${estatisticas.itensLiberados || 0}`}>
+                  <CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem", cursor: "help" }} />
+                </Tooltip>
+                <span style={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}>
+                  {estatisticas.itensLiberados || 0}
+                </span>
+                <span style={{ color: "#d9d9d9", fontSize: "1rem" }}>/</span>
+                <span style={{ color: "#ff4d4f", fontSize: "1.125rem", fontWeight: "600" }}>
+                  {estatisticas.itensRejeitados || 0}
+                </span>
+                <Tooltip title={`Itens ${contextoTexto} rejeitados: ${estatisticas.itensRejeitados || 0}`}>
+                  <CloseCircleOutlined style={{ color: "#ff4d4f", fontSize: "1rem", marginLeft: "4px", cursor: "help" }} />
+                </Tooltip>
+              </div>
+            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
@@ -566,11 +711,63 @@ const SecaoLotesPagamentos = ({
                                         <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
                                           Chave PIX
                                         </Text>
-                                        <Text style={{ display: "block", marginTop: "4px", fontSize: "11px" }}>
-                                          {item.chavePixEnviada}
+                                        <Text 
+                                          style={{ 
+                                            display: "block", 
+                                            marginTop: "4px", 
+                                            fontSize: "11px"
+                                          }}
+                                        >
+                                          {formatarChavePixPorTipo(item.chavePixEnviada, item.tipoChavePixEnviado)}
                                         </Text>
                                       </div>
                                     )}
+                                    {item.responsavelChavePixEnviado && (
+                                      <div>
+                                        <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
+                                          Responsável Chave PIX
+                                        </Text>
+                                        <Text 
+                                          style={{ 
+                                            display: "block", 
+                                            marginTop: "4px", 
+                                            fontSize: "11px"
+                                          }}
+                                        >
+                                          {capitalizeName(item.responsavelChavePixEnviado)}
+                                        </Text>
+                                      </div>
+                                    )}
+                                    {/* Status do Item */}
+                                    <div>
+                                      <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
+                                        Status do Item
+                                      </Text>
+                                      {(() => {
+                                        // Verificar se o item está bloqueado (lote rejeitado)
+                                        // Pode ser bloqueado via status ou estadoPagamentoIndividual
+                                        const itemBloqueado = item.status === 'BLOQUEADO' || item.estadoPagamentoIndividual === 'BLOQUEADO';
+                                        const statusItem = itemBloqueado 
+                                          ? 'BLOQUEADO' 
+                                          : (item.status || item.estadoPagamentoIndividual || 'N/A');
+                                        
+                                        const config = getStatusItemConfig(statusItem);
+                                        
+                                        return (
+                                          <Tooltip title={config.tooltip}>
+                                            <Tag 
+                                              color={config.color} 
+                                              style={{ 
+                                                marginTop: "4px",
+                                                cursor: "help"
+                                              }}
+                                            >
+                                              {statusItem}
+                                            </Tag>
+                                          </Tooltip>
+                                        );
+                                      })()}
+                                    </div>
                                   </Space>
                                   {/* Botão para consultar item individual */}
                                   {(item.identificadorPagamento ||
@@ -688,25 +885,36 @@ const SecaoLotesPagamentos = ({
                                           R$ {formatCurrency(Number(funcionarioPagamento.valorLiquido || 0))}
                                         </Text>
                                       </div>
-                                      {funcionarioPagamento.statusPagamento && (
-                                        <div>
-                                          <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                            Status
-                                          </Text>
-                                          <Tag
-                                            color={
-                                              funcionarioPagamento.statusPagamento === "PAGO"
-                                                ? "green"
-                                                : funcionarioPagamento.statusPagamento === "REJEITADO"
-                                                ? "red"
-                                                : "gold"
-                                            }
-                                            style={{ marginTop: "4px" }}
-                                          >
-                                            {funcionarioPagamento.statusPagamento}
-                                          </Tag>
-                                        </div>
-                                      )}
+                                      {(() => {
+                                        // Verificar se o item está bloqueado (lote rejeitado)
+                                        const itemBloqueado = item.estadoPagamentoIndividual === 'BLOQUEADO';
+                                        const statusExibir = itemBloqueado 
+                                          ? 'BLOQUEADO' 
+                                          : funcionarioPagamento.statusPagamento;
+                                        
+                                        if (!statusExibir) return null;
+                                        
+                                        const config = getStatusFuncionarioConfig(statusExibir);
+                                        
+                                        return (
+                                          <div>
+                                            <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
+                                              Status
+                                            </Text>
+                                            <Tooltip title={config.tooltip}>
+                                              <Tag
+                                                color={config.color}
+                                                style={{ 
+                                                  marginTop: "4px",
+                                                  cursor: "help"
+                                                }}
+                                              >
+                                                {statusExibir}
+                                              </Tag>
+                                            </Tooltip>
+                                          </div>
+                                        );
+                                      })()}
                                     </Space>
                                   </div>
                                 )}

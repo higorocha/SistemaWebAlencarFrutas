@@ -469,6 +469,15 @@ export class UpdatePedidoCompletoDto {
   @IsNumber({}, { message: 'Número da nota fiscal deve ser um número' })
   @IsPositive({ message: 'Número da nota fiscal deve ser positivo' })
   indNumeroNf?: number;
+
+  @ApiPropertyOptional({
+    description: 'Número da nota fiscal do pedido (controle interno)',
+    example: 789012,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'Número da nota fiscal do pedido deve ser um número' })
+  @IsPositive({ message: 'Número da nota fiscal do pedido deve ser positivo' })
+  numeroNf?: number;
 }
 
 

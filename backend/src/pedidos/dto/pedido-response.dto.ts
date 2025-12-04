@@ -122,6 +122,7 @@ export class PedidoResponseDto {
     id: number;
     nome: string;
     industria: boolean;
+    dias?: number;
   };
 
   @ApiProperty({ description: 'Data prevista para colheita' })
@@ -207,6 +208,9 @@ export class PedidoResponseDto {
 
   @ApiProperty({ description: 'Número da nota fiscal (apenas para clientes indústria)', required: false })
   indNumeroNf?: number;
+
+  @ApiProperty({ description: 'Número da nota fiscal do pedido (controle interno)', required: false })
+  numeroNf?: number;
 
   // ✅ NOVO: Mão de obra vinculada ao pedido
   @ApiProperty({ description: 'Mão de obra (turmas de colheita) vinculadas ao pedido', required: false })

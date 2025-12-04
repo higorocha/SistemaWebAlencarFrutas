@@ -1,6 +1,6 @@
-import { Controller, Get, Param, Res, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Param, Res, UseGuards, Req, Query, Body, Post, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Response } from 'express';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { PdfService } from './pdf.service';
 import { PedidosService } from '../pedidos/pedidos.service';
 import { ConfigService } from '../config/config.service';
@@ -36,6 +36,13 @@ export class PdfController {
     private readonly contaCorrenteService: ContaCorrenteService,
   ) {}
 
+  /**
+   * Gera PDF de pedido individual
+   * @template pedido-criado.hbs
+   * @description Gera PDF com resumo básico do pedido, incluindo informações do cliente, frutas, valores e observações
+   * @endpoint GET /api/pdf/pedido/:id
+   * @usage VisualizarPedidoModal.js - botão de visualizar/baixar PDF do pedido
+   */
   @Get('pedido/:id')
   @ApiOperation({ summary: 'Gerar PDF do pedido' })
   @ApiParam({ name: 'id', description: 'ID do pedido' })
@@ -189,6 +196,8 @@ export class PdfController {
 
   /**
    * Prepara os dados do pedido para o template Handlebars
+   * @template pedido-criado.hbs
+   * @description Formata valores monetários, datas, status e organiza dados do pedido para renderização no PDF
    * Formata valores monetários, datas e status
    */
   private prepararDadosTemplate(pedido: any, clienteCompleto: any, dadosEmpresa: any, logoBase64: string | null): any {
@@ -686,6 +695,13 @@ export class PdfController {
     };
   }
 
+  /**
+   * Gera PDF da folha de pagamento
+   * @template folha-pagamento.hbs
+   * @description Gera PDF completo da folha de pagamento com lançamentos agrupados por gerente, gráfico histórico e resumo detalhado
+   * @endpoint GET /api/pdf/folha-pagamento/:id
+   * @usage Módulo ARH - Folha de Pagamento - botão de exportar PDF
+   */
   @Get('folha-pagamento/:id')
   @ApiOperation({ summary: 'Gerar PDF da folha de pagamento' })
   @ApiParam({ name: 'id', description: 'ID da folha de pagamento' })
@@ -773,6 +789,8 @@ export class PdfController {
 
   /**
    * Prepara os dados da folha de pagamento para o template Handlebars
+   * @template folha-pagamento.hbs
+   * @description Formata valores monetários, datas e agrupa lançamentos por abas (gerentes)
    * Formata valores monetários, datas e agrupa lançamentos por abas (gerentes)
    */
   private prepararDadosTemplateFolha(folha: any, lancamentos: any[], dadosEmpresa: any, logoBase64: string | null, ultimasFolhas: any[] = [], contaCorrente: any = null): any {
@@ -912,6 +930,8 @@ export class PdfController {
 
   /**
    * Prepara os dados para o gráfico histórico das últimas folhas
+   * @template folha-pagamento.hbs (usado dentro do template)
+   * @description Mostra apenas o valor líquido (efetivamente pago) de cada folha para o gráfico Chart.js
    * Mostra apenas o valor líquido (efetivamente pago) de cada folha
    */
   private prepararDadosGraficoHistorico(ultimasFolhas: any[], folhaAtualId: number): any {
@@ -1033,6 +1053,8 @@ export class PdfController {
 
   /**
    * Agrupa lançamentos por gerente (igual à lógica do frontend)
+   * @template folha-pagamento.hbs (método auxiliar)
+   * @description Separa lançamentos em grupos: gerentes, sem gerente e por gerente individual
    */
   private agruparLancamentosPorGerente(lancamentos: any[]): {
     gerentes: any[];
@@ -1081,6 +1103,8 @@ export class PdfController {
 
   /**
    * Formata as abas de lançamentos para o template
+   * @template folha-pagamento.hbs (método auxiliar)
+   * @description Organiza lançamentos agrupados em abas formatadas para exibição no PDF
    */
   private formatarAbasLancamentos(lancamentosAgrupados: {
     gerentes: any[];
@@ -1128,6 +1152,8 @@ export class PdfController {
 
   /**
    * Formata uma lista de lançamentos para exibição no PDF
+   * @template folha-pagamento.hbs (método auxiliar)
+   * @description Formata valores monetários, datas e status de cada lançamento
    */
   private formatarLancamentos(lancamentos: any[]): any[] {
     return lancamentos.map((lancamento, index) => {
@@ -1238,6 +1264,8 @@ export class PdfController {
 
   /**
    * Calcula resumo detalhado dos lançamentos
+   * @template folha-pagamento.hbs (método auxiliar)
+   * @description Calcula totais de horas extras, valores, descontos e quantidades para o resumo
    */
   private calcularResumoDetalhado(lancamentos: any[]): any {
     if (!lancamentos || lancamentos.length === 0) {
@@ -1296,6 +1324,261 @@ export class PdfController {
       totalAjudaCustoFormatado: formatCurrencyBR(totalAjudaCusto),
       totalDescontosFormatado: formatCurrencyBR(totalDescontos),
       totalAdiantamentoFormatado: formatCurrencyBR(totalAdiantamento),
+    };
+  }
+
+  /**
+   * Gera PDF com lista de pedidos do cliente
+   * @template pedidos-cliente.hbs
+   * @description Gera PDF com todos os pedidos selecionados/filtrados do cliente, incluindo qualificação do cliente, frutas de cada pedido e totalização
+   * @endpoint POST /api/pdf/pedidos-cliente/:clienteId
+   * @body { pedidosIds?: number[] } - IDs dos pedidos a incluir (opcional - se vazio, inclui todos filtrados)
+   * @usage PedidosClienteModal.js - botão "Exportar PDF" com seleção de pedidos via checkboxes
+   */
+  @Post('pedidos-cliente/:clienteId')
+  @ApiOperation({ summary: 'Gerar PDF dos pedidos do cliente' })
+  @ApiParam({ name: 'clienteId', description: 'ID do cliente' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        pedidosIds: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'IDs dos pedidos a incluir no PDF (opcional - se vazio, inclui todos os pedidos filtrados)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF gerado com sucesso',
+    content: {
+      'application/pdf': {},
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Cliente não encontrado' })
+  async downloadPedidosClientePdf(
+    @Param('clienteId') clienteId: string,
+    @Body() body: { pedidosIds?: number[] },
+    @Res() res: Response,
+    @Req() request?: any,
+  ) {
+    console.log('[PDF Controller] Iniciando geração de PDF para pedidos do cliente ID:', clienteId);
+    console.log('[PDF Controller] Pedidos selecionados:', body?.pedidosIds);
+
+    // Extrair dados do usuário do JWT
+    const usuarioNivel = request?.user?.nivel;
+    const usuarioCulturaId = request?.user?.culturaId;
+
+    // 1. Buscar dados completos do cliente
+    const clienteCompleto = await this.clientesService.findOne(+clienteId);
+    if (!clienteCompleto) {
+      throw new NotFoundException(`Cliente com ID ${clienteId} não encontrado`);
+    }
+
+    // 2. Buscar pedidos do cliente usando o serviço existente
+    const pedidosResponse = await this.pedidosService.findByCliente(
+      +clienteId,
+      undefined, // sem filtro de status
+      usuarioNivel,
+      usuarioCulturaId,
+    );
+
+    let pedidosParaPDF = pedidosResponse.data || [];
+
+    // 3. Filtrar pedidos se IDs foram fornecidos
+    if (body?.pedidosIds && Array.isArray(body.pedidosIds) && body.pedidosIds.length > 0) {
+      pedidosParaPDF = pedidosParaPDF.filter((pedido: any) =>
+        body.pedidosIds!.includes(pedido.id),
+      );
+      console.log('[PDF Controller] Filtrados', pedidosParaPDF.length, 'pedidos selecionados');
+    }
+
+    if (pedidosParaPDF.length === 0) {
+      throw new BadRequestException('Nenhum pedido encontrado para gerar o PDF');
+    }
+
+    // 4. Buscar dados completos dos pedidos (com frutasPedidos detalhadas)
+    const pedidosCompletos = await Promise.all(
+      pedidosParaPDF.map(async (pedido: any) => {
+        return await this.pedidosService.findOne(pedido.id, usuarioNivel, usuarioCulturaId);
+      }),
+    );
+
+    // 5. Buscar dados da empresa para o cabeçalho/rodapé
+    const dadosEmpresa = await this.configService.findDadosEmpresa();
+
+    // 6. Carregar logo em base64 para o PDF
+    const logoBase64 = await this.carregarLogoBase64();
+
+    // 7. Preparar dados para o template
+    let dadosTemplate;
+    try {
+      dadosTemplate = this.prepararDadosTemplatePedidosCliente(
+        clienteCompleto,
+        pedidosCompletos,
+        dadosEmpresa,
+        logoBase64,
+      );
+    } catch (error) {
+      console.error('[PDF Controller] ❌ ERRO ao executar prepararDadosTemplatePedidosCliente:', error);
+      throw error;
+    }
+
+    // 8. Gerar o PDF
+    const buffer = await this.pdfService.gerarPdf('pedidos-cliente', dadosTemplate);
+
+    // 9. Formatar nome do arquivo
+    const nomeClienteArquivo = capitalizeNameShort(clienteCompleto.nome || 'cliente');
+    const nomeArquivo = this.gerarNomeArquivo({
+      tipo: 'pedidos-cliente',
+      identificador: clienteId,
+      cliente: nomeClienteArquivo,
+    });
+    console.log('[PDF Controller] Nome do arquivo final:', nomeArquivo);
+
+    // 10. Configurar Headers para download
+    const contentDisposition = `attachment; filename="${nomeArquivo}"; filename*=UTF-8''${encodeURIComponent(nomeArquivo)}`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': contentDisposition,
+      'Access-Control-Expose-Headers': 'Content-Disposition',
+      'Content-Length': buffer.length.toString(),
+    });
+
+    console.log('[PDF Controller] PDF enviado com sucesso!');
+
+    // 11. Enviar o stream
+    res.end(buffer);
+  }
+
+  /**
+   * Prepara os dados dos pedidos do cliente para o template Handlebars
+   * @template pedidos-cliente.hbs
+   * @description Formata dados do cliente, pedidos, frutas e quantidades para renderização no PDF
+   * Prioriza quantidadePrecificada/unidadePrecificada, com fallback para quantidadeReal/unidadeMedida1
+   */
+  private prepararDadosTemplatePedidosCliente(
+    cliente: any,
+    pedidos: any[],
+    dadosEmpresa: any,
+    logoBase64: string | null,
+  ): any {
+    console.log('[PDF] 📋 Preparando dados dos pedidos do cliente:', {
+      clienteId: cliente?.id,
+      clienteNome: cliente?.nome,
+      totalPedidos: pedidos?.length || 0,
+    });
+
+    // Formatar dados do cliente
+    const clienteFormatado = {
+      nome: capitalizeName(cliente.nome || ''),
+      razaoSocial: cliente.razaoSocial ? capitalizeName(cliente.razaoSocial) : null,
+      cnpj: cliente.cnpj ? formatCNPJ(cliente.cnpj) : null,
+      cpf: cliente.cpf ? formatCPF(cliente.cpf) : null,
+      telefone1: cliente.telefone1 ? formatTelefone(cliente.telefone1) : null,
+      email1: cliente.email1 || null,
+      logradouro: cliente.logradouro ? capitalizeName(cliente.logradouro) : null,
+      numero: cliente.numero || null,
+      complemento: cliente.complemento ? capitalizeName(cliente.complemento) : null,
+      bairro: cliente.bairro ? capitalizeName(cliente.bairro) : null,
+      cidade: cliente.cidade ? capitalizeName(cliente.cidade) : null,
+      estado: cliente.estado || null,
+      cep: cliente.cep || null,
+    };
+
+    // Formatar número do pedido (extrair última parte)
+    const formatarNumeroPedido = (numeroPedido: string): string => {
+      if (!numeroPedido) return '';
+      const partes = numeroPedido.split('-');
+      return partes.length > 0 ? partes[partes.length - 1] : numeroPedido;
+    };
+
+    // Normalizar unidade
+    const normalizarUnidade = (valor?: string | null) =>
+      valor ? valor.toString().trim().toUpperCase() : null;
+
+    // Formatar pedidos
+    const pedidosFormatados = pedidos.map((pedido: any) => {
+      const numeroPedidoFormatado = formatarNumeroPedido(pedido.numeroPedido || '');
+
+      // Formatar frutas do pedido
+      const frutasPedidosFormatadas = (pedido.frutasPedidos || []).map((frutaPedido: any) => {
+        // Prioridade: quantidadePrecificada > quantidadeReal
+        const unidadePrecificada = normalizarUnidade(frutaPedido.unidadePrecificada);
+        const quantidadePrecificada = frutaPedido.quantidadePrecificada;
+        const temPrecificacao =
+          quantidadePrecificada !== null &&
+          quantidadePrecificada !== undefined &&
+          Number(quantidadePrecificada) > 0;
+
+        let quantidadeFormatada: string | null = null;
+        let unidadeFormatada: string | null = null;
+
+        if (temPrecificacao && unidadePrecificada) {
+          // Usar unidadePrecificada e quantidadePrecificada
+          quantidadeFormatada = formatNumber(quantidadePrecificada);
+          unidadeFormatada = unidadePrecificada;
+        } else {
+          // Usar unidadeMedida1 e quantidadeReal
+          const unidade1 = normalizarUnidade(frutaPedido.unidadeMedida1);
+          const quantidadeReal = frutaPedido.quantidadeReal;
+          if (unidade1 && quantidadeReal !== null && quantidadeReal !== undefined && Number(quantidadeReal) > 0) {
+            quantidadeFormatada = formatNumber(quantidadeReal);
+            unidadeFormatada = unidade1;
+          }
+        }
+
+        return {
+          fruta: {
+            nome: capitalizeName(frutaPedido.fruta?.nome || ''),
+            cultura: frutaPedido.fruta?.cultura
+              ? {
+                  descricao: capitalizeName(frutaPedido.fruta.cultura.descricao || ''),
+                }
+              : null,
+          },
+          quantidadeFormatada,
+          unidadeFormatada,
+        };
+      });
+
+      return {
+        id: pedido.id,
+        numeroPedido: pedido.numeroPedido,
+        numeroPedidoFormatado,
+        numeroNf: pedido.numeroNf || null,
+        indNumeroNf: pedido.indNumeroNf || null,
+        dataPedido: pedido.dataPedido,
+        dataPedidoFormatada: formatDateBR(pedido.dataPedido),
+        dataColheita: pedido.dataColheita,
+        dataColheitaFormatada: pedido.dataColheita ? formatDateBR(pedido.dataColheita) : null,
+        valorFinal: pedido.valorFinal || 0,
+        valorFinalFormatado: pedido.valorFinal && pedido.valorFinal > 0 ? formatCurrencyBR(pedido.valorFinal) : null,
+        clienteIndustria: cliente.industria || false,
+        frutasPedidos: frutasPedidosFormatadas,
+      };
+    });
+
+    // Calcular total
+    const valorTotal = pedidos.reduce((total, pedido) => total + (pedido.valorFinal || 0), 0);
+    const valorTotalFormatado = formatCurrencyBR(valorTotal);
+
+    return {
+      cliente: {
+        ...clienteFormatado,
+        industria: cliente.industria || false,
+      },
+      pedidos: pedidosFormatados,
+      valorTotalFormatado,
+      empresa: dadosEmpresa,
+      logoPath: logoBase64,
+      dataGeracaoFormatada: formatDateBR(new Date()),
+      anoAtual: new Date().getFullYear(),
+      titulo: 'Pedidos do Cliente',
+      subtitulo: clienteFormatado.nome,
     };
   }
 }

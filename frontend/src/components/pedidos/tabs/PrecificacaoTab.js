@@ -469,7 +469,7 @@ const PrecificacaoTab = ({
         }}
       >
         <Row gutter={[16, 16]}>
-          <Col xs={24} md={6}>
+          <Col xs={24} md={5}>
             <Form.Item
               label={
                 <Space>
@@ -489,7 +489,7 @@ const PrecificacaoTab = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} md={6}>
+          <Col xs={24} md={5}>
             <Form.Item
               label={
                 <Space>
@@ -509,7 +509,7 @@ const PrecificacaoTab = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} md={6}>
+          <Col xs={24} md={5}>
             <Form.Item
               label={
                 <Space>
@@ -529,7 +529,7 @@ const PrecificacaoTab = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} md={6}>
+          <Col xs={24} md={5}>
             <Form.Item
               label={
                 <Space>
@@ -544,6 +544,40 @@ const PrecificacaoTab = ({
                 size="large"
                 value={valoresCalculados.avaria}
                 onChange={(value) => handleChange('avaria', value)}
+                disabled={!canEditTab("3")}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={4}>
+            <Form.Item
+              label={
+                <Space>
+                  <NumberOutlined style={{ color: "#059669" }} />
+                  <span style={{ fontWeight: "700", color: "#333" }}>Número NF</span>
+                </Space>
+              }
+            >
+              <InputNumber
+                placeholder="Ex: 123456"
+                style={{
+                  width: "100%",
+                  borderRadius: "6px",
+                  borderColor: "#d9d9d9",
+                }}
+                min={1}
+                max={999999999}
+                controls={false}
+                formatter={(value) => `${value}`.replace(/[^0-9]/g, '')}
+                parser={(value) => value.replace(/[^0-9]/g, '')}
+                size="middle"
+                value={pedidoAtual.numeroNf}
+                onChange={(value) => {
+                  setPedidoAtual(prev => ({
+                    ...prev,
+                    numeroNf: value
+                  }));
+                }}
                 disabled={!canEditTab("3")}
               />
             </Form.Item>
@@ -688,12 +722,12 @@ const PrecificacaoTab = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={6}>
+              <Col xs={24} md={4}>
                 <Form.Item
                   label={
                     <Space>
                       <NumberOutlined style={{ color: "#059669" }} />
-                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Número NF</span>
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "12px" }}>Número NF Indústria</span>
                     </Space>
                   }
                 >

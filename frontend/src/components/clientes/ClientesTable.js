@@ -209,6 +209,21 @@ const ClientesTable = React.memo(({
       ),
     },
     {
+      title: "Prazo",
+      key: "prazo",
+      render: (_, record) => (
+        <div>
+          {record.dias ? (
+            <Text style={{ color: "#333333", fontSize: "12px" }}>
+              {record.dias} {record.dias === 1 ? "dia" : "dias"}
+            </Text>
+          ) : (
+            <Text style={{ color: "#999999", fontSize: "12px" }}>-</Text>
+          )}
+        </div>
+      ),
+    },
+    {
       title: "Status",
       dataIndex: "status",
       key: "status",

@@ -57,7 +57,7 @@ O sistema utiliza **5 tabelas principais** para controlar todos os pagamentos:
 - Cada nova requisição incrementa `ultimoNumero` em 1
 - **Valor inicial automático**:
   - **Produção** (`NODE_ENV=production`): 1000
-  - **Desenvolvimento** (`NODE_ENV=development` ou não definido): 100
+  - **Desenvolvimento** (`NODE_ENV=development` ou não definido): 110
   - Pode ser sobrescrito pela variável de ambiente `BB_ULTIMO_NUMERO_REQUISICAO_INICIAL`
 
 **Exemplo:**
@@ -155,11 +155,19 @@ O sistema utiliza **5 tabelas principais** para controlar todos os pagamentos:
 
 #### Dados Específicos de PIX
 - `descricaoInstantaneoEnviada` (String?) - Descrição para conciliação
-- `chavePixEnviada` (String?) - Chave PIX
-- `tipoChavePixEnviado` (Int?) - 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória
+- `chavePixEnviada` (String?) - Chave PIX **salva no momento da criação do item** (para consistência histórica)
+- `tipoChavePixEnviado` (Int?) - 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória **salvo no momento da criação do item**
+- `responsavelChavePixEnviado` (String?) - Responsável pela chave PIX **salvo no momento da criação do item** (para consistência histórica)
 - `identificadorPagamento` (String?) - Identificador PIX retornado pelo BB
 - `indicadorMovimentoAceito` (String?) - "S" ou "N" (resposta inicial)
 - `indicadorMovimentoAceitoAtual` (String?) - "S" ou "N" (status atual)
+
+**⚠️ IMPORTANTE - Comportamento da Chave PIX:**
+- **Sempre atualizada na criação**: A chave PIX sempre vem do cadastro do funcionário (`Funcionario.chavePix`) no momento da criação do lote
+- **Armazenada para consistência histórica**: A chave PIX é salva em `chavePixEnviada`, `tipoChavePixEnviado` e `responsavelChavePixEnviado` quando o item é criado
+- **Mudanças futuras não afetam pagamentos anteriores**: Se o funcionário mudar a chave PIX ou responsável no cadastro após um pagamento ser criado, o pagamento anterior mantém os dados antigos salvos
+- **Novos lotes usam dados atualizados**: Toda vez que um novo lote é criado (criação original ou reprocessamento), a chave PIX e responsável usados são sempre os atuais do cadastro do funcionário
+- **Não armazenada em `arh_funcionario_pagamento`**: A tabela `arh_funcionario_pagamento` não armazena chave PIX nem responsável, sempre consulta do cadastro do funcionário
 
 #### Dados Específicos de BOLETO
 - `numeroCodigoBarras` (String?) - Código de barras (44 dígitos)
@@ -198,7 +206,8 @@ O sistema utiliza **5 tabelas principais** para controlar todos os pagamentos:
 - `colheitas` (PagamentoApiItemColheita[]) - Relacionamento N:N com `TurmaColheitaPedidoCusto`
 
 #### Status do Item
-- `status` (Enum) - PENDENTE, ENVIADO, ACEITO, REJEITADO, PROCESSADO, ERRO
+- `status` (Enum) - PENDENTE, ENVIADO, ACEITO, REJEITADO, BLOQUEADO, PROCESSADO, ERRO
+  - **BLOQUEADO**: Item bloqueado porque o lote foi rejeitado (não será processado nem liberado)
 - `processadoComSucesso` (Boolean) - Se foi processado com sucesso
 
 #### Rastreamento por Usuário
@@ -327,7 +336,9 @@ const lote = await this.prisma.pagamentoApiLote.create({
 - **Logs** mostram hora local (`America/Sao_Paulo`), início de cada job e o resumo final (sucessos/falhas). Reagendamentos também geram log.
 - **Reagendamento automático (lotes)**: repete enquanto o BB responder estados intermediários (`1`, `2`, `4`, `5`, `8`, `9`, `10`). Só encerra quando chega em `6` (processado) ou `7` (rejeitado). **IMPORTANTE**: O sistema aceita sempre o estado retornado pelo BB, pois os estados não seguem sequência numérica crescente (ver seção "Sequência Real dos Estados do BB").
 - **Reagendamento automático (itens)**: repete quando o estado do PIX = `PENDENTE`, `CONSISTENTE`, `AGENDADO`, `AGUARDANDO DÉBITO` ou `DEBITADO`. Estados finais (`PAGO`, `CANCELADO`, `REJEITADO`, `DEVOLVIDO`, `VENCIDO`, `BLOQUEADO`) encerram o job.
-- **Tratamento de itens bloqueados**: Quando um item está bloqueado, o sistema marca o lote inteiro como rejeitado (estado 7) para impedir a liberação, pois itens bloqueados impedem o processamento dos créditos. Itens já pagos são preservados e não são alterados. Ver seção detalhada em "4.1.1. Tratamento de Itens Bloqueados".
+- **Tratamento de itens bloqueados**: 
+  - **Na criação do lote**: Se a resposta inicial do BB indica itens rejeitados, o lote é marcado como rejeitado imediatamente. Itens rejeitados ficam com `status = REJEITADO` e funcionários com `statusPagamento = REJEITADO`. Itens aceitos mas em lote rejeitado ficam com `status = BLOQUEADO` e funcionários com `statusPagamento = REPROCESSAR`. Não são criados jobs de sincronização.
+  - **Após criação**: Quando um item está bloqueado (via consulta individual ou job), o sistema marca o lote inteiro como rejeitado (estado 7) para impedir a liberação, pois itens bloqueados impedem o processamento dos créditos. Itens já pagos são preservados e não são alterados. Ver seção detalhada em "4.1.1. Tratamento de Itens Bloqueados".
 - **Propagação Turma Colheita**: quando o item chega em `PAGO`, tanto o job quanto o webhook marcam as colheitas vinculadas como pagas e, se todos os itens do lote estiverem `PROCESSADOS`, atualiza o lote para `estadoRequisicao=6`/`CONCLUIDO`.
 - **Tratamento de itens bloqueados**: Quando um item está bloqueado, tanto o job quanto o webhook marcam o lote inteiro como rejeitado (estado 7) e revertem colheitas/funcionários para pendente (apenas se não estão pagos).
 - **Backoff de erros**: 15 → 30 → 60 → 180 min; após 5 tentativas falhas, status `FAILED` + mensagem registrada.
@@ -1176,7 +1187,8 @@ Após executar todos os comandos, verifique se:
 3. ✅ Os enums foram criados:
    - `TipoPagamentoApi` (PIX, BOLETO, GUIA)
    - `StatusPagamentoLote` (PENDENTE, ENVIADO, PROCESSANDO, CONCLUIDO, PARCIAL, REJEITADO, ERRO)
-   - `StatusPagamentoItem` (PENDENTE, ENVIADO, ACEITO, REJEITADO, PROCESSADO, ERRO)
+   - `StatusPagamentoItem` (PENDENTE, ENVIADO, ACEITO, REJEITADO, BLOQUEADO, PROCESSADO, ERRO)
+   - `StatusFuncionarioPagamento` (PENDENTE, ENVIADO, ACEITO, PROCESSANDO, PAGO, REJEITADO, REPROCESSAR, CANCELADO, ERRO)
 
 4. ✅ A tabela de sequência será inicializada automaticamente na primeira requisição de pagamento
    - Não é necessário executar script manual
@@ -1390,10 +1402,20 @@ console.log('Número da requisição gerado:', response.data.numeroRequisicao);
 
 **Comportamento Especial:** O sistema detecta automaticamente quando itens de pagamento estão bloqueados e marca o lote inteiro como rejeitado para impedir a liberação, pois itens bloqueados impedem o processamento dos créditos.
 
-**Cenário:**
-- Um lote é criado no dia **25** com `dataPagamento` configurada para o dia **25**.
-- O lote não é liberado imediatamente e permanece pendente.
-- Quando a data de pagamento passa e o lote ainda não foi liberado, o BB retorna o estado `BLOQUEADO` para os itens afetados.
+**Cenários:**
+
+1. **Na Criação do Lote (Resposta Inicial do BB):**
+   - Um lote é criado e enviado ao BB
+   - A resposta inicial indica que alguns itens foram rejeitados (`indicadorMovimentoAceito = "N"`)
+   - O sistema marca o lote como rejeitado imediatamente
+   - Itens rejeitados: `status = REJEITADO`, `FuncionarioPagamento.statusPagamento = REJEITADO`
+   - Itens aceitos mas em lote rejeitado: `status = BLOQUEADO`, `FuncionarioPagamento.statusPagamento = REPROCESSAR`
+   - **Não são criados jobs de sincronização** para nenhum item do lote rejeitado
+
+2. **Após Criação (Consulta Individual ou Job):**
+   - Um lote é criado no dia **25** com `dataPagamento` configurada para o dia **25**.
+   - O lote não é liberado imediatamente e permanece pendente.
+   - Quando a data de pagamento passa e o lote ainda não foi liberado, o BB retorna o estado `BLOQUEADO` para os itens afetados.
 
 **O que acontece:**
 
@@ -1417,7 +1439,23 @@ console.log('Número da requisição gerado:', response.data.numeroRequisicao);
    - **Colheitas:** Se o item já está pago, as colheitas vinculadas permanecem como pagas
    - Apenas itens bloqueados que **não estão pagos** são marcados como rejeitados
 
-4. **Atualização de Status:**
+4. **Atualização de Status na Criação do Lote:**
+   - **Item rejeitado pelo BB (`indicadorMovimentoAceito = "N"`):**
+     - `status = REJEITADO` (item realmente inconsistente)
+     - `FuncionarioPagamento.statusPagamento = REJEITADO`
+     - `FuncionarioPagamento.pagamentoEfetuado = false`
+   - **Item aceito pelo BB mas em lote rejeitado (`indicadorMovimentoAceito = "S"` mas lote rejeitado):**
+     - `status = BLOQUEADO` (item aceito mas lote rejeitado)
+     - `estadoPagamentoIndividual = 'BLOQUEADO'`
+     - `FuncionarioPagamento.statusPagamento = REPROCESSAR`
+     - `FuncionarioPagamento.pagamentoEfetuado = false`
+   - **Lote marcado como rejeitado:**
+     - `estadoRequisicao = 3` (se todos os itens são rejeitados) ou `7` (se apenas alguns são rejeitados)
+     - `status = REJEITADO`
+     - **Não são criados jobs de sincronização** para nenhum item
+     - **Não são criadas notificações** de liberação
+
+5. **Atualização de Status Após Criação (Consulta Individual ou Job):**
    - **Item bloqueado (não pago):**
      - `estadoPagamentoIndividual = "BLOQUEADO"` (preservado da API)
      - `status = REJEITADO` (status interno)
@@ -1473,9 +1511,13 @@ console.log('Número da requisição gerado:', response.data.numeroRequisicao);
 
 **Observações Importantes:**
 - Itens bloqueados impedem a liberação do lote, pois o crédito não poderá ser efetuado
-- Quando um lote está rejeitado por itens bloqueados, os funcionários e colheitas têm seus status revertidos para que o pagamento possa ser feito novamente em um novo lote
+- Quando um lote está rejeitado por itens bloqueados, os funcionários têm seus status atualizados:
+  - Funcionários com item `REJEITADO` → `statusPagamento = REJEITADO`
+  - Funcionários com item `BLOQUEADO` → `statusPagamento = REPROCESSAR`
+- Funcionários com status `REPROCESSAR` podem ser incluídos no reprocessamento via botão "Reprocessar Pagamentos Rejeitados"
 - Itens já pagos são sempre preservados, mesmo em lotes rejeitados
 - O sistema garante consistência entre consulta individual e consulta de lote completo
+- Lotes rejeitados na criação **não geram jobs de sincronização** nem notificações de liberação
 
 **Implementação Técnica:**
 
@@ -1514,7 +1556,18 @@ if (!itemJaPago) {
 - `status = REJEITADO`
 - `observacoes`: Adiciona observação explicando que itens bloqueados foram detectados e o motivo da rejeição
 
-**Campos Atualizados no Item quando está bloqueado (se não está pago):**
+**Campos Atualizados no Item quando está bloqueado na criação do lote:**
+- **Item rejeitado pelo BB:**
+  - `status = REJEITADO`
+  - `FuncionarioPagamento.statusPagamento = REJEITADO`
+  - `FuncionarioPagamento.pagamentoEfetuado = false`
+- **Item aceito mas em lote rejeitado:**
+  - `status = BLOQUEADO`
+  - `estadoPagamentoIndividual = 'BLOQUEADO'`
+  - `FuncionarioPagamento.statusPagamento = REPROCESSAR`
+  - `FuncionarioPagamento.pagamentoEfetuado = false`
+
+**Campos Atualizados no Item quando está bloqueado após criação (se não está pago):**
 - `estadoPagamentoIndividual = "BLOQUEADO"` (preservado da API)
 - `status = REJEITADO` (status interno)
 - `FuncionarioPagamento.statusPagamento = REJEITADO` (se vinculado)
@@ -1860,13 +1913,44 @@ RASCUNHO → PENDENTE_LIBERACAO → EM_PROCESSAMENTO → FECHADA
 - **Lógica:**
   1. Valida folha (status `PENDENTE_LIBERACAO`)
   2. Busca lançamentos com `meioPagamento = PIX_API`, `pagamentoEfetuado = false` e `pagamentoApiItemId = null`
-  3. Valida chave PIX de todos os funcionários
-  4. Monta 1 transferência por funcionário
+  3. Valida chave PIX de todos os funcionários (busca do cadastro `Funcionario.chavePix`)
+  4. Monta 1 transferência por funcionário usando a chave PIX atual do cadastro
+  5. Salva a chave PIX em `pagamento_api_item.chavePixEnviada` quando o item é criado
   5. **Divide em chunks de 320** (limite do BB)
   6. Para cada chunk, cria 1 lote com até 320 transferências em `listaTransferencias`
   7. Vincula cada `PagamentoApiItem` ao respectivo `FuncionarioPagamento`
-  8. Atualiza `statusPagamento = ENVIADO` para cada funcionário
+  8. Atualiza `statusPagamento` para cada funcionário:
+     - Se item foi rejeitado: `statusPagamento = REJEITADO`
+     - Se item está bloqueado (lote rejeitado): `statusPagamento = REPROCESSAR`
+     - Caso contrário: `statusPagamento = ENVIADO`
   9. Atualiza status da folha para `EM_PROCESSAMENTO`
+
+#### Tratamento de Itens Rejeitados na Criação do Lote
+Quando um lote é criado e a resposta inicial do BB indica itens rejeitados (`indicadorMovimentoAceito = "N"`):
+
+**Comportamento:**
+1. **Itens Rejeitados pelo BB:**
+   - `status = REJEITADO` (item realmente inconsistente)
+   - `FuncionarioPagamento.statusPagamento = REJEITADO`
+   - `FuncionarioPagamento.pagamentoEfetuado = false`
+
+2. **Itens Aceitos pelo BB mas em Lote Rejeitado:**
+   - `status = BLOQUEADO` (item aceito mas lote rejeitado)
+   - `estadoPagamentoIndividual = 'BLOQUEADO'`
+   - `FuncionarioPagamento.statusPagamento = REPROCESSAR`
+   - `FuncionarioPagamento.pagamentoEfetuado = false`
+
+3. **Lote Marcado como Rejeitado:**
+   - Se houver **qualquer item rejeitado**, o lote inteiro é marcado como rejeitado:
+     - `estadoRequisicao = 3` (se todos os itens são rejeitados)
+     - `estadoRequisicao = 7` (se apenas alguns são rejeitados)
+     - `status = REJEITADO`
+   - **Não são criados jobs de sincronização** para nenhum item do lote rejeitado
+   - **Não são criadas notificações** de liberação
+
+**Motivo:**
+- Itens bloqueados não serão processados nem liberados, mesmo que tenham sido aceitos pelo BB
+- Funcionários com status `REPROCESSAR` podem ser incluídos no reprocessamento via botão específico
 
 #### Sincronização Automática de Status
 Quando o job de sincronização (`PagamentosSyncWorkerService`) ou webhook atualiza um `PagamentoApiItem` que tem `funcionarioPagamentoId`:
@@ -1882,6 +1966,7 @@ Após cada atualização de `FuncionarioPagamento` via jobs ou webhook, o sistem
 3. **Garante sincronização** entre `statusPagamento` e `pagamentoEfetuado`:
    - `statusPagamento = PAGO` → sempre `pagamentoEfetuado = true`
    - `statusPagamento = REJEITADO` → sempre `pagamentoEfetuado = false`
+   - `statusPagamento = REPROCESSAR` → sempre `pagamentoEfetuado = false`
 
 **Pontos de Recálculo:**
 - ✅ Após atualização via `atualizarFuncionarioPagamentoDoItem` (jobs e webhook)
@@ -1895,7 +1980,7 @@ Quando uma folha está em `EM_PROCESSAMENTO` com `meioPagamento = PIX_API`, o si
 1. Folha está em status `EM_PROCESSAMENTO`
 2. Meio de pagamento é `PIX_API`
 3. **Todos** os lançamentos têm `pagamentoEfetuado = true` (todos foram pagos)
-4. **Nenhum** lançamento está com `statusPagamento = REJEITADO`
+4. **Nenhum** lançamento está com `statusPagamento = REJEITADO` ou `statusPagamento = REPROCESSAR`
 
 **Comportamento:**
 - ✅ **Fechamento Automático**: Quando todas as condições são atendidas, a folha é fechada automaticamente (status `FECHADA`)
@@ -1935,11 +2020,15 @@ Quando uma folha PIX-API tem pagamentos rejeitados, o sistema oferece funcionali
 - **Payload:** `{ meioPagamento, dataPagamento, contaCorrenteId?, observacoes? }`
 
 **Lógica:**
-1. Busca todos os lançamentos com `statusPagamento = REJEITADO` na folha
+1. Busca todos os lançamentos com `statusPagamento = REJEITADO` ou `statusPagamento = REPROCESSAR` na folha
+   - **REJEITADO**: Item realmente rejeitado pelo BB (dados inconsistentes)
+   - **REPROCESSAR**: Item bloqueado em lote rejeitado (precisa ser reprocessado)
 2. Limpa o vínculo anterior: `pagamentoApiItemId = null`, `statusPagamento = PENDENTE`
 3. **Se `meioPagamento = PIX_API`:**
    - Solicita conta corrente novamente
-   - Cria novos lotes apenas para os funcionários rejeitados
+   - **Busca chave PIX atualizada do cadastro do funcionário** (`Funcionario.chavePix`)
+   - Cria novos lotes apenas para os funcionários rejeitados/bloqueados usando a chave PIX atual do cadastro
+   - Salva a chave PIX atual em `pagamento_api_item.chavePixEnviada` para consistência histórica
    - Mantém folha em `EM_PROCESSAMENTO`
 4. **Se `meioPagamento = PIX` ou `ESPECIE`:**
    - Marca lançamentos como `PAGO` e `pagamentoEfetuado = true` imediatamente
@@ -1950,6 +2039,41 @@ Quando uma folha PIX-API tem pagamentos rejeitados, o sistema oferece funcionali
   - Folha tem `meioPagamento = PIX_API`
   - Folha tem `quantidadeRejeitados > 0`
 - Alerta visual (ícone ⚠️) na coluna "Status" da tabela de folhas para folhas `FECHADA` ou `EM_PROCESSAMENTO` com rejeitados
+
+#### Comportamento da Chave PIX em Folhas de Pagamento
+
+**Fonte da Chave PIX:**
+- ✅ **Sempre do cadastro do funcionário**: A chave PIX sempre vem da tabela `Funcionario.chavePix` no momento da criação do lote
+- ✅ **Não armazenada em `arh_funcionario_pagamento`**: A tabela `arh_funcionario_pagamento` não armazena chave PIX, sempre consulta do cadastro do funcionário
+
+**Armazenamento para Consistência Histórica:**
+- ✅ **Salva em `pagamento_api_item`**: Quando um item de pagamento é criado, a chave PIX e o responsável são salvos em `chavePixEnviada`, `tipoChavePixEnviado` e `responsavelChavePixEnviado`
+- ✅ **Preserva histórico**: Se o funcionário mudar a chave PIX ou responsável no cadastro após um pagamento ser criado, o pagamento anterior mantém os dados antigos salvos para rastreabilidade
+
+**Criação Original de Lotes:**
+- ✅ **Busca dados atuais**: O método `criarLotesParaLancamentos` busca `funcionario.chavePix`, `funcionario.tipoChavePix` e `funcionario.responsavelChavePix` do cadastro
+- ✅ **Validação**: Valida se todos os funcionários têm chave PIX cadastrada antes de criar o lote
+- ✅ **Salva no item**: A chave PIX e o responsável são extraídos do objeto `transferencia` e salvos em `pagamento_api_item.chavePixEnviada`, `tipoChavePixEnviado` e `responsavelChavePixEnviado`
+
+**Reprocessamento de Pagamentos Rejeitados:**
+- ✅ **Usa dados atualizados**: O método `reprocessarPagamentosRejeitados` busca `funcionario.chavePix`, `funcionario.tipoChavePix` e `funcionario.responsavelChavePix` do cadastro novamente
+- ✅ **Dados atuais do cadastro**: Se o funcionário mudou a chave PIX ou responsável após o primeiro lote, o reprocessamento usa os dados atualizados
+- ✅ **Novo item com dados atuais**: Um novo `PagamentoApiItem` é criado com a chave PIX e responsável atuais do cadastro salvos em `chavePixEnviada`, `tipoChavePixEnviado` e `responsavelChavePixEnviado`
+
+**Exemplo de Fluxo:**
+1. **Dia 01/01**: Funcionário tem chave PIX `12345678900` (CPF) e responsável `João Silva` no cadastro
+2. **Dia 01/01**: Folha é liberada → Lote criado com `chavePixEnviada = "12345678900"` e `responsavelChavePixEnviado = "João Silva"`
+3. **Dia 05/01**: Funcionário atualiza chave PIX para `chave-aleatoria-xyz` e responsável para `Maria Santos` no cadastro
+4. **Dia 10/01**: Pagamento é rejeitado → Reprocessamento usa `chave-aleatoria-xyz` e `Maria Santos` (dados atuais)
+5. **Resultado**: 
+   - Item original mantém `chavePixEnviada = "12345678900"` e `responsavelChavePixEnviado = "João Silva"` (histórico preservado)
+   - Novo item tem `chavePixEnviada = "chave-aleatoria-xyz"` e `responsavelChavePixEnviado = "Maria Santos"` (dados atuais)
+
+**Benefícios:**
+- ✅ **Rastreabilidade**: Histórico completo de qual chave PIX e responsável foram usados em cada pagamento
+- ✅ **Atualização automática**: Novos lotes sempre usam a chave PIX e responsável mais atuais do cadastro
+- ✅ **Consistência**: Não há risco de usar chave PIX ou responsável desatualizados em novos pagamentos
+- ✅ **Auditoria**: Possibilidade de verificar qual chave PIX e responsável foram usados em cada pagamento histórico
 
 #### Outros Detalhes
 - Fluxo manual (PIX comum ou espécie) permanece independente e simples.
@@ -2009,5 +2133,7 @@ Se o Prisma Client não reconhece a nova tabela:
 - ✅ Sincronização garantida de `pagamentoEfetuado` com `statusPagamento` em todos os pontos
 - ✅ Alerta visual para folhas com pagamentos rejeitados (FECHADA ou EM_PROCESSAMENTO)
 - ✅ Reprocessamento de pagamentos rejeitados com suporte a mudança de meio de pagamento
+- ✅ Documentação completa do comportamento da chave PIX: sempre atualizada do cadastro do funcionário, armazenada para consistência histórica em `pagamento_api_item.chavePixEnviada`, `tipoChavePixEnviado` e `responsavelChavePixEnviado`
+- ✅ Campo `responsavelChavePixEnviado` adicionado em `pagamento_api_item` para rastreabilidade do responsável pela chave PIX
 
 

@@ -42,7 +42,8 @@ const EditarPedidoDialog = ({
     pesagem: "",
     placaPrimaria: "",
     placaSecundaria: "",
-    nomeMotorista: ""
+    nomeMotorista: "",
+    numeroNf: undefined
   });
   // ✅ NOVO: Estado IMUTÁVEL para dados originais do banco (para validações)
   const [dadosOriginaisBanco, setDadosOriginaisBanco] = useState({
@@ -249,6 +250,7 @@ const EditarPedidoDialog = ({
         placaPrimaria: pedido.placaPrimaria || "",
         placaSecundaria: pedido.placaSecundaria || "",
         nomeMotorista: pedido.nomeMotorista || "",
+        numeroNf: pedido.numeroNf || undefined,
         // Campos específicos para clientes indústria
         indDataEntrada: pedido.indDataEntrada || null,
         indDataDescarga: pedido.indDataDescarga || null,
@@ -304,7 +306,8 @@ const EditarPedidoDialog = ({
         pesagem: "",
         placaPrimaria: "",
         placaSecundaria: "",
-        nomeMotorista: ""
+        nomeMotorista: "",
+        numeroNf: undefined
       });
       setValoresCalculados({
         valorTotalFrutas: 0,
@@ -861,6 +864,7 @@ const EditarPedidoDialog = ({
           placaPrimaria: pedidoAtual.placaPrimaria,
           placaSecundaria: pedidoAtual.placaSecundaria,
           nomeMotorista: pedidoAtual.nomeMotorista,
+          numeroNf: pedidoAtual.numeroNf,
         });
       }
 

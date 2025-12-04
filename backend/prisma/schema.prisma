@@ -8,29 +8,29 @@ datasource db {
 }
 
 model Usuario {
-  id               Int               @id @default(autoincrement())
-  nome             String
-  cpf              String            @unique
-  email            String            @unique
-  nivel            NivelUsuario      @default(ESCRITORIO)
-  senha            String
-  dataCadastro     DateTime          @default(now())
-  ultimoAcesso     DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  culturaId        Int?              @map("cultura_id")
-  controlesBanana  ControleBanana[]
-  fitasBanana      FitaBanana[]
-  historicosFitas  HistoricoFitas[]
-  notificacoes     Notificacao[]
-  pushTokens       PushToken[]
-  cultura          Cultura?          @relation(fields: [culturaId], references: [id])
-  historicoPedidos HistoricoPedido[]
-  lotesPagamentoCriados PagamentoApiLote[] @relation("UsuarioCriacao")
-  lotesPagamentoLiberados PagamentoApiLote[] @relation("UsuarioLiberacao")
+  id                       Int                @id @default(autoincrement())
+  nome                     String
+  cpf                      String             @unique
+  email                    String             @unique
+  nivel                    NivelUsuario       @default(ESCRITORIO)
+  senha                    String
+  dataCadastro             DateTime           @default(now())
+  ultimoAcesso             DateTime?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  culturaId                Int?               @map("cultura_id")
+  controlesBanana          ControleBanana[]
+  fitasBanana              FitaBanana[]
+  historicosFitas          HistoricoFitas[]
+  notificacoes             Notificacao[]
+  pushTokens               PushToken[]
+  cultura                  Cultura?           @relation(fields: [culturaId], references: [id])
+  historicoPedidos         HistoricoPedido[]
+  lotesPagamentoCriados    PagamentoApiLote[] @relation("UsuarioCriacao")
+  lotesPagamentoLiberados  PagamentoApiLote[] @relation("UsuarioLiberacao")
   itensPagamentoCancelados PagamentoApiItem[] @relation("UsuarioCancelamento")
-  folhasCriadas FolhaPagamento[] @relation("FolhaCriacao")
-  folhasLiberadas FolhaPagamento[] @relation("FolhaLiberacao")
+  folhasCriadas            FolhaPagamento[]   @relation("FolhaCriacao")
+  folhasLiberadas          FolhaPagamento[]   @relation("FolhaLiberacao")
 
   @@map("usuarios")
 }
@@ -54,22 +54,22 @@ model ConfigDadosEmpresa {
 }
 
 model ContaCorrente {
-  id                  Int                @id @default(autoincrement())
-  bancoCodigo         String
-  agencia             String
-  agenciaDigito       String
-  contaCorrente       String
-  contaCorrenteDigito String
+  id                      Int                   @id @default(autoincrement())
+  bancoCodigo             String
+  agencia                 String
+  agenciaDigito           String
+  contaCorrente           String
+  contaCorrenteDigito     String
   numeroContratoPagamento Int? // Número do contrato de pagamentos BB (ex: 731030)
-  monitorar           Boolean            @default(false)
-  intervalo           Int? // Intervalo em segundos para monitoramento
-  createdAt           DateTime           @default(now())
-  updatedAt                 DateTime                      @updatedAt
-  conveniosCobranca         ConvenioCobranca[]
-  credenciaisAPI            CredenciaisAPI[]
-  lotesPagamentoApi         PagamentoApiLote[]
-  syncJobs                  PagamentoApiSyncJob[]
-  folhasPagamento           FolhaPagamento[] // Folhas de pagamento que usam esta conta para PIX_API
+  monitorar               Boolean               @default(false)
+  intervalo               Int? // Intervalo em segundos para monitoramento
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  conveniosCobranca       ConvenioCobranca[]
+  credenciaisAPI          CredenciaisAPI[]
+  lotesPagamentoApi       PagamentoApiLote[]
+  syncJobs                PagamentoApiSyncJob[]
+  folhasPagamento         FolhaPagamento[] // Folhas de pagamento que usam esta conta para PIX_API
 
   @@unique([bancoCodigo, agencia, contaCorrente])
   @@map("conta_corrente")
@@ -272,6 +272,7 @@ model Cliente {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   industria          Boolean?            @default(false)
+  dias               Int?
   pedidos            Pedido[]
   lancamentosExtrato LancamentoExtrato[]
 
@@ -339,6 +340,7 @@ model Pedido {
   indMediaMililitro          Float?                     @map("ind_media_mililitro")
   indNumeroNf                Int?                       @map("ind_numero_nf")
   indPesoMedio               Float?                     @map("ind_peso_medio")
+  numeroNf                   Int?                       @map("numero_nf")
   frutasPedidos              FrutasPedidos[]
   pagamentosPedidos          PagamentosPedidos[]
   cliente                    Cliente                    @relation(fields: [clienteId], references: [id])
@@ -672,16 +674,16 @@ model FornecedorPagamento {
 }
 
 model Cargo {
-  id                      Int                      @id @default(autoincrement())
-  nome                    String                   @db.VarChar(120)
+  id                      Int                    @id @default(autoincrement())
+  nome                    String                 @db.VarChar(120)
   descricao               String?
-  salarioMensal           Decimal                  @db.Decimal(12, 2)
+  salarioMensal           Decimal                @db.Decimal(12, 2)
   cargaHorariaMensal      Int?
-  adicionalPericulosidade Decimal?                 @db.Decimal(10, 2)
-  isGerencial             Boolean                  @default(false)
-  ativo                   Boolean                  @default(true)
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  adicionalPericulosidade Decimal?               @db.Decimal(10, 2)
+  isGerencial             Boolean                @default(false)
+  ativo                   Boolean                @default(true)
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
   funcionarios            Funcionario[]
   pagamentoSnapshots      FuncionarioPagamento[]
 
@@ -690,15 +692,15 @@ model Cargo {
 }
 
 model FuncaoDiarista {
-  id                 Int                  @id @default(autoincrement())
-  nome               String               @db.VarChar(120)
+  id                 Int                    @id @default(autoincrement())
+  nome               String                 @db.VarChar(120)
   descricao          String?
-  valorDiariaBase    Decimal              @db.Decimal(12, 2)
+  valorDiariaBase    Decimal                @db.Decimal(12, 2)
   duracaoPadraoHoras Int?
-  exigeEpi           Boolean              @default(false)
-  ativo              Boolean              @default(true)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  exigeEpi           Boolean                @default(false)
+  ativo              Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
   funcionarios       Funcionario[]
   pagamentoSnapshots FuncionarioPagamento[]
 
@@ -707,18 +709,18 @@ model FuncaoDiarista {
 }
 
 model Funcionario {
-  id                     Int                       @id @default(autoincrement())
-  nome                   String                    @db.VarChar(180)
-  apelido                String?                   @db.VarChar(100)
-  cpf                    String                    @unique @db.VarChar(14)
-  rg                     String?                   @db.VarChar(20)
-  pis                    String?                   @db.VarChar(20)
-  ctps                   String?                   @db.VarChar(30)
+  id                     Int                     @id @default(autoincrement())
+  nome                   String                  @db.VarChar(180)
+  apelido                String?                 @db.VarChar(100)
+  cpf                    String                  @unique @db.VarChar(14)
+  rg                     String?                 @db.VarChar(20)
+  pis                    String?                 @db.VarChar(20)
+  ctps                   String?                 @db.VarChar(30)
   dataNascimento         DateTime?
-  telefone               String?                   @db.VarChar(20)
-  celular                String?                   @db.VarChar(20)
-  email                  String?                   @db.VarChar(120)
-  estadoCivil            String?                   @db.VarChar(30)
+  telefone               String?                 @db.VarChar(20)
+  celular                String?                 @db.VarChar(20)
+  email                  String?                 @db.VarChar(120)
+  estadoCivil            String?                 @db.VarChar(30)
   endereco               Json?
   dadosBancarios         Json?
   dependentes            Json?
@@ -727,21 +729,21 @@ model Funcionario {
   cargoId                Int?
   funcaoId               Int?
   gerenteId              Int?
-  salarioCustomizado     Decimal?                  @db.Decimal(12, 2)
-  valorDiariaCustomizada Decimal?                  @db.Decimal(12, 2)
+  salarioCustomizado     Decimal?                @db.Decimal(12, 2)
+  valorDiariaCustomizada Decimal?                @db.Decimal(12, 2)
   tipoChavePix           Int? // Código: 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória
-  modalidadeChave        String?                   @db.VarChar(50) // Nome: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"
-  chavePix               String?                   @db.VarChar(200)
-  responsavelChavePix    String?                   @db.VarChar(180)
-  status                 StatusFuncionario         @default(ATIVO)
+  modalidadeChave        String?                 @db.VarChar(50) // Nome: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"
+  chavePix               String?                 @db.VarChar(200)
+  responsavelChavePix    String?                 @db.VarChar(180)
+  status                 StatusFuncionario       @default(ATIVO)
   dataAdmissao           DateTime?
   dataDemissao           DateTime?
-  createdAt              DateTime                  @default(now())
-  updatedAt              DateTime                  @updatedAt
-  cargo                  Cargo?                    @relation(fields: [cargoId], references: [id])
-  funcao                 FuncaoDiarista?           @relation(fields: [funcaoId], references: [id])
-  gerente                Funcionario?              @relation("FuncionarioGerente", fields: [gerenteId], references: [id])
-  subordinados           Funcionario[]             @relation("FuncionarioGerente")
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  cargo                  Cargo?                  @relation(fields: [cargoId], references: [id])
+  funcao                 FuncaoDiarista?         @relation(fields: [funcaoId], references: [id])
+  gerente                Funcionario?            @relation("FuncionarioGerente", fields: [gerenteId], references: [id])
+  subordinados           Funcionario[]           @relation("FuncionarioGerente")
   pagamentos             FuncionarioPagamento[]
 
   @@map("arh_funcionarios")
@@ -751,16 +753,16 @@ model FolhaPagamento {
   id                    Int                       @id @default(autoincrement())
   competenciaMes        Int
   competenciaAno        Int
-  periodo               Int                       // 1 ou 2 (primeira ou segunda quinzena)
-  dataInicial           DateTime                  // Data inicial da quinzena
-  dataFinal             DateTime                  // Data final da quinzena
+  periodo               Int // 1 ou 2 (primeira ou segunda quinzena)
+  dataInicial           DateTime // Data inicial da quinzena
+  dataFinal             DateTime // Data final da quinzena
   referencia            String?                   @db.VarChar(40)
   status                StatusFolhaPagamento      @default(RASCUNHO)
   observacoes           String?
   // Campos de pagamento (definidos ao finalizar a folha)
   meioPagamento         MeioPagamentoFuncionario? // Método de pagamento da folha
-  dataPagamento         DateTime?                 // Data prevista de pagamento
-  contaCorrenteId       Int?                      // Conta corrente para PIX_API
+  dataPagamento         DateTime? // Data prevista de pagamento
+  contaCorrenteId       Int? // Conta corrente para PIX_API
   // Totais
   totalBruto            Decimal                   @default(0) @db.Decimal(14, 2)
   totalLiquido          Decimal                   @default(0) @db.Decimal(14, 2)
@@ -952,6 +954,7 @@ enum StatusFuncionarioPagamento {
   PROCESSANDO
   PAGO
   REJEITADO
+  REPROCESSAR // Item bloqueado em lote rejeitado - precisa ser reprocessado
   CANCELADO
   ERRO
 }
@@ -986,6 +989,7 @@ enum StatusPagamentoItem {
   ENVIADO // Enviado ao BB
   ACEITO // Aceito pelo BB (indicadorMovimentoAceito = "S")
   REJEITADO // Rejeitado pelo BB (indicadorMovimentoAceito = "N")
+  BLOQUEADO // Bloqueado porque o lote foi rejeitado (não será processado nem liberado)
   PROCESSADO // Processado internamente (marcado como pago na tabela de origem)
   ERRO // Erro no processamento
 }
@@ -1031,11 +1035,11 @@ model HistoricoPedido {
 // IMPORTANTE: Uma sequência por conta corrente (separação entre CNPJ e PF)
 // Use o script seed-sequencia-numero-requisicao.ts para inicializar
 model SequenciaNumeroRequisicao {
-  id                    Int      @id @default(autoincrement())
-  numeroContratoPagamento Int    @unique // Uma sequência por contrato de pagamento (compartilhada entre contas com mesmo contrato)
-  ultimoNumero          Int      @default(0) // Último número usado para este contrato
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                      Int      @id @default(autoincrement())
+  numeroContratoPagamento Int      @unique // Uma sequência por contrato de pagamento (compartilhada entre contas com mesmo contrato)
+  ultimoNumero            Int      @default(0) // Último número usado para este contrato
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@map("sequencia_numero_requisicao")
 }
@@ -1085,11 +1089,11 @@ model PagamentoApiLote {
   updatedAt         DateTime @updatedAt
 
   // Rastreamento por usuário
-  usuarioCriacaoId  Int? // Usuário que criou o lote
-  usuarioCriacao    Usuario? @relation("UsuarioCriacao", fields: [usuarioCriacaoId], references: [id], onDelete: SetNull)
+  usuarioCriacaoId   Int? // Usuário que criou o lote
+  usuarioCriacao     Usuario?  @relation("UsuarioCriacao", fields: [usuarioCriacaoId], references: [id], onDelete: SetNull)
   usuarioLiberacaoId Int? // Usuário que liberou o lote
-  usuarioLiberacao  Usuario? @relation("UsuarioLiberacao", fields: [usuarioLiberacaoId], references: [id], onDelete: SetNull)
-  dataLiberacao     DateTime? // Data/hora da liberação
+  usuarioLiberacao   Usuario?  @relation("UsuarioLiberacao", fields: [usuarioLiberacaoId], references: [id], onDelete: SetNull)
+  dataLiberacao      DateTime? // Data/hora da liberação
 
   // Relacionamentos com itens pagos
   itensPagamento PagamentoApiItem[]
@@ -1127,6 +1131,7 @@ model PagamentoApiItem {
   descricaoInstantaneoEnviada   String? // descricaoPagamentoInstantaneo (apenas PIX)
   chavePixEnviada               String? // Chave PIX (apenas PIX)
   tipoChavePixEnviado           Int? // 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória (apenas PIX)
+  responsavelChavePixEnviado    String? @db.VarChar(180) // Responsável pela chave PIX (apenas PIX) - salvo para consistência histórica
   identificadorPagamento        String? // Identificador PIX retornado pelo BB (ex: 96494633731030000)
   indicadorMovimentoAceito      String? // "S" ou "N" - PIX (resposta inicial)
   indicadorMovimentoAceitoAtual String? // "S" ou "N" - PIX (status atual)
@@ -1170,9 +1175,9 @@ model PagamentoApiItem {
   funcionarioPagamentoId Int? // Se for pagamento de funcionário
 
   // Relacionamentos específicos (N:N para turma de colheita via tabela intermediária)
-  colheitas           PagamentoApiItemColheita[] // Relacionamento N:N com TurmaColheitaPedidoCusto
-  fornecedorPagamento FornecedorPagamento?       @relation(fields: [fornecedorPagamentoId], references: [id], onDelete: SetNull)
-  funcionarioPagamento FuncionarioPagamento?     @relation("FuncionarioPagamentoToPagamentoApiItem")
+  colheitas            PagamentoApiItemColheita[] // Relacionamento N:N com TurmaColheitaPedidoCusto
+  fornecedorPagamento  FornecedorPagamento?       @relation(fields: [fornecedorPagamentoId], references: [id], onDelete: SetNull)
+  funcionarioPagamento FuncionarioPagamento?      @relation("FuncionarioPagamentoToPagamentoApiItem")
 
   // Status do item
   status               StatusPagamentoItem @default(PENDENTE)
@@ -1180,7 +1185,7 @@ model PagamentoApiItem {
 
   // Rastreamento por usuário
   usuarioCancelamentoId Int? // Usuário que cancelou o item
-  usuarioCancelamento   Usuario? @relation("UsuarioCancelamento", fields: [usuarioCancelamentoId], references: [id], onDelete: SetNull)
+  usuarioCancelamento   Usuario?  @relation("UsuarioCancelamento", fields: [usuarioCancelamentoId], references: [id], onDelete: SetNull)
   dataCancelamento      DateTime? // Data/hora do cancelamento
 
   // Auditoria
@@ -1232,21 +1237,21 @@ model PagamentoApiItemColheita {
 
 // Tabela genérica para armazenar eventos de webhook do Banco do Brasil
 model BbWebhookEvent {
-  id                Int       @id @default(autoincrement())
-  tipoRecurso       String    // 'pagamentos', 'cobranca', etc.
-  payload           Json      // Payload completo recebido do BB
-  headers           Json?     // Headers da requisição (para auditoria)
-  receivedAt        DateTime  @default(now()) // Quando foi recebido
-  processedAt       DateTime? // Quando foi processado
-  statusProcessamento String  @default("PENDENTE") // PENDENTE, PROCESSADO, PARCIALMENTE_PROCESSADO, DESCARTADO, ERRO
-  motivoDescarta    String?   // Motivo se foi descartado
-  erros             Json?     // Array de erros encontrados durante o processamento
-  quantidadeItens   Int?      // Quantidade de itens no payload
-  quantidadeProcessados Int?  // Quantidade de itens processados com sucesso
-  quantidadeDescartados Int?  // Quantidade de itens descartados
+  id                    Int       @id @default(autoincrement())
+  tipoRecurso           String // 'pagamentos', 'cobranca', etc.
+  payload               Json // Payload completo recebido do BB
+  headers               Json? // Headers da requisição (para auditoria)
+  receivedAt            DateTime  @default(now()) // Quando foi recebido
+  processedAt           DateTime? // Quando foi processado
+  statusProcessamento   String    @default("PENDENTE") // PENDENTE, PROCESSADO, PARCIALMENTE_PROCESSADO, DESCARTADO, ERRO
+  motivoDescarta        String? // Motivo se foi descartado
+  erros                 Json? // Array de erros encontrados durante o processamento
+  quantidadeItens       Int? // Quantidade de itens no payload
+  quantidadeProcessados Int? // Quantidade de itens processados com sucesso
+  quantidadeDescartados Int? // Quantidade de itens descartados
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tipoRecurso])
   @@index([statusProcessamento])
@@ -1255,21 +1260,21 @@ model BbWebhookEvent {
 }
 
 model PagamentoApiSyncJob {
-  id                      Int                       @id @default(autoincrement())
-  tipo                    PagamentoApiSyncJobTipo
-  status                  PagamentoApiSyncJobStatus @default(PENDING)
-  contaCorrenteId         Int
-  contaCorrente           ContaCorrente             @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
-  numeroRequisicao        Int?
-  identificadorPagamento  String?
-  loteId                  Int?
-  lote                    PagamentoApiLote?         @relation(fields: [loteId], references: [id], onDelete: SetNull)
-  runAfter                DateTime
-  tentativas              Int                       @default(0)
-  ultimaExecucao          DateTime?
-  erro                    String?
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime                  @updatedAt
+  id                     Int                       @id @default(autoincrement())
+  tipo                   PagamentoApiSyncJobTipo
+  status                 PagamentoApiSyncJobStatus @default(PENDING)
+  contaCorrenteId        Int
+  contaCorrente          ContaCorrente             @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  numeroRequisicao       Int?
+  identificadorPagamento String?
+  loteId                 Int?
+  lote                   PagamentoApiLote?         @relation(fields: [loteId], references: [id], onDelete: SetNull)
+  runAfter               DateTime
+  tentativas             Int                       @default(0)
+  ultimaExecucao         DateTime?
+  erro                   String?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
 
   @@index([status, runAfter])
   @@index([tipo, numeroRequisicao])

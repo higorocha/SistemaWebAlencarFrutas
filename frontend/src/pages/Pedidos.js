@@ -372,6 +372,14 @@ const Pedidos = () => {
       } else if (suggestion.type === 'turma') {
         processedSuggestion.value = suggestion.metadata.id.toString();
         processedSuggestion.displayValue = capitalizeName(suggestion.metadata.nome || suggestion.value);
+      } else if (suggestion.type === 'indNumeroNf') {
+        // Para NF da indústria, usar o número da NF
+        processedSuggestion.value = suggestion.value;
+        processedSuggestion.displayValue = `NF Indústria #${suggestion.value}`;
+      } else if (suggestion.type === 'numeroNf') {
+        // Para nossa NF, usar o número da NF
+        processedSuggestion.value = suggestion.value;
+        processedSuggestion.displayValue = `NF Pedido #${suggestion.value}`;
       }
     }
 

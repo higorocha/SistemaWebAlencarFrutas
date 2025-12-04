@@ -145,7 +145,7 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
                         dataReferencia = ultimoPagamento.dataPagamento;
                     }
                     if (dataReferencia) {
-                        diasInfo = getCorPorData(dataReferencia);
+                        diasInfo = getCorPorData(dataReferencia, pedido);
                     }
                 }
 
@@ -163,20 +163,29 @@ const PedidoCard = ({ pedido, onAction, actionType, onVisualizar }) => {
                       {pedido.valorFinal ? formatarValorMonetario(pedido.valorFinal) : "A definir"}
                     </Text>
 
-                    {diasInfo && diasInfo.dias !== null && (
-                      <Tooltip title={`${diasInfo.texto} desde a última movimentação`}>
-                        <div style={{
-                          width: '22px', height: '22px', borderRadius: '50%',
-                          backgroundColor: diasInfo.cor, color: 'white',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 'bold', fontSize: '11px',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                          flexShrink: 0
-                        }}>
-                          {diasInfo.dias}
-                        </div>
-                      </Tooltip>
-                    )}
+                    {diasInfo && diasInfo.dias !== null && (() => {
+                      // Verificar se o cliente tem prazo diferenciado
+                      const clienteDias = pedido.cliente?.dias;
+                      const tooltipTitle = clienteDias !== null && clienteDias !== undefined
+                        ? `Este cliente possui um prazo diferenciado de ${clienteDias} dia${clienteDias === 1 ? '' : 's'}`
+                        : 'Este cliente não possui prazo diferenciado e está usando 30 dias como padrão';
+                      
+                      return (
+                        <Tooltip title={tooltipTitle} placement="top">
+                          <div style={{
+                            width: '22px', height: '22px', borderRadius: '50%',
+                            backgroundColor: diasInfo.cor, color: 'white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 'bold', fontSize: '11px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            flexShrink: 0,
+                            cursor: 'help'
+                          }}>
+                            {diasInfo.dias}
+                          </div>
+                        </Tooltip>
+                      );
+                    })()}
                   </div>
                 );
               })()}

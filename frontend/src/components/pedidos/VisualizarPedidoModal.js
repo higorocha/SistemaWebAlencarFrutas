@@ -758,7 +758,7 @@ const VisualizarPedidoModal = ({
               </Row>
               <Divider style={{ margin: isMobile ? "8px 0" : "12px 0" }} />
               <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
-                <Col xs={24} sm={24} md={8}>
+                <Col xs={24} sm={12} md={6}>
                   <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
                     <UserOutlined style={{ marginRight: 4 }} />
                     Cliente:
@@ -768,7 +768,23 @@ const VisualizarPedidoModal = ({
                     {pedido.cliente?.nome || '-'}
                   </Text>
                 </Col>
-                <Col xs={24} sm={24} md={8}>
+                <Col xs={24} sm={12} md={6}>
+                  <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                    <FileTextOutlined style={{ marginRight: 4 }} />
+                    Número NF:
+                  </Text>
+                  <br />
+                  <Text style={{ 
+                    fontSize: isMobile ? "0.875rem" : "1rem", 
+                    fontWeight: "600", 
+                    color: pedido.numeroNf ? "#059669" : "#999", 
+                    marginTop: "4px",
+                    fontFamily: "monospace"
+                  }}>
+                    {pedido.numeroNf ? `#${pedido.numeroNf}` : '-'}
+                  </Text>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
                   <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
                     <FileTextOutlined style={{ marginRight: 4 }} />
                     Observações:
@@ -783,7 +799,7 @@ const VisualizarPedidoModal = ({
                     {pedido.observacoes || "Nenhuma observação registrada"}
                   </Paragraph>
                 </Col>
-                <Col xs={24} sm={24} md={8}>
+                <Col xs={24} sm={12} md={6}>
                   <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
                     <UserOutlined style={{ marginRight: 4 }} />
                     Criado por:
@@ -2067,7 +2083,7 @@ const VisualizarPedidoModal = ({
                   <Space>
                     <BuildOutlined style={{ color: "#ffffff" }} />
                     <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
-                      Dados Complementares
+                      Dados Complementares - Indústria
                     </span>
                   </Space>
                 }

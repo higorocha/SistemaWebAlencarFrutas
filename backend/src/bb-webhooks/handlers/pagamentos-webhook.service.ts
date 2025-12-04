@@ -231,8 +231,15 @@ export class PagamentosWebhookService {
           );
         }
 
-        // Verificar e atualizar lote com itens bloqueados
-        await this.pagamentosService.verificarEAtualizarLoteComItensBloqueados(lote.id);
+        // Verificar e atualizar lote seguindo a mesma lógica dos jobs
+        // BLOQUEADO → verificarEAtualizarLoteComItensBloqueados
+        // REJEITADO/CANCELADO → verificarEAtualizarLoteAposItemRejeitado
+        if (estadoNormalizado === 'BLOQUEADO') {
+          await this.pagamentosService.verificarEAtualizarLoteComItensBloqueados(lote.id);
+        } else {
+          // REJEITADO ou CANCELADO
+          await this.pagamentosService.verificarEAtualizarLoteAposItemRejeitado(lote.id);
+        }
       } else {
         console.log(
           `[PAGAMENTOS-WEBHOOK] Item ${itemPagamento.id} já está como PROCESSADO (pago), preservando status mesmo com estado ${estadoNormalizado}`,

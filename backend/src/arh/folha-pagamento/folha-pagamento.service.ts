@@ -14,6 +14,7 @@ import {
   StatusFuncionario,
   StatusFuncionarioPagamento,
   StatusPagamentoLote,
+  StatusPagamentoItem,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateFolhaDto } from './dto/create-folha.dto';
@@ -206,6 +207,9 @@ export class FolhaPagamentoService {
       where.statusPagamento = filtros.statusPagamento;
     }
 
+    // Verificar se deve incluir dados do PagamentoApiItem
+    const includePagamentoApiItem = filtros.includePagamentoApiItem === true;
+
     return this.prisma.funcionarioPagamento.findMany({
       where,
       orderBy: [{ pagamentoEfetuado: 'asc' }, { createdAt: 'desc' }],
@@ -231,6 +235,18 @@ export class FolhaPagamentoService {
           },
         },
         funcao: true,
+        ...(includePagamentoApiItem && {
+          pagamentoApiItem: {
+            select: {
+              id: true,
+              chavePixEnviada: true,
+              responsavelChavePixEnviado: true,
+              payloadItemEnviado: true,
+              estadoPagamentoIndividual: true,
+              status: true,
+            },
+          },
+        }),
       },
     });
   }
@@ -709,6 +725,7 @@ export class FolhaPagamentoService {
         cpf: string;
         chavePix: string | null;
         tipoChavePix: number | null;
+        responsavelChavePix: string | null;
       };
     }>,
     folha: {
@@ -752,6 +769,8 @@ export class FolhaPagamentoService {
         descricaoPagamento,
         descricaoPagamentoInstantaneo,
         formaIdentificacao: func.tipoChavePix,
+        // Campo customizado para salvar no item (não enviado ao BB)
+        _responsavelChavePix: func.responsavelChavePix || null,
       };
 
       const chavePix = func.chavePix.trim();
@@ -867,11 +886,30 @@ export class FolhaPagamentoService {
           const item = lote.itensPagamento[i];
 
           if (item) {
+            // ✅ IMPORTANTE: Determinar status baseado no estado do item
+            // - Item REJEITADO: funcionário REJEITADO
+            // - Item BLOQUEADO (lote rejeitado): funcionário REPROCESSAR
+            // - Item ACEITO/ENVIADO: funcionário ENVIADO
+            const itemRejeitado = item.status === StatusPagamentoItem.REJEITADO;
+            const itemBloqueado = item.status === StatusPagamentoItem.BLOQUEADO;
+            
+            let statusFuncionario: StatusFuncionarioPagamento;
+            if (itemRejeitado) {
+              statusFuncionario = StatusFuncionarioPagamento.REJEITADO;
+            } else if (itemBloqueado) {
+              // Item bloqueado porque o lote foi rejeitado - precisa ser reprocessado
+              statusFuncionario = StatusFuncionarioPagamento.REPROCESSAR;
+            } else {
+              statusFuncionario = StatusFuncionarioPagamento.ENVIADO;
+            }
+            
             await tx.funcionarioPagamento.update({
               where: { id: lancamento.id },
               data: {
                 pagamentoApiItemId: item.id,
-                statusPagamento: StatusFuncionarioPagamento.ENVIADO,
+                statusPagamento: statusFuncionario,
+                // ✅ Se rejeitado ou bloqueado, marcar pagamentoEfetuado como false
+                pagamentoEfetuado: (itemRejeitado || itemBloqueado) ? false : undefined,
               },
             });
 
@@ -919,6 +957,16 @@ export class FolhaPagamentoService {
     usuarioId: number,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      // Buscar folha para verificar meio de pagamento
+      const folha = await tx.folhaPagamento.findUnique({
+        where: { id: folhaId },
+        select: { meioPagamento: true, status: true },
+      });
+
+      if (!folha) {
+        throw new NotFoundException('Folha não encontrada.');
+      }
+
       // Buscar todos os lançamentos não pagos
       const lancamentosPendentes = await tx.funcionarioPagamento.findMany({
         where: {
@@ -930,13 +978,9 @@ export class FolhaPagamentoService {
       // Processar cada lançamento conforme o meio de pagamento
       for (const lancamento of lancamentosPendentes) {
         if (lancamento.meioPagamento === MeioPagamentoFuncionario.PIX_API) {
-          // PIX_API: Manter ENVIADO (já foi atualizado no processamento)
-          await tx.funcionarioPagamento.update({
-            where: { id: lancamento.id },
-            data: {
-              statusPagamento: StatusFuncionarioPagamento.ENVIADO,
-            },
-          });
+          // PIX_API: Manter status atual (ENVIADO ou REJEITADO)
+          // Não alterar, já foi atualizado durante criação dos lotes
+          continue;
         } else {
           // PIX Manual ou ESPÉCIE: Marcar como PAGO imediatamente
           await tx.funcionarioPagamento.update({
@@ -952,16 +996,29 @@ export class FolhaPagamentoService {
       // Recalcular totais da folha
       await this.recalcularFolha(tx, folhaId);
 
-      // Fechar a folha
-      await tx.folhaPagamento.update({
-        where: { id: folhaId },
-        data: {
-          status: StatusFolhaPagamento.FECHADA,
-          dataFechamento: new Date(),
-          dataLiberacao: new Date(),
-          usuarioLiberacaoId: usuarioId,
-        },
-      });
+      // ✅ Fechar folha apenas se NÃO for PIX_API
+      // Para PIX_API, deixar em EM_PROCESSAMENTO para fechamento automático
+      if (folha.meioPagamento !== MeioPagamentoFuncionario.PIX_API) {
+        await tx.folhaPagamento.update({
+          where: { id: folhaId },
+          data: {
+            status: StatusFolhaPagamento.FECHADA,
+            dataFechamento: new Date(),
+            dataLiberacao: new Date(),
+            usuarioLiberacaoId: usuarioId,
+          },
+        });
+      } else {
+        // ✅ Para PIX_API, apenas registrar data de liberação
+        // O status já está EM_PROCESSAMENTO (definido em criarLotesParaLancamentos)
+        await tx.folhaPagamento.update({
+          where: { id: folhaId },
+          data: {
+            dataLiberacao: new Date(),
+            usuarioLiberacaoId: usuarioId,
+          },
+        });
+      }
     });
   }
 
@@ -1552,20 +1609,39 @@ export class FolhaPagamentoService {
     dto: ReprocessarPagamentosRejeitadosDto,
     usuarioId: number,
   ) {
+    console.log('🔄 [REPROCESSAR-REJEITADOS] Iniciando reprocessamento:', {
+      folhaId,
+      dto,
+      usuarioId,
+    });
+
     const folha = await this.ensureFolha(folhaId);
+
+    console.log('📋 [REPROCESSAR-REJEITADOS] Folha encontrada:', {
+      id: folha.id,
+      meioPagamento: folha.meioPagamento,
+      status: folha.status,
+    });
 
     // Verificar se a folha usa PIX_API
     if (folha.meioPagamento !== MeioPagamentoFuncionario.PIX_API) {
+      console.warn('⚠️ [REPROCESSAR-REJEITADOS] Folha não usa PIX_API:', folha.meioPagamento);
       throw new BadRequestException(
         'Este endpoint é apenas para folhas que usam PIX-API.',
       );
     }
 
-    // Buscar funcionários rejeitados na folha
+    // Buscar funcionários rejeitados ou que precisam ser reprocessados (bloqueados em lote rejeitado)
+    console.log('🔍 [REPROCESSAR-REJEITADOS] Buscando funcionários rejeitados ou bloqueados...');
     const funcionariosRejeitados = await this.prisma.funcionarioPagamento.findMany({
       where: {
         folhaId,
-        statusPagamento: StatusFuncionarioPagamento.REJEITADO,
+        statusPagamento: {
+          in: [
+            StatusFuncionarioPagamento.REJEITADO, // Item realmente rejeitado pelo BB
+            StatusFuncionarioPagamento.REPROCESSAR, // Item bloqueado em lote rejeitado
+          ],
+        },
         pagamentoApiItemId: { not: null },
         pagamentoEfetuado: false,
         pagamentoApiItem: {
@@ -1589,7 +1665,10 @@ export class FolhaPagamentoService {
       },
     });
 
+    console.log(`📊 [REPROCESSAR-REJEITADOS] Funcionários rejeitados encontrados: ${funcionariosRejeitados.length}`);
+
     if (funcionariosRejeitados.length === 0) {
+      console.warn('⚠️ [REPROCESSAR-REJEITADOS] Nenhum funcionário rejeitado encontrado');
       throw new BadRequestException(
         'Não há funcionários rejeitados para reprocessar nesta folha.',
       );
@@ -1598,12 +1677,14 @@ export class FolhaPagamentoService {
     // Validar conta corrente se for PIX_API
     if (dto.meioPagamento === MeioPagamentoFuncionario.PIX_API) {
       if (!dto.contaCorrenteId) {
+        console.warn('⚠️ [REPROCESSAR-REJEITADOS] Conta corrente não fornecida');
         throw new BadRequestException(
           'Conta corrente é obrigatória para pagamento via PIX-API.',
         );
       }
     }
 
+    console.log('🔄 [REPROCESSAR-REJEITADOS] Limpando vínculos antigos e atualizando status...');
     // Limpar vínculos antigos e atualizar status
     await this.prisma.$transaction(async (tx) => {
       for (const funcionario of funcionariosRejeitados) {
@@ -1617,17 +1698,26 @@ export class FolhaPagamentoService {
         });
       }
     });
+    console.log('✅ [REPROCESSAR-REJEITADOS] Vínculos limpos e status atualizados');
 
     // Processar conforme o meio de pagamento
     if (dto.meioPagamento === MeioPagamentoFuncionario.PIX_API) {
+      console.log('💳 [REPROCESSAR-REJEITADOS] Processando via PIX_API...');
       // Buscar conta corrente
       const contaCorrente = await this.prisma.contaCorrente.findUnique({
         where: { id: dto.contaCorrenteId },
       });
 
       if (!contaCorrente) {
+        console.error('❌ [REPROCESSAR-REJEITADOS] Conta corrente não encontrada:', dto.contaCorrenteId);
         throw new NotFoundException('Conta corrente não encontrada.');
       }
+
+      console.log('🏦 [REPROCESSAR-REJEITADOS] Conta corrente encontrada:', {
+        id: contaCorrente.id,
+        agencia: contaCorrente.agencia,
+        contaCorrente: contaCorrente.contaCorrente,
+      });
 
       // Preparar lançamentos para criar novo lote
       const lancamentosParaReprocessar = funcionariosRejeitados.map((f) => ({
@@ -1639,21 +1729,35 @@ export class FolhaPagamentoService {
           cpf: f.funcionario.cpf,
           chavePix: f.funcionario.chavePix,
           tipoChavePix: f.funcionario.tipoChavePix,
+          responsavelChavePix: f.funcionario.responsavelChavePix,
         },
       }));
 
-      // Criar novo lote apenas para os rejeitados
-      await this.criarLotesParaLancamentos(
-        lancamentosParaReprocessar,
-        folha,
-        {
-          id: contaCorrente.id,
-          agencia: contaCorrente.agencia,
-          contaCorrente: contaCorrente.contaCorrente,
-          contaCorrenteDigito: contaCorrente.contaCorrenteDigito,
-        },
-        usuarioId,
-      );
+      console.log(`📦 [REPROCESSAR-REJEITADOS] Criando lote para ${lancamentosParaReprocessar.length} lançamento(s)...`);
+
+      try {
+        // Criar novo lote apenas para os rejeitados
+        await this.criarLotesParaLancamentos(
+          lancamentosParaReprocessar,
+          folha,
+          {
+            id: contaCorrente.id,
+            agencia: contaCorrente.agencia,
+            contaCorrente: contaCorrente.contaCorrente,
+            contaCorrenteDigito: contaCorrente.contaCorrenteDigito,
+          },
+          usuarioId,
+        );
+
+        console.log('✅ [REPROCESSAR-REJEITADOS] Lote criado com sucesso');
+      } catch (error) {
+        console.error('❌ [REPROCESSAR-REJEITADOS] Erro ao criar lote:', {
+          error: error.message,
+          stack: error.stack,
+          lancamentos: lancamentosParaReprocessar.length,
+        });
+        throw error;
+      }
     } else {
       // PIX Manual ou ESPÉCIE: Marcar como PAGO
       await this.prisma.$transaction(async (tx) => {
@@ -1674,6 +1778,7 @@ export class FolhaPagamentoService {
       });
     }
 
+    console.log('✅ [REPROCESSAR-REJEITADOS] Reprocessamento concluído com sucesso');
     return {
       mensagem: `${funcionariosRejeitados.length} pagamento(s) rejeitado(s) reprocessado(s) com sucesso.`,
       quantidadeReprocessados: funcionariosRejeitados.length,

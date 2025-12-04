@@ -71,7 +71,8 @@ export class PedidosService {
           select: {
             id: true,
             nome: true,
-            industria: true
+            industria: true,
+            dias: true
           }
         },
         frutasPedidos: {
@@ -271,13 +272,14 @@ export class PedidosService {
           }
         },
         include: {
-          cliente: {
-            select: {
-              id: true,
-              nome: true,
-              industria: true
-            }
-          },
+        cliente: {
+          select: {
+            id: true,
+            nome: true,
+            industria: true,
+            dias: true
+          }
+        },
           frutasPedidos: {
             include: {
               fruta: {
@@ -901,6 +903,8 @@ export class PedidosService {
           indPesoMedio: createPedidoDto.indPesoMedio,
           indMediaMililitro: createPedidoDto.indMediaMililitro,
           indNumeroNf: createPedidoDto.indNumeroNf,
+          // Campo de número NF do pedido (controle interno)
+          numeroNf: createPedidoDto.numeroNf,
         },
       });
 
@@ -1332,6 +1336,16 @@ export class PedidosService {
             };
           case 'pesagem':
             return { pesagem: { contains: value, mode: 'insensitive' } };
+          case 'indNumeroNf':
+            if (/^\d+$/.test(value)) {
+              return { indNumeroNf: parseInt(value, 10) };
+            }
+            return null;
+          case 'numeroNf':
+            if (/^\d+$/.test(value)) {
+              return { numeroNf: parseInt(value, 10) };
+            }
+            return null;
           case 'turma':
             if (/^\d+$/.test(value)) {
               return {
@@ -1424,7 +1438,7 @@ export class PedidosService {
         orderBy: { updatedAt: 'desc' },
         include: {
           cliente: {
-            select: { id: true, nome: true, industria: true }
+            select: { id: true, nome: true, industria: true, dias: true }
           },
           frutasPedidos: {
             include: {
@@ -1561,7 +1575,7 @@ export class PedidosService {
     // Verificar se o cliente existe
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: clienteId },
-      select: { id: true, nome: true, industria: true }
+      select: { id: true, nome: true, industria: true, dias: true }
     });
 
     if (!cliente) {
@@ -1612,7 +1626,7 @@ export class PedidosService {
         orderBy: { updatedAt: 'desc' },
         include: {
           cliente: {
-            select: { id: true, nome: true, industria: true }
+            select: { id: true, nome: true, industria: true, dias: true }
           },
           frutasPedidos: {
             include: {
@@ -1726,7 +1740,7 @@ export class PedidosService {
       where: { id },
       include: {
         cliente: {
-          select: { id: true, nome: true, industria: true }
+          select: { id: true, nome: true, industria: true, dias: true }
         },
         frutasPedidos: {
           include: {
@@ -1899,7 +1913,7 @@ export class PedidosService {
       data: updatePedidoDto,
       include: {
         cliente: {
-          select: { id: true, nome: true, industria: true }
+          select: { id: true, nome: true, industria: true, dias: true }
         },
         frutasPedidos: {
           include: {
@@ -2169,6 +2183,8 @@ export class PedidosService {
           placaPrimaria: updateColheitaDto.placaPrimaria,
           placaSecundaria: updateColheitaDto.placaSecundaria,
           nomeMotorista: updateColheitaDto.nomeMotorista,
+          // Campo de número NF do pedido (controle interno)
+          numeroNf: updateColheitaDto.numeroNf,
         },
       });
 
@@ -2435,6 +2451,8 @@ export class PedidosService {
           indPesoMedio: updatePrecificacaoDto.indPesoMedio,
           indMediaMililitro: updatePrecificacaoDto.indMediaMililitro,
           indNumeroNf: updatePrecificacaoDto.indNumeroNf,
+          // Campo de número NF do pedido (controle interno)
+          numeroNf: updatePrecificacaoDto.numeroNf,
         },
       });
 
@@ -3137,6 +3155,8 @@ export class PedidosService {
           indPesoMedio: updatePedidoCompletoDto.indPesoMedio,
           indMediaMililitro: updatePedidoCompletoDto.indMediaMililitro,
           indNumeroNf: updatePedidoCompletoDto.indNumeroNf,
+          // Campo de número NF do pedido (controle interno)
+          numeroNf: updatePedidoCompletoDto.numeroNf,
         },
       });
 
@@ -3949,7 +3969,7 @@ export class PedidosService {
       },
       include: {
         cliente: {
-          select: { id: true, nome: true, industria: true }
+          select: { id: true, nome: true, industria: true, dias: true }
         },
         frutasPedidos: {
           include: {
@@ -4010,7 +4030,7 @@ export class PedidosService {
       },
       include: {
         cliente: {
-          select: { id: true, nome: true, industria: true }
+          select: { id: true, nome: true, industria: true, dias: true }
         },
         frutasPedidos: {
           include: {
@@ -5262,6 +5282,100 @@ export class PedidosService {
         });
       }
 
+      // 10. Buscar por NF da indústria (indNumeroNf) - busca parcial
+      if (/^\d+/.test(term)) {
+        // Buscar todos os pedidos com NF da indústria e filtrar por correspondência parcial
+        const nfIndustriaRaw = await this.prisma.pedido.findMany({
+          where: {
+            indNumeroNf: { not: null }
+          },
+          select: {
+            id: true,
+            numeroPedido: true,
+            indNumeroNf: true,
+            status: true,
+            cliente: {
+              select: { nome: true, industria: true }
+            }
+          },
+          take: 50, // Buscar mais para filtrar depois
+          orderBy: { updatedAt: 'desc' }
+        });
+
+        // Filtrar por correspondência parcial (o número da NF contém o termo digitado)
+        const nfIndustria = nfIndustriaRaw.filter(pedido => {
+          if (!pedido.indNumeroNf) return false;
+          return pedido.indNumeroNf.toString().includes(term);
+        }).slice(0, 3); // Limitar a 3 resultados
+
+        nfIndustria.forEach(pedido => {
+          if (pedido.indNumeroNf) {
+            suggestions.push({
+              type: 'indNumeroNf',
+              label: 'NF Indústria',
+              value: pedido.indNumeroNf.toString(),
+              icon: '📄',
+              color: '#722ed1',
+              description: `NF Indústria #${pedido.indNumeroNf} - ${pedido.numeroPedido} - ${pedido.cliente.nome}`,
+              metadata: {
+                id: pedido.id,
+                numeroPedido: pedido.numeroPedido,
+                status: pedido.status,
+                clienteNome: pedido.cliente.nome,
+                indNumeroNf: pedido.indNumeroNf
+              }
+            });
+          }
+        });
+      }
+
+      // 11. Buscar por nossa NF (numeroNf) - busca parcial
+      if (/^\d+/.test(term)) {
+        // Buscar todos os pedidos com nossa NF e filtrar por correspondência parcial
+        const nfNossaRaw = await this.prisma.pedido.findMany({
+          where: {
+            numeroNf: { not: null }
+          },
+          select: {
+            id: true,
+            numeroPedido: true,
+            numeroNf: true,
+            status: true,
+            cliente: {
+              select: { nome: true }
+            }
+          },
+          take: 50, // Buscar mais para filtrar depois
+          orderBy: { updatedAt: 'desc' }
+        });
+
+        // Filtrar por correspondência parcial (o número da NF contém o termo digitado)
+        const nfNossa = nfNossaRaw.filter(pedido => {
+          if (!pedido.numeroNf) return false;
+          return pedido.numeroNf.toString().includes(term);
+        }).slice(0, 3); // Limitar a 3 resultados
+
+        nfNossa.forEach(pedido => {
+          if (pedido.numeroNf) {
+            suggestions.push({
+              type: 'numeroNf',
+              label: 'NF Pedido',
+              value: pedido.numeroNf.toString(),
+              icon: '📋',
+              color: '#1890ff',
+              description: `NF Pedido #${pedido.numeroNf} - ${pedido.numeroPedido} - ${pedido.cliente.nome}`,
+              metadata: {
+                id: pedido.id,
+                numeroPedido: pedido.numeroPedido,
+                status: pedido.status,
+                clienteNome: pedido.cliente.nome,
+                numeroNf: pedido.numeroNf
+              }
+            });
+          }
+        });
+      }
+
       // Remover duplicatas e limitar resultados
       const uniqueSuggestions = suggestions.filter((suggestion, index, self) => {
         const suggestionKey = `${suggestion.type}-${suggestion.metadata?.id ?? suggestion.value}`;
@@ -5286,6 +5400,8 @@ export class PedidosService {
         'fruta',
         'cultura',
         'pesagem',
+        'numeroNf',
+        'indNumeroNf',
       ];
 
       const orderedSuggestions = uniqueSuggestions.sort((a, b) => {

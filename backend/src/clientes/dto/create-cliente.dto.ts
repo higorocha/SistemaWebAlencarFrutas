@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsInt, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // Definindo os tipos dos enums
@@ -172,4 +172,13 @@ export class CreateClienteDto {
   @IsOptional()
   @IsBoolean()
   industria?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Número de dias',
+    example: 30,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  dias?: number;
 } 

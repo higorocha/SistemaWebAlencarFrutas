@@ -313,6 +313,16 @@ export class UpdateColheitaDto {
   @IsString({ message: 'Nome do motorista deve ser uma string' })
   nomeMotorista?: string;
 
+  @ApiPropertyOptional({
+    description: 'Número da nota fiscal do pedido (controle interno)',
+    example: 123456,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  numeroNf?: number;
+
   // Mão de obra - array de itens de custo de colheita
   @ApiPropertyOptional({ 
     description: 'Mão de obra (custos de colheita)',

@@ -264,6 +264,15 @@ export class CreatePedidoDto {
   indNumeroNf?: number;
 
   @ApiPropertyOptional({
+    description: 'Número da nota fiscal do pedido (controle interno)',
+    example: 789012,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  numeroNf?: number;
+
+  @ApiPropertyOptional({
     description: 'Placa primária do veículo (opcional)',
     example: 'ABC-1234',
   })

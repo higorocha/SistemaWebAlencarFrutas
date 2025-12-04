@@ -1323,51 +1323,37 @@ export class LancamentoExtratoService {
       const dataLancamentoBigInt = BigInt(dataLancamentoRaw);
       const numeroLoteBigInt = extrato.numeroLote ? BigInt(extrato.numeroLote) : BigInt(0);
 
-      const lancamentoExistente = await this.prisma.lancamentoExtrato.findUnique({
-        where: {
-          numeroDocumento_dataLancamentoRaw_numeroLote: {
-            numeroDocumento,
-            dataLancamentoRaw: dataLancamentoBigInt,
-            numeroLote: numeroLoteBigInt,
-          },
-        },
-      });
-
-      if (lancamentoExistente) {
-        return 'duplicado';
-      }
-
       const numeroCpfCnpjContrapartida =
         cpfCnpjIdentificado ??
         (extrato.numeroCpfCnpjContrapartida !== undefined && extrato.numeroCpfCnpjContrapartida !== null
           ? String(extrato.numeroCpfCnpjContrapartida)
           : undefined);
 
-      const createDto: CreateLancamentoExtratoDto = {
+      const dataToCreate: any = {
         indicadorTipoLancamento: extrato.indicadorTipoLancamento,
-        dataLancamentoRaw: Number(dataLancamentoRaw),
-        dataMovimento: extrato.dataMovimento !== undefined ? Number(extrato.dataMovimento) : undefined,
-        codigoAgenciaOrigem: extrato.codigoAgenciaOrigem !== undefined ? Number(extrato.codigoAgenciaOrigem) : undefined,
-        numeroLote: extrato.numeroLote !== undefined ? Number(extrato.numeroLote) : undefined,
+        dataLancamentoRaw: dataLancamentoBigInt,
+        dataMovimento: extrato.dataMovimento !== undefined ? BigInt(extrato.dataMovimento) : null,
+        codigoAgenciaOrigem: extrato.codigoAgenciaOrigem !== undefined ? BigInt(extrato.codigoAgenciaOrigem) : null,
+        numeroLote: numeroLoteBigInt,
         numeroDocumento,
-        codigoHistorico: extrato.codigoHistorico !== undefined ? Number(extrato.codigoHistorico) : undefined,
+        codigoHistorico: extrato.codigoHistorico !== undefined ? Number(extrato.codigoHistorico) : null,
         textoDescricaoHistorico: extrato.textoDescricaoHistorico,
         valorLancamentoRaw: extrato.valorLancamento !== undefined ? Number(extrato.valorLancamento) : undefined,
         indicadorSinalLancamento: extrato.indicadorSinalLancamento,
         textoInformacaoComplementar: extrato.textoInformacaoComplementar,
         numeroCpfCnpjContrapartida,
         indicadorTipoPessoaContrapartida: extrato.indicadorTipoPessoaContrapartida,
-        codigoBancoContrapartida: extrato.codigoBancoContrapartida !== undefined ? Number(extrato.codigoBancoContrapartida) : undefined,
-        codigoAgenciaContrapartida: extrato.codigoAgenciaContrapartida !== undefined ? Number(extrato.codigoAgenciaContrapartida) : undefined,
+        codigoBancoContrapartida: extrato.codigoBancoContrapartida !== undefined ? BigInt(extrato.codigoBancoContrapartida) : null,
+        codigoAgenciaContrapartida: extrato.codigoAgenciaContrapartida !== undefined ? BigInt(extrato.codigoAgenciaContrapartida) : null,
         numeroContaContrapartida: extrato.numeroContaContrapartida,
         textoDvContaContrapartida: extrato.textoDvContaContrapartida,
-        dataLancamento: dataLancamento.toISOString(),
+        dataLancamento,
         valorLancamento,
         tipoOperacao: TipoOperacaoExtrato.CREDITO,
         categoriaOperacao,
         horarioLancamento,
         nomeContrapartida,
-        clienteId: clienteId ?? undefined,
+        clienteId: clienteId ?? null,
         contaCorrenteId,
         agenciaConta: contaCorrente.agencia,
         numeroConta: contaCorrente.contaCorrente,
@@ -1375,10 +1361,33 @@ export class LancamentoExtratoService {
         vinculadoPedido: false,
         vinculadoPagamento: false,
         vinculacaoAutomatica: false,
+        valorDisponivel: valorLancamento,
+        valorVinculadoTotal: 0,
+        estaLiquidado: false,
       };
 
-      await this.create(createDto);
-      return 'salvo';
+      // Remover campos undefined
+      Object.keys(dataToCreate).forEach(key => {
+        if (dataToCreate[key] === undefined) {
+          delete dataToCreate[key];
+        }
+      });
+
+      // Tentar criar diretamente - a constraint única do banco impedirá duplicações
+      // Se houver erro de constraint única (P2002), significa que já existe
+      try {
+        await this.prisma.lancamentoExtrato.create({
+          data: dataToCreate,
+        });
+        return 'salvo';
+      } catch (error: any) {
+        // Erro P2002 = violação de constraint única (duplicado)
+        if (error?.code === 'P2002') {
+          return 'duplicado';
+        }
+        // Re-throw outros erros para serem tratados no catch externo
+        throw error;
+      }
     } catch (error) {
       console.error('Erro ao salvar lançamento de extrato processado:', {
         message: (error as Error).message,
@@ -1409,6 +1418,8 @@ export class LancamentoExtratoService {
       clienteId: lancamento.clienteId ?? undefined,
       pedidoId: lancamento.pedidoId || undefined,
       contaCorrenteId: lancamento.contaCorrenteId ?? undefined,
+      agenciaConta: lancamento.agenciaConta || undefined,
+      numeroConta: lancamento.numeroConta || undefined,
       processado: lancamento.processado,
       vinculadoPedido: lancamento.vinculadoPedido,
       vinculadoPagamento: lancamento.vinculadoPagamento,

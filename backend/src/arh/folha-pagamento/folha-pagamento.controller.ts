@@ -170,12 +170,29 @@ export class FolhaPagamentoController {
    */
   @Patch(':id/reprocessar-pagamentos-rejeitados')
   @Niveis(...ARH_OPERADORES)
-  reprocessarPagamentosRejeitados(
+  async reprocessarPagamentosRejeitados(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ReprocessarPagamentosRejeitadosDto,
     @Request() req: any,
   ) {
-    return this.service.reprocessarPagamentosRejeitados(id, dto, req.user.id);
+    try {
+      console.log('🔄 [CONTROLLER] Reprocessar pagamentos rejeitados - Início:', {
+        folhaId: id,
+        dto,
+        usuarioId: req.user?.id,
+      });
+      const result = await this.service.reprocessarPagamentosRejeitados(id, dto, req.user.id);
+      console.log('✅ [CONTROLLER] Reprocessar pagamentos rejeitados - Sucesso:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ [CONTROLLER] Erro ao reprocessar pagamentos rejeitados:', {
+        folhaId: id,
+        error: error.message,
+        stack: error.stack,
+        dto,
+      });
+      throw error;
+    }
   }
 
   /**

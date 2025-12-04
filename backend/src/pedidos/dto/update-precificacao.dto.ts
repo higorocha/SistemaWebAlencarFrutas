@@ -139,4 +139,13 @@ export class UpdatePrecificacaoDto {
   @IsInt()
   @Min(1)
   indNumeroNf?: number;
+
+  @ApiPropertyOptional({
+    description: 'Número da nota fiscal do pedido (controle interno)',
+    example: 789012,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  numeroNf?: number;
 }

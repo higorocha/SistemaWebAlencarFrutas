@@ -1,6 +1,6 @@
 // src/components/clientes/ClienteForm.js
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import PropTypes from "prop-types";
 import {
   Form,
@@ -17,6 +17,8 @@ import {
   Modal,
   Button,
   Progress,
+  InputNumber,
+  Tooltip,
 } from "antd";
 import {
   UserOutlined,
@@ -31,6 +33,7 @@ import {
   ExclamationCircleOutlined,
   LoadingOutlined,
   CloseOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import { IMaskInput } from "react-imask";
 import { validarDocumento } from "../../utils/documentValidation";
@@ -50,6 +53,17 @@ const ClienteForm = ({
 }) => {
   const { nomeValidation, validateNome, resetValidation } = useClienteValidation();
   const { cnpjData, consultarCnpj, resetConsulta } = useCnpjConsulta();
+  
+  // Ref para armazenar o valor inicial do documento quando o componente é montado
+  // Inicializa com o valor atual do documento para evitar busca ao carregar cliente existente
+  const documentoInicialRef = useRef(clienteAtual.documento || null);
+  
+  // Atualizar o valor inicial quando o cliente mudar
+  useEffect(() => {
+    documentoInicialRef.current = clienteAtual.documento || null;
+    resetConsulta();
+  }, [clienteAtual.id, resetConsulta]);
+  
   const handleChange = (field, value) => {
     setClienteAtual(prev => ({
       ...prev,
@@ -73,9 +87,13 @@ const ClienteForm = ({
           documento: validacao.mensagem,
         }));
       } else {
-        // Se é um CNPJ válido (14 dígitos), consultar API
+        // Se é um CNPJ válido (14 dígitos), consultar API apenas se o valor mudou
         const documentoLimpo = value.replace(/\D/g, '');
-        if (documentoLimpo.length === 14) {
+        const documentoInicialLimpo = documentoInicialRef.current ? documentoInicialRef.current.replace(/\D/g, '') : null;
+        
+        // Só fazer a busca se o valor atual for diferente do valor inicial
+        // Isso evita que a busca seja disparada ao carregar um cliente existente
+        if (documentoLimpo.length === 14 && documentoLimpo !== documentoInicialLimpo) {
           consultarCnpj(value);
         }
       }
@@ -688,7 +706,121 @@ const ClienteForm = ({
           </Row>
         </Card>
 
-        {/* Seção 4: Observações */}
+        {/* Seção 4: Tipo e Prazo */}
+        <Card
+          title={
+            <Space>
+              <BuildOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600" }}>Tipo e Prazo</span>
+            </Space>
+          }
+          style={{ 
+            marginBottom: 16,
+            border: "1px solid #e8e8e8",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9",
+          }}
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            }
+          }}
+        >
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label={
+                  <Space>
+                    <BuildOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Tipo de Cliente</span>
+                    <Tooltip
+                      title={
+                        <div style={{ maxWidth: "300px" }}>
+                          <div style={{ marginBottom: "8px", fontWeight: "600" }}>
+                            Cliente Indústria:
+                          </div>
+                          <div style={{ marginBottom: "8px" }}>
+                            Quando marcado como "Indústria", o sistema habilita campos complementares nos pedidos:
+                          </div>
+                          <ul style={{ margin: "4px 0", paddingLeft: "20px" }}>
+                            <li>Data de Entrada</li>
+                            <li>Data de Descarga</li>
+                            <li>Peso Médio</li>
+                            <li>Média em Mililitros</li>
+                          </ul>
+                          <div style={{ marginTop: "8px", fontSize: "11px", color: "#d9d9d9" }}>
+                            Esses campos aparecem apenas para clientes classificados como indústria.
+                          </div>
+                        </div>
+                      }
+                      placement="top"
+                    >
+                      <InfoCircleOutlined 
+                        style={{ 
+                          color: "#059669", 
+                          cursor: "help",
+                          fontSize: "14px"
+                        }} 
+                      />
+                    </Tooltip>
+                  </Space>
+                }
+                help="Marque se o cliente é uma indústria"
+              >
+                <Space>
+                  <Switch
+                    checked={clienteAtual.industria || false}
+                    onChange={(checked) => handleChange("industria", checked)}
+                    style={{
+                      backgroundColor: clienteAtual.industria ? "#059669" : "#d9d9d9",
+                    }}
+                  />
+                  <Text style={{ 
+                    color: clienteAtual.industria ? "#059669" : "#666",
+                    fontWeight: clienteAtual.industria ? "600" : "400"
+                  }}>
+                    {clienteAtual.industria ? "Indústria" : "Cliente Comum"}
+                  </Text>
+                </Space>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12}>
+              <Form.Item
+                label={
+                  <Space>
+                    <CalendarOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Prazo (Dias)</span>
+                  </Space>
+                }
+                validateStatus={erros.dias ? "error" : ""}
+                help={erros.dias || "Número de dias para prazo de pagamento"}
+              >
+                <div style={{ display: "inline-block", width: "100px" }}>
+                  <InputNumber
+                    placeholder="Ex: 30"
+                    min={0}
+                    style={{
+                      width: "100%",
+                      borderRadius: "6px",
+                      borderColor: erros.dias ? "#ff4d4f" : "#d9d9d9",
+                    }}
+                    controls={false}
+                    formatter={(value) => `${value}`.replace(/[^0-9]/g, '')}
+                    parser={(value) => value.replace(/[^0-9]/g, '')}
+                    value={clienteAtual.dias}
+                    onChange={(value) => handleChange("dias", value)}
+                  />
+                </div>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Card>
+
+        {/* Seção 5: Observações */}
         <Card
           title={
             <Space>
@@ -731,36 +863,6 @@ const ClienteForm = ({
                     borderColor: "#d9d9d9",
                   }}
                 />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24}>
-              <Form.Item
-                label={
-                  <Space>
-                    <BuildOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>Tipo de Cliente</span>
-                  </Space>
-                }
-                help="Marque se o cliente é uma indústria"
-              >
-                <Space>
-                  <Switch
-                    checked={clienteAtual.industria || false}
-                    onChange={(checked) => handleChange("industria", checked)}
-                    style={{
-                      backgroundColor: clienteAtual.industria ? "#059669" : "#d9d9d9",
-                    }}
-                  />
-                  <Text style={{ 
-                    color: clienteAtual.industria ? "#059669" : "#666",
-                    fontWeight: clienteAtual.industria ? "600" : "400"
-                  }}>
-                    {clienteAtual.industria ? "Indústria" : "Cliente Comum"}
-                  </Text>
-                </Space>
               </Form.Item>
             </Col>
           </Row>

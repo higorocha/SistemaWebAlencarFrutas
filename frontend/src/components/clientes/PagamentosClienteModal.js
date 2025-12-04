@@ -16,6 +16,7 @@ import {
   DownOutlined,
   LinkOutlined,
   EyeOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import axiosInstance from "../../api/axiosConfig";
@@ -27,6 +28,7 @@ import ResponsiveTable from "../common/ResponsiveTable";
 import VincularPagamentoManualModal from "./VincularPagamentoManualModal";
 import VisualizarPedidoModal from "../pedidos/VisualizarPedidoModal";
 import VisualizarVinculosLancamentoModal from "../pedidos/VisualizarVinculosLancamentoModal";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -77,6 +79,10 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   // Modal de vínculos
   const [vinculosModalOpen, setVinculosModalOpen] = useState(false);
   const [lancamentoVinculos, setLancamentoVinculos] = useState(null);
+
+  // Modal de confirmação de exclusão
+  const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
+  const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState(null);
 
   // Estatísticas do cliente
   const [estatisticas, setEstatisticas] = useState({
@@ -495,6 +501,33 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     }
   };
 
+  // Handler para abrir modal de confirmação de exclusão
+  const handleAbrirConfirmExclusao = (lancamento) => {
+    setLancamentoParaExcluir(lancamento);
+    setConfirmExclusaoOpen(true);
+  };
+
+  // Handler para confirmar e excluir lançamento
+  const handleConfirmarExclusao = async () => {
+    if (!lancamentoParaExcluir?.id) return;
+
+    try {
+      setLoadingPagamentos(true);
+      await axiosInstance.delete(`/api/lancamentos-extrato/${lancamentoParaExcluir.id}`);
+      showNotification('success', 'Sucesso', 'Lançamento excluído com sucesso');
+      // Recarregar lista de lançamentos
+      await fetchPagamentosCliente();
+      setConfirmExclusaoOpen(false);
+      setLancamentoParaExcluir(null);
+    } catch (error) {
+      console.error('Erro ao excluir lançamento:', error);
+      const message = error.response?.data?.message || 'Erro ao excluir lançamento';
+      showNotification('error', 'Erro', message);
+    } finally {
+      setLoadingPagamentos(false);
+    }
+  };
+
   // Handler para executar vinculação (dupla operação)
   const handleVincularPagamento = async (lancamento, itensSelecionados) => {
     if (!Array.isArray(itensSelecionados) || itensSelecionados.length === 0) {
@@ -615,6 +648,8 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       setLoadingPedido(false);
       setVinculosModalOpen(false);
       setLancamentoVinculos(null);
+      setConfirmExclusaoOpen(false);
+      setLancamentoParaExcluir(null);
     }
   }, [open]);
 
@@ -705,7 +740,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           </Text>
         </Space>
       ),
-      width: "12%",
+      width: "10%",
       sorter: (a, b) => new Date(a.dataLancamento) - new Date(b.dataLancamento),
     },
     {
@@ -720,7 +755,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           </Text>
         </Space>
       ),
-      width: "16%",
+      width: "12%",
       sorter: (a, b) => (Number(a.valorLancamento) || 0) - (Number(b.valorLancamento) || 0),
     },
     {
@@ -728,40 +763,60 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       dataIndex: "categoriaOperacao",
       key: "categoriaOperacao",
       render: (categoria) => formatarCategoria(categoria),
-      width: "15%",
+      width: "10%",
     },
     {
       title: "Descrição",
       dataIndex: "textoDescricaoHistorico",
       key: "textoDescricaoHistorico",
       render: (text) => (
-        <Text style={{ fontSize: "0.75rem", color: "#666" }}>
+        <Text 
+          style={{ fontSize: "0.75rem", color: "#666" }}
+          ellipsis={{ tooltip: text || "-" }}
+        >
           {text || "-"}
         </Text>
       ),
-      width: "14%",
+      width: "12%",
+      ellipsis: true,
     },
     {
       title: "Origem",
       dataIndex: "nomeContrapartida",
       key: "nomeContrapartida",
       render: (nome) => (
-        <Text style={{ fontSize: "0.75rem", color: "#333" }}>
+        <Text 
+          style={{ fontSize: "0.75rem", color: "#333" }}
+          ellipsis={{ tooltip: nome || "-" }}
+        >
           {nome || "-"}
         </Text>
       ),
-      width: "18%",
+      width: "11%",
+      ellipsis: true,
+    },
+    {
+      title: "Conta Corrente",
+      key: "contaCorrente",
+      render: (_, record) => (
+        <Text style={{ fontSize: "0.75rem", color: "#333" }}>
+          {record.agenciaConta && record.numeroConta
+            ? `${record.agenciaConta}/${record.numeroConta}`
+            : "-"}
+        </Text>
+      ),
+      width: "9%",
     },
     {
       title: "Status",
       key: "status",
       render: (_, record) => formatarStatusVinculacao(record.vinculadoPedido, record.vinculacaoAutomatica),
-      width: "15%",
+      width: "11%",
     },
     {
       title: "Pedido",
       key: "pedido",
-      width: "12%",
+      width: "9%",
       render: (_, record) => (
         (() => {
           const vinculosInformados = Array.isArray(record.lancamentosExtratoVinculos)
@@ -806,24 +861,40 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     {
       title: "Ação",
       key: "acao",
-      width: "10%",
+      width: "12%",
       render: (_, record) => (
         !record.vinculadoPedido ? (
-          <Button
-            type="primary"
-            size="small"
-            icon={<LinkOutlined />}
-            onClick={() => handleAbrirVinculacaoManual(record)}
-            style={{
-              backgroundColor: '#059669',
-              borderColor: '#047857',
-              fontSize: '0.75rem',
-              height: '28px',
-              padding: '0 8px'
-            }}
-          >
-            Vincular
-          </Button>
+          <Space size="small">
+            <Button
+              type="primary"
+              size="small"
+              icon={<LinkOutlined />}
+              onClick={() => handleAbrirVinculacaoManual(record)}
+              style={{
+                backgroundColor: '#059669',
+                borderColor: '#047857',
+                fontSize: '0.75rem',
+                height: '28px',
+                padding: '0 8px'
+              }}
+            >
+              Vincular
+            </Button>
+            <Tooltip title="Excluir lançamento">
+              <Button
+                type="text"
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={() => handleAbrirConfirmExclusao(record)}
+                style={{
+                  fontSize: "0.75rem",
+                  height: "28px",
+                  padding: "0 4px",
+                }}
+              />
+            </Tooltip>
+          </Space>
         ) : (
           <Tag
             color="success"
@@ -859,9 +930,26 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       }
       open={open}
       onCancel={onClose}
-      footer={null}
-      width={isMobile ? '95vw' : '90%'}
-      style={{ maxWidth: isMobile ? '95vw' : "75rem" }}
+      footer={
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "flex-end",
+          gap: isMobile ? "8px" : "12px"
+        }}>
+          <Button 
+            onClick={onClose} 
+            size={isMobile ? "small" : "large"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
+          >
+            Fechar
+          </Button>
+        </div>
+      }
+      width={isMobile ? '95vw' : '95%'}
+      style={{ maxWidth: isMobile ? '95vw' : "85rem" }}
       styles={{
         body: {
           maxHeight: "calc(100vh - 12.5rem)",
@@ -1182,7 +1270,7 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
             showSizeChanger: true,
             showTotal: (total) => `Total: ${total} pagamentos`,
           }}
-          minWidthMobile={1200}
+          minWidthMobile={1400}
           showScrollHint={true}
           size="middle"
           bordered={true}
@@ -1237,6 +1325,81 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         pedido={pedidoSelecionado}
         loading={loadingPedido}
       />
+
+      {/* Modal de confirmação de exclusão */}
+      {lancamentoParaExcluir && (
+        <ConfirmActionModal
+          open={confirmExclusaoOpen}
+          onConfirm={handleConfirmarExclusao}
+          onCancel={() => {
+            setConfirmExclusaoOpen(false);
+            setLancamentoParaExcluir(null);
+          }}
+          title="Excluir Lançamento"
+          message="Tem certeza que deseja excluir este lançamento?"
+          confirmText="Sim, Excluir"
+          cancelText="Cancelar"
+          confirmButtonDanger={true}
+          icon={<DeleteOutlined />}
+          iconColor="#ef4444"
+          customContent={
+            <div style={{ textAlign: "left", padding: isMobile ? "12px" : "16px" }}>
+              <div 
+                style={{ 
+                  fontSize: isMobile ? "36px" : "48px", 
+                  color: "#ef4444", 
+                  marginBottom: isMobile ? "12px" : "16px",
+                  display: "block",
+                  textAlign: "center"
+                }} 
+              >
+                <DeleteOutlined />
+              </div>
+              <Text style={{ 
+                fontSize: isMobile ? "14px" : "16px", 
+                fontWeight: "500", 
+                color: "#333",
+                lineHeight: isMobile ? "1.4" : "1.5",
+                display: "block",
+                marginBottom: "16px",
+                textAlign: "center"
+              }}>
+                Tem certeza que deseja excluir este lançamento?
+              </Text>
+              <div style={{ 
+                backgroundColor: "#f8f9fa", 
+                padding: "12px", 
+                borderRadius: "8px",
+                border: "1px solid #e8e8e8",
+                marginTop: "12px"
+              }}>
+                <Text strong style={{ display: "block", marginBottom: "8px", color: "#059669", fontSize: "14px" }}>
+                  Detalhes do Lançamento:
+                </Text>
+                <Text style={{ display: "block", fontSize: "13px", color: "#666", marginBottom: "4px" }}>
+                  <strong>Data:</strong> {formatarDataBR(lancamentoParaExcluir.dataLancamento)}
+                </Text>
+                <Text style={{ display: "block", fontSize: "13px", color: "#666", marginBottom: "4px" }}>
+                  <strong>Valor:</strong> {formatarValor(lancamentoParaExcluir.valorLancamento)}
+                </Text>
+                <Text style={{ display: "block", fontSize: "13px", color: "#666", marginBottom: "4px" }}>
+                  <strong>Descrição:</strong> {lancamentoParaExcluir.textoDescricaoHistorico || "-"}
+                </Text>
+                {lancamentoParaExcluir.nomeContrapartida && (
+                  <Text style={{ display: "block", fontSize: "13px", color: "#666", marginBottom: "4px" }}>
+                    <strong>Origem:</strong> {lancamentoParaExcluir.nomeContrapartida}
+                  </Text>
+                )}
+                {lancamentoParaExcluir.agenciaConta && lancamentoParaExcluir.numeroConta && (
+                  <Text style={{ display: "block", fontSize: "13px", color: "#666" }}>
+                    <strong>Conta:</strong> {lancamentoParaExcluir.agenciaConta}/{lancamentoParaExcluir.numeroConta}
+                  </Text>
+                )}
+              </div>
+            </div>
+          }
+        />
+      )}
     </Modal>
   );
 };

@@ -1,7 +1,7 @@
 // src/components/clientes/PedidosClienteModal.js
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Modal, Table, Space, Typography, Tag, Button, Select, Row, Col, Card, Statistic, Empty, Spin, DatePicker } from "antd";
+import { Modal, Table, Space, Typography, Tag, Button, Select, Row, Col, Card, Statistic, Empty, Spin, DatePicker, Tooltip } from "antd";
 import {
   ShoppingCartOutlined,
   FilterOutlined,
@@ -13,6 +13,7 @@ import {
   ExclamationCircleOutlined,
   MinusCircleOutlined,
   BarChartOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import styled from "styled-components";
@@ -23,6 +24,7 @@ import VisualizarPedidoModal from "../pedidos/VisualizarPedidoModal";
 import Chart from "react-apexcharts";
 import { formatCurrency, capitalizeName } from "../../utils/formatters";
 import MiniSelectPersonalizavel from "../common/MiniComponents/MiniSelectPersonalizavel";
+import { PDFButton } from "../common/buttons";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 import useCoresPorTempo from "../../hooks/useCoresPorTempo";
 import useResponsive from "../../hooks/useResponsive";
@@ -47,6 +49,8 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
   const [intervaloMeses, setIntervaloMeses] = useState(3);
   const [dadosGrafico, setDadosGrafico] = useState(null);
+  const [loadingPDF, setLoadingPDF] = useState(false);
+  const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
 
   // Estatísticas do cliente
   const [estatisticas, setEstatisticas] = useState({
@@ -276,6 +280,60 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
     }
   };
 
+  // Função para lidar com exportação PDF
+  const handleExportPDF = async () => {
+    if (!cliente?.id) {
+      showNotification("error", "Erro", "Cliente não encontrado para gerar PDF.");
+      return;
+    }
+
+    if (pedidosFiltrados.length === 0) {
+      showNotification("warning", "Aviso", "Não há pedidos para gerar PDF.");
+      return;
+    }
+
+    try {
+      setLoadingPDF(true);
+
+      // Determinar quais pedidos incluir no PDF
+      // Se há pedidos selecionados, usar apenas eles; caso contrário, usar todos os filtrados
+      const pedidosIdsParaPDF = pedidosSelecionados.length > 0
+        ? pedidosSelecionados
+        : pedidosFiltrados.map(p => p.id);
+
+      // Chamar endpoint do backend para gerar PDF
+      const response = await axiosInstance.post(
+        `/api/pdf/pedidos-cliente/${cliente.id}`,
+        { pedidosIds: pedidosIdsParaPDF },
+        {
+          responseType: 'blob',
+        }
+      );
+
+      // Criar blob e fazer download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nome do arquivo
+      const nomeCliente = cliente.nome || 'cliente';
+      link.download = `pedidos-cliente-${nomeCliente.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      showNotification("success", "Sucesso", "PDF gerado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      showNotification("error", "Erro ao Gerar PDF", error.response?.data?.message || "Erro ao gerar PDF dos pedidos do cliente.");
+    } finally {
+      setLoadingPDF(false);
+    }
+  };
+
   // Função para processar dados do gráfico
   const processarDadosGrafico = () => {
     // Garantir que pedidos é um array válido
@@ -350,6 +408,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       setVisualizarModalOpen(false);
       setPedidoSelecionado(null);
       setVisualizarLoading(false);
+      setLoadingPDF(false);
       setEstatisticas({
         totalPedidos: 0,
         pedidosAtivos: 0,
@@ -359,6 +418,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
         faturamentoPago: 0,
         faturamentoAberto: 0,
       });
+      setPedidosSelecionados([]);
     }
   }, [open]);
 
@@ -434,6 +494,27 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
   // Definição das colunas da tabela
   const columns = [
     {
+      title: "",
+      key: "selection",
+      width: "50px",
+      align: "center",
+      fixed: "left",
+      render: (_, record) => (
+        <input
+          type="checkbox"
+          checked={pedidosSelecionados.includes(record.id)}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setPedidosSelecionados([...pedidosSelecionados, record.id]);
+            } else {
+              setPedidosSelecionados(pedidosSelecionados.filter(id => id !== record.id));
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+    },
+    {
       title: "Pedido",
       dataIndex: "numeroPedido",
       key: "numeroPedido",
@@ -442,9 +523,39 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           {text}
         </Text>
       ),
-      width: "15%",
+      width: "12%",
       sorter: (a, b) => a.numeroPedido.localeCompare(b.numeroPedido),
     },
+    {
+      title: "NF",
+      dataIndex: "numeroNf",
+      key: "numeroNf",
+      render: (numeroNf) => (
+        <Space>
+          <FileTextOutlined style={{ color: "#059669", fontSize: "0.75rem" }} />
+          <Text style={{ fontSize: "0.75rem", fontFamily: "monospace" }}>
+            {numeroNf ? `#${numeroNf}` : "-"}
+          </Text>
+        </Space>
+      ),
+      width: "10%",
+      sorter: (a, b) => (a.numeroNf || 0) - (b.numeroNf || 0),
+    },
+    ...(cliente?.industria ? [{
+      title: "NF Ind",
+      dataIndex: "indNumeroNf",
+      key: "indNumeroNf",
+      render: (indNumeroNf) => (
+        <Space>
+          <FileTextOutlined style={{ color: "#fa541c", fontSize: "0.75rem" }} />
+          <Text style={{ fontSize: "0.75rem", fontFamily: "monospace" }}>
+            {indNumeroNf ? `#${indNumeroNf}` : "-"}
+          </Text>
+        </Space>
+      ),
+      width: "10%",
+      sorter: (a, b) => (a.indNumeroNf || 0) - (b.indNumeroNf || 0),
+    }] : []),
     {
       title: "Data Criação",
       dataIndex: "createdAt",
@@ -455,7 +566,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           <Text style={{ fontSize: "0.75rem" }}>{formatarData(data)}</Text>
         </Space>
       ),
-      width: "15%",
+      width: "12%",
       sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     },
     {
@@ -470,7 +581,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           </Text>
         </Space>
       ),
-      width: "15%",
+      width: "12%",
       sorter: (a, b) => new Date(a.dataPrevistaColheita || 0) - new Date(b.dataPrevistaColheita || 0),
     },
     {
@@ -478,7 +589,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       dataIndex: "status",
       key: "status",
       render: (status) => formatarStatusPedido(status),
-      width: "20%",
+      width: "18%",
       sorter: (a, b) => a.status.localeCompare(b.status),
     },
     {
@@ -493,13 +604,13 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           </Text>
         </Space>
       ),
-      width: "15%",
+      width: "12%",
       sorter: (a, b) => (a.valorFinal || 0) - (b.valorFinal || 0),
     },
     {
       title: "Dias",
       key: "tempoPagamento",
-      width: "10%",
+      width: "8%",
       align: "center",
       sorter: (a, b) => {
         // Função auxiliar para obter data de referência (mesma lógica do render)
@@ -544,12 +655,20 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           return <Text type="secondary">-</Text>;
         }
 
-        const { cor, texto } = getCorPorData(dataReferencia);
+        const { cor, texto } = getCorPorData(dataReferencia, record);
+        
+        // Verificar se o cliente tem prazo diferenciado
+        const clienteDias = record.cliente?.dias;
+        const tooltipTitle = clienteDias !== null && clienteDias !== undefined
+          ? `Este cliente possui um prazo diferenciado de ${clienteDias} dia${clienteDias === 1 ? '' : 's'}`
+          : 'Este cliente não possui prazo diferenciado e está usando 30 dias como padrão';
         
         return (
-          <Tag color={cor} style={{ fontWeight: 'bold', margin: 'auto' }}>
-            {texto}
-          </Tag>
+          <Tooltip title={tooltipTitle} placement="top">
+            <Tag color={cor} style={{ fontWeight: 'bold', margin: 'auto', cursor: 'help' }}>
+              {texto}
+            </Tag>
+          </Tooltip>
         );
       },
     },
@@ -573,7 +692,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           {text || "-"}
         </Text>
       ),
-      width: "20%",
+      width: "16%",
     },
   ];
 
@@ -727,9 +846,42 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
       }
       open={open}
       onCancel={onClose}
-      footer={null}
+      footer={
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center",
+          gap: isMobile ? "8px" : "12px",
+          flexWrap: isMobile ? "wrap" : "nowrap"
+        }}>
+          <PDFButton
+            onClick={handleExportPDF}
+            loading={loadingPDF}
+            disabled={loadingPDF || !cliente?.id}
+            size={isMobile ? "small" : "large"}
+            tooltip="Exportar pedidos do cliente para PDF"
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+              fontSize: isMobile ? "0.75rem" : undefined,
+            }}
+          >
+            Exportar PDF
+          </PDFButton>
+          <Button 
+            onClick={onClose} 
+            size={isMobile ? "small" : "large"}
+            style={{
+              height: isMobile ? "32px" : "40px",
+              padding: isMobile ? "0 12px" : "0 16px",
+            }}
+          >
+            Fechar
+          </Button>
+        </div>
+      }
       width={isMobile ? '95vw' : '90%'}
-      style={{ maxWidth: isMobile ? '95vw' : "75rem" }}  // 1200px
+      style={{ maxWidth: isMobile ? '95vw' : "85rem" }}  // 1360px (aumentado para acomodar as novas colunas)
       styles={{
         body: {
           maxHeight: "calc(100vh - 12.5rem)",  // 200px convertido
@@ -1078,7 +1230,7 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           dataSource={pedidosFiltrados}
           loading={loading}
           rowKey="id"
-          minWidthMobile={1300}
+          minWidthMobile={cliente?.industria ? 1500 : 1400}
           showScrollHint={true}
           onRow={(record) => ({
             onClick: () => handleOpenVisualizarModal(record),
@@ -1087,7 +1239,6 @@ const PedidosClienteModal = ({ open, onClose, cliente, loading = false }) => {
           pagination={{
             pageSize: isMobile ? 5 : 10,
             showSizeChanger: !isMobile,
-            showQuickJumper: !isMobile,
             showTotal: (total, range) =>
               `${range[0]}-${range[1]} de ${total} pedidos`,
             pageSizeOptions: ['10', '20', '50'],

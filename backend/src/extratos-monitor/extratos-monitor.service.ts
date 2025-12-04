@@ -36,13 +36,14 @@ export class ExtratosMonitorService {
   /**
    * Cron job que executa todos os dias às 7:00 da manhã
    * Inicia o processo de monitoramento para todas as contas configuradas
+   * Intervalo configurável por conta (padrão: 1 hora) até às 22h
    */
   @Cron('0 7 * * *', {
     name: 'extratos-monitor-inicio',
     timeZone: 'America/Sao_Paulo',
   })
   async iniciarMonitoramentoDiario() {
-    this.logger.log('🔄 Iniciando monitoramento diário de extratos às 7h...');
+    this.logger.log('[JOB EXTRATOS] Iniciando monitoramento automático de extratos (7h-22h)');
     
     try {
       // Limpar rastreamento do dia anterior
@@ -56,11 +57,11 @@ export class ExtratosMonitorService {
       const contasMonitoradas = await this.buscarContasMonitoradas();
       
       if (contasMonitoradas.length === 0) {
-        this.logger.log('ℹ️ Nenhuma conta configurada para monitoramento');
+        this.logger.log('[JOB EXTRATOS] Nenhuma conta configurada para monitoramento');
         return;
       }
 
-      this.logger.log(`📋 Encontradas ${contasMonitoradas.length} conta(s) para monitorar`);
+      this.logger.log(`[JOB EXTRATOS] ${contasMonitoradas.length} conta(s) encontrada(s). Intervalo padrão: 1h`);
       
       // Inicializar rastreamento de últimas execuções
       const agora = Date.now();
@@ -77,7 +78,7 @@ export class ExtratosMonitorService {
       this.iniciarProcessamentoFila(contasMonitoradas);
       
     } catch (error) {
-      this.logger.error('❌ Erro durante inicialização do monitoramento:', error);
+      this.logger.error('[JOB EXTRATOS] Erro ao inicializar monitoramento:', error);
     }
   }
 
@@ -85,8 +86,6 @@ export class ExtratosMonitorService {
    * Busca todas as contas correntes com monitoramento ativo
    */
   private async buscarContasMonitoradas(): Promise<any[]> {
-    this.logger.log('🔍 Buscando contas com monitoramento ativo...');
-    
     // Buscar todas as contas com monitoramento ativo
     const contas = await this.prisma.contaCorrente.findMany({
       where: {
@@ -94,18 +93,13 @@ export class ExtratosMonitorService {
       },
     });
 
-    this.logger.log(`📋 Encontradas ${contas.length} conta(s) com monitorar = true`);
-
     if (contas.length === 0) {
-      this.logger.warn('⚠️ Nenhuma conta com monitorar = true encontrada no banco de dados');
       return [];
     }
 
     // Para cada conta, verificar se tem credenciais de extrato válidas
     const contasComCredenciais: any[] = [];
     for (const conta of contas) {
-      this.logger.log(`🔍 Verificando credenciais para conta ${conta.id} (${conta.agencia}/${conta.contaCorrente})`);
-      
       const credenciais = await this.prisma.credenciaisAPI.findFirst({
         where: {
           contaCorrenteId: conta.id,
@@ -114,14 +108,10 @@ export class ExtratosMonitorService {
       });
       
       if (credenciais) {
-        this.logger.log(`✅ Conta ${conta.id} possui credenciais de extrato válidas`);
         contasComCredenciais.push(conta);
-      } else {
-        this.logger.warn(`⚠️ Conta ${conta.id} não possui credenciais de extrato (modalidade: 003 - Extratos)`);
       }
     }
 
-    this.logger.log(`✅ Total de ${contasComCredenciais.length} conta(s) com credenciais válidas encontradas`);
     return contasComCredenciais;
   }
   
@@ -158,7 +148,7 @@ export class ExtratosMonitorService {
         // Verificar se ainda está dentro do horário permitido
         const horaAtual = new Date().getHours();
         if (horaAtual >= this.HORA_FIM) {
-          this.logger.log(`⏰ Horário limite (22h) atingido, parando processamento da fila`);
+          this.logger.log(`[JOB EXTRATOS] Horário limite atingido (22h). Encerrando para hoje`);
           this.processandoFila = false;
           break;
         }
@@ -281,12 +271,9 @@ export class ExtratosMonitorService {
     this.estaExecutando = true;
     
     try {
-      this.logger.log(`🔍 [CONTA ${contaId}] Iniciando busca de extratos...`);
-      
       // Verificar se ainda está dentro do horário permitido
       const horaAtual = new Date().getHours();
       if (horaAtual >= this.HORA_FIM) {
-        this.logger.log(`⏰ [CONTA ${contaId}] Horário limite (22h) atingido, cancelando busca`);
         return;
       }
       
@@ -296,7 +283,6 @@ export class ExtratosMonitorService {
       });
       
       if (!conta || !conta.monitorar) {
-        this.logger.log(`⚠️ [CONTA ${contaId}] Conta não encontrada ou monitoramento desativado`);
         return;
       }
       
@@ -309,7 +295,6 @@ export class ExtratosMonitorService {
       });
       
       if (!credencialExtrato) {
-        this.logger.log(`⚠️ [CONTA ${contaId}] Conta não possui credenciais de extrato válidas`);
         return;
       }
       
@@ -324,17 +309,16 @@ export class ExtratosMonitorService {
         dataFim: dataFormatada,
       });
       
-      this.logger.log(
-        `✅ [CONTA ${contaId}] Busca concluída: ${resultado.totalSalvos} novos, ${resultado.totalDuplicados} duplicados`
-      );
-      
-      // Buscar lançamentos novos salvos nesta execução
+      // Log resumido apenas se houver novos lançamentos
       if (resultado.totalSalvos > 0) {
+        this.logger.log(
+          `[JOB EXTRATOS] Conta ${contaId}: ${resultado.totalSalvos} novo(s), ${resultado.totalDuplicados} duplicado(s)`
+        );
         await this.criarNotificacoesParaNovosLancamentos(contaId, resultado.totalSalvos);
       }
       
     } catch (error) {
-      this.logger.error(`❌ [CONTA ${contaId}] Erro durante busca de extratos:`, error);
+      this.logger.error(`[JOB EXTRATOS] Erro na conta ${contaId}:`, error.message || error);
     } finally {
       this.estaExecutando = false;
     }
@@ -407,7 +391,7 @@ export class ExtratosMonitorService {
         return;
       }
       
-      this.logger.log(`📢 Criando notificações para ${lancamentosNovos.length} novo(s) pagamento(s)`);
+      this.logger.log(`[JOB EXTRATOS] Criando notificações para ${lancamentosNovos.length} novo(s) pagamento(s)`);
       
       // Buscar todos os usuários elegíveis (mesma lógica das notificações de pedidos)
       const usuariosElegiveis = await this.prisma.usuario.findMany({
@@ -423,7 +407,6 @@ export class ExtratosMonitorService {
       });
       
       if (usuariosElegiveis.length === 0) {
-        this.logger.log('ℹ️ Nenhum usuário elegível para receber notificações de pagamento');
         return;
       }
       
@@ -437,7 +420,7 @@ export class ExtratosMonitorService {
       }
       
     } catch (error) {
-      this.logger.error('❌ Erro ao criar notificações para novos lançamentos:', error);
+      this.logger.error('[JOB EXTRATOS] Erro ao criar notificações:', error.message || error);
     }
   }
 
@@ -535,11 +518,11 @@ export class ExtratosMonitorService {
       const notificacoesCriadas = notificacoes.filter(n => n !== null);
       
       this.logger.log(
-        `✅ Criadas ${notificacoesCriadas.length} notificações para pagamento de ${nomeCliente} (${valorFormatado})`
+        `[JOB EXTRATOS] ${notificacoesCriadas.length} notificação(ões) criada(s): ${nomeCliente} - ${valorFormatado}`
       );
       
     } catch (error) {
-      this.logger.error('❌ Erro ao criar notificações de pagamento:', error);
+      this.logger.error('[JOB EXTRATOS] Erro ao criar notificações:', error.message || error);
     }
   }
 
@@ -551,20 +534,16 @@ export class ExtratosMonitorService {
     lancamentosProcessados: number;
     notificacoesCriadas: number;
   }> {
-    this.logger.log('🧪 [EXECUÇÃO MANUAL] Iniciando monitoramento manual de extratos...');
+    this.logger.log('[JOB EXTRATOS] Execução manual iniciada');
     
     try {
       // Salvar estado atual do rastreamento
       const lancamentosNotificadosAnterior = new Set(this.lancamentosNotificados);
-      this.logger.log(`📊 [EXECUÇÃO MANUAL] Lançamentos já notificados antes desta execução: ${lancamentosNotificadosAnterior.size}`);
-      
       // Buscar contas monitoradas
       const contasMonitoradas = await this.buscarContasMonitoradas();
       
-      this.logger.log(`📊 [EXECUÇÃO MANUAL] Total de contas encontradas: ${contasMonitoradas.length}`);
-      
       if (contasMonitoradas.length === 0) {
-        this.logger.warn('⚠️ [EXECUÇÃO MANUAL] Nenhuma conta monitorada encontrada. Verifique se há contas com monitorar = true e credenciais de extrato.');
+        this.logger.log('[JOB EXTRATOS] Nenhuma conta monitorada encontrada');
         return {
           contasMonitoradas: 0,
           lancamentosProcessados: 0,
@@ -599,7 +578,7 @@ export class ExtratosMonitorService {
       };
       
     } catch (error) {
-      this.logger.error('❌ Erro durante execução manual:', error);
+      this.logger.error('[JOB EXTRATOS] Erro na execução manual:', error.message || error);
       throw error;
     }
   }
@@ -611,21 +590,18 @@ export class ExtratosMonitorService {
   private async executarBuscaExtratosParaManual(contaId: number): Promise<{ totalSalvos: number }> {
     // Aguardar se já estiver executando (garantir execução sequencial)
     while (this.estaExecutando) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Aguardar 1 segundo
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
     this.estaExecutando = true;
     
     try {
-      this.logger.log(`🔍 [CONTA ${contaId}] Iniciando busca de extratos (manual)...`);
-      
       // Buscar conta para obter dados atualizados
       const conta = await this.prisma.contaCorrente.findUnique({
         where: { id: contaId },
       });
       
       if (!conta || !conta.monitorar) {
-        this.logger.log(`⚠️ [CONTA ${contaId}] Conta não encontrada ou monitoramento desativado`);
         return { totalSalvos: 0 };
       }
       
@@ -638,7 +614,6 @@ export class ExtratosMonitorService {
       });
       
       if (!credencialExtrato) {
-        this.logger.log(`⚠️ [CONTA ${contaId}] Conta não possui credenciais de extrato válidas`);
         return { totalSalvos: 0 };
       }
       
@@ -653,10 +628,6 @@ export class ExtratosMonitorService {
         dataFim: dataFormatada,
       });
       
-      this.logger.log(
-        `✅ [CONTA ${contaId}] Busca concluída: ${resultado.totalSalvos} novos, ${resultado.totalDuplicados} duplicados`
-      );
-      
       // Buscar lançamentos novos salvos nesta execução e criar notificações
       if (resultado.totalSalvos > 0) {
         await this.criarNotificacoesParaNovosLancamentos(contaId, resultado.totalSalvos);
@@ -665,7 +636,7 @@ export class ExtratosMonitorService {
       return { totalSalvos: resultado.totalSalvos };
       
     } catch (error) {
-      this.logger.error(`❌ [CONTA ${contaId}] Erro durante busca de extratos:`, error);
+      this.logger.error(`[JOB EXTRATOS] Erro na conta ${contaId}:`, error.message || error);
       return { totalSalvos: 0 };
     } finally {
       this.estaExecutando = false;

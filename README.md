@@ -572,7 +572,7 @@ PATCH  /api/pedidos/:id                # Atualizar pedido completo
 DELETE /api/pedidos/:id                # Excluir pedido
 
 # Busca Inteligente
-GET    /api/pedidos/busca-inteligente  # Busca inteligente com 9 categorias
+GET    /api/pedidos/busca-inteligente  # Busca inteligente com 13 categorias (inclui NF Pedido e NF Indústria)
 
 # Operações por fase
 PATCH  /api/pedidos/:id/colheita       # Registrar colheita (inclui mão de obra)
@@ -707,12 +707,13 @@ GET    /api/turma-colheita/custo-colheita/turma/:turmaId    # Colheitas por turm
 
 ### **Sistema de Busca Inteligente Avançado**
 
-**🔍 Busca em Tempo Real com 9 Categorias:**
+**🔍 Busca em Tempo Real com 11 Categorias:**
 - **API Integrada**: `/api/pedidos/busca-inteligente` com debounce de 300ms
 - **Endpoint Atualizado**: `/api/pedidos/cliente/:id` com suporte a filtros por status
 - **Mínimo 2 Caracteres**: Inicia busca automática com validação
 - **Sugestões Categorizadas**: Dropdown inteligente com ícones temáticos
 - **Navegação por Teclado**: Setas, Enter, Escape para controle total
+- **Busca Parcial**: Suporta busca parcial por números (ex: "12333" encontra "123336")
 
 **📋 Tipos de Busca Suportados:**
 1. **📋 Número do Pedido** - Busca por `numeroPedido` com status e cliente
@@ -723,7 +724,11 @@ GET    /api/turma-colheita/custo-colheita/turma/:turmaId    # Colheitas por turm
 6. **🏭 Fornecedor** - Nome com documento e contador de áreas
 7. **🌾 Áreas** - Próprias e de fornecedores com metadados completos
 8. **🍎 Frutas** - Nome e código com categoria e contador de pedidos
-9. **⚖️ Pesagem** - Campo `pesagem` com contexto do pedido
+9. **🌱 Cultura** - Descrição da cultura com contador de frutas
+10. **⚖️ Pesagem** - Campo `pesagem` com contexto do pedido
+11. **🧑‍🌾 Turma de Colheita** - Nome do colhedor com contador de pedidos
+12. **📋 NF Pedido** - Nossa nota fiscal (`numeroNf`) com busca parcial por número
+13. **📄 NF Indústria** - Nota fiscal da indústria (`indNumeroNf`) com busca parcial por número
 
 **🎨 Interface Visual Avançada:**
 - **Ícones Dinâmicos**: Específicos por método de pagamento (PIX, Boleto, Transferência, Dinheiro, Cheque)
@@ -794,11 +799,13 @@ GET    /api/turma-colheita/custo-colheita/turma/:turmaId    # Colheitas por turm
 - **Renderização Condicional**: Seções específicas aparecem apenas para clientes indústria
 
 **📋 Campos Complementares nos Pedidos:**
-- **Data de Entrada** (`indDataEntrada`): Data de entrada do produto (sem horário)
-- **Data de Descarga** (`indDataDescarga`): Data de descarga do produto (sem horário)
-- **Peso Médio** (`indPesoMedio`): Peso médio em decimal (ex: 1250.50 KG)
-- **Média em Mililitros** (`indMediaMililitro`): Média em mililitros (ex: 500.75 ML)
-- **Número da Nota Fiscal** (`indNumeroNf`): Número inteiro da nota fiscal (ex: 123456)
+- **Número NF do Pedido** (`numeroNf`): Número da nota fiscal do nosso pedido (controle interno) - aparece em "Valores Consolidados"
+- **Campos Específicos para Clientes Indústria** (apenas para clientes com `industria: true`):
+  - **Data de Entrada** (`indDataEntrada`): Data de entrada do produto (sem horário)
+  - **Data de Descarga** (`indDataDescarga`): Data de descarga do produto (sem horário)
+  - **Peso Médio** (`indPesoMedio`): Peso médio em decimal (ex: 1250.50 KG)
+  - **Média em Mililitros** (`indMediaMililitro`): Média em mililitros (ex: 500.75 ML)
+  - **Número NF da Indústria** (`indNumeroNf`): Número inteiro da nota fiscal da indústria (ex: 123456) - aparece em "Dados Complementares - Indústria"
 
 **🎨 Interface de Dados Complementares:**
 - **Seção "Dados Complementares"**: Aparece em modais de precificação e visualização
@@ -1644,7 +1651,7 @@ npx prisma db seed           # Popular com dados
 - [x] Interface visual para dados complementares em modais de precificação
 - [x] Integração completa entre frontend e backend para campos de indústria
 - [x] Visualização organizada de dados complementares em modal de visualização
-- [x] Sistema de busca inteligente avançado com 9 categorias
+- [x] Sistema de busca inteligente avançado com 13 categorias (inclui NF Pedido e NF Indústria com busca parcial)
 - [x] Interface visual com dropdown categorizado e ícones dinâmicos
 - [x] Sistema de filtros integrado com tags removíveis e persistência
 - [x] API de busca inteligente com debounce e otimizações de performance

@@ -41,6 +41,11 @@ export class PdfService {
         return JSON.stringify(context);
       });
 
+      // Registrar helper para somar números
+      hbs.registerHelper('add', function(a: any, b: any) {
+        return Number(a) + Number(b);
+      });
+
       this.partialsRegistered = true;
       this.logger.debug('Partials e helpers do Handlebars recarregados (sem cache)');
     } catch (error: any) {

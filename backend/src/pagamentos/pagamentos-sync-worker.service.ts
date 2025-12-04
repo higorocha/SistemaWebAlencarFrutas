@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PagamentosSyncQueueService } from './pagamentos-sync-queue.service';
 import { PagamentosService } from './pagamentos.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { PagamentoApiSyncJob, $Enums } from '@prisma/client';
 
 @Injectable()
@@ -16,10 +17,20 @@ export class PagamentosSyncWorkerService {
     'AGUARDANDO DEBITO',
     'DEBITADO',
   ]);
+  // Estados finais que indicam que o pagamento foi concluído (sucesso ou falha)
+  private readonly finalItemStates = new Set<string>([
+    'PAGO', // Sucesso
+    'CANCELADO', // Cancelado
+    'DEVOLVIDO', // Devolvido
+    'REJEITADO', // Rejeitado
+    'INCONSISTENTE', // Inconsistente
+    'VENCIDO', // Vencido
+  ]);
 
   constructor(
     private readonly queueService: PagamentosSyncQueueService,
     private readonly pagamentosService: PagamentosService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -129,12 +140,40 @@ export class PagamentosSyncWorkerService {
             job.numeroRequisicao,
             job.contaCorrenteId,
           );
-        const estado = typeof resposta?.estadoRequisicao === 'number'
+        
+        // ✅ CORREÇÃO: Verificar o estado do lote no banco após a consulta
+        // Isso garante que se o lote foi marcado como rejeitado (estado 7) devido a itens bloqueados,
+        // o job não será reagendado, mesmo que a API retorne outro estado
+        const lote = await this.prisma.pagamentoApiLote.findUnique({
+          where: { numeroRequisicao: job.numeroRequisicao },
+          select: { estadoRequisicaoAtual: true },
+        });
+        
+        // Priorizar o estado do banco (estadoRequisicaoAtual) se disponível
+        // Se o lote foi marcado como rejeitado (estado 7) no banco, usar esse estado
+        const estadoBanco = lote?.estadoRequisicaoAtual ?? null;
+        const estadoApi = typeof resposta?.estadoRequisicao === 'number'
           ? resposta.estadoRequisicao
           : null;
+        
+        // Se o lote está marcado como rejeitado (7) no banco, usar esse estado
+        // Caso contrário, usar o estado retornado pela API
+        const estado = estadoBanco === 7 ? 7 : estadoApi;
+        
+        this.logger.log(
+          `[SYNC] Job ${job.id} (LOTE) - Estado API: ${estadoApi}, Estado Banco: ${estadoBanco}, Estado Final: ${estado}`,
+        );
+        
         if (!this.isLoteEstadoFinal(estado)) {
           requeueInMinutes = this.queueService.getDefaultDelayMinutes();
           requeueReason = this.getDescricaoEstadoLote(estado);
+        } else {
+          // Estado final - não reagendar
+          if (estadoBanco === 7) {
+            this.logger.log(
+              `[SYNC] Job ${job.id} (LOTE) - Lote marcado como rejeitado (estado 7) no banco, não reagendando`,
+            );
+          }
         }
       } else if (job.tipo === $Enums.PagamentoApiSyncJobTipo.ITEM) {
         if (!job.identificadorPagamento) {
@@ -147,9 +186,32 @@ export class PagamentosSyncWorkerService {
           );
         const estadoPagamentoRaw = resposta?.estadoPagamento ?? null;
         const estadoPagamento = this.normalizeEstado(estadoPagamentoRaw);
-        if (estadoPagamento && this.pendingItemStates.has(estadoPagamento)) {
+        
+        // ✅ CORREÇÃO: Usar classificarEstadoPagamentoPix para classificar corretamente o estado
+        // Isso garante que estados como BLOQUEADO e REJEITADO sejam tratados como finais
+        const classificacao = estadoPagamento
+          ? this.pagamentosService.classificarEstadoPagamentoPix(estadoPagamento)
+          : 'DESCONHECIDO';
+        
+        this.logger.log(
+          `[SYNC] Job ${job.id} (ITEM) - Estado: ${estadoPagamentoRaw ?? estadoPagamento}, Classificação: ${classificacao}`,
+        );
+        
+        // Decidir se deve reagendar baseado na classificação
+        if (classificacao === 'PENDENTE' || classificacao === 'DESCONHECIDO') {
+          // Estado ainda pendente ou desconhecido - continuar monitorando
           requeueInMinutes = this.queueService.getDefaultDelayMinutes();
-          requeueReason = `Estado ${estadoPagamentoRaw ?? estadoPagamento}`;
+          requeueReason = `Estado ${estadoPagamentoRaw ?? estadoPagamento} (${classificacao})`;
+          this.logger.log(
+            `[SYNC] Job ${job.id} (ITEM) - Reagendando: ${requeueReason}`,
+          );
+        } else {
+          // Estados finais: SUCESSO, CANCELADO, REJEITADO, BLOQUEADO - não reagendar, marcar como DONE
+          requeueInMinutes = undefined;
+          requeueReason = `Estado final: ${estadoPagamentoRaw ?? estadoPagamento} (${classificacao})`;
+          this.logger.log(
+            `[SYNC] Job ${job.id} (ITEM) - Marcando como DONE: ${requeueReason}`,
+          );
         }
       } else {
         this.logger.warn(`Tipo de job desconhecido: ${job.tipo}`);

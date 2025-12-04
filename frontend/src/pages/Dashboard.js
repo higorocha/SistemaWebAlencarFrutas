@@ -245,6 +245,8 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard'); // Estado para controlar a aba ativa
   const [painelFrutasCarregado, setPainelFrutasCarregado] = useState(false); // Estado para controlar se o painel de frutas já foi carregado
   const [loadingPainelFrutas, setLoadingPainelFrutas] = useState(false); // Estado para controlar loading do painel de frutas
+  const [painelFinanceiroCarregado, setPainelFinanceiroCarregado] = useState(false); // Estado para controlar se o painel financeiro já foi carregado
+  const [loadingPainelFinanceiro, setLoadingPainelFinanceiro] = useState(false); // Estado para controlar loading do painel financeiro
   const [dashboardData, setDashboardData] = useState({
     // Cards principais
     faturamentoTotal: 0,
@@ -1075,6 +1077,16 @@ const Dashboard = () => {
             }, 500);
           }
           
+          // Se está acessando o painel financeiro pela primeira vez, carregar dados
+          if (key === 'painel-financeiro' && !painelFinanceiroCarregado) {
+            setLoadingPainelFinanceiro(true);
+            // Simular carregamento inicial (será substituído pelo carregamento real dos dados)
+            setTimeout(() => {
+              setPainelFinanceiroCarregado(true);
+              setLoadingPainelFinanceiro(false);
+            }, 500);
+          }
+          
           setActiveTab(key);
         }}
         type="card"
@@ -1207,6 +1219,36 @@ const Dashboard = () => {
             )
           },
           {
+            key: 'painel-financeiro',
+            label: (
+              <span className="tab-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="mdi:chart-line" className="tab-icon" style={{ fontSize: '18px' }} />
+                Painel Financeiro
+              </span>
+            ),
+            children: painelFinanceiroCarregado ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#8c8c8c', minHeight: '400px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                <Icon icon="mdi:chart-line" style={{ fontSize: '64px', marginBottom: '16px', color: '#d9d9d9' }} />
+                <Typography.Title level={4} type="secondary">
+                  Painel Financeiro
+                </Typography.Title>
+                <Typography.Text type="secondary">
+                  Conteúdo será implementado em breve.
+                </Typography.Text>
+              </div>
+            ) : (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#8c8c8c', minHeight: '400px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                <Icon icon="mdi:chart-line" style={{ fontSize: '64px', marginBottom: '16px', color: '#d9d9d9' }} />
+                <Typography.Title level={4} type="secondary">
+                  Painel Financeiro
+                </Typography.Title>
+                <Typography.Text type="secondary">
+                  Clique na aba para carregar os dados.
+                </Typography.Text>
+              </div>
+            )
+          },
+          {
             key: 'painel-frutas',
             label: (
               <span className="tab-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -1271,11 +1313,11 @@ const Dashboard = () => {
         subMessage="Preparando informações para colheita"
       />
 
-      {/* CentralizedLoader para carregamento do Painel de Frutas */}
+      {/* CentralizedLoader para carregamento do Painel Financeiro */}
       <CentralizedLoader
-        visible={loadingPainelFrutas}
-        message="Carregando Painel de Frutas..."
-        subMessage="Buscando dados de culturas, frutas e áreas"
+        visible={loadingPainelFinanceiro}
+        message="Carregando Painel Financeiro..."
+        subMessage="Buscando dados financeiros e contábeis"
       />
 
       {/* CentralizedLoader para carregamento do Painel de Frutas */}

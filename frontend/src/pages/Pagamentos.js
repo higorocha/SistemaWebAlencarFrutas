@@ -577,6 +577,9 @@ const Pagamentos = () => {
     const totalPedidos = lotes.reduce((acc, lote) => acc + (lote.quantidadePedidos || 0), 0);
     
     const lotesLiberados = lotes.filter(lote => lote.dataLiberacao).length;
+    const lotesRejeitados = lotes.filter(lote => 
+      lote.status === 'REJEITADO' || lote.estadoRequisicaoAtual === 7
+    ).length;
     const itensLiberados = lotes.reduce((acc, lote) => {
       const itens = lote.itensPagamento || [];
       const liberados = itens.filter(item => {
@@ -584,6 +587,14 @@ const Pagamentos = () => {
         return estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado';
       }).length;
       return acc + liberados;
+    }, 0);
+    const itensRejeitados = lotes.reduce((acc, lote) => {
+      const itens = lote.itensPagamento || [];
+      const rejeitados = itens.filter(item => {
+        const status = item.status;
+        return status === 'REJEITADO';
+      }).length;
+      return acc + rejeitados;
     }, 0);
     
     // Calcular valores liberados vs pendentes
@@ -624,7 +635,9 @@ const Pagamentos = () => {
       totalColheitas,
       totalPedidos,
       lotesLiberados,
+      lotesRejeitados,
       itensLiberados,
+      itensRejeitados,
       valorTotalLiberado,
       valorTotalPendente,
       valorTotalColheitas,
@@ -640,6 +653,9 @@ const Pagamentos = () => {
     const totalFuncionarios = lotes.reduce((acc, lote) => acc + (lote.quantidadeFuncionarios || 0), 0);
     
     const lotesLiberados = lotes.filter(lote => lote.dataLiberacao).length;
+    const lotesRejeitados = lotes.filter(lote => 
+      lote.status === 'REJEITADO' || lote.estadoRequisicaoAtual === 7
+    ).length;
     const itensLiberados = lotes.reduce((acc, lote) => {
       const itens = lote.itensPagamento || [];
       const liberados = itens.filter(item => {
@@ -647,6 +663,14 @@ const Pagamentos = () => {
         return estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado';
       }).length;
       return acc + liberados;
+    }, 0);
+    const itensRejeitados = lotes.reduce((acc, lote) => {
+      const itens = lote.itensPagamento || [];
+      const rejeitados = itens.filter(item => {
+        const status = item.status;
+        return status === 'REJEITADO';
+      }).length;
+      return acc + rejeitados;
     }, 0);
     
     // Calcular valores liberados vs pendentes
@@ -692,7 +716,9 @@ const Pagamentos = () => {
       totalItens,
       totalFuncionarios,
       lotesLiberados,
+      lotesRejeitados,
       itensLiberados,
+      itensRejeitados,
       valorTotalLiberado,
       valorTotalPendente,
       valorTotalFuncionarios,

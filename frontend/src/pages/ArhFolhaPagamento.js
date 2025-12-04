@@ -32,6 +32,7 @@ const EditarLancamentoDialog = lazy(() => import("../components/arh/folha-pagame
 const AtualizarPagamentoDialog = lazy(() => import("../components/arh/folha-pagamento/AtualizarPagamentoDialog"));
 const FinalizarFolhaDialog = lazy(() => import("../components/arh/folha-pagamento/FinalizarFolhaDialog"));
 const AdicionarFuncionariosDialog = lazy(() => import("../components/arh/folha-pagamento/AdicionarFuncionariosDialog"));
+const ListarRejeitadosModal = lazy(() => import("../components/arh/folha-pagamento/ListarRejeitadosModal"));
 
 const { Title, Text } = Typography;
 
@@ -121,6 +122,7 @@ const ArhFolhaPagamento = () => {
   const [excluirModalOpen, setExcluirModalOpen] = useState(false);
   const [reprocessarModalOpen, setReprocessarModalOpen] = useState(false);
   const [reprocessarRejeitadosModalOpen, setReprocessarRejeitadosModalOpen] = useState(false);
+  const [listarRejeitadosModalOpen, setListarRejeitadosModalOpen] = useState(false);
   const [contasDisponiveis, setContasDisponiveis] = useState([]);
   const [contaCorrenteSelecionada, setContaCorrenteSelecionada] = useState(null);
   const [loadingContas, setLoadingContas] = useState(false);
@@ -639,9 +641,14 @@ const ArhFolhaPagamento = () => {
       setCentralLoading(true);
       setCentralMessage("Reprocessando pagamentos rejeitados...");
       
+      // Converter dataPagamento para ISO string se necessário
+      const dataPagamentoISO = dadosReprocessamento.dataPagamento instanceof Date
+        ? dadosReprocessamento.dataPagamento.toISOString()
+        : dadosReprocessamento.dataPagamento; // Já é string ISO do modal
+      
       const payload = {
         meioPagamento: dadosReprocessamento.meioPagamento,
-        dataPagamento: dadosReprocessamento.dataPagamento.toISOString(),
+        dataPagamento: dataPagamentoISO,
         observacoes: dadosReprocessamento.observacoes || undefined,
       };
       
@@ -650,17 +657,38 @@ const ArhFolhaPagamento = () => {
         payload.contaCorrenteId = Number(dadosReprocessamento.contaCorrenteId);
       }
       
+      console.log('🔄 [REPROCESSAR-REJEITADOS] Enviando requisição:', {
+        folhaId: selectedFolha.id,
+        payload
+      });
+      
       const response = await axiosInstance.patch(
         `/api/arh/folhas/${selectedFolha.id}/reprocessar-pagamentos-rejeitados`,
         payload
       );
       
+      console.log('✅ [REPROCESSAR-REJEITADOS] Resposta recebida:', response.data);
+      
       showNotification("success", "Sucesso", response.data.mensagem || "Pagamentos rejeitados reprocessados com sucesso!");
       carregarFolhas();
       carregarLancamentos(selectedFolha.id);
     } catch (error) {
+      console.error('❌ [REPROCESSAR-REJEITADOS] Erro ao reprocessar:', error);
+      console.error('❌ [REPROCESSAR-REJEITADOS] Detalhes do erro:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data
+        }
+      });
+      
       const message =
         error.response?.data?.message ||
+        error.message ||
         "Erro ao reprocessar pagamentos rejeitados.";
       showNotification("error", "Erro", message);
     } finally {
@@ -1577,6 +1605,16 @@ const ArhFolhaPagamento = () => {
                     </Text>
                     <Space wrap style={{ width: "100%" }}>
                       <PrimaryButton
+                        icon={<InfoCircleOutlined />}
+                        onClick={() => setListarRejeitadosModalOpen(true)}
+                        style={{
+                          backgroundColor: "#1890ff",
+                          borderColor: "#1890ff",
+                        }}
+                      >
+                        Ver Rejeitados ({resumoRejeitados.quantidadeRejeitados})
+                      </PrimaryButton>
+                      <PrimaryButton
                         icon={<ReloadOutlined />}
                         onClick={() => setReprocessarRejeitadosModalOpen(true)}
                         style={{
@@ -1900,6 +1938,15 @@ const ArhFolhaPagamento = () => {
           folha={selectedFolha}
           modoReprocessamento={true}
           resumoRejeitados={resumoRejeitados}
+        />
+      </Suspense>
+
+      {/* Modal Listar Rejeitados */}
+      <Suspense fallback={<SuspenseFallback message="Carregando..." />}>
+        <ListarRejeitadosModal
+          open={listarRejeitadosModalOpen}
+          onClose={() => setListarRejeitadosModalOpen(false)}
+          folhaId={selectedFolhaId}
         />
       </Suspense>
     </Box>

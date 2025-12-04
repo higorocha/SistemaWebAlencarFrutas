@@ -125,6 +125,12 @@ export class ClienteResponseDto {
   })
   industria?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Número de dias',
+    example: 30,
+  })
+  dias?: number;
+
   @ApiProperty({
     description: 'Data de criação',
     example: '2024-01-15T10:30:00.000Z',

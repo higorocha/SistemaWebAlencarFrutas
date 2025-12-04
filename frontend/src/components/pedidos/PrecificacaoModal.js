@@ -95,6 +95,7 @@ const PrecificacaoModal = ({
         indPesoMedio: pedido.indPesoMedio || undefined,
         indMediaMililitro: pedido.indMediaMililitro || undefined,
         indNumeroNf: pedido.indNumeroNf || undefined,
+        numeroNf: pedido.numeroNf || undefined,
       });
       
       calcularValoresConsolidados(frutasForm, pedido.frete || 0, pedido.icms || 0, pedido.desconto || 0, pedido.avaria || 0);
@@ -236,6 +237,7 @@ const PrecificacaoModal = ({
         indPesoMedio: values.indPesoMedio ? (typeof values.indPesoMedio === 'string' ? parseFloat(values.indPesoMedio) : values.indPesoMedio) : undefined,
         indMediaMililitro: values.indMediaMililitro ? (typeof values.indMediaMililitro === 'string' ? parseFloat(values.indMediaMililitro) : values.indMediaMililitro) : undefined,
         indNumeroNf: values.indNumeroNf ? (typeof values.indNumeroNf === 'string' ? parseInt(values.indNumeroNf) : values.indNumeroNf) : undefined,
+        numeroNf: values.numeroNf ? (typeof values.numeroNf === 'string' ? parseInt(values.numeroNf) : values.numeroNf) : undefined,
       };
 
       await onSave(formData);
@@ -699,7 +701,7 @@ const PrecificacaoModal = ({
           }}
         >
           <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
-            <Col xs={24} sm={12} md={6}>
+            <Col xs={24} sm={12} md={5}>
               <Form.Item
                 label={
                   <Space>
@@ -734,7 +736,7 @@ const PrecificacaoModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={12} md={6}>
+            <Col xs={24} sm={12} md={5}>
               <Form.Item
                 label={
                   <Space>
@@ -769,7 +771,7 @@ const PrecificacaoModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={12} md={6}>
+            <Col xs={24} sm={12} md={5}>
               <Form.Item
                 label={
                   <Space>
@@ -804,7 +806,7 @@ const PrecificacaoModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={12} md={6}>
+            <Col xs={24} sm={12} md={5}>
               <Form.Item
                 label={
                   <Space>
@@ -835,6 +837,50 @@ const PrecificacaoModal = ({
                   placeholder="Ex: 25,00"
                   addonAfter="R$"
                   size="large"
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={12} md={4}>
+              <Form.Item
+                label={
+                  <Space>
+                    <NumberOutlined style={{ color: "#059669" }} />
+                    <span style={{ fontWeight: "700", color: "#333" }}>Número NF</span>
+                  </Space>
+                }
+                name="numeroNf"
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      // Se não tem valor, é válido (campo opcional)
+                      if (!value) return Promise.resolve();
+                      
+                      // Converter string para número se necessário
+                      const numValue = typeof value === 'string' ? parseInt(value) : value;
+                      
+                      if (numValue && numValue <= 0) {
+                        return Promise.reject(new Error("Número deve ser maior que zero"));
+                      }
+                      
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
+              >
+                <InputNumber
+                  placeholder="Ex: 123456"
+                  style={{
+                    width: "100%",
+                    borderRadius: "6px",
+                    borderColor: "#d9d9d9",
+                  }}
+                  min={1}
+                  max={999999999}
+                  controls={false}
+                  formatter={(value) => `${value}`.replace(/[^0-9]/g, '')}
+                  parser={(value) => value.replace(/[^0-9]/g, '')}
+                  size="middle"
                 />
               </Form.Item>
             </Col>
@@ -1018,12 +1064,12 @@ const PrecificacaoModal = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} sm={24} md={6}>
+              <Col xs={24} sm={12} md={4}>
                 <Form.Item
                   label={
                     <Space>
                       <NumberOutlined style={{ color: "#059669" }} />
-                      <span style={{ fontWeight: "700", color: "#333", fontSize: "0.75rem" }}>Número NF</span>
+                      <span style={{ fontWeight: "700", color: "#333", fontSize: "0.75rem" }}>Número NF Indústria</span>
                     </Space>
                   }
                   name="indNumeroNf"

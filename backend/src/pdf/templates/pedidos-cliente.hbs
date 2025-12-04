@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedidos do Cliente {{cliente.nome}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      color: #333;
+      font-size: 10.8px;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.9);
+      transform-origin: top left;
+      width: 111.11%;
+    }
+    
+    .content-wrapper {
+      flex: 1;
+      padding-bottom: 63px;
+    }
+
+    .pdf-content {
+      padding: 0 9px 18px 9px;
+    }
+
+    .cards-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background-color: #ffffff;
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    .card:not(.card-cliente) {
+      page-break-inside: auto;
+    }
+
+    .card-cliente {
+      margin-bottom: 7px;
+      page-break-inside: avoid;
+    }
+
+    /* Força o card de pedidos a começar logo após a qualificação */
+    .card-cliente + .card-pedidos-lista {
+      page-break-before: avoid !important;
+      margin-top: 0;
+    }
+
+    .card-pedidos-lista {
+      page-break-before: auto;
+    }
+
+    .card-pedidos-lista .card-header {
+      page-break-after: avoid;
+      page-break-inside: avoid;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 7px;
+      background-color: #059669;
+      color: #ffffff;
+      padding: 7px 11px;
+      border-radius: 7px 7px 0 0;
+      border-bottom: 2px solid #047857;
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    .card-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background-color: rgba(255, 255, 255, 0.15);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .card-chip {
+      font-size: 9px;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      white-space: nowrap;
+    }
+
+    .card-body {
+      padding: 9px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 5px 13px;
+      margin-bottom: 4px;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .info-item.full-span {
+      grid-column: 1 / -1;
+    }
+
+    .info-item-razao-social {
+      grid-column: span 2;
+    }
+
+    .info-label {
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #059669;
+      text-transform: uppercase;
+    }
+
+    .info-value {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .info-value.email-value {
+      word-break: break-all;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      max-width: 100%;
+    }
+
+    /* Estilos do Cabeçalho Reutilizável - Layout Profissional */
+    .pdf-header {
+      background-color: #ffffff;
+      border-bottom: 3px solid #059669;
+      padding: 22px 20px 12px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      page-break-inside: avoid;
+    }
+
+    .header-top {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      margin-bottom: 10px;
+    }
+
+    .header-logo,
+    .header-center,
+    .header-qualificacao {
+      display: table-cell;
+      vertical-align: middle;
+    }
+
+    /* Logo à Esquerda */
+    .header-logo {
+      width: 180px;
+      padding-right: 15px;
+    }
+
+    .logo-img {
+      max-width: 180px;
+      max-height: 80px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+
+    .logo-placeholder {
+      width: 180px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f3f4f6;
+      border: 1px dashed #d1d5db;
+      border-radius: 4px;
+    }
+
+    .logo-text {
+      font-size: 14px;
+      color: #6b7280;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    /* Nome da Empresa no Centro */
+    .header-center {
+      text-align: center;
+      padding: 0 20px;
+      vertical-align: middle;
+    }
+
+    .header-center h1.empresa-nome {
+      font-size: 24px;
+      margin: 0 0 5px 0;
+      font-weight: bold;
+      color: #059669;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      line-height: 1.2;
+    }
+
+    .header-center p.empresa-razao-social {
+      font-size: 12px;
+      margin: 0;
+      color: #6b7280;
+      font-style: italic;
+      line-height: 1.3;
+    }
+
+    /* Qualificação da Empresa à Direita */
+    .header-qualificacao {
+      width: 220px;
+      text-align: right;
+      padding-left: 15px;
+      vertical-align: top;
+    }
+
+    .qualificacao-item {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .qualificacao-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .qualificacao-value {
+      font-size: 10px;
+      color: #6b7280;
+      font-weight: 600;
+      display: block;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+
+    /* Título do Documento */
+    .pedido-header-interno {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background-color: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      border-radius: 999px;
+      padding: 6px 16px;
+      margin: 4px auto 8px auto;
+      font-weight: 700;
+      color: #047857;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .pedido-header-interno .pedido-header-text {
+      font-size: 13px;
+    }
+
+    /* Estilos da Tabela */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      margin-bottom: 14px;
+      page-break-inside: auto;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    tbody {
+      display: table-row-group;
+    }
+
+    thead {
+      background-color: #059669;
+      color: white;
+    }
+
+    th {
+      padding: 8px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 10.5px;
+    }
+
+    tbody tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+
+    tbody tr:last-child {
+      page-break-after: auto;
+    }
+
+    tbody tr:hover {
+      background-color: #f9fafb;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .produto-nome {
+      font-weight: 600;
+      color: #1f2937;
+      font-size: 12px;
+    }
+
+    .table-total-row td {
+      border-top: 2px solid #059669;
+      font-size: 12px;
+      font-weight: 700;
+      color: #059669;
+      padding-top: 10px;
+    }
+
+    .table-total-label {
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .table-total-value {
+      font-size: 14px;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 20px;
+      color: #6b7280;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  {{!-- Cabeçalho Reutilizável --}}
+  {{> header}}
+
+  <div class="content-wrapper">
+    <div class="pdf-content">
+      <div class="cards-wrapper">
+
+        {{!-- Título do Documento --}}
+        <div class="pedido-header-interno">
+          <span class="pedido-header-text">PEDIDOS DO CLIENTE</span>
+        </div>
+
+        {{!-- Card: Qualificação do Cliente --}}
+        <div class="card card-cliente">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">CL</span>
+              <span>Dados do Cliente</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Nome Fantasia</span>
+                <span class="info-value">{{cliente.nome}}</span>
+              </div>
+              {{#if cliente.razaoSocial}}
+              <div class="info-item info-item-razao-social">
+                <span class="info-label">Razão Social</span>
+                <span class="info-value">{{cliente.razaoSocial}}</span>
+              </div>
+              {{/if}}
+              <div class="info-item">
+                <span class="info-label">{{#if cliente.cnpj}}CNPJ{{else if cliente.cpf}}CPF{{else}}Documento{{/if}}</span>
+                <span class="info-value">
+                  {{#if cliente.cnpj}}{{cliente.cnpj}}{{else if cliente.cpf}}{{cliente.cpf}}{{else}}-{{/if}}
+                </span>
+              </div>
+              {{#if cliente.telefone1}}
+              <div class="info-item">
+                <span class="info-label">Telefone</span>
+                <span class="info-value">{{cliente.telefone1}}</span>
+              </div>
+              {{/if}}
+              {{#if cliente.logradouro}}
+              <div class="info-item full-span">
+                <span class="info-label">Endereço</span>
+                <span class="info-value">
+                  {{cliente.logradouro}}{{#if cliente.numero}}, {{cliente.numero}}{{/if}}{{#if cliente.complemento}} - {{cliente.complemento}}{{/if}}
+                  {{#if cliente.bairro}}, {{cliente.bairro}}{{/if}}
+                  {{#if cliente.cidade}} - {{cliente.cidade}}{{/if}}{{#if cliente.estado}} ({{cliente.estado}}){{/if}}{{#if cliente.cep}} | {{cliente.cep}}{{/if}}
+                </span>
+              </div>
+              {{/if}}
+              {{#if cliente.email1}}
+              <div class="info-item full-span">
+                <span class="info-label">E-mail</span>
+                <span class="info-value email-value">{{cliente.email1}}</span>
+              </div>
+              {{/if}}
+            </div>
+          </div>
+        </div>
+
+        {{!-- Card: Lista de Pedidos - Inicia logo após qualificação --}}
+        <div class="card card-pedidos-lista" style="page-break-before: auto; margin-top: 7px;">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">PD</span>
+              <span>Pedidos do Cliente</span>
+            </div>
+            <span class="card-chip">Total: {{pedidos.length}}</span>
+          </div>
+          <div class="card-body">
+            {{#if pedidos}}
+            <table>
+              <thead>
+                <tr>
+                  <th class="text-center" style="width: 50px;">#</th>
+                  <th style="min-width: 120px;">Pedido</th>
+                  {{#if cliente.industria}}
+                  <th style="min-width: 100px;">NF Nossa</th>
+                  <th style="min-width: 100px;">NF Indústria</th>
+                  {{else}}
+                  <th style="min-width: 120px;">Nota Fiscal</th>
+                  {{/if}}
+                  <th style="min-width: 100px;">Data Pedido</th>
+                  <th style="min-width: 100px;">Data Colheita</th>
+                  <th class="text-right" style="min-width: 120px;">Valor Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{#each pedidos}}
+                <tr>
+                  <td class="text-center">{{add @index 1}}</td>
+                  <td>
+                    <span class="produto-nome">#{{numeroPedidoFormatado}}</span>
+                  </td>
+                  {{#if ../cliente.industria}}
+                  <td>
+                    {{#if numeroNf}}
+                      <span class="produto-nome">#{{numeroNf}}</span>
+                    {{else}}
+                      <span style="color: #9ca3af;">-</span>
+                    {{/if}}
+                  </td>
+                  <td>
+                    {{#if indNumeroNf}}
+                      <span class="produto-nome">#{{indNumeroNf}}</span>
+                    {{else}}
+                      <span style="color: #9ca3af;">-</span>
+                    {{/if}}
+                  </td>
+                  {{else}}
+                  <td>
+                    {{#if numeroNf}}
+                      <span class="produto-nome">#{{numeroNf}}</span>
+                    {{else}}
+                      <span style="color: #9ca3af;">-</span>
+                    {{/if}}
+                  </td>
+                  {{/if}}
+                  <td>{{dataPedidoFormatada}}</td>
+                  <td>{{#if dataColheitaFormatada}}{{dataColheitaFormatada}}{{else}}-{{/if}}</td>
+                  <td class="text-right">
+                    {{#if valorFinalFormatado}}
+                      <span class="produto-nome">{{valorFinalFormatado}}</span>
+                    {{else}}
+                      <span style="color: #9ca3af;">-</span>
+                    {{/if}}
+                  </td>
+                </tr>
+                {{/each}}
+                <tr class="table-total-row">
+                  <td colspan="{{#if cliente.industria}}6{{else}}5{{/if}}" class="table-total-label text-right">Total Geral dos Pedidos:</td>
+                  <td class="table-total-value text-right">{{valorTotalFormatado}}</td>
+                </tr>
+              </tbody>
+            </table>
+            {{else}}
+            <p class="no-data">Nenhum pedido encontrado para este cliente.</p>
+            {{/if}}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -36,6 +36,7 @@ const AddEditClienteDialog = ({
     observacoes: "",
     status: "ATIVO",
     industria: false,
+    dias: null,
   });
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
@@ -64,7 +65,8 @@ const AddEditClienteDialog = ({
     const hasOtherData = data.inscricaoEstadual?.trim() || 
                         data.inscricaoMunicipal?.trim() || 
                         data.observacoes?.trim() ||
-                        data.industria === true;
+                        data.industria === true ||
+                        (data.dias !== null && data.dias !== undefined);
     
     return hasBasicData || hasAddressData || hasContactData || hasOtherData;
   };
@@ -98,6 +100,7 @@ const AddEditClienteDialog = ({
         observacoes: cliente.observacoes || "",
         status: cliente.status || "ATIVO",
         industria: cliente.industria || false,
+        dias: cliente.dias || null,
       });
       setEditando(true);
     } else if (open) {
@@ -119,6 +122,7 @@ const AddEditClienteDialog = ({
         observacoes: "",
         status: "ATIVO",
         industria: false,
+        dias: null,
       });
       setEditando(false);
     }
@@ -188,6 +192,7 @@ const AddEditClienteDialog = ({
       observacoes: "",
       status: "ATIVO",
       industria: false,
+      dias: null,
     });
     setErros({});
     handleConfirmClose();

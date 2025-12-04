@@ -107,6 +107,39 @@ export class PagamentosService {
         );
       }
 
+      // ✅ CORREÇÃO: Validar se o lote pode ser liberado
+      // Verificar se há itens rejeitados
+      const itensRejeitados = await this.prisma.pagamentoApiItem.count({
+        where: {
+          loteId: lote.id,
+          status: StatusPagamentoItem.REJEITADO,
+        },
+      });
+
+      if (itensRejeitados > 0) {
+        throw new BadRequestException(
+          `Não é possível liberar o lote ${numeroRequisicao}: há ${itensRejeitados} item(ns) rejeitado(s) ou inconsistente(s). ` +
+          `Reprocesse os pagamentos rejeitados antes de tentar liberar novamente.`
+        );
+      }
+
+      // Verificar se o lote tem estado de inconsistência (2 ou 3)
+      const estadoAtual = lote.estadoRequisicaoAtual ?? lote.estadoRequisicao;
+      if (estadoAtual === 2 || estadoAtual === 3) {
+        throw new BadRequestException(
+          `Não é possível liberar o lote ${numeroRequisicao}: o lote contém dados inconsistentes (estado ${estadoAtual}). ` +
+          `Reprocesse os pagamentos rejeitados antes de tentar liberar novamente.`
+        );
+      }
+
+      // Verificar se o lote já está rejeitado (estado 7)
+      if (estadoAtual === 7) {
+        throw new BadRequestException(
+          `Não é possível liberar o lote ${numeroRequisicao}: o lote foi rejeitado. ` +
+          `Reprocesse os pagamentos rejeitados antes de tentar liberar novamente.`
+        );
+      }
+
       // Buscar conta corrente vinculada ao lote
       const contaCorrente = await this.contaCorrenteService.findOne(
         lote.contaCorrenteId,
@@ -695,10 +728,10 @@ export class PagamentosService {
             console.log(`   ℹ️  Encontrado pagamento existente com numeroRequisicao=${ultimoNumeroInicial}, inicializando sequência a partir deste valor`);
           } else {
             // Se não há pagamentos no banco, inicializar com valor baseado no ambiente
-            // Produção: 1000, Desenvolvimento: 100
+            // Produção: 1000, Desenvolvimento: 110
             // Pode ser sobrescrito pela variável de ambiente BB_ULTIMO_NUMERO_REQUISICAO_INICIAL
             const isProduction = process.env.NODE_ENV === 'production';
-            const valorPadrao = isProduction ? 1000 : 100;
+            const valorPadrao = isProduction ? 1000 : 110;
             ultimoNumeroInicial = parseInt(
               process.env.BB_ULTIMO_NUMERO_REQUISICAO_INICIAL || String(valorPadrao),
               10
@@ -1201,6 +1234,7 @@ export class PagamentosService {
           // Dados PIX (quando aplicável)
           chavePixEnviada: item.chavePixEnviada,
           tipoChavePixEnviado: item.tipoChavePixEnviado,
+          responsavelChavePixEnviado: item.responsavelChavePixEnviado,
           usuarioCancelamento: item.usuarioCancelamento ? {
             id: item.usuarioCancelamento.id,
             nome: item.usuarioCancelamento.nome,
@@ -1487,6 +1521,7 @@ export class PagamentosService {
           // Dados PIX
           chavePixEnviada: item.chavePixEnviada,
           tipoChavePixEnviado: item.tipoChavePixEnviado,
+          responsavelChavePixEnviado: item.responsavelChavePixEnviado,
           usuarioCancelamento: item.usuarioCancelamento ? {
             id: item.usuarioCancelamento.id,
             nome: item.usuarioCancelamento.nome,
@@ -1632,11 +1667,15 @@ export class PagamentosService {
       // Importar função de formatação
       const { formatarDataParaAPIBB } = await import('../utils/formatters');
       
-      const listaTransferenciasFormatada = dto.listaTransferencias.map(transferencia => ({
-        ...transferencia,
-        // Garantir que a data está no formato correto (ddmmaaaa, sem zero à esquerda do dia)
-        data: formatarDataParaAPIBB(transferencia.data),
-      }));
+      // Filtrar campos customizados (que começam com _) antes de enviar ao BB
+      const listaTransferenciasFormatada = dto.listaTransferencias.map(transferencia => {
+        const { _responsavelChavePix, ...transferenciaSemCamposCustomizados } = transferencia as any;
+        return {
+          ...transferenciaSemCamposCustomizados,
+          // Garantir que a data está no formato correto (ddmmaaaa, sem zero à esquerda do dia)
+          data: formatarDataParaAPIBB(transferencia.data),
+        };
+      });
 
       // Criar payload para envio ao BB (usando numeroRequisicao gerado e numeroContrato)
       const payloadBB = {
@@ -1697,6 +1736,9 @@ export class PagamentosService {
             chavePix = String(transferencia.telefone);
           }
 
+          // Extrair responsavelChavePix do objeto transferencia (campo customizado não enviado ao BB)
+          const responsavelChavePix = (transferencia as any)._responsavelChavePix || null;
+
           return this.prisma.pagamentoApiItem.create({
             data: {
               loteId: lote.id,
@@ -1707,6 +1749,7 @@ export class PagamentosService {
               descricaoInstantaneoEnviada: transferencia.descricaoPagamentoInstantaneo || null,
               chavePixEnviada: chavePix,
               tipoChavePixEnviado: tipoChavePix || null,
+              responsavelChavePixEnviado: responsavelChavePix,
               payloadItemEnviado: transferencia as any,
               status: StatusPagamentoItem.PENDENTE,
             },
@@ -1796,36 +1839,26 @@ export class PagamentosService {
 
       console.log(`💾 [PAGAMENTOS-SERVICE] Lote atualizado com resposta do BB: status ${statusLote}`);
 
-      // Criar notificação para administradores somente se a requisição foi criada com sucesso no BB
-      // (status diferente de REJEITADO). ERRO é tratado nos fluxos de exceção.
-      if (statusLote !== StatusPagamentoLote.REJEITADO) {
-        // Recarregar lote com conta corrente para enriquecer dados da notificação
-        const loteComRelacionamentos = await this.prisma.pagamentoApiLote.findUnique({
-          where: { id: loteAtualizado.id },
-          include: {
-            contaCorrente: true,
-          },
-        });
-
-        if (loteComRelacionamentos) {
-          // Origem genérica preparada para múltiplos tipos (TURMA_COLHEITA, FOLHA_PAGAMENTO, etc)
-          // Se não informado no DTO, usa TURMA_COLHEITA como padrão (compatibilidade com código existente)
-          const origemTipo = dto.origemTipo || 'TURMA_COLHEITA';
-          const origemNome = dto.origemNome || 
-            ((dto.colheitaIds && dto.colheitaIds.length > 0)
-              ? 'Turma de Colheita'
-              : undefined);
-
-          await this.notificacoesService.criarNotificacoesLiberarPagamentoParaAdministradores({
-            ...loteComRelacionamentos,
-            origemTipo,
-            origemNome,
-          });
-        }
-      }
 
       // Atualizar itens com resposta do BB
       if (respostaData?.listaTransferencias) {
+        const folhasParaRecalcular = new Set<number>();
+        
+        // ✅ Primeiro: Identificar quais itens foram rejeitados ANTES de atualizar
+        const itensStatusMap = respostaData.listaTransferencias.map((transferencia, index) => {
+          const item = itens[index];
+          if (!item) return null;
+          const indicador = transferencia.indicadorMovimentoAceito;
+          const erros = transferencia.erros || [];
+          const statusItem = this.mapearStatusItem(indicador, erros);
+          return { item, statusItem, transferencia };
+        }).filter((item) => item !== null);
+
+        const itensRejeitados = itensStatusMap.filter(({ statusItem }) => statusItem === StatusPagamentoItem.REJEITADO);
+        const temItensRejeitados = itensRejeitados.length > 0;
+        const todosItensRejeitados = itensRejeitados.length === respostaData.listaTransferencias.length;
+
+        // ✅ Atualizar todos os itens
         await Promise.all(
           respostaData.listaTransferencias.map(async (transferencia, index) => {
             const item = itens[index];
@@ -1853,21 +1886,174 @@ export class PagamentosService {
               },
             });
 
-            console.log(`💾 [PAGAMENTOS-SERVICE] Item ${item.id} atualizado: identificadorPagamento=${identificadorParaSalvar}`);
+            console.log(`💾 [PAGAMENTOS-SERVICE] Item ${item.id} atualizado: identificadorPagamento=${identificadorParaSalvar}, status=${statusItem}`);
+
+            // ✅ CORREÇÃO: Se item foi rejeitado E já está vinculado a FuncionarioPagamento, atualizar
+            // Nota: Para folhas de pagamento, o vínculo será feito depois em criarLotesParaLancamentos()
+            // e nesse momento o status já será verificado e aplicado corretamente
+            if (statusItem === StatusPagamentoItem.REJEITADO && item.funcionarioPagamentoId) {
+              // Buscar folhaId antes de atualizar
+              const funcionarioPagamento = await this.prisma.funcionarioPagamento.findUnique({
+                where: { id: item.funcionarioPagamentoId },
+                select: { folhaId: true },
+              });
+
+              if (funcionarioPagamento?.folhaId) {
+                folhasParaRecalcular.add(funcionarioPagamento.folhaId);
+              }
+
+              await this.prisma.funcionarioPagamento.update({
+                where: { id: item.funcionarioPagamentoId },
+                data: {
+                  statusPagamento: StatusFuncionarioPagamento.REJEITADO,
+                  pagamentoEfetuado: false,
+                },
+              });
+
+              console.log(`👤 [PAGAMENTOS-SERVICE] FuncionarioPagamento ${item.funcionarioPagamentoId} marcado como REJEITADO devido a item inconsistente na criação`);
+            }
           })
         );
 
         console.log(`💾 [PAGAMENTOS-SERVICE] ${respostaData.listaTransferencias.length} item(ns) atualizado(s)`);
+
+        // ✅ Recalcular folhas afetadas
+        if (folhasParaRecalcular.size > 0) {
+          for (const folhaId of folhasParaRecalcular) {
+            try {
+              await this.folhaPagamentoService.recalcularFolhaNoBanco(folhaId);
+              console.log(`✅ [PAGAMENTOS-SERVICE] Folha ${folhaId} recalculada após marcação de itens rejeitados`);
+            } catch (error) {
+              console.error(`❌ [PAGAMENTOS-SERVICE] Erro ao recalcular folha ${folhaId}:`, error.message);
+            }
+          }
+        }
+
+        // ✅ Se há itens rejeitados, marcar lote como rejeitado
+        if (temItensRejeitados) {
+          // Determinar estado final do lote:
+          // - Se todos os itens são rejeitados: estado 3 (todos inconsistentes)
+          // - Se apenas alguns são rejeitados: estado 7 (rejeitado para permitir reprocessamento)
+          const estadoFinal = todosItensRejeitados ? 3 : 7;
+          
+          // ✅ CORREÇÃO: Marcar itens não rejeitados como BLOQUEADO quando o lote é rejeitado
+          // Isso deixa visualmente consistente: se o lote foi rejeitado, nenhum item será processado
+          const itensNaoRejeitados = itensStatusMap.filter(
+            ({ statusItem }) => statusItem !== StatusPagamentoItem.REJEITADO
+          );
+
+          if (itensNaoRejeitados.length > 0) {
+            console.log(
+              `🔒 [PAGAMENTOS-SERVICE] Marcando ${itensNaoRejeitados.length} item(ns) não rejeitado(s) como BLOQUEADO devido a lote rejeitado`,
+            );
+
+            await Promise.all(
+              itensNaoRejeitados.map(async ({ item }) => {
+                // Marcar como bloqueado: tanto o status quanto o estadoPagamentoIndividual
+                // Quando um lote é rejeitado, os itens não rejeitados não serão processados nem liberados
+                await this.prisma.pagamentoApiItem.update({
+                  where: { id: item.id },
+                  data: {
+                    status: StatusPagamentoItem.BLOQUEADO,
+                    estadoPagamentoIndividual: 'BLOQUEADO',
+                  },
+                });
+
+                console.log(`🔒 [PAGAMENTOS-SERVICE] Item ${item.id} marcado como BLOQUEADO (lote rejeitado)`);
+              })
+            );
+          }
+          
+          await this.prisma.pagamentoApiLote.update({
+            where: { id: loteAtualizado.id },
+            data: {
+              estadoRequisicao: estadoFinal,
+              estadoRequisicaoAtual: estadoFinal,
+              status: StatusPagamentoLote.REJEITADO,
+              observacoes: `Lote marcado como rejeitado devido a ${itensRejeitados.length} item(ns) inconsistente(s) na criação.`,
+            },
+          });
+
+          console.log(
+            `🚫 [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} marcado como rejeitado (estado ${estadoFinal}): ${itensRejeitados.length} item(ns) inconsistente(s) de ${respostaData.listaTransferencias.length} total`,
+          );
+          
+          // ✅ NÃO criar jobs de sincronização se o lote foi rejeitado
+          // Motivo: O lote foi descartado e não será liberado, então não faz sentido monitorar os itens
+          // Mesmo os itens não rejeitados não serão processados, pois o lote inteiro foi rejeitado
+          console.log(`🚫 [PAGAMENTOS-SERVICE] Lote rejeitado - não serão criados jobs de sincronização para nenhum item`);
+        } else {
+          // ✅ Criar notificação apenas se o lote não foi marcado como rejeitado
+          const loteComRelacionamentos = await this.prisma.pagamentoApiLote.findUnique({
+            where: { id: loteAtualizado.id },
+            include: {
+              contaCorrente: true,
+            },
+          });
+
+          if (loteComRelacionamentos) {
+            const origemTipo = dto.origemTipo || 'TURMA_COLHEITA';
+            const origemNome = dto.origemNome || 
+              ((dto.colheitaIds && dto.colheitaIds.length > 0)
+                ? 'Turma de Colheita'
+                : undefined);
+
+            await this.notificacoesService.criarNotificacoesLiberarPagamentoParaAdministradores({
+              ...loteComRelacionamentos,
+              origemTipo,
+              origemNome,
+            });
+          }
+
+          // ✅ AGENDAR JOBS DE ITEM: Criar jobs de polling APENAS para itens que NÃO foram rejeitados
+          // Motivo: Itens não rejeitados têm identificadorPagamento e precisam ser monitorados
+          // para saber quando serão processados/pagos pelo BB
+          const itensNaoRejeitados = itensStatusMap.filter(
+            ({ statusItem, transferencia }) => 
+              statusItem !== StatusPagamentoItem.REJEITADO && 
+              transferencia.identificadorPagamento != null
+          );
+
+          if (itensNaoRejeitados.length > 0) {
+            console.log(`📋 [PAGAMENTOS-SERVICE] Agendando ${itensNaoRejeitados.length} job(s) de ITEM para polling (apenas itens não rejeitados)`);
+            
+            await Promise.all(
+              itensNaoRejeitados.map(({ item, transferencia }) =>
+                this.pagamentosSyncQueueService.scheduleItemSync({
+                  identificadorPagamento: String(transferencia.identificadorPagamento),
+                  contaCorrenteId: contaCorrente.id,
+                  loteId: loteAtualizado.id,
+                  delayMinutes: 0, // Agendar imediatamente (sem delay)
+                })
+              )
+            );
+            
+            console.log(`✅ [PAGAMENTOS-SERVICE] ${itensNaoRejeitados.length} job(s) de ITEM agendado(s) para polling`);
+          }
+        }
       }
 
       console.log(`✅ [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} criado com sucesso: ${quantidadeValida} transferência(s) válida(s), valor=${valorTotalValido}`);
 
-      if (!finalizado) {
+      // Recarregar lote para verificar status final após verificação de rejeitados
+      const loteFinal = await this.prisma.pagamentoApiLote.findUnique({
+        where: { id: loteAtualizado.id },
+        select: { status: true, estadoRequisicaoAtual: true },
+      });
+
+      // Agendar job de sincronização apenas se:
+      // 1. Lote não está finalizado (estado 6)
+      // 2. Lote não foi marcado como rejeitado (estado 3 ou 7)
+      const loteFoiRejeitado = loteFinal?.estadoRequisicaoAtual === 3 || loteFinal?.estadoRequisicaoAtual === 7;
+      
+      if (!finalizado && !loteFoiRejeitado) {
         await this.pagamentosSyncQueueService.scheduleLoteSync({
           numeroRequisicao,
           contaCorrenteId: contaCorrente.id,
           loteId: loteAtualizado.id,
         });
+      } else if (loteFoiRejeitado) {
+        console.log(`🚫 [PAGAMENTOS-SERVICE] Lote ${numeroRequisicao} foi rejeitado, não agendando job de sincronização`);
       }
 
       return respostaData;
@@ -3141,7 +3327,30 @@ export class PagamentosService {
         // Como estamos usando OAuth, não precisamos enviar esses parâmetros.
         const identificadorParaURL = identificadorPagamento != null ? String(identificadorPagamento).trim() : null;
         
-        console.log(`🌐 [PAGAMENTOS-SERVICE] Consultando item individual PIX: GET /pix/${identificadorParaURL}`);
+        // ========================================
+        // LOG DETALHADO DO PAYLOAD ENVIADO NA CONSULTA INDIVIDUAL
+        // ========================================
+        console.log('═══════════════════════════════════════════════════════════════');
+        console.log('📤 [PAGAMENTOS-SERVICE] CONSULTA INDIVIDUAL PIX - PAYLOAD ENVIADO:');
+        console.log('═══════════════════════════════════════════════════════════════');
+        console.log('🌐 Método: GET');
+        console.log(`📋 URL: /pix/${identificadorParaURL}`);
+        console.log(`🔑 Base URL: ${apiClient.defaults.baseURL}`);
+        console.log(`🔑 URL Completa: ${apiClient.defaults.baseURL}/pix/${identificadorParaURL}`);
+        console.log(`🔑 Developer App Key: ${credencialPagamento.developerAppKey ? `${credencialPagamento.developerAppKey.substring(0, 8)}...` : 'VAZIO'}`);
+        console.log(`🔑 Query Params (será adicionado pelo interceptor): gw-dev-app-key=${credencialPagamento.developerAppKey ? `${credencialPagamento.developerAppKey.substring(0, 8)}...` : 'VAZIO'}`);
+        console.log('📋 Headers:');
+        console.log(`   Authorization: Bearer ${token ? `${token.substring(0, 20)}...` : 'VAZIO'}`);
+        console.log(`   Content-Type: application/json`);
+        console.log('📋 Conta Corrente:');
+        console.log(`   ID: ${contaCorrente.id}`);
+        console.log(`   Agência: ${contaCorrente.agencia}`);
+        console.log(`   Conta: ${contaCorrente.contaCorrente}`);
+        console.log(`   Digito: ${contaCorrente.contaCorrenteDigito || 'N/A'}`);
+        console.log('📋 Identificador Pagamento:');
+        console.log(`   Original: ${identificadorPagamento}`);
+        console.log(`   Para URL: ${identificadorParaURL}`);
+        console.log('═══════════════════════════════════════════════════════════════');
 
         try {
           const response = await apiClient.get(
@@ -3187,6 +3396,17 @@ export class PagamentosService {
             console.log(`⚠️ [PAGAMENTOS-SERVICE] Erro ${errorStatus} ao consultar item individual. Invalidando cache de token e tentando novamente...`);
             this.invalidarCacheToken(credencialPagamento.id, this.SCOPES_PIX_INFO);
             const newToken = await this.obterTokenDeAcesso(credencialPagamento, this.SCOPES_PIX_INFO, true);
+            
+            // Log do payload na retentativa
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log('📤 [PAGAMENTOS-SERVICE] CONSULTA INDIVIDUAL PIX - PAYLOAD ENVIADO (RETRY):');
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log('🌐 Método: GET');
+            console.log(`📋 URL: /pix/${identificadorParaURL}`);
+            console.log(`🔑 URL Completa: ${apiClient.defaults.baseURL}/pix/${identificadorParaURL}`);
+            console.log(`🔑 Query Params: gw-dev-app-key=${credencialPagamento.developerAppKey ? `${credencialPagamento.developerAppKey.substring(0, 8)}...` : 'VAZIO'}`);
+            console.log(`🔑 Authorization: Bearer ${newToken ? `${newToken.substring(0, 20)}...` : 'VAZIO'}`);
+            console.log('═══════════════════════════════════════════════════════════════');
             
             const response = await apiClient.get(
               `/pix/${identificadorParaURL}`,
@@ -3247,6 +3467,18 @@ export class PagamentosService {
           const apiClient = createPagamentosApiClient(credencialPagamento.developerAppKey);
           const identificadorParaURL = identificadorPagamento != null ? String(identificadorPagamento).trim() : null;
 
+          // Log do payload na tentativa em todas as contas
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('📤 [PAGAMENTOS-SERVICE] CONSULTA INDIVIDUAL PIX - PAYLOAD ENVIADO (TENTATIVA EM TODAS AS CONTAS):');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('🌐 Método: GET');
+          console.log(`📋 URL: /pix/${identificadorParaURL}`);
+          console.log(`🔑 URL Completa: ${apiClient.defaults.baseURL}/pix/${identificadorParaURL}`);
+          console.log(`🔑 Query Params: gw-dev-app-key=${credencialPagamento.developerAppKey ? `${credencialPagamento.developerAppKey.substring(0, 8)}...` : 'VAZIO'}`);
+          console.log(`🔑 Authorization: Bearer ${token ? `${token.substring(0, 20)}...` : 'VAZIO'}`);
+          console.log(`📋 Conta Corrente ID: ${contaCorrente.id}`);
+          console.log('═══════════════════════════════════════════════════════════════');
+
           const response = await apiClient.get(
             `/pix/${identificadorParaURL}`,
             {
@@ -3292,12 +3524,25 @@ export class PagamentosService {
       }
 
       // Log do erro para diagnóstico
-      console.error('❌ [PAGAMENTOS-SERVICE] Erro ao consultar status individual de transferência PIX:', {
-        error: error.message,
-        status: error.response?.status,
-        response: error.response?.data,
-        identificadorPagamento,
+      console.error('═══════════════════════════════════════════════════════════════');
+      console.error('❌ [PAGAMENTOS-SERVICE] ERRO AO CONSULTAR STATUS INDIVIDUAL DE TRANSFERÊNCIA PIX:');
+      console.error('═══════════════════════════════════════════════════════════════');
+      console.error('📋 Identificador Pagamento:', identificadorPagamento);
+      console.error('❌ Erro:', error.message);
+      console.error('📊 Status HTTP:', error.response?.status);
+      console.error('📦 Response Data:', JSON.stringify(error.response?.data, null, 2));
+      console.error('📋 Response Headers:', JSON.stringify(error.response?.headers, null, 2));
+      console.error('📋 Request Config:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        baseURL: error.config?.baseURL,
+        params: error.config?.params,
+        headers: error.config?.headers ? {
+          ...error.config.headers,
+          Authorization: error.config.headers.Authorization ? `${error.config.headers.Authorization.substring(0, 20)}...` : 'VAZIO'
+        } : null,
       });
+      console.error('═══════════════════════════════════════════════════════════════');
 
       // Se erro 400/404, tratar como item não disponível
       const errorStatus = error.response?.status;
@@ -3342,24 +3587,31 @@ export class PagamentosService {
       ultimaAtualizacaoStatus: new Date(),
     };
 
+    // ✅ PROTEÇÃO: Itens já pagos (PROCESSADO) nunca devem ser revertidos
+    // Isso evita pagamentos duplicados ao reprocessar
+    const itemJaPago = item.status === StatusPagamentoItem.PROCESSADO;
+    
     if (categoriaEstado === 'SUCESSO') {
-      dadosAtualizacao.status = StatusPagamentoItem.PROCESSADO;
-      dadosAtualizacao.processadoComSucesso = true;
-      dadosAtualizacao.indicadorMovimentoAceito = 'S';
-      dadosAtualizacao.indicadorMovimentoAceitoAtual = 'S';
+      // Se já está pago, não precisa atualizar novamente
+      if (!itemJaPago) {
+        dadosAtualizacao.status = StatusPagamentoItem.PROCESSADO;
+        dadosAtualizacao.processadoComSucesso = true;
+        dadosAtualizacao.indicadorMovimentoAceito = 'S';
+        dadosAtualizacao.indicadorMovimentoAceitoAtual = 'S';
+      }
     } else if (
       categoriaEstado === 'CANCELADO' ||
       categoriaEstado === 'REJEITADO'
     ) {
-      if (item.status !== StatusPagamentoItem.REJEITADO) {
+      // ✅ PROTEÇÃO: Não reverter itens já pagos
+      if (!itemJaPago && item.status !== StatusPagamentoItem.REJEITADO) {
         dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
       }
     } else if (categoriaEstado === 'BLOQUEADO') {
+      // ✅ PROTEÇÃO: Não reverter itens já pagos
       // Item bloqueado: atualizar status mas manter item para rastreamento
       // O lote será marcado como rejeitado pela verificação posterior
-      // IMPORTANTE: Se o item já está como PROCESSADO (pago), preservar esse status
-      // Apenas itens bloqueados que não estão pagos devem ser marcados como rejeitados
-      if (item.status !== StatusPagamentoItem.PROCESSADO && item.status !== StatusPagamentoItem.REJEITADO) {
+      if (!itemJaPago && item.status !== StatusPagamentoItem.REJEITADO) {
         dadosAtualizacao.status = StatusPagamentoItem.REJEITADO;
       }
     }
@@ -3371,9 +3623,20 @@ export class PagamentosService {
 
     const loteIdRelacionado = item.loteId ?? item.lote?.id;
 
-    // Se o item está bloqueado, verificar e atualizar o lote
-    if (categoriaEstado === 'BLOQUEADO' && loteIdRelacionado) {
-      await this.verificarEAtualizarLoteComItensBloqueados(loteIdRelacionado);
+    // ✅ Atualizar lote apenas se o item foi realmente atualizado (não estava pago)
+    // Se o item está bloqueado/rejeitado/cancelado, verificar e atualizar o lote
+    if (
+      (categoriaEstado === 'BLOQUEADO' || 
+       categoriaEstado === 'REJEITADO' || 
+       categoriaEstado === 'CANCELADO') && 
+      loteIdRelacionado &&
+      !itemJaPago // Só verificar lote se o item não estava pago
+    ) {
+      if (categoriaEstado === 'BLOQUEADO') {
+        await this.verificarEAtualizarLoteComItensBloqueados(loteIdRelacionado);
+      } else {
+        await this.verificarEAtualizarLoteAposItemRejeitado(loteIdRelacionado);
+      }
     }
 
     if (categoriaEstado === 'SUCESSO') {
@@ -3415,20 +3678,85 @@ export class PagamentosService {
         console.log(`ℹ️ [PAGAMENTOS-SERVICE] Item ${itemAtualizado.id} já está como PROCESSADO (pago), preservando status mesmo com categoria ${categoriaEstado}`);
       }
       
-      if (loteIdRelacionado) {
-        // Para BLOQUEADO, o lote já foi atualizado anteriormente
-        // Para CANCELADO/REJEITADO, atualizar status do lote normalmente
-        if (categoriaEstado !== 'BLOQUEADO') {
-          await this.atualizarStatusLoteAposCancelamentoItem(loteIdRelacionado);
-        }
-      }
+      // ✅ Lote já foi atualizado anteriormente se necessário
+      // Não precisa atualizar novamente aqui para evitar duplicação
     }
+  }
+
+  /**
+   * Verifica se um item tem estado definitivo (não pendente)
+   * Estados definitivos: PROCESSADO, REJEITADO
+   * Estados pendentes: PENDENTE (sem estadoPagamentoIndividual consultado ainda)
+   */
+  private isItemEstadoDefinitivo(item: {
+    status: StatusPagamentoItem;
+    estadoPagamentoIndividual: string | null;
+  }): boolean {
+    // Se já está PROCESSADO ou REJEITADO, é definitivo
+    if (item.status === StatusPagamentoItem.PROCESSADO || item.status === StatusPagamentoItem.REJEITADO) {
+      return true;
+    }
+    
+    // Se tem estadoPagamentoIndividual consultado, verificar se é definitivo
+    if (item.estadoPagamentoIndividual) {
+      const estadoNormalizado = this.normalizarEstadoPagamentoPix(item.estadoPagamentoIndividual);
+      const classificacao = this.classificarEstadoPagamentoPix(estadoNormalizado);
+      // Estados finais: SUCESSO, CANCELADO, REJEITADO, BLOQUEADO
+      return classificacao !== 'PENDENTE' && classificacao !== 'DESCONHECIDO';
+    }
+    
+    // Se não tem estadoPagamentoIndividual e não está PROCESSADO/REJEITADO, ainda está pendente
+    return false;
+  }
+
+  /**
+   * Verifica se todos os itens têm estados definitivos e se ao menos um é rejeitado/bloqueado
+   * @param itens Array de itens do lote
+   * @returns true se todos os itens têm estados definitivos E ao menos um é rejeitado/bloqueado
+   */
+  private podeMarcarLoteComoRejeitado(itens: Array<{
+    status: StatusPagamentoItem;
+    estadoPagamentoIndividual: string | null;
+  }>): boolean {
+    if (itens.length === 0) {
+      return false;
+    }
+
+    // Verificar se todos os itens têm estados definitivos
+    const todosDefinitivos = itens.every(item => this.isItemEstadoDefinitivo(item));
+    if (!todosDefinitivos) {
+      return false; // Ainda há itens pendentes
+    }
+
+    // Verificar se ao menos um item é rejeitado/bloqueado
+    const temRejeitadoOuBloqueado = itens.some(item => {
+      // Itens já marcados como REJEITADO
+      if (item.status === StatusPagamentoItem.REJEITADO) {
+        return true;
+      }
+      
+      // Itens com estadoPagamentoIndividual bloqueado/rejeitado
+      if (item.estadoPagamentoIndividual) {
+        const estadoNormalizado = this.normalizarEstadoPagamentoPix(item.estadoPagamentoIndividual);
+        const classificacao = this.classificarEstadoPagamentoPix(estadoNormalizado);
+        return classificacao === 'REJEITADO' || classificacao === 'BLOQUEADO';
+      }
+      
+      return false;
+    });
+
+    return temRejeitadoOuBloqueado;
   }
 
   /**
    * Verifica se há itens bloqueados no lote e atualiza o lote como rejeitado se necessário
    * Quando um item está bloqueado, a liberação do lote não processa os créditos,
    * então o lote deve ser marcado como rejeitado (estado 7)
+   * 
+   * ✅ REGRA: Lote só é marcado como rejeitado quando:
+   * - Todos os itens têm estados definitivos (não pendentes)
+   * - E ao menos um dos itens é rejeitado/bloqueado
+   * 
    * @param loteId ID do lote a ser verificado
    * @returns true se há itens bloqueados e o lote foi atualizado, false caso contrário
    */
@@ -3469,9 +3797,123 @@ export class PagamentosService {
         return true; // Retorna true porque há itens bloqueados
       }
 
+      // ✅ REGRA: Só marcar lote como rejeitado quando todos os itens têm estados definitivos
+      // E ao menos um dos itens é rejeitado/bloqueado
+      const podeMarcarComoRejeitado = this.podeMarcarLoteComoRejeitado(lote.itensPagamento);
+      
+      if (!podeMarcarComoRejeitado) {
+        console.log(
+          `⏳ [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) tem ${itensBloqueados.length} item(ns) bloqueado(s), mas ainda há itens pendentes. Aguardando estados definitivos de todos os itens antes de marcar lote como rejeitado.`
+        );
+        return false; // Ainda há itens pendentes, não marcar lote como rejeitado ainda
+      }
+
       // Atualizar lote como rejeitado (estado 7)
       const observacaoAtual = lote.observacoes || '';
       const novaObservacao = `Item(s) bloqueado(s) detectado(s) em ${new Date().toISOString()}. Lote marcado como rejeitado (estado 7) pois itens bloqueados impedem o processamento dos créditos na liberação.`;
+      const observacoesCombinadas = observacaoAtual
+        ? `${observacaoAtual} | ${novaObservacao}`
+        : novaObservacao;
+
+      // Atualizar lote como rejeitado
+      await this.prisma.pagamentoApiLote.update({
+        where: { id: loteId },
+        data: {
+          estadoRequisicaoAtual: 7,
+          status: StatusPagamentoLote.REJEITADO,
+          observacoes: observacoesCombinadas,
+        },
+      });
+
+      // ✅ Marcar apenas itens pendentes como REJEITADO (preservar itens já pagos)
+      // Não alterar itens já PROCESSADOS (pagos) para evitar pagamentos duplicados
+      const itensAtualizados = await this.prisma.pagamentoApiItem.updateMany({
+        where: {
+          loteId: loteId,
+          status: {
+            not: StatusPagamentoItem.PROCESSADO, // Não alterar itens já processados (pagos)
+          },
+        },
+        data: {
+          status: StatusPagamentoItem.REJEITADO,
+        },
+      });
+
+      // ✅ Marcar todos os jobs de ITEM deste lote como DONE
+      // O job de LOTE será marcado como DONE automaticamente pelo worker na próxima execução
+      // quando verificar que o estadoRequisicaoAtual = 7 (estado final)
+      const jobsItemMarcados = await this.pagamentosSyncQueueService.markAllItemJobsDoneForLote(loteId);
+
+      console.log(
+        `🚫 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) marcado como REJEITADO (estado 7) devido a ${itensBloqueados.length} item(ns) bloqueado(s). ${itensAtualizados.count} item(ns) atualizado(s) para REJEITADO. ${jobsItemMarcados} job(s) de ITEM marcado(s) como DONE. Job de LOTE será marcado como DONE automaticamente pelo worker.`
+      );
+      
+      return true; // Retorna true indicando que há itens bloqueados
+    } catch (error) {
+      console.error(
+        `❌ [PAGAMENTOS-SERVICE] Erro ao verificar/atualizar lote com itens bloqueados (loteId ${loteId}):`,
+        error instanceof Error ? error.message : `${error}`
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Verifica e atualiza o lote após um item ser rejeitado/cancelado
+   * ✅ REGRA: Lote só é marcado como rejeitado quando:
+   * - Todos os itens têm estados definitivos (não pendentes)
+   * - E ao menos um dos itens é rejeitado/bloqueado
+   * 
+   * @param loteId ID do lote a ser verificado
+   * @returns true se o lote foi atualizado, false caso contrário
+   */
+  async verificarEAtualizarLoteAposItemRejeitado(loteId: number): Promise<boolean> {
+    try {
+      // Buscar lote com todos os itens
+      const lote = await this.prisma.pagamentoApiLote.findUnique({
+        where: { id: loteId },
+        include: {
+          itensPagamento: true,
+        },
+      });
+
+      if (!lote) {
+        console.warn(`⚠️ [PAGAMENTOS-SERVICE] Lote ID ${loteId} não encontrado para verificação após item rejeitado`);
+        return false;
+      }
+
+      // Se já está marcado como rejeitado (estado 7), não precisa atualizar novamente
+      if (lote.estadoRequisicaoAtual === 7) {
+        return true;
+      }
+
+      // ✅ REGRA: Só marcar lote como rejeitado quando todos os itens têm estados definitivos
+      // E ao menos um dos itens é rejeitado/bloqueado
+      const podeMarcarComoRejeitado = this.podeMarcarLoteComoRejeitado(lote.itensPagamento);
+      
+      if (!podeMarcarComoRejeitado) {
+        console.log(
+          `⏳ [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) tem item(ns) rejeitado(s), mas ainda há itens pendentes. Aguardando estados definitivos de todos os itens antes de marcar lote como rejeitado.`
+        );
+        return false; // Ainda há itens pendentes, não marcar lote como rejeitado ainda
+      }
+
+      // Verificar quantos itens são rejeitados/bloqueados
+      const itensRejeitadosOuBloqueados = lote.itensPagamento.filter(item => {
+        if (item.status === StatusPagamentoItem.REJEITADO) {
+          return true;
+        }
+        if (item.estadoPagamentoIndividual) {
+          const estadoNormalizado = this.normalizarEstadoPagamentoPix(item.estadoPagamentoIndividual);
+          const classificacao = this.classificarEstadoPagamentoPix(estadoNormalizado);
+          return classificacao === 'REJEITADO' || classificacao === 'BLOQUEADO';
+        }
+        return false;
+      });
+
+      // Atualizar lote como rejeitado (estado 7)
+      const observacaoAtual = lote.observacoes || '';
+      const novaObservacao = `Item(s) rejeitado(s)/bloqueado(s) detectado(s) em ${new Date().toISOString()}. Lote marcado como rejeitado (estado 7) pois ${itensRejeitadosOuBloqueados.length} item(ns) rejeitado(s)/bloqueado(s) impedem o processamento completo.`;
       const observacoesCombinadas = observacaoAtual
         ? `${observacaoAtual} | ${novaObservacao}`
         : novaObservacao;
@@ -3485,14 +3927,33 @@ export class PagamentosService {
         },
       });
 
+      // ✅ Marcar apenas itens pendentes como REJEITADO (preservar itens já pagos)
+      // Não alterar itens já PROCESSADOS (pagos) para evitar pagamentos duplicados
+      const itensAtualizados = await this.prisma.pagamentoApiItem.updateMany({
+        where: {
+          loteId: loteId,
+          status: {
+            not: StatusPagamentoItem.PROCESSADO, // Não alterar itens já processados (pagos)
+          },
+        },
+        data: {
+          status: StatusPagamentoItem.REJEITADO,
+        },
+      });
+
+      // ✅ Marcar todos os jobs de ITEM deste lote como DONE
+      // O job de LOTE será marcado como DONE automaticamente pelo worker na próxima execução
+      // quando verificar que o estadoRequisicaoAtual = 7 (estado final)
+      const jobsItemMarcados = await this.pagamentosSyncQueueService.markAllItemJobsDoneForLote(loteId);
+
       console.log(
-        `🚫 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) marcado como REJEITADO (estado 7) devido a ${itensBloqueados.length} item(ns) bloqueado(s)`
+        `🚫 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) marcado como REJEITADO (estado 7) devido a ${itensRejeitadosOuBloqueados.length} item(ns) rejeitado(s)/bloqueado(s). ${itensAtualizados.count} item(ns) atualizado(s) para REJEITADO. ${jobsItemMarcados} job(s) de ITEM marcado(s) como DONE. Job de LOTE será marcado como DONE automaticamente pelo worker.`
       );
       
-      return true; // Retorna true indicando que há itens bloqueados
+      return true;
     } catch (error) {
       console.error(
-        `❌ [PAGAMENTOS-SERVICE] Erro ao verificar/atualizar lote com itens bloqueados (loteId ${loteId}):`,
+        `❌ [PAGAMENTOS-SERVICE] Erro ao verificar/atualizar lote após item rejeitado (loteId ${loteId}):`,
         error instanceof Error ? error.message : `${error}`
       );
       return false;
@@ -3551,7 +4012,56 @@ export class PagamentosService {
       },
     });
     
-    console.log(`💾 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) atualizado: status=${novoStatusLote} (${itensCancelados}/${totalItens} itens cancelados)`);
+    // ✅ Se o lote foi marcado como REJEITADO, verificar se pode marcar como rejeitado
+    // seguindo a regra: todos os itens devem ter estados definitivos E ao menos um rejeitado/bloqueado
+    if (novoStatusLote === StatusPagamentoLote.REJEITADO) {
+      const podeMarcarComoRejeitado = this.podeMarcarLoteComoRejeitado(lote.itensPagamento);
+      
+      if (podeMarcarComoRejeitado) {
+        // Marcar itens pendentes como REJEITADO (preservar itens já processados)
+        const itensAtualizados = await this.prisma.pagamentoApiItem.updateMany({
+          where: {
+            loteId: loteId,
+            status: {
+              not: StatusPagamentoItem.PROCESSADO, // Não alterar itens já processados (pagos)
+            },
+          },
+          data: {
+            status: StatusPagamentoItem.REJEITADO,
+          },
+        });
+
+        // Marcar todos os jobs de ITEM deste lote como DONE
+        const jobsItemMarcados = await this.pagamentosSyncQueueService.markAllItemJobsDoneForLote(loteId);
+        
+        // ✅ Atualizar estadoRequisicaoAtual para 7 (rejeitado) para manter consistência
+        // O job de LOTE será marcado como DONE automaticamente pelo worker na próxima execução
+        await this.prisma.pagamentoApiLote.update({
+          where: { id: loteId },
+          data: {
+            estadoRequisicaoAtual: 7,
+          },
+        });
+
+        console.log(
+          `💾 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) atualizado: status=${novoStatusLote} (${itensCancelados}/${totalItens} itens cancelados). ${itensAtualizados.count} item(ns) atualizado(s) para REJEITADO. ${jobsItemMarcados} job(s) de ITEM marcado(s) como DONE. Job de LOTE será marcado como DONE automaticamente pelo worker.`
+        );
+      } else {
+        // Ainda há itens pendentes, não marcar lote como rejeitado ainda
+        // Reverter status para o anterior
+        await this.prisma.pagamentoApiLote.update({
+          where: { id: loteId },
+          data: {
+            status: lote.status, // Manter status anterior
+          },
+        });
+        console.log(
+          `⏳ [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) tem ${itensCancelados} item(ns) cancelado(s), mas ainda há itens pendentes. Aguardando estados definitivos de todos os itens antes de marcar lote como rejeitado.`
+        );
+      }
+    } else {
+      console.log(`💾 [PAGAMENTOS-SERVICE] Lote ID ${loteId} (numeroRequisicao ${lote.numeroRequisicao}) atualizado: status=${novoStatusLote} (${itensCancelados}/${totalItens} itens cancelados)`);
+    }
   }
 
   private normalizarEstadoPagamentoPix(
@@ -3568,7 +4078,7 @@ export class PagamentosService {
       .trim();
   }
 
-  private classificarEstadoPagamentoPix(
+  classificarEstadoPagamentoPix(
     estado: string | null,
   ):
     | 'PENDENTE'

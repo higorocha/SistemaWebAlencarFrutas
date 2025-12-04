@@ -766,12 +766,20 @@ const PedidosTable = ({
             return <Text type="secondary">-</Text>;
         }
 
-        const { cor, texto } = getCorPorData(dataReferencia);
+        const { cor, texto } = getCorPorData(dataReferencia, record);
+        
+        // Verificar se o cliente tem prazo diferenciado
+        const clienteDias = record.cliente?.dias;
+        const tooltipTitle = clienteDias !== null && clienteDias !== undefined
+          ? `Este cliente possui um prazo diferenciado de ${clienteDias} dia${clienteDias === 1 ? '' : 's'}`
+          : 'Este cliente não possui prazo diferenciado e está usando 30 dias como padrão';
         
         return (
-          <Tag color={cor} style={{ fontWeight: 'bold', margin: 'auto' }}>
-            {texto}
-          </Tag>
+          <Tooltip title={tooltipTitle} placement="top">
+            <Tag color={cor} style={{ fontWeight: 'bold', margin: 'auto', cursor: 'help' }}>
+              {texto}
+            </Tag>
+          </Tooltip>
         );
       },
     },

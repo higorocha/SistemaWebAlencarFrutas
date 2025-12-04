@@ -4,9 +4,12 @@ Sistema centralizado para geração de PDFs no backend NestJS usando **Handlebar
 
 ## ⚡ Resumo Rápido
 
-- **Endpoint:** `GET /api/pdf/pedido/:id` (protegido por JWT)
-- **Template Principal:** `pedido-criado.hbs` - PDF de pedidos criados
+- **Endpoints:** 
+  - `GET /api/pdf/pedido/:id` - PDF de pedido individual
+  - `POST /api/pdf/pedidos-cliente/:clienteId` - PDF de pedidos do cliente
 - **Templates:** Arquivos `.hbs` em `templates/`
+  - `pedido-criado.hbs` - PDF de pedido individual
+  - `pedidos-cliente.hbs` - PDF de lista de pedidos do cliente
 - **Partials:** Cabeçalho reutilizável em `templates/partials/header.hbs`
 - **Rodapé:** Gerado via `displayHeaderFooter` do Puppeteer (não usa partial)
 - **Chrome:** Instalação **automática** na primeira execução (sem configuração extra)
@@ -83,11 +86,15 @@ backend/src/pdf/
 
 ## 🚀 Como Usar
 
-### 1. Endpoint HTTP (Web/Mobile)
+### 1. Endpoints HTTP (Web/Mobile)
 
 ```typescript
 // GET /api/pdf/pedido/:id
-// Retorna PDF como stream para download
+// Retorna PDF como stream para download de pedido individual
+
+// POST /api/pdf/pedidos-cliente/:clienteId
+// Body: { pedidosIds?: number[] } // Opcional - IDs dos pedidos a incluir
+// Retorna PDF como stream para download de pedidos do cliente
 ```
 
 **Exemplo no Frontend:**
@@ -372,6 +379,65 @@ Para uma documentação detalhada de cada template, incluindo de onde vem as cha
 
 ---
 
+## 📋 Mapeamento de Métodos e Templates
+
+Abaixo está o mapeamento completo de cada método do `PdfController` e seu template correspondente:
+
+### Template: `pedido-criado.hbs`
+
+**Endpoint:** `GET /api/pdf/pedido/:id`
+
+**Métodos relacionados:**
+- `downloadPedidoPdf()` - Método principal que gera o PDF
+  - Usa template: `pedido-criado.hbs`
+  - Chamado de: `VisualizarPedidoModal.js`
+- `prepararDadosTemplate()` - Prepara dados formatados para o template
+  - Formata valores, datas, status e frutas do pedido
+
+### Template: `folha-pagamento.hbs`
+
+**Endpoint:** `GET /api/pdf/folha-pagamento/:id`
+
+**Métodos relacionados:**
+- `downloadFolhaPagamentoPdf()` - Método principal que gera o PDF
+  - Usa template: `folha-pagamento.hbs`
+  - Chamado de: Módulo ARH - Folha de Pagamento
+- `prepararDadosTemplateFolha()` - Prepara dados formatados para o template
+  - Formata valores, datas e agrupa lançamentos
+- `prepararDadosGraficoHistorico()` - Prepara dados do gráfico Chart.js
+  - Método auxiliar usado dentro do template
+- `agruparLancamentosPorGerente()` - Agrupa lançamentos por gerente
+  - Método auxiliar usado por `prepararDadosTemplateFolha()`
+- `formatarAbasLancamentos()` - Formata abas de lançamentos
+  - Método auxiliar usado por `prepararDadosTemplateFolha()`
+- `formatarLancamentos()` - Formata lista de lançamentos
+  - Método auxiliar usado por `formatarAbasLancamentos()`
+- `calcularResumoDetalhado()` - Calcula resumo da folha
+  - Método auxiliar usado por `prepararDadosTemplateFolha()`
+
+### Template: `pedidos-cliente.hbs`
+
+**Endpoint:** `POST /api/pdf/pedidos-cliente/:clienteId`
+
+**Métodos relacionados:**
+- `downloadPedidosClientePdf()` - Método principal que gera o PDF
+  - Usa template: `pedidos-cliente.hbs`
+  - Chamado de: `PedidosClienteModal.js` - botão "Exportar PDF"
+  - Aceita body: `{ pedidosIds?: number[] }` para seleção de pedidos
+- `prepararDadosTemplatePedidosCliente()` - Prepara dados formatados para o template
+  - Formata dados do cliente, pedidos e frutas
+  - Prioriza `quantidadePrecificada`/`unidadePrecificada`, com fallback para `quantidadeReal`/`unidadeMedida1`
+
+### Métodos Auxiliares (Compartilhados)
+
+**Métodos utilizados por múltiplos templates:**
+- `gerarNomeArquivo()` - Gera nome sanitizado para o arquivo PDF
+  - Usado por todos os endpoints
+- `carregarLogoBase64()` - Carrega logo da empresa em base64
+  - Usado por todos os templates que exibem header
+
+---
+
 ## 📄 Templates Disponíveis
 
 ### Arquivos `.hbs` - O que são?
@@ -393,6 +459,40 @@ Os arquivos `.hbs` (Handlebars) são **templates HTML** que definem a estrutura 
 - 📝 Por enquanto, serve como base para desenvolvimento e testes
 
 **Endpoint:** `GET /api/pdf/pedido/:id`
+
+### `folha-pagamento.hbs`
+
+**Propósito:** Template para geração de PDF de **folha de pagamento completa**, incluindo lançamentos agrupados por gerente, gráfico histórico e resumo detalhado.
+
+**Chamada:**
+- **Frontend:** Módulo ARH - Folha de Pagamento - botão de exportar PDF
+
+**Endpoint:** `GET /api/pdf/folha-pagamento/:id`
+
+**Características:**
+- Informações completas da folha (competência, período, valores)
+- Resumo detalhado com totais
+- Gráfico histórico das últimas 6 folhas (Chart.js)
+- Lançamentos agrupados por gerente em abas
+- Formatação completa de valores e datas
+
+### `pedidos-cliente.hbs`
+
+**Propósito:** Template para geração de PDF de **lista de pedidos do cliente**, incluindo todas as frutas e quantidades colhidas de cada pedido.
+
+**Chamada:**
+- **Frontend:** `PedidosClienteModal.js` - botão "Exportar PDF"
+- Permite seleção de pedidos específicos via checkboxes ou incluir todos os pedidos filtrados
+
+**Endpoint:** `POST /api/pdf/pedidos-cliente/:clienteId`
+
+**Características:**
+- Qualificação completa do cliente
+- Lista de pedidos selecionados/filtrados
+- Para cada pedido: número do pedido, NF, data, tabela de frutas com quantidades
+- Totalização dos valores dos pedidos
+- Respeita filtros aplicados no frontend
+- Permite seleção manual de pedidos via checkboxes
 
 **Conteúdo do Documento:**
 1. **Cabeçalho (Partial `header.hbs`):**

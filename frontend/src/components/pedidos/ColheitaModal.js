@@ -389,11 +389,12 @@ const ColheitaModal = ({
          dataColheita: dataColheita,
          observacoesColheita: pedido.observacoesColheita || '',
          frutas: frutasForm,
-         // Campos de frete
-         pesagem: pedido.pesagem || '',
-         placaPrimaria: pedido.placaPrimaria || '',
-         placaSecundaria: pedido.placaSecundaria || '',
-         nomeMotorista: pedido.nomeMotorista || '',
+        // Campos de frete
+        pesagem: pedido.pesagem || '',
+        placaPrimaria: pedido.placaPrimaria || '',
+        placaSecundaria: pedido.placaSecundaria || '',
+        nomeMotorista: pedido.nomeMotorista || '',
+        numeroNf: pedido.numeroNf || undefined,
         // ✅ Mão de obra: carregar dados existentes ou inicializar vazio
         maoObra: pedido.maoObra && pedido.maoObra.length > 0
           ? pedido.maoObra.map(item => {
@@ -1026,6 +1027,7 @@ const ColheitaModal = ({
         placaPrimaria: values.placaPrimaria,
         placaSecundaria: values.placaSecundaria,
         nomeMotorista: values.nomeMotorista,
+        numeroNf: values.numeroNf,
         // ✅ NOVO: Mão de obra agora salva junto com colheita (já formatada)
         maoObra: maoObraValida.length > 0 ? maoObraValida.map(item => {
           // Buscar unidadeMedida da fruta se não estiver formatado
@@ -1385,6 +1387,7 @@ const ColheitaModal = ({
         placaPrimaria: values.placaPrimaria,
         placaSecundaria: values.placaSecundaria,
         nomeMotorista: values.nomeMotorista,
+        numeroNf: values.numeroNf,
         // ✅ NOVO: Mão de obra agora salva junto com colheita (já formatada)
         maoObra: maoObraFormatada.length > 0 ? maoObraFormatada : undefined
       };
@@ -2075,7 +2078,7 @@ const ColheitaModal = ({
           }}
         >
                      <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
-             <Col xs={24} md={5}>
+             <Col xs={24} md={4}>
                <Form.Item
                  label={
                    <Space>
@@ -2118,7 +2121,50 @@ const ColheitaModal = ({
                </Form.Item>
              </Col>
 
-             <Col xs={24} md={5}>
+             <Col xs={24} md={4}>
+               <Form.Item
+                 label={
+                   <Space>
+                     <FileTextOutlined style={{ color: "#059669" }} />
+                     <span style={{ fontWeight: "700", color: "#333", fontSize: isMobile ? "0.8125rem" : "0.875rem" }}>Número NF</span>
+                   </Space>
+                 }
+                 name="numeroNf"
+                 rules={[
+                   {
+                     validator: (_, value) => {
+                       // Se não tem valor, é válido (campo opcional)
+                       if (!value) return Promise.resolve();
+                       
+                       // Validar se é número positivo
+                       if (value <= 0) {
+                         return Promise.reject(new Error("Número NF deve ser maior que zero"));
+                       }
+                       
+                       return Promise.resolve();
+                     }
+                   }
+                 ]}
+               >
+                 <InputNumber
+                   placeholder="Ex: 123456"
+                   size={isMobile ? "small" : "middle"}
+                   style={{
+                     width: "100%",
+                     borderRadius: "6px",
+                     borderColor: "#d9d9d9",
+                     fontSize: isMobile ? "0.875rem" : "1rem"
+                   }}
+                   min={1}
+                   max={999999999}
+                   controls={false}
+                   formatter={(value) => `${value}`.replace(/[^0-9]/g, '')}
+                   parser={(value) => value.replace(/[^0-9]/g, '')}
+                 />
+               </Form.Item>
+             </Col>
+
+             <Col xs={24} md={4}>
                <Form.Item
                  label={
                    <Space>
@@ -2140,7 +2186,7 @@ const ColheitaModal = ({
                </Form.Item>
              </Col>
 
-             <Col xs={24} md={5}>
+             <Col xs={24} md={4}>
                <Form.Item
                  label={
                    <Space>
@@ -2162,7 +2208,7 @@ const ColheitaModal = ({
                </Form.Item>
              </Col>
 
-             <Col xs={24} md={9}>
+             <Col xs={24} md={8}>
                <Form.Item
                  label={
                    <Space>

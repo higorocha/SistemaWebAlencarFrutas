@@ -362,7 +362,8 @@ const ColheitaTab = ({
         pesagem: pedidoAtual.pesagem || '',
         placaPrimaria: pedidoAtual.placaPrimaria || '',
         placaSecundaria: pedidoAtual.placaSecundaria || '',
-        nomeMotorista: pedidoAtual.nomeMotorista || ''
+        nomeMotorista: pedidoAtual.nomeMotorista || '',
+        numeroNf: pedidoAtual.numeroNf || undefined
       });
     }
   }, [form, pedidoAtual]);
@@ -1701,7 +1702,7 @@ const ColheitaTab = ({
         }}
       >
         <Row gutter={[16, 16]}>
-          <Col xs={24} md={5}>
+          <Col xs={24} md={4}>
             <Form.Item
               label={
                 <Space>
@@ -1729,7 +1730,38 @@ const ColheitaTab = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} md={5}>
+          <Col xs={24} md={4}>
+            <Form.Item
+              label={
+                <Space>
+                  <FileTextOutlined style={{ color: "#059669" }} />
+                  <span style={{ fontWeight: "700", color: "#333" }}>Número NF</span>
+                </Space>
+              }
+            >
+              <Input
+                placeholder="Ex: 123456"
+                style={{
+                  borderRadius: "6px",
+                  borderColor: "#d9d9d9",
+                }}
+                value={pedidoAtual.numeroNf || ''}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  handleChange("numeroNf", value ? Number(value) : undefined);
+                }}
+                disabled={!canEditTab("2")}
+                onKeyPress={(e) => {
+                  // Permitir apenas números inteiros
+                  if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+                    e.preventDefault();
+                  }
+                }}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={4}>
             <Form.Item
               label={
                 <Space>
@@ -1751,7 +1783,7 @@ const ColheitaTab = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} md={5}>
+          <Col xs={24} md={4}>
             <Form.Item
               label={
                 <Space>
@@ -1773,7 +1805,7 @@ const ColheitaTab = ({
             </Form.Item>
           </Col>
           
-          <Col xs={24} md={9}>
+          <Col xs={24} md={8}>
             <Form.Item
               label={
                 <Space>

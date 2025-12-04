@@ -146,6 +146,13 @@
       color: #1f2937;
     }
 
+    .info-value.email-value {
+      word-break: break-all;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      max-width: 100%;
+    }
+
     .card-divider {
       border-top: 1px solid #e2e8f0;
       margin: 12px 0;
@@ -540,7 +547,7 @@
               </div>
               <div class="info-item">
                 <span class="info-label">Nota Fiscal</span>
-                <span class="info-value">#{{#if indNumeroNf}}{{indNumeroNf}}{{else}}00000{{/if}}</span>
+                <span class="info-value">#{{#if numeroNf}}{{numeroNf}}{{else}}-{{/if}}</span>
               </div>
               <div class="info-item">
                 <span class="info-label">Data do Pedido</span>
@@ -584,7 +591,7 @@
               </div>
               <div class="info-item">
                 <span class="info-label">E-mail</span>
-                <span class="info-value">{{#if cliente.email1}}{{cliente.email1}}{{else}}-{{/if}}</span>
+                <span class="info-value email-value">{{#if cliente.email1}}{{cliente.email1}}{{else}}-{{/if}}</span>
               </div>
               <div class="info-item" style="grid-column: span 3;">
                 <span class="info-label">Endereço</span>
