@@ -180,8 +180,19 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
   const [dataPagamentoSelecionada, setDataPagamentoSelecionada] = useState(null);
   const [formaPagamentoSelecionada, setFormaPagamentoSelecionada] = useState(null);
   const [loading, setLoading] = useState(false);
-  // Os dados já vêm do dashboard, não precisamos fazer nova chamada
-  const detalhes = fornecedor?.detalhes || [];
+  const [fornecedorAtualizado, setFornecedorAtualizado] = useState(fornecedor);
+  const [manterModalAberto, setManterModalAberto] = useState(false);
+  
+  // Atualizar fornecedorAtualizado quando a prop fornecedor mudar
+  // Mas apenas se o modal estiver aberto e não estivermos em processo de atualização
+  useEffect(() => {
+    if (open && fornecedor && !manterModalAberto) {
+      setFornecedorAtualizado(fornecedor);
+    }
+  }, [fornecedor, open, manterModalAberto]);
+  
+  // Os dados vêm do fornecedorAtualizado (pode ser atualizado via fetch)
+  const detalhes = fornecedorAtualizado?.detalhes || [];
   
   // Calcular resumo a partir dos detalhes (fonte de verdade)
   // Sempre calcular a partir dos detalhes para garantir precisão
@@ -319,12 +330,62 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
       totalPendente,
       distribuicaoPorUnidade,
     };
-  }, [fornecedor, detalhes]);
+  }, [fornecedorAtualizado, detalhes]);
   
   // Obter nome do fornecedor
   const nomeFornecedor = useMemo(() => {
-    return fornecedor?.nomeFornecedor || fornecedor?.nome || "Fornecedor";
-  }, [fornecedor]);
+    return fornecedorAtualizado?.nomeFornecedor || fornecedorAtualizado?.nome || fornecedor?.nomeFornecedor || fornecedor?.nome || "Fornecedor";
+  }, [fornecedorAtualizado, fornecedor]);
+
+  // Função para atualizar dados do fornecedor após precificação/pagamento
+  const atualizarDadosFornecedor = async () => {
+    if (!fornecedor?.id) return;
+
+    try {
+      // Buscar dados atualizados do endpoint de estatísticas
+      const response = await axiosInstance.get(`/api/fornecedores/${fornecedor.id}/estatisticas`);
+      const dadosAtualizados = response.data;
+      
+      // O endpoint retorna: { totaisPorUnidade: {...}, totalGeral: {...}, detalhes: [...] }
+      // Os detalhes vêm em formato simplificado, então vamos atualizar apenas os campos que mudaram
+      if (dadosAtualizados && dadosAtualizados.detalhes && Array.isArray(dadosAtualizados.detalhes)) {
+        // Criar um mapa dos detalhes atualizados por chave única (pedido + fruta + área)
+        const detalhesAtualizadosMap = new Map();
+        dadosAtualizados.detalhes.forEach((detalhe) => {
+          // Usar uma chave composta para identificar o detalhe
+          const chave = `${detalhe.pedido || ''}-${detalhe.fruta || ''}-${detalhe.areaNome || ''}`;
+          detalhesAtualizadosMap.set(chave, detalhe);
+        });
+
+        // Atualizar os detalhes existentes com os novos dados de pagamento
+        const detalhesAtualizados = detalhes.map((detalheExistente) => {
+          const chave = `${detalheExistente.pedidoNumero || ''}-${detalheExistente.fruta || ''}-${detalheExistente.areaNome || ''}`;
+          const detalheNovo = detalhesAtualizadosMap.get(chave);
+          
+          if (detalheNovo) {
+            // Atualizar apenas os campos relacionados a pagamento
+            return {
+              ...detalheExistente,
+              valorTotal: detalheNovo.valorTotal || detalheExistente.valorTotal || 0,
+              pagamentoId: detalheNovo.pagamentoId !== undefined ? detalheNovo.pagamentoId : detalheExistente.pagamentoId,
+              statusPagamento: detalheNovo.statusPagamento || detalheExistente.statusPagamento,
+              valorUnitario: detalheNovo.valorUnitario || detalheExistente.valorUnitario || 0,
+            };
+          }
+          return detalheExistente;
+        });
+
+        // Atualizar o estado com os detalhes atualizados
+        setFornecedorAtualizado({
+          ...fornecedorAtualizado,
+          detalhes: detalhesAtualizados,
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar dados do fornecedor:", error);
+      // Não mostrar erro ao usuário, apenas logar - o callback onPagamentosCriados já atualiza o dashboard
+    }
+  };
 
   useEffect(() => {
     if (!open) {
@@ -339,19 +400,31 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
       setStatusPagamentoConfirmacao(null);
       setDataPagamentoSelecionada(null);
       setFormaPagamentoSelecionada(null);
+      setManterModalAberto(false); // Resetar flag quando modal fecha
+    } else if (open && fornecedor) {
+      // Quando o modal abre, atualizar fornecedorAtualizado
+      setFornecedorAtualizado(fornecedor);
+      setManterModalAberto(false); // Resetar flag quando modal abre
     }
   }, [open, fornecedor?.id]);
 
   useEffect(() => {
     if (modalConfirmacaoAberto) {
-      if (!dataPagamentoSelecionada) {
-        setDataPagamentoSelecionada(moment());
-      }
-      if (!formaPagamentoSelecionada) {
-        setFormaPagamentoSelecionada('PIX');
+      // Inicializar data e forma de pagamento apenas quando status não é PENDENTE (precificação)
+      if (statusPagamentoConfirmacao !== "PENDENTE") {
+        if (!dataPagamentoSelecionada) {
+          setDataPagamentoSelecionada(moment());
+        }
+        if (!formaPagamentoSelecionada) {
+          setFormaPagamentoSelecionada('PIX');
+        }
+      } else {
+        // Quando precificando, limpar esses campos
+        setDataPagamentoSelecionada(null);
+        setFormaPagamentoSelecionada(null);
       }
     }
-  }, [modalConfirmacaoAberto]);
+  }, [modalConfirmacaoAberto, statusPagamentoConfirmacao]);
 
   // Distribuição por unidade (vem do resumo calculado)
   const distribuicaoPorUnidade = resumo.distribuicaoPorUnidade || [];
@@ -887,14 +960,19 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
 
   // Função para criar pagamentos (após confirmação)
   const criarPagamentos = async () => {
-    if (!dataPagamentoSelecionada) {
-      showNotification('error', 'Validação', 'Selecione a data do pagamento.');
-      return;
-    }
+    const status = statusPagamentoConfirmacao;
 
-    if (!formaPagamentoSelecionada) {
-      showNotification('error', 'Validação', 'Selecione a forma de pagamento.');
-      return;
+    // Validar data e forma de pagamento apenas quando status é PAGO (não PENDENTE/precificação)
+    if (status !== "PENDENTE") {
+      if (!dataPagamentoSelecionada) {
+        showNotification('error', 'Validação', 'Selecione a data do pagamento.');
+        return;
+      }
+
+      if (!formaPagamentoSelecionada) {
+        showNotification('error', 'Validação', 'Selecione a forma de pagamento.');
+        return;
+      }
     }
 
     if (!fornecedor || !fornecedor.id) {
@@ -907,18 +985,22 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
       return;
     }
 
-    const status = statusPagamentoConfirmacao;
-
     // Preparar pagamentos
     const pagamentos = itensSelecionados.map((key) => {
       const item = detalhesPorKey.get(key);
       if (!item) return null;
 
       // Verificar se já existe pagamento para esta colheita
-      if (item.pagamentoId !== undefined && item.pagamentoId !== null && typeof item.pagamentoId === 'number' && item.pagamentoId > 0) {
-        console.warn(`Colheita ${key} já tem pagamento (ID: ${item.pagamentoId})`);
+      const temPagamentoId = item.pagamentoId !== undefined && item.pagamentoId !== null && typeof item.pagamentoId === 'number' && item.pagamentoId > 0;
+      const statusPago = item.statusPagamento === 'PAGO';
+      
+      // Se já existe pagamento PAGO, não permitir atualização
+      if (temPagamentoId && statusPago) {
+        console.warn(`Colheita ${key} já tem pagamento PAGO (ID: ${item.pagamentoId}) - não é possível atualizar`);
         return null;
       }
+      
+      // Se já existe pagamento PENDENTE/PROCESSANDO, permitir atualização (incluir pagamentoId)
 
       const valorUnitarioRaw = valoresFornecedor[key] ?? "";
       // ✅ Converter valor unitário corretamente
@@ -968,7 +1050,8 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
       const unidadeUpper = item.unidade?.toUpperCase() || "UND";
       const unidadeMedida = unidadeMap[unidadeUpper] || "UND";
 
-      return {
+      // Preparar objeto de pagamento
+      const pagamento = {
         fornecedorId: fornecedor.id,
         areaFornecedorId: item.areaFornecedorId,
         pedidoId: item.pedidoId,
@@ -980,14 +1063,25 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
         valorUnitario: valorUnitarioNumero,
         valorTotal: valorTotal,
         dataColheita: item.dataColheita ? moment(item.dataColheita).toISOString() : undefined,
-        dataPagamento: dataPagamentoSelecionada
+        status: status,
+      };
+
+      // Se já existe pagamento PENDENTE/PROCESSANDO, incluir pagamentoId para atualização
+      if (temPagamentoId && !statusPago) {
+        pagamento.pagamentoId = item.pagamentoId;
+      }
+
+      // Adicionar dataPagamento e formaPagamento apenas quando status não é PENDENTE
+      if (status !== "PENDENTE") {
+        pagamento.dataPagamento = dataPagamentoSelecionada
           ? (moment.isMoment(dataPagamentoSelecionada) 
               ? dataPagamentoSelecionada.clone().startOf('day').add(12, 'hours').toISOString()
               : moment(dataPagamentoSelecionada).startOf('day').add(12, 'hours').toISOString())
-          : moment().startOf('day').add(12, 'hours').toISOString(),
-        formaPagamento: formaPagamentoSelecionada || undefined,
-        status: status,
-      };
+          : moment().startOf('day').add(12, 'hours').toISOString();
+        pagamento.formaPagamento = formaPagamentoSelecionada || undefined;
+      }
+
+      return pagamento;
     }).filter(Boolean);
 
     if (pagamentos.length === 0) {
@@ -1001,6 +1095,7 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
 
     try {
       setLoading(true);
+      setManterModalAberto(true); // Marcar que queremos manter o modal aberto
 
       const response = await axiosInstance.post(
         `/api/fornecedores/${fornecedor.id}/pagamentos/criar-multiplos`,
@@ -1023,17 +1118,29 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
       setItensSelecionados([]);
       setValoresFornecedor({});
 
-      // Chamar callback para recarregar dados
-      onPagamentosCriados();
+      // Buscar dados atualizados do fornecedor para atualizar o modal
+      await atualizarDadosFornecedor();
 
-      // Fechar modal após sucesso
-      onClose();
+      // NÃO chamar callback onPagamentosCriados() aqui
+      // O callback recarrega o dashboard (fetchDashboardData), o que causa re-render
+      // e pode fechar o modal. O modal já atualiza seus próprios dados internamente.
+      // O dashboard será atualizado quando o modal for fechado manualmente.
+      // 
+      // Se necessário atualizar o dashboard, fazer apenas quando o modal fechar:
+      // if (onPagamentosCriados && typeof onPagamentosCriados === 'function') {
+      //   onPagamentosCriados();
+      // }
+
+      // NÃO fechar o modal - manter aberto para continuar trabalhando
+      // onClose(); // Removido para manter modal aberto
     } catch (error) {
       console.error("Erro ao criar pagamentos:", error);
       const errorMessage = error.response?.data?.message || error.message || "Erro ao criar pagamentos";
       showNotification("error", "Erro", errorMessage);
+      setManterModalAberto(false); // Resetar flag em caso de erro
     } finally {
       setLoading(false);
+      // Não resetar manterModalAberto aqui - deixar para o próximo ciclo
     }
   };
 
@@ -1141,7 +1248,13 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
           </span>
       }
       open={open}
-      onCancel={onClose}
+      onCancel={() => {
+        // Quando fechar manualmente, atualizar o dashboard
+        if (onPagamentosCriados && typeof onPagamentosCriados === 'function') {
+          onPagamentosCriados();
+        }
+        onClose();
+      }}
       footer={
         <div
           style={{
@@ -1597,13 +1710,19 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
             {/* Cabeçalho das colunas */}
             {!isMobile && (
               <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} style={{ marginBottom: isMobile ? 12 : 16, padding: isMobile ? "6px 0" : "8px 0", borderBottom: "0.125rem solid #e8e8e8" }}>
-                <Col xs={24} md={6}>
+                <Col xs={24} md={5}>
                   <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                     <AppleOutlined style={{ marginRight: "0.5rem" }} />
                     Fruta
                   </span>
                 </Col>
                 <Col xs={24} md={4}>
+                  <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
+                    <CalendarOutlined style={{ marginRight: "0.5rem" }} />
+                    Data Colheita
+                  </span>
+                </Col>
+                <Col xs={24} md={3}>
                   <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                     <EnvironmentOutlined style={{ marginRight: "0.5rem" }} />
                     Área
@@ -1615,13 +1734,13 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
                     Quantidade
                   </span>
                 </Col>
-                <Col xs={24} md={5}>
+                <Col xs={24} md={4}>
                   <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                     <DollarOutlined style={{ marginRight: "0.25rem" }} />
                     Valor Unitário
                   </span>
                 </Col>
-                <Col xs={24} md={5}>
+                <Col xs={24} md={4}>
                   <span style={{ color: "#059669", fontSize: "0.875rem", fontWeight: "700" }}>
                     <CalculatorOutlined style={{ marginRight: "0.5rem" }} />
                     Valor Total
@@ -1677,7 +1796,7 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
                 }}>
                   <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]} align="middle" style={{ marginBottom: 0 }}>
                     {/* Fruta */}
-                    <Col xs={24} md={6}>
+                    <Col xs={24} md={5}>
                       {isMobile ? (
                         <Space direction="vertical" size={4} style={{ width: "100%" }}>
                           <Text strong style={{ color: "#059669", fontSize: "0.95rem" }}>
@@ -1699,8 +1818,32 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
                       )}
                     </Col>
 
-                    {/* Área */}
+                    {/* Data Colheita */}
                     <Col xs={24} md={4}>
+                      {isMobile ? (
+                        <Space direction="vertical" size={2}>
+                          <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                            Data Colheita
+                          </Text>
+                          <Space size={4}>
+                            <CalendarOutlined style={{ color: "#0f766e" }} />
+                            <Text style={{ fontSize: "0.875rem" }}>
+                              {item.dataColheita ? moment(item.dataColheita).format("DD/MM/YYYY") : "-"}
+                            </Text>
+                          </Space>
+                        </Space>
+                      ) : (
+                        <Space size={4}>
+                          <CalendarOutlined style={{ color: "#0f766e" }} />
+                          <Text style={{ fontSize: "0.875rem" }}>
+                            {item.dataColheita ? moment(item.dataColheita).format("DD/MM/YYYY") : "-"}
+                          </Text>
+                        </Space>
+                      )}
+                    </Col>
+
+                    {/* Área */}
+                    <Col xs={24} md={3}>
                       {isMobile ? (
                         <Space direction="vertical" size={2}>
                           <Text type="secondary" style={{ fontSize: "0.75rem" }}>
@@ -1736,7 +1879,7 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
                     </Col>
 
                     {/* Valor Unitário */}
-                    <Col xs={24} md={5}>
+                    <Col xs={24} md={4}>
                       {isMobile ? (
                         <Space direction="vertical" size={2} style={{ width: "100%" }}>
                           <Text type="secondary" style={{ fontSize: "0.75rem" }}>
@@ -1790,7 +1933,7 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
                     </Col>
 
                     {/* Valor Total */}
-                    <Col xs={12} md={5}>
+                    <Col xs={12} md={4}>
                       {isMobile ? (
                         <Space direction="vertical" size={2}>
                           <Text type="secondary" style={{ fontSize: "0.75rem" }}>
@@ -1941,7 +2084,7 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
         cancelText="Cancelar"
         icon={<DollarOutlined />}
         iconColor="#059669"
-        confirmDisabled={!dataPagamentoSelecionada || !formaPagamentoSelecionada}
+        confirmDisabled={statusPagamentoConfirmacao !== "PENDENTE" && (!dataPagamentoSelecionada || !formaPagamentoSelecionada)}
         customContent={
           <div style={{ textAlign: "center", padding: "16px" }}>
             <div style={{ 
@@ -1990,67 +2133,71 @@ const FornecedorColheitaPagamentosModal = ({ open = false, fornecedor = null, on
                 </div>
               </div>
             </div>
-            {/* Campos adicionais */}
-            <div style={{ marginTop: "16px" }}>
-              <Row gutter={[12, 12]}>
-                <Col xs={24} sm={12}>
-                  <div style={{ textAlign: "left", marginBottom: "6px" }}>
-                    <Space>
-                      <CalendarOutlined style={{ color: "#059669" }} />
-                      <Text strong style={{ color: "#059669" }}>Data do Pagamento</Text>
-                    </Space>
-                  </div>
-                  <MaskedDatePicker
-                    value={dataPagamentoSelecionada}
-                    onChange={setDataPagamentoSelecionada}
-                    size="middle"
-                    style={{ borderRadius: 6, width: "100%" }}
-                    disabledDate={(current) => current && current > moment().endOf('day')}
-                    placeholder="Selecione a data"
-                  />
-                </Col>
-                <Col xs={24} sm={12}>
-                  <div style={{ textAlign: "left", marginBottom: "6px" }}>
-                    <Space>
-                      <CreditCardOutlined style={{ color: "#059669" }} />
-                      <Text strong style={{ color: "#059669" }}>Método</Text>
-                    </Space>
-                  </div>
-                  <Select
-                    value={formaPagamentoSelecionada}
-                    onChange={setFormaPagamentoSelecionada}
-                    placeholder="Selecione a forma"
-                    style={{ width: "100%" }}
-                    size="middle"
-                  >
-                    {[
-                      { value: 'PIX', label: 'PIX', icon: <PixIcon width={16} height={16} /> },
-                      { value: 'BOLETO', label: 'Boleto Bancário', icon: <BoletoIcon width={16} height={16} /> },
-                      { value: 'TRANSFERENCIA', label: 'Transferência Bancária', icon: <TransferenciaIcon width={16} height={16} /> },
-                      { value: 'DINHEIRO', label: 'Dinheiro', icon: '💰' },
-                      { value: 'CHEQUE', label: 'Cheque', icon: '📄' },
-                    ].map((metodo) => (
-                      <Option key={metodo.value} value={metodo.value}>
+            {/* Campos adicionais - apenas quando status é PAGO (não PENDENTE/precificação) */}
+            {statusPagamentoConfirmacao !== "PENDENTE" && (
+              <>
+                <div style={{ marginTop: "16px" }}>
+                  <Row gutter={[12, 12]}>
+                    <Col xs={24} sm={12}>
+                      <div style={{ textAlign: "left", marginBottom: "6px" }}>
                         <Space>
-                          {typeof metodo.icon === 'string' ? (
-                            <span>{metodo.icon}</span>
-                          ) : (
-                            metodo.icon
-                          )}
-                          <span>{metodo.label}</span>
+                          <CalendarOutlined style={{ color: "#059669" }} />
+                          <Text strong style={{ color: "#059669" }}>Data do Pagamento</Text>
                         </Space>
-                      </Option>
-                    ))}
-                  </Select>
-                </Col>
-              </Row>
-            </div>
-            {(!dataPagamentoSelecionada || !formaPagamentoSelecionada) && (
-              <div style={{ marginTop: "16px" }}>
-                <Text type="danger" style={{ fontSize: "12px" }}>
-                  Preencha a data e a forma de pagamento para continuar.
-                </Text>
-              </div>
+                      </div>
+                      <MaskedDatePicker
+                        value={dataPagamentoSelecionada}
+                        onChange={setDataPagamentoSelecionada}
+                        size="middle"
+                        style={{ borderRadius: 6, width: "100%" }}
+                        disabledDate={(current) => current && current > moment().endOf('day')}
+                        placeholder="Selecione a data"
+                      />
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <div style={{ textAlign: "left", marginBottom: "6px" }}>
+                        <Space>
+                          <CreditCardOutlined style={{ color: "#059669" }} />
+                          <Text strong style={{ color: "#059669" }}>Método</Text>
+                        </Space>
+                      </div>
+                      <Select
+                        value={formaPagamentoSelecionada}
+                        onChange={setFormaPagamentoSelecionada}
+                        placeholder="Selecione a forma"
+                        style={{ width: "100%" }}
+                        size="middle"
+                      >
+                        {[
+                          { value: 'PIX', label: 'PIX', icon: <PixIcon width={16} height={16} /> },
+                          { value: 'BOLETO', label: 'Boleto Bancário', icon: <BoletoIcon width={16} height={16} /> },
+                          { value: 'TRANSFERENCIA', label: 'Transferência Bancária', icon: <TransferenciaIcon width={16} height={16} /> },
+                          { value: 'DINHEIRO', label: 'Dinheiro', icon: '💰' },
+                          { value: 'CHEQUE', label: 'Cheque', icon: '📄' },
+                        ].map((metodo) => (
+                          <Option key={metodo.value} value={metodo.value}>
+                            <Space>
+                              {typeof metodo.icon === 'string' ? (
+                                <span>{metodo.icon}</span>
+                              ) : (
+                                metodo.icon
+                              )}
+                              <span>{metodo.label}</span>
+                            </Space>
+                          </Option>
+                        ))}
+                      </Select>
+                    </Col>
+                  </Row>
+                </div>
+                {(!dataPagamentoSelecionada || !formaPagamentoSelecionada) && (
+                  <div style={{ marginTop: "16px" }}>
+                    <Text type="danger" style={{ fontSize: "12px" }}>
+                      Preencha a data e a forma de pagamento para continuar.
+                    </Text>
+                  </div>
+                )}
+              </>
             )}
           </div>
         }

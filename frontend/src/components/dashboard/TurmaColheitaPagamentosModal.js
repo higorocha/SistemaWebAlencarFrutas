@@ -43,6 +43,7 @@ import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { formatCurrency, capitalizeNameShort, capitalizeName, formatarDataParaAPIBB } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
+import useRestricaoDataPagamentoLoteBB from "../../hooks/useRestricaoDataPagamentoLoteBB";
 import ResponsiveTable from "../common/ResponsiveTable";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import { getFruitIcon } from "../../utils/fruitIcons";
@@ -147,6 +148,12 @@ const TurmaColheitaPagamentosModal = ({
   onPagamentosProcessados
 }) => {
   const { isMobile, isTablet } = useResponsive();
+  const {
+    validarDataPagamento,
+    disabledDate: disabledDatePixAPI,
+    mostrarAlertaLiberacao,
+    validarEMostrarErro,
+  } = useRestricaoDataPagamentoLoteBB();
   const [loading, setLoading] = useState(false);
   const [loadingPagamento, setLoadingPagamento] = useState(false);
   const [dados, setDados] = useState(null);
@@ -487,6 +494,8 @@ const TurmaColheitaPagamentosModal = ({
         descricaoPagamento: limitarString(turmaNome || '', 40),
         descricaoPagamentoInstantaneo: limitarString(numeroPedido, 26),
         formaIdentificacao: chavePixInfo.tipo,
+        // Campo customizado para salvar no item (não enviado ao BB)
+        _responsavelChavePix: dados.turma?.responsavelChavePix || null,
       };
 
       // Adicionar campos condicionais baseados no tipo de chave
@@ -673,6 +682,11 @@ const TurmaColheitaPagamentosModal = ({
 
     // Se for PIX - API, usar função específica
     if (formaPagamentoSelecionada === 'PIX - API') {
+      // Validar data antes de processar
+      if (!validarEMostrarErro(dataPagamentoSelecionada)) {
+        return; // Interrompe se validação falhar
+      }
+
       try {
         // Fechar modal de confirmação imediatamente para evitar conflitos visuais
         // O CentralizedLoader será exibido durante o processamento
@@ -739,6 +753,9 @@ const TurmaColheitaPagamentosModal = ({
           'Pagamentos via PIX - API Processados',
           mensagemSucesso
         );
+
+        // Mostrar alerta sobre liberação da remessa até 21:00
+        mostrarAlertaLiberacao(dataPagamentoSelecionada);
 
         setPagamentosProcessados(true);
         setColheitasSelecionadas([]);
@@ -1702,7 +1719,15 @@ const TurmaColheitaPagamentosModal = ({
                     onChange={setDataPagamentoSelecionada}
                     size="middle"
                     style={{ borderRadius: 6 }}
-                    disabledDate={(current) => current && current > moment().endOf('day')}
+                    disabledDate={(current) => {
+                      // Se for PIX - API: usar validação do hook (bloqueia domingos e datas anteriores)
+                      if (formaPagamentoSelecionada === 'PIX - API') {
+                        return disabledDatePixAPI(current);
+                      }
+                      // Para outros métodos (PIX, DINHEIRO, ESPÉCIE, etc.): não permitir datas futuras
+                      // (permitir apenas data atual e anteriores)
+                      return current && current > moment().endOf('day');
+                    }}
                     placeholder="Selecione a data"
                   />
                 </Col>

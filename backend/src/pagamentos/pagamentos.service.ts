@@ -1177,6 +1177,41 @@ export class PagamentosService {
         0,
       );
 
+      // Data de pagamento agendada: pegar do primeiro item do lote (dataPagamentoEnviada)
+      // A data agendada está sempre salva em PagamentoApiItem.dataPagamentoEnviada no formato ddmmaaaa
+      // Não usar todasColheitas[0].dataPagamento pois esse campo só é preenchido quando status = PAGO
+      // Formato ddmmaaaa pode ter 7 ou 8 dígitos (dia com ou sem zero à esquerda)
+      // Exemplo: "8122025" (7 dígitos) = 8 de dezembro de 2025
+      // Exemplo: "08122025" (8 dígitos) = 08 de dezembro de 2025
+      const primeiroItem = lote.itensPagamento?.[0];
+      let dataPagamentoAgendada: Date | null = null;
+      
+      if (primeiroItem?.dataPagamentoEnviada) {
+        const dataStr = primeiroItem.dataPagamentoEnviada.toString().trim();
+        
+        if (dataStr.length === 8) {
+          // Formato DDMMYYYY (dia com zero à esquerda)
+          const dia = parseInt(dataStr.substring(0, 2), 10);
+          const mes = parseInt(dataStr.substring(2, 4), 10) - 1; // mês é 0-indexed
+          const ano = parseInt(dataStr.substring(4, 8), 10);
+          
+          // Validar valores antes de criar Date
+          if (!isNaN(dia) && !isNaN(mes) && !isNaN(ano) && dia >= 1 && dia <= 31 && mes >= 0 && mes <= 11) {
+            dataPagamentoAgendada = new Date(ano, mes, dia);
+          }
+        } else if (dataStr.length === 7) {
+          // Formato DMMYYYY (dia sem zero à esquerda)
+          const dia = parseInt(dataStr.substring(0, 1), 10);
+          const mes = parseInt(dataStr.substring(1, 3), 10) - 1; // mês é 0-indexed
+          const ano = parseInt(dataStr.substring(3, 7), 10);
+          
+          // Validar valores antes de criar Date
+          if (!isNaN(dia) && !isNaN(mes) && !isNaN(ano) && dia >= 1 && dia <= 31 && mes >= 0 && mes <= 11) {
+            dataPagamentoAgendada = new Date(ano, mes, dia);
+          }
+        }
+      }
+
       // Origem do lote (no futuro pode ser FUNCIONARIO / FORNECEDOR, etc.)
       // Por enquanto, apenas TURMA_COLHEITA (colhedores)
       const origemTipo =
@@ -1208,6 +1243,7 @@ export class PagamentosService {
         valorTotalEnviado: lote.valorTotalEnviado,
         valorTotalValidado: lote.valorTotalValido,
         valorTotalColheitas,
+        dataPagamentoAgendada,
         origemTipo,
         origemNome,
         // Rastreamento por usuário
@@ -1389,6 +1425,13 @@ export class PagamentosService {
                 not: null,
               },
             },
+            orderBy: {
+              funcionarioPagamento: {
+                funcionario: {
+                  nome: 'asc',
+                },
+              },
+            },
             include: {
               usuarioCancelamento: {
                 select: {
@@ -1419,6 +1462,7 @@ export class PagamentosService {
                       status: true,
                       dataInicial: true,
                       dataFinal: true,
+                      dataPagamento: true,
                     },
                   },
                 },
@@ -1487,6 +1531,7 @@ export class PagamentosService {
         valorTotalEnviado: lote.valorTotalEnviado,
         valorTotalValidado: lote.valorTotalValido,
         valorTotalFuncionarios,
+        dataPagamentoAgendada: folhaPrincipal?.dataPagamento || null,
         origemTipo,
         origemNome,
         folhaPrincipal: folhaPrincipal ? {
@@ -1496,6 +1541,7 @@ export class PagamentosService {
           periodo: folhaPrincipal.periodo,
           referencia: folhaPrincipal.referencia,
           status: folhaPrincipal.status,
+          dataPagamento: folhaPrincipal.dataPagamento,
         } : null,
         // Rastreamento por usuário
         usuarioCriacao: lote.usuarioCriacao ? {
@@ -1548,6 +1594,7 @@ export class PagamentosService {
               status: item.funcionarioPagamento.folha.status,
               dataInicial: item.funcionarioPagamento.folha.dataInicial,
               dataFinal: item.funcionarioPagamento.folha.dataFinal,
+              dataPagamento: item.funcionarioPagamento.folha.dataPagamento,
             } : null,
             valorLiquido: item.funcionarioPagamento.valorLiquido,
             valorBruto: item.funcionarioPagamento.valorBruto,

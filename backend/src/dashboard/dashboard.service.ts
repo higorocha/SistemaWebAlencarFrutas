@@ -835,8 +835,8 @@ export class DashboardService {
               statusPagamento: pagamento?.status,
               valorUnitario: pagamento?.valorUnitario,
               valorTotal: pagamento?.valorTotal,
-              dataPagamento: pagamento?.dataPagamento,
-              formaPagamento: pagamento?.formaPagamento,
+              dataPagamento: pagamento?.dataPagamento ?? undefined,
+              formaPagamento: pagamento?.formaPagamento ?? undefined,
             });
           });
         });
@@ -1111,19 +1111,21 @@ export class DashboardService {
           valorUnitario: pagamento.valorUnitario,
           valorTotal: pagamento.valorTotal,
           dataColheita: pagamento.dataColheita ? pagamento.dataColheita.toISOString() : undefined,
-          dataPagamento: pagamento.dataPagamento.toISOString(),
-          formaPagamento: pagamento.formaPagamento,
+          dataPagamento: pagamento.dataPagamento ? pagamento.dataPagamento.toISOString() : undefined,
+          formaPagamento: pagamento.formaPagamento ?? undefined,
           observacoes: pagamento.observacoes || undefined,
         });
       });
 
       // Converter para array e ajustar contadores
-      const pagamentosEfetuados = Array.from(pagamentosAgrupados.values()).map(pagamento => ({
-        ...pagamento,
-        quantidadePedidos: pagamento.quantidadePedidos.size,
-        quantidadeFrutas: pagamento.quantidadeFrutas.size,
-        dataPagamento: pagamento.dataPagamento.toISOString(),
-      }));
+      const pagamentosEfetuados = Array.from(pagamentosAgrupados.values())
+        .filter(pagamento => pagamento.dataPagamento !== null && pagamento.dataPagamento !== undefined)
+        .map(pagamento => ({
+          ...pagamento,
+          quantidadePedidos: pagamento.quantidadePedidos.size,
+          quantidadeFrutas: pagamento.quantidadeFrutas.size,
+          dataPagamento: pagamento.dataPagamento!.toISOString(), // Non-null assertion: já filtrado acima
+        }));
 
       // Ordenar por data de pagamento mais recente primeiro
       return pagamentosEfetuados.sort((a, b) => 

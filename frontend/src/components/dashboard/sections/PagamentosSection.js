@@ -840,13 +840,21 @@ const PagamentosSection = ({
   }, []);
 
   const handlePagamentosFornecedorCriados = React.useCallback(() => {
-    // Notificar Dashboard para recarregar dados
-    if (onPagamentosProcessados) {
-      onPagamentosProcessados();
-    }
-    // Fechar modal após recarregar
-    handleFecharFornecedor();
-  }, [onPagamentosProcessados, handleFecharFornecedor]);
+    // IMPORTANTE: Não recarregar dados do Dashboard imediatamente
+    // O modal já atualiza seus próprios dados internamente
+    // Recarregar o Dashboard pode causar re-render que fecha o modal
+    // 
+    // Se necessário atualizar o Dashboard, fazer de forma assíncrona/atrasada
+    // ou apenas quando o modal for fechado manualmente
+    // 
+    // Por enquanto, não chamar onPagamentosProcessados para manter modal aberto
+    // if (onPagamentosProcessados) {
+    //   onPagamentosProcessados();
+    // }
+    
+    // NÃO fechar o modal - manter aberto para continuar trabalhando
+    // handleFecharFornecedor(); // Removido para manter modal aberto
+  }, []);
 
   const handleFecharModalPagamentos = React.useCallback((houvePagamentos = false) => {
     setModalPagamentos({
@@ -1475,7 +1483,6 @@ const PagamentosSection = ({
                     height: 'auto',
                     minWidth: 'auto',
                   }}
-                  title={mostrarFiltrosTurma ? 'Ocultar filtros' : 'Mostrar filtros'}
                 />
               </Tooltip>
               {onToggleExpandir && (
@@ -1493,7 +1500,6 @@ const PagamentosSection = ({
                       height: 'auto',
                       minWidth: 'auto',
                     }}
-                    title={isExpandido ? 'Recolher área' : 'Expandir área'}
                   />
                 </Tooltip>
               )}
@@ -1517,59 +1523,60 @@ const PagamentosSection = ({
                       height: 'auto',
                       minWidth: 'auto',
                     }}
-                    title={isExpandido ? 'Recolher área' : 'Expandir área'}
                   />
                 </Tooltip>
               )}
               {/* Toggle button para aba de fornecedores */}
+              <Tooltip title={`Alternar para ${modoFornecedores === 'pendentes' ? 'Efetuados' : 'Pendentes'}`}>
+                <Button
+                  type="text"
+                  icon={<SwapOutlined />}
+                  onClick={() => setModoFornecedores(modoFornecedores === 'pendentes' ? 'efetuados' : 'pendentes')}
+                  style={{
+                    color: '#059669',
+                    border: '1px solid #059669',
+                    borderRadius: '6px',
+                    padding: '6px',
+                    height: 'auto',
+                    minWidth: 'auto',
+                  }}
+                />
+              </Tooltip>
+            </>
+          ) : (
+            // Toggle button para aba de turmas
+            <Tooltip title={
+              loadingPagamentosEfetuados
+                ? 'Carregando...'
+                : `Alternar para ${isModoPendentes ? 'Efetuados' : 'Pendentes'}`
+            }>
               <Button
                 type="text"
-                icon={<SwapOutlined />}
-                onClick={() => setModoFornecedores(modoFornecedores === 'pendentes' ? 'efetuados' : 'pendentes')}
+                icon={
+                  loadingPagamentosEfetuados
+                    ? <SyncOutlined spin />
+                    : <SwapOutlined />
+                }
+                onClick={onToggleModo}
+                loading={loadingPagamentosEfetuados}
+                disabled={loadingPagamentosEfetuados}
                 style={{
-                  color: '#059669',
-                  border: '1px solid #059669',
+                  color: loadingPagamentosEfetuados
+                    ? '#8b8b8b'
+                    : '#059669',
+                  border: '1px solid ' + (
+                    loadingPagamentosEfetuados
+                      ? '#d9d9d9'
+                      : '#059669'
+                  ),
                   borderRadius: '6px',
                   padding: '6px',
                   height: 'auto',
                   minWidth: 'auto',
+                  opacity: loadingPagamentosEfetuados ? 0.6 : 1,
                 }}
-                title={`Alternar para ${modoFornecedores === 'pendentes' ? 'Efetuados' : 'Pendentes'}`}
               />
-            </>
-          ) : (
-            // Toggle button para aba de turmas
-            <Button
-              type="text"
-              icon={
-                loadingPagamentosEfetuados
-                  ? <SyncOutlined spin />
-                  : <SwapOutlined />
-              }
-              onClick={onToggleModo}
-              loading={loadingPagamentosEfetuados}
-              disabled={loadingPagamentosEfetuados}
-              style={{
-                color: loadingPagamentosEfetuados
-                  ? '#8b8b8b'
-                  : '#059669',
-                border: '1px solid ' + (
-                  loadingPagamentosEfetuados
-                    ? '#d9d9d9'
-                    : '#059669'
-                ),
-                borderRadius: '6px',
-                padding: '6px',
-                height: 'auto',
-                minWidth: 'auto',
-                opacity: loadingPagamentosEfetuados ? 0.6 : 1,
-              }}
-              title={
-                loadingPagamentosEfetuados
-                  ? 'Carregando...'
-                  : `Alternar para ${isModoPendentes ? 'Efetuados' : 'Pendentes'}`
-              }
-            />
+            </Tooltip>
           )}
         </div>
       </div>
@@ -1582,12 +1589,13 @@ const PagamentosSection = ({
       />
 
       {/* Modais de Pagamentos - Todos renderizados condicionalmente */}
-      {modalFornecedor.open && (
+      {modalFornecedor.open && modalFornecedor.fornecedor && (
         <FornecedorColheitaPagamentosModal
           open={modalFornecedor.open}
           fornecedor={modalFornecedor.fornecedor}
           onClose={handleFecharFornecedor}
           onPagamentosCriados={handlePagamentosFornecedorCriados}
+          key={`fornecedor-${modalFornecedor.fornecedor?.id || 'new'}`}
         />
       )}
 

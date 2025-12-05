@@ -162,12 +162,17 @@ const SecaoLotesPagamentos = ({
         backgroundColor: "#f9f9f9",
         marginBottom: 24,
       }}
-      headStyle={{
-        backgroundColor: "#059669",
-        borderBottom: "2px solid #047857",
-        color: "#ffffff",
-        borderRadius: "8px 8px 0 0",
-        cursor: "pointer",
+      styles={{
+        header: {
+          backgroundColor: "#059669",
+          borderBottom: "2px solid #047857",
+          color: "#ffffff",
+          borderRadius: "8px 8px 0 0",
+          cursor: "pointer",
+        },
+        body: {
+          padding: "16px"
+        }
       }}
       title={
         <div
@@ -232,7 +237,6 @@ const SecaoLotesPagamentos = ({
           </Space>
         </div>
       }
-      bodyStyle={{ padding: "16px" }}
     >
       {/* Cards de Estatísticas */}
       <Row gutter={[16, 16]}>
@@ -243,7 +247,7 @@ const SecaoLotesPagamentos = ({
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
             }}
-            bodyStyle={{ padding: "0.75rem" }}
+            styles={{ body: { padding: "0.75rem" } }}
           >
             <Statistic
               title={
@@ -267,7 +271,7 @@ const SecaoLotesPagamentos = ({
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
             }}
-            bodyStyle={{ padding: "0.75rem" }}
+            styles={{ body: { padding: "0.75rem" } }}
           >
             <Statistic
               title={
@@ -292,7 +296,7 @@ const SecaoLotesPagamentos = ({
                 boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
                 border: "1px solid #f0f0f0",
               }}
-              bodyStyle={{ padding: "0.75rem" }}
+              styles={{ body: { padding: "0.75rem" } }}
             >
               <Statistic
                 title={
@@ -318,7 +322,7 @@ const SecaoLotesPagamentos = ({
                 boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
                 border: "1px solid #f0f0f0",
               }}
-              bodyStyle={{ padding: "0.75rem" }}
+              styles={{ body: { padding: "0.75rem" } }}
             >
               <Statistic
                 title={
@@ -343,7 +347,7 @@ const SecaoLotesPagamentos = ({
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
             }}
-            bodyStyle={{ padding: "0.75rem" }}
+            styles={{ body: { padding: "0.75rem" } }}
           >
             <div>
               <Space size={4} style={{ marginBottom: "8px" }}>
@@ -388,7 +392,7 @@ const SecaoLotesPagamentos = ({
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
             }}
-            bodyStyle={{ padding: "0.75rem" }}
+            styles={{ body: { padding: "0.75rem" } }}
           >
             <div>
               <Space size={4} style={{ marginBottom: "8px" }}>
@@ -433,7 +437,7 @@ const SecaoLotesPagamentos = ({
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
             }}
-            bodyStyle={{ padding: "0.75rem" }}
+            styles={{ body: { padding: "0.75rem" } }}
           >
             <Statistic
               title={
@@ -469,7 +473,7 @@ const SecaoLotesPagamentos = ({
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
             }}
-            bodyStyle={{ padding: "0.75rem" }}
+            styles={{ body: { padding: "0.75rem" } }}
           >
             <Statistic
               title={
@@ -509,7 +513,7 @@ const SecaoLotesPagamentos = ({
                 boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
                 border: "1px solid #f0f0f0",
               }}
-              bodyStyle={{ padding: "0.75rem" }}
+              styles={{ body: { padding: "0.75rem" } }}
             >
               <Statistic
                 title={
@@ -550,7 +554,7 @@ const SecaoLotesPagamentos = ({
                 boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
                 border: "1px solid #f0f0f0",
               }}
-              bodyStyle={{ padding: "0.75rem" }}
+              styles={{ body: { padding: "0.75rem" } }}
             >
               <Statistic
                 title={
@@ -653,6 +657,7 @@ const SecaoLotesPagamentos = ({
                         {itens.map((item, index) => {
                           const colheitas = item.colheitas || [];
                           const funcionarioPagamento = item.funcionarioPagamento;
+                          const isFolhaPagamento = !!funcionarioPagamento;
 
                           return (
                             <Card
@@ -664,261 +669,298 @@ const SecaoLotesPagamentos = ({
                                 borderRadius: "4px",
                                 boxShadow: "none",
                               }}
-                              bodyStyle={{ padding: "10px" }}
+                              styles={{ body: { padding: "10px" } }}
                             >
-                              <Space direction="vertical" size="small" style={{ width: "100%" }}>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    flexWrap: "wrap",
-                                    gap: "8px",
-                                  }}
-                                >
-                                  <Space size="middle" wrap>
+                              {isFolhaPagamento ? (
+                                // Layout para Folha de Pagamento: tudo em uma linha com colunas fixas
+                                <Row gutter={[16, 0]} align="top" wrap={false}>
+                                  {/* Informações do Item - Colunas fixas */}
+                                  <Col flex="none" style={{ minWidth: "160px", maxWidth: "160px" }}>
                                     <div>
-                                      <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                        Código Pagamento
+                                      <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                        Código
                                       </Text>
-                                      <Tag
-                                        color="blue"
-                                        style={{ fontFamily: "monospace", marginTop: "4px" }}
-                                      >
-                                        {item.identificadorPagamento ||
-                                          item.codigoIdentificadorPagamento ||
-                                          item.codigoPagamento ||
-                                          "-"}
+                                      <Tag color="blue" style={{ fontFamily: "monospace", fontSize: "13px", margin: 0, padding: "2px 6px" }}>
+                                        {item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento || "-"}
                                       </Tag>
                                     </div>
+                                  </Col>
+                                  
+                                  <Col flex="none" style={{ minWidth: "100px", maxWidth: "100px" }}>
                                     <div>
-                                      <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
+                                      <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
                                         Valor
                                       </Text>
-                                      <Text
-                                        strong
-                                        style={{
-                                          display: "block",
-                                          marginTop: "4px",
-                                          color: "#059669",
-                                        }}
-                                      >
+                                      <Text strong style={{ display: "block", color: "#059669", fontSize: "15px", whiteSpace: "nowrap" }}>
                                         R$ {formatCurrency(Number(item.valorEnviado || 0))}
                                       </Text>
                                     </div>
-                                    {item.chavePixEnviada && (
-                                      <div>
-                                        <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                          Chave PIX
-                                        </Text>
-                                        <Text 
-                                          style={{ 
-                                            display: "block", 
-                                            marginTop: "4px", 
-                                            fontSize: "11px"
-                                          }}
-                                        >
-                                          {formatarChavePixPorTipo(item.chavePixEnviada, item.tipoChavePixEnviado)}
-                                        </Text>
-                                      </div>
-                                    )}
-                                    {item.responsavelChavePixEnviado && (
-                                      <div>
-                                        <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                          Responsável Chave PIX
-                                        </Text>
-                                        <Text 
-                                          style={{ 
-                                            display: "block", 
-                                            marginTop: "4px", 
-                                            fontSize: "11px"
-                                          }}
-                                        >
-                                          {capitalizeName(item.responsavelChavePixEnviado)}
-                                        </Text>
-                                      </div>
-                                    )}
-                                    {/* Status do Item */}
+                                  </Col>
+                                  
+                                  <Col flex="none" style={{ minWidth: "100px", maxWidth: "100px" }}>
                                     <div>
-                                      <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                        Status do Item
-                                      </Text>
                                       {(() => {
-                                        // Verificar se o item está bloqueado (lote rejeitado)
-                                        // Pode ser bloqueado via status ou estadoPagamentoIndividual
                                         const itemBloqueado = item.status === 'BLOQUEADO' || item.estadoPagamentoIndividual === 'BLOQUEADO';
-                                        const statusItem = itemBloqueado 
-                                          ? 'BLOQUEADO' 
-                                          : (item.status || item.estadoPagamentoIndividual || 'N/A');
-                                        
+                                        const statusItem = itemBloqueado ? 'BLOQUEADO' : (item.status || item.estadoPagamentoIndividual || 'N/A');
                                         const config = getStatusItemConfig(statusItem);
-                                        
                                         return (
-                                          <Tooltip title={config.tooltip}>
-                                            <Tag 
-                                              color={config.color} 
-                                              style={{ 
-                                                marginTop: "4px",
-                                                cursor: "help"
-                                              }}
-                                            >
-                                              {statusItem}
-                                            </Tag>
-                                          </Tooltip>
+                                          <>
+                                            <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                              Status Item
+                                            </Text>
+                                            <Tooltip title={config.tooltip}>
+                                              <Tag color={config.color} style={{ margin: 0, cursor: "help", fontSize: "12px", padding: "2px 6px" }}>
+                                                {statusItem}
+                                              </Tag>
+                                            </Tooltip>
+                                          </>
                                         );
                                       })()}
                                     </div>
-                                  </Space>
-                                  {/* Botão para consultar item individual */}
-                                  {(item.identificadorPagamento ||
-                                    item.codigoIdentificadorPagamento ||
-                                    item.codigoPagamento) && (
-                                    <div
-                                      style={{
-                                        marginTop: "8px",
-                                        display: "flex",
-                                        justifyContent: "flex-end",
-                                      }}
-                                    >
+                                  </Col>
+                                  
+                                  {item.chavePixEnviada && (
+                                    <Col flex="none" style={{ minWidth: "140px", maxWidth: "140px" }}>
+                                      <div>
+                                        <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                          Chave PIX
+                                        </Text>
+                                        <Text style={{ display: "block", fontSize: "13px", fontFamily: "monospace", wordBreak: "break-all", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                          {formatarChavePixPorTipo(item.chavePixEnviada, item.tipoChavePixEnviado)}
+                                        </Text>
+                                      </div>
+                                    </Col>
+                                  )}
+                                  
+                                  {item.responsavelChavePixEnviado && (
+                                    <Col flex="none" style={{ minWidth: "216px", maxWidth: "216px" }}>
+                                      <div>
+                                        <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                          Resp. Chave PIX
+                                        </Text>
+                                        <Text style={{ display: "block", fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                          {capitalizeName(item.responsavelChavePixEnviado)}
+                                        </Text>
+                                      </div>
+                                    </Col>
+                                  )}
+                                  
+                                  {/* Informações do Funcionário - Colunas fixas */}
+                                  <Col flex="none" style={{ minWidth: "240px", maxWidth: "240px" }}>
+                                    <div>
+                                      <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                        Funcionário
+                                      </Text>
+                                      <Text strong style={{ display: "block", fontSize: "14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {funcionarioPagamento.funcionario?.nome || "-"}
+                                      </Text>
+                                    </div>
+                                  </Col>
+                                  
+                                  {funcionarioPagamento.funcionario?.cpf && (
+                                    <Col flex="none" style={{ minWidth: "120px", maxWidth: "120px" }}>
+                                      <div>
+                                        <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                          CPF
+                                        </Text>
+                                        <Text style={{ display: "block", fontSize: "13px", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                                          {formatarCPF(funcionarioPagamento.funcionario.cpf)}
+                                        </Text>
+                                      </div>
+                                    </Col>
+                                  )}
+                                  
+                                  {funcionarioPagamento.folha && (
+                                    <Col flex="none" style={{ minWidth: "130px", maxWidth: "130px" }}>
+                                      <div>
+                                        <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                          Folha
+                                        </Text>
+                                        <Text style={{ display: "block", fontSize: "13px", whiteSpace: "nowrap" }}>
+                                          {String(funcionarioPagamento.folha.competenciaMes).padStart(2, "0")}
+                                          /{funcionarioPagamento.folha.competenciaAno} - {funcionarioPagamento.folha.periodo}ª Q
+                                        </Text>
+                                      </div>
+                                    </Col>
+                                  )}
+                                  
+                                  {(() => {
+                                    const itemBloqueado = item.estadoPagamentoIndividual === 'BLOQUEADO';
+                                    const statusExibir = itemBloqueado ? 'BLOQUEADO' : funcionarioPagamento.statusPagamento;
+                                    if (!statusExibir) return null;
+                                    const config = getStatusFuncionarioConfig(statusExibir);
+                                    return (
+                                      <Col flex="none" style={{ minWidth: "100px", maxWidth: "100px" }}>
+                                        <div>
+                                          <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                            Status
+                                          </Text>
+                                          <Tooltip title={config.tooltip}>
+                                            <Tag color={config.color} style={{ margin: 0, cursor: "help", fontSize: "12px", padding: "2px 6px" }}>
+                                              {statusExibir}
+                                            </Tag>
+                                          </Tooltip>
+                                        </div>
+                                      </Col>
+                                    );
+                                  })()}
+                                  
+                                  {/* Botão Consultar - alinhado à direita */}
+                                  <Col flex="auto" style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-end", paddingBottom: "2px" }}>
+                                    {(item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento) && (
                                       <Button
                                         type="link"
                                         size="small"
                                         icon={<EyeOutlined />}
                                         onClick={() => {
                                           onConsultarItemIndividual({
-                                            identificadorPagamento:
-                                              item.identificadorPagamento ||
-                                              item.codigoIdentificadorPagamento ||
-                                              item.codigoPagamento,
+                                            identificadorPagamento: item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento,
                                             contaCorrenteId: record.contaCorrente?.id,
                                           });
                                         }}
-                                        style={{ padding: "0 4px", fontSize: "12px" }}
+                                        style={{ padding: "0", fontSize: "13px", height: "auto" }}
                                       >
-                                        Consultar Online
+                                        Consultar
                                       </Button>
+                                    )}
+                                  </Col>
+                                </Row>
+                              ) : (
+                                // Layout para Turma Colheita: tudo em uma linha com colunas fixas
+                                <>
+                                  <Row gutter={[16, 0]} align="top" wrap={false}>
+                                    {/* Informações do Item - Colunas fixas */}
+                                    <Col flex="none" style={{ minWidth: "160px", maxWidth: "160px" }}>
+                                      <div>
+                                        <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                          Código
+                                        </Text>
+                                        <Tag color="blue" style={{ fontFamily: "monospace", fontSize: "13px", margin: 0, padding: "2px 6px" }}>
+                                          {item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento || "-"}
+                                        </Tag>
+                                      </div>
+                                    </Col>
+                                    
+                                    <Col flex="none" style={{ minWidth: "100px", maxWidth: "100px" }}>
+                                      <div>
+                                        <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                          Valor
+                                        </Text>
+                                        <Text strong style={{ display: "block", color: "#059669", fontSize: "15px", whiteSpace: "nowrap" }}>
+                                          R$ {formatCurrency(Number(item.valorEnviado || 0))}
+                                        </Text>
+                                      </div>
+                                    </Col>
+                                    
+                                    <Col flex="none" style={{ minWidth: "100px", maxWidth: "100px" }}>
+                                      <div>
+                                        {(() => {
+                                          const itemBloqueado = item.status === 'BLOQUEADO' || item.estadoPagamentoIndividual === 'BLOQUEADO';
+                                          const statusItem = itemBloqueado ? 'BLOQUEADO' : (item.status || item.estadoPagamentoIndividual || 'N/A');
+                                          const config = getStatusItemConfig(statusItem);
+                                          return (
+                                            <>
+                                              <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                                Status Item
+                                              </Text>
+                                              <Tooltip title={config.tooltip}>
+                                                <Tag color={config.color} style={{ margin: 0, cursor: "help", fontSize: "12px", padding: "2px 6px" }}>
+                                                  {statusItem}
+                                                </Tag>
+                                              </Tooltip>
+                                            </>
+                                          );
+                                        })()}
+                                      </div>
+                                    </Col>
+                                    
+                                    {item.chavePixEnviada && (
+                                      <Col flex="none" style={{ minWidth: "140px", maxWidth: "140px" }}>
+                                        <div>
+                                          <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                            Chave PIX
+                                          </Text>
+                                          <Text style={{ display: "block", fontSize: "13px", fontFamily: "monospace", wordBreak: "break-all", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            {formatarChavePixPorTipo(item.chavePixEnviada, item.tipoChavePixEnviado)}
+                                          </Text>
+                                        </div>
+                                      </Col>
+                                    )}
+                                    
+                                    {item.responsavelChavePixEnviado && (
+                                      <Col flex="none" style={{ minWidth: "216px", maxWidth: "216px" }}>
+                                        <div>
+                                          <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                            Resp. Chave PIX
+                                          </Text>
+                                          <Text style={{ display: "block", fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            {capitalizeName(item.responsavelChavePixEnviado)}
+                                          </Text>
+                                        </div>
+                                      </Col>
+                                    )}
+                                    
+                                    {/* Informações do Colhedor - Colunas fixas */}
+                                    {record.turmaResumo?.nomeColhedor && (
+                                      <Col flex="none" style={{ minWidth: "240px", maxWidth: "240px" }}>
+                                        <div>
+                                          <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
+                                            Colhedor
+                                          </Text>
+                                          <Text strong style={{ display: "block", fontSize: "14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            {record.turmaResumo.nomeColhedor || "-"}
+                                          </Text>
+                                        </div>
+                                      </Col>
+                                    )}
+                                    
+                                    {/* Botão Consultar - alinhado à direita */}
+                                    <Col flex="auto" style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-end", paddingBottom: "2px" }}>
+                                      {(item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento) && (
+                                        <Button
+                                          type="link"
+                                          size="small"
+                                          icon={<EyeOutlined />}
+                                          onClick={() => {
+                                            onConsultarItemIndividual({
+                                              identificadorPagamento: item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento,
+                                              contaCorrenteId: record.contaCorrente?.id,
+                                            });
+                                          }}
+                                          style={{ padding: "0", fontSize: "13px", height: "auto" }}
+                                        >
+                                          Consultar
+                                        </Button>
+                                      )}
+                                    </Col>
+                                  </Row>
+
+                                  {/* Para turma de colheita: mostrar colheitas inline ocupando toda a largura */}
+                                  {colheitas.length > 0 && (
+                                    <div
+                                      style={{
+                                        marginTop: "8px",
+                                        paddingTop: "8px",
+                                        borderTop: "1px solid #e8e8e8",
+                                      }}
+                                    >
+                                      <Text
+                                        type="secondary"
+                                        style={{ fontSize: "12px", display: "block", marginBottom: "4px", fontWeight: "500", color: "#595959" }}
+                                      >
+                                        Colheitas ({colheitas.length}):
+                                      </Text>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", width: "100%" }}>
+                                        {colheitas.map((c, idx) => (
+                                          <Tag key={idx} color="cyan" style={{ fontSize: "12px", padding: "2px 6px", margin: 0 }}>
+                                            {c.pedidoNumero} - {c.frutaNome} - R$ {formatCurrency(c.valorColheita || 0)}
+                                          </Tag>
+                                        ))}
+                                      </div>
                                     </div>
                                   )}
-                                </div>
-
-                                {/* Para turma de colheita: mostrar colheitas */}
-                                {colheitas.length > 0 && (
-                                  <div
-                                    style={{
-                                      marginTop: "8px",
-                                      paddingTop: "8px",
-                                      borderTop: "1px solid #e8e8e8",
-                                    }}
-                                  >
-                                    <Text
-                                      type="secondary"
-                                      style={{ fontSize: "12px", display: "block", marginBottom: "4px" }}
-                                    >
-                                      Colheitas ({colheitas.length}):
-                                    </Text>
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                                      {colheitas.map((c, idx) => (
-                                        <Tag key={idx} color="cyan">
-                                          {c.pedidoNumero} - {c.frutaNome} - R${" "}
-                                          {formatCurrency(c.valorColheita || 0)}
-                                        </Tag>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Para folha de pagamento: mostrar funcionário */}
-                                {funcionarioPagamento && (
-                                  <div
-                                    style={{
-                                      marginTop: "8px",
-                                      paddingTop: "8px",
-                                      borderTop: "1px solid #e8e8e8",
-                                    }}
-                                  >
-                                    <Space size="middle" wrap>
-                                      <div>
-                                        <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                          Funcionário
-                                        </Text>
-                                        <Text strong style={{ display: "block", marginTop: "4px" }}>
-                                          {funcionarioPagamento.funcionario?.nome || "-"}
-                                        </Text>
-                                      </div>
-                                      {funcionarioPagamento.funcionario?.cpf && (
-                                        <div>
-                                          <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                            CPF
-                                          </Text>
-                                          <Text style={{ display: "block", marginTop: "4px" }}>
-                                            {formatarCPF(funcionarioPagamento.funcionario.cpf)}
-                                          </Text>
-                                        </div>
-                                      )}
-                                      {funcionarioPagamento.folha && (
-                                        <div>
-                                          <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                            Folha
-                                          </Text>
-                                          <Text style={{ display: "block", marginTop: "4px" }}>
-                                            {String(funcionarioPagamento.folha.competenciaMes).padStart(
-                                              2,
-                                              "0"
-                                            )}
-                                            /{funcionarioPagamento.folha.competenciaAno} -{" "}
-                                            {funcionarioPagamento.folha.periodo}ª Quinzena
-                                          </Text>
-                                        </div>
-                                      )}
-                                      <div>
-                                        <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                          Valor Líquido
-                                        </Text>
-                                        <Text
-                                          strong
-                                          style={{
-                                            display: "block",
-                                            marginTop: "4px",
-                                            color: "#059669",
-                                          }}
-                                        >
-                                          R$ {formatCurrency(Number(funcionarioPagamento.valorLiquido || 0))}
-                                        </Text>
-                                      </div>
-                                      {(() => {
-                                        // Verificar se o item está bloqueado (lote rejeitado)
-                                        const itemBloqueado = item.estadoPagamentoIndividual === 'BLOQUEADO';
-                                        const statusExibir = itemBloqueado 
-                                          ? 'BLOQUEADO' 
-                                          : funcionarioPagamento.statusPagamento;
-                                        
-                                        if (!statusExibir) return null;
-                                        
-                                        const config = getStatusFuncionarioConfig(statusExibir);
-                                        
-                                        return (
-                                          <div>
-                                            <Text type="secondary" style={{ fontSize: "12px", display: "block" }}>
-                                              Status
-                                            </Text>
-                                            <Tooltip title={config.tooltip}>
-                                              <Tag
-                                                color={config.color}
-                                                style={{ 
-                                                  marginTop: "4px",
-                                                  cursor: "help"
-                                                }}
-                                              >
-                                                {statusExibir}
-                                              </Tag>
-                                            </Tooltip>
-                                          </div>
-                                        );
-                                      })()}
-                                    </Space>
-                                  </div>
-                                )}
-                              </Space>
+                                </>
+                              )}
                             </Card>
                           );
                         })}

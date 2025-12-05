@@ -643,8 +643,8 @@ model FornecedorPagamento {
 
   // Dados do Pagamento
   status         StatusPagamentoFornecedor @default(PAGO)
-  dataPagamento  DateTime
-  formaPagamento String                    @db.VarChar(50)
+  dataPagamento  DateTime? // Opcional quando status é PENDENTE (precificação)
+  formaPagamento String?                   @db.VarChar(50) // Opcional quando status é PENDENTE (precificação)
 
   // Campos de Controle
   observacoes String?

@@ -1,7 +1,7 @@
 // src/pages/Pagamentos.js
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, Tag, Space, Typography, Tooltip, Select, DatePicker, Button, Modal, Popconfirm, Dropdown, Divider, Segmented } from "antd";
-import { DollarOutlined, BankOutlined, ClockCircleOutlined, CheckCircleOutlined, FilterOutlined, CloseCircleOutlined, UnlockOutlined, StopOutlined, EyeOutlined, MoreOutlined } from "@ant-design/icons";
+import { DollarOutlined, BankOutlined, ClockCircleOutlined, CheckCircleOutlined, FilterOutlined, CloseCircleOutlined, UnlockOutlined, StopOutlined, EyeOutlined, MoreOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { SecondaryButton } from "components/common/buttons";
 import axiosInstance from "../api/axiosConfig";
 import ResponsiveTable from "../components/common/ResponsiveTable";
@@ -868,6 +868,34 @@ const Pagamentos = () => {
             ? Number(b.valorTotalFuncionarios || b.valorTotalEnviado || 0)
             : Number(b.valorTotalColheitas || b.valorTotalEnviado || 0);
           return valA - valB;
+        },
+      },
+      {
+        title: (
+          <Space size="small">
+            <span>Data Agendamento</span>
+            <Tooltip title="Data prevista para o pagamento ser processado pelo Banco do Brasil. Esta é a data informada pelo usuário ao criar o lote de pagamento.">
+              <InfoCircleOutlined style={{ color: "#ffffff", cursor: "help" }} />
+            </Tooltip>
+          </Space>
+        ),
+        key: "dataPagamentoAgendada",
+        width: 160,
+        render: (_, record) => {
+          const dataPagamento = record.dataPagamentoAgendada;
+          if (!dataPagamento) {
+            return <Text type="secondary">-</Text>;
+          }
+          return (
+            <Text>
+              {moment(dataPagamento).format("DD/MM/YYYY")}
+            </Text>
+          );
+        },
+        sorter: (a, b) => {
+          const dataA = a.dataPagamentoAgendada ? new Date(a.dataPagamentoAgendada).getTime() : 0;
+          const dataB = b.dataPagamentoAgendada ? new Date(b.dataPagamentoAgendada).getTime() : 0;
+          return dataA - dataB;
         },
       },
     {

@@ -1000,11 +1000,18 @@ export class TurmaColheitaService {
         throw new BadRequestException('Data de pagamento inválida');
       }
 
-      const limite = new Date();
-      limite.setHours(23, 59, 59, 999);
+      // Para PIX - API (pagamentos via API de Lote BB), permitir datas futuras
+      // A validação de domingos e horário (após 20:00) é feita no frontend
+      const isPixAPI = formaPagamentoAjustada === 'PIX - API';
 
-      if (dataInformada.getTime() > limite.getTime()) {
-        throw new BadRequestException('Data de pagamento não pode ser futura');
+      if (!isPixAPI) {
+        // Para outros métodos de pagamento, não permitir datas futuras
+        const limite = new Date();
+        limite.setHours(23, 59, 59, 999);
+
+        if (dataInformada.getTime() > limite.getTime()) {
+          throw new BadRequestException('Data de pagamento não pode ser futura');
+        }
       }
 
       dataPagamentoAjustada = this.gerarDataComHorarioFixo(dataInformada);

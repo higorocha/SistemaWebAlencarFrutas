@@ -149,7 +149,7 @@ O sistema utiliza **5 tabelas principais** para controlar todos os pagamentos:
 
 #### Dados Enviados (Campos Comuns)
 - `valorEnviado` (Decimal) - Valor do item enviado
-- `dataPagamentoEnviada` (String) - Data no formato ddmmaaaa
+- `dataPagamentoEnviada` (String) - **Data agendada de pagamento** no formato `ddmmaaaa` (ex: `"8122025"` = 08/12/2025). Esta é a data informada pelo usuário ao criar o lote e que será enviada ao Banco do Brasil. **Sempre salva no momento da criação do item**, independente do status do pagamento.
 - `descricaoEnviada` (String?) - Descrição do pagamento
 - `payloadItemEnviado` (Json) - Dados completos do item enviado
 
@@ -1831,6 +1831,11 @@ GET /api/pagamentos/pix/96494633731030000/individual
 - ✅ Validação de limites de registros (futuro)
 - ✅ Validação de campos obrigatórios
 - ✅ Validação de formato de dados
+- ✅ **Validação de data de pagamento agendada** (via hook `useRestricaoDataPagamentoLoteBB` no frontend):
+  - Não permite selecionar domingos
+  - Não permite selecionar data atual após 20:00 (deve selecionar próximo dia útil)
+  - Alerta para liberar remessa até 21:00 do dia atual
+  - Aplicada em todas as funcionalidades que criam pagamentos via API de lotes do BB (Turma Colheita e Folha de Pagamento)
 
 ### Compatibilidade
 - ✅ Compatível com lotes criados antes da persistência
@@ -1864,6 +1869,81 @@ GET /api/pagamentos/pix/96494633731030000/individual
 - ✅ Suporte a múltiplos itens por lote (até 320 transferências por lote)
 - ✅ Divisão automática em múltiplos lotes se > 320 funcionários
 - ✅ Sincronização automática de status via jobs
+
+### 📅 Data de Pagamento Agendada
+
+#### Armazenamento da Data Agendada
+
+A **data de pagamento agendada** (informada pelo usuário ao criar o lote) é sempre salva no campo `dataPagamentoEnviada` da tabela `pagamento_api_item`:
+
+- **Tabela:** `pagamento_api_item`
+- **Campo:** `dataPagamentoEnviada` (tipo `String`)
+- **Formato:** `ddmmaaaa` (ex: `"8122025"` = 08/12/2025)
+- **Quando é salva:** No momento da criação do item, antes de enviar ao BB
+- **Onde é usada:** Enviada ao Banco do Brasil no campo `data` de cada transferência
+
+**Exemplo:**
+```typescript
+// Frontend envia: dataPagamento = "2025-12-08T15:00:00.000Z"
+// Backend formata: "8122025" (ddmmaaaa)
+// Salvo em: PagamentoApiItem.dataPagamentoEnviada = "8122025"
+// Enviado ao BB: { data: "8122025", ... }
+```
+
+#### Exibição no Frontend
+
+A data agendada é exibida de forma diferente dependendo da origem do pagamento:
+
+**1. Folha de Pagamento (`ArhFolhaPagamento.js`):**
+- **Fonte:** `FolhaPagamento.dataPagamento` (tabela `folha_pagamento`)
+- **Obtida via:** Relação `funcionarioPagamento.folha.dataPagamento`
+- **Exibida em:** Coluna "Data Agendamento" na tabela de lotes (`Pagamentos.js`)
+- **Lógica:** Um lote de folha pode ter múltiplos funcionários, todos da mesma folha, então usa `folhaPrincipal.dataPagamento`
+
+**2. Turma de Colheita (`TurmaColheitaPagamentosModal.js`):**
+- **Fonte:** `TurmaColheitaPedidoCusto.dataPagamento` (tabela `turma_colheita_pedido_custo`)
+- **Obtida via:** Relação `PagamentoApiItemColheita.turmaColheitaCusto.dataPagamento`
+- **Exibida em:** Coluna "Data Agendamento" na tabela de lotes (`Pagamentos.js`)
+- **Lógica:** Um lote de colheita tem exatamente 1 item que pode pagar múltiplas colheitas, então usa `todasColheitas[0].dataPagamento` (primeiro item de colheita)
+
+**Diferença fundamental:**
+- **Folha:** Data vem da folha (1 folha → N funcionários → 1 lote)
+- **Colheita:** Data vem do item de colheita (1 item → N colheitas → 1 lote)
+
+#### Validação de Data Agendada (Frontend)
+
+O sistema utiliza o hook `useRestricaoDataPagamentoLoteBB` para validar a data de pagamento agendada em todas as funcionalidades que criam pagamentos via API de lotes do BB:
+
+**Validações implementadas:**
+1. **Não permite domingos:** Se o usuário tentar selecionar um domingo, o sistema bloqueia a seleção e sugere o próximo dia útil
+2. **Horário limite (20:00):** Se a hora atual for superior a 20:00, não permite selecionar o dia atual e sugere o próximo dia útil
+3. **Alerta de liberação:** Sempre alerta o usuário para liberar a remessa criada em "Relatórios → Pagamentos" até as 21:00 do dia atual, independente da data selecionada para pagamento
+
+**Onde é aplicado:**
+- ✅ `TurmaColheitaPagamentosModal.js` - Modal de pagamentos de colheitas
+- ✅ `FinalizarFolhaDialog.js` - Modal de finalização de folha de pagamento
+- ✅ `ArhFolhaPagamento.js` - Reprocessamento de pagamentos rejeitados
+
+**Comportamento:**
+- Para **PIX-API:** Aplica todas as validações (domingos, horário 20:00, alerta 21:00)
+- Para **outros métodos** (PIX, Espécie): Apenas bloqueia datas futuras (permite data atual e anteriores)
+
+#### Uso da Data no Backend
+
+**Folha de Pagamento:**
+- A data informada pelo usuário é salva em `FolhaPagamento.dataPagamento` ao finalizar a folha
+- Quando o lote é criado (ao liberar a folha), o backend usa `folha.dataPagamento` se disponível, senão usa data atual
+- A data é formatada para `ddmmaaaa` e salva em `PagamentoApiItem.dataPagamentoEnviada`
+
+**Turma de Colheita:**
+- A data informada pelo usuário é enviada no payload ao criar o lote
+- O backend salva a data formatada em `PagamentoApiItem.dataPagamentoEnviada`
+- A data também é salva em `TurmaColheitaPedidoCusto.dataPagamento` quando o status é `PAGO` (não quando é `PROCESSANDO`)
+
+**⚠️ IMPORTANTE:**
+- `PagamentoApiItem.dataPagamentoEnviada`: Sempre preenchido (data agendada enviada ao BB)
+- `TurmaColheitaPedidoCusto.dataPagamento`: Só preenchido quando status = `PAGO` (data real do pagamento)
+- `FolhaPagamento.dataPagamento`: Sempre preenchido ao finalizar (data agendada informada pelo usuário)
 
 ### Integração com ARH (Implementado ✅)
 
@@ -2135,5 +2215,8 @@ Se o Prisma Client não reconhece a nova tabela:
 - ✅ Reprocessamento de pagamentos rejeitados com suporte a mudança de meio de pagamento
 - ✅ Documentação completa do comportamento da chave PIX: sempre atualizada do cadastro do funcionário, armazenada para consistência histórica em `pagamento_api_item.chavePixEnviada`, `tipoChavePixEnviado` e `responsavelChavePixEnviado`
 - ✅ Campo `responsavelChavePixEnviado` adicionado em `pagamento_api_item` para rastreabilidade do responsável pela chave PIX
+- ✅ **Hook de validação de data de pagamento** (`useRestricaoDataPagamentoLoteBB`): valida domingos, horário 20:00 e alerta de liberação até 21:00
+- ✅ **Data de pagamento agendada**: documentação completa sobre onde é salva (`PagamentoApiItem.dataPagamentoEnviada`) e como é exibida no frontend (diferença entre folha e turma colheita)
+- ✅ **Backend usa data informada pelo usuário**: ajustado para usar `FolhaPagamento.dataPagamento` ao criar lotes, em vez de sempre usar data atual
 
 

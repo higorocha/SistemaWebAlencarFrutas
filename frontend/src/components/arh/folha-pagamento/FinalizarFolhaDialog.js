@@ -7,6 +7,8 @@ import { SaveOutlined, CloseOutlined, LockOutlined, WarningOutlined, ReloadOutli
 import FinalizarFolhaForm from "./FinalizarFolhaForm";
 import ConfirmCloseModal from "../../common/modals/ConfirmCloseModal";
 import useConfirmClose from "../../../hooks/useConfirmClose";
+import useRestricaoDataPagamentoLoteBB from "../../../hooks/useRestricaoDataPagamentoLoteBB";
+import moment from "moment";
 
 const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessamento = false, resumoRejeitados = null }) => {
   const [finalizacaoAtual, setFinalizacaoAtual] = useState({
@@ -16,6 +18,12 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessament
     observacoes: "",
   });
   const [erros, setErros] = useState({});
+  
+  // Hook de validação de data para pagamentos via API de Lote BB
+  const {
+    validarEMostrarErro,
+    mostrarAlertaLiberacao,
+  } = useRestricaoDataPagamentoLoteBB();
 
   // Função customizada para verificar se há dados preenchidos
   const customHasDataChecker = (data) => {
@@ -35,7 +43,7 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessament
     if (open) {
       setFinalizacaoAtual({
         meioPagamento: modoReprocessamento ? "PIX_API" : "PIX",
-        dataPagamento: undefined,
+        dataPagamento: moment(), // Inicializar com data atual
         contaCorrenteId: null,
         observacoes: "",
       });
@@ -66,6 +74,13 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessament
   const handleFinalizar = async () => {
     if (!validarFormulario()) {
       return;
+    }
+
+    // Validar data se for PIX_API
+    if (finalizacaoAtual.meioPagamento === "PIX_API") {
+      if (!validarEMostrarErro(finalizacaoAtual.dataPagamento)) {
+        return; // Interrompe se validação falhar
+      }
     }
 
     // Preparar dados para envio

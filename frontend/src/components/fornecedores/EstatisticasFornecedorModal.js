@@ -274,6 +274,22 @@ const EstatisticasFornecedorModal = ({
       ),
     },
     {
+      title: "Data Pagamento",
+      dataIndex: "dataPagamento",
+      key: "dataPagamento",
+      width: 130,
+      render: (date) => (
+        date ? (
+          <Space>
+            <CalendarOutlined style={{ color: "#52c41a" }} />
+            <Text>{new Date(date).toLocaleDateString('pt-BR')}</Text>
+          </Space>
+        ) : (
+          <Text type="secondary">-</Text>
+        )
+      ),
+    },
+    {
       title: "Fruta",
       dataIndex: "fruta",
       key: "fruta",
@@ -304,6 +320,32 @@ const EstatisticasFornecedorModal = ({
           {value.toLocaleString('pt-BR')} {record.unidade}
         </Text>
       ),
+    },
+    {
+      title: "Valor Unitário",
+      key: "valorUnitario",
+      width: 120,
+      render: (_, record) => {
+        // Usar valorUnitario do backend se disponível, senão calcular (valorTotal / quantidade)
+        let valorUnitario = record.valorUnitario;
+        
+        if (valorUnitario === undefined || valorUnitario === null) {
+          // Calcular no frontend: valorTotal / quantidade
+          if (record.valorTotal && record.valorTotal > 0 && record.quantidade && record.quantidade > 0) {
+            valorUnitario = record.valorTotal / record.quantidade;
+          } else {
+            valorUnitario = null;
+          }
+        }
+        
+        return (
+          <Text style={{ color: "#1890ff", fontWeight: 500 }}>
+            {valorUnitario && valorUnitario > 0 
+              ? `R$ ${formatCurrency(valorUnitario)}` 
+              : "-"}
+          </Text>
+        );
+      },
     },
     {
       title: "Valor",

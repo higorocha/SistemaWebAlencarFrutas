@@ -17,6 +17,7 @@ import { showNotification } from "../config/notificationConfig";
 import { PrimaryButton, PDFButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
 import useResponsive from "../hooks/useResponsive";
+import useRestricaoDataPagamentoLoteBB from "../hooks/useRestricaoDataPagamentoLoteBB";
 import { useAuth } from "../contexts/AuthContext";
 import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
 import ConfirmActionModal from "../components/common/modals/ConfirmActionModal";
@@ -98,6 +99,7 @@ const SuspenseFallback = ({ message = "Carregando..." }) => (
 const ArhFolhaPagamento = () => {
   const { isMobile } = useResponsive();
   const { user } = useAuth();
+  const { mostrarAlertaLiberacao } = useRestricaoDataPagamentoLoteBB();
   const [folhas, setFolhas] = useState([]);
   const [selectedFolhaId, setSelectedFolhaId] = useState(() => {
     // Recuperar folha selecionada do cache
@@ -472,6 +474,11 @@ const ArhFolhaPagamento = () => {
       
       showNotification("success", "Sucesso", "Folha finalizada e aguardando liberação por um administrador!");
       
+      // Mostrar alerta sobre liberação da remessa até 21:00 se for PIX_API
+      if (dadosFinalizacao.meioPagamento === "PIX_API") {
+        mostrarAlertaLiberacao();
+      }
+      
       // Recarregar folhas e lançamentos para atualizar método de pagamento na tabela
       await carregarFolhas();
       await carregarLancamentos(selectedFolha.id);
@@ -670,6 +677,12 @@ const ArhFolhaPagamento = () => {
       console.log('✅ [REPROCESSAR-REJEITADOS] Resposta recebida:', response.data);
       
       showNotification("success", "Sucesso", response.data.mensagem || "Pagamentos rejeitados reprocessados com sucesso!");
+      
+      // Mostrar alerta sobre liberação da remessa até 21:00 se for PIX_API
+      if (dadosReprocessamento.meioPagamento === "PIX_API") {
+        mostrarAlertaLiberacao();
+      }
+      
       carregarFolhas();
       carregarLancamentos(selectedFolha.id);
     } catch (error) {

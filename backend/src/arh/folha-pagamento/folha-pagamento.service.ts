@@ -734,6 +734,7 @@ export class FolhaPagamentoService {
       competenciaAno: number;
       periodo: number | null;
       observacoes: string | null;
+      dataPagamento: Date | null;
     },
     contaCorrente: {
       id: number;
@@ -744,8 +745,9 @@ export class FolhaPagamentoService {
     usuarioId: number,
   ): Promise<void> {
     // Montar lista de transferências (1 por funcionário)
-    const dataAtual = new Date();
-    const dataPagamentoFormatada = formatarDataParaAPIBB(dataAtual.toISOString());
+    // Usar dataPagamento da folha se disponível, senão usar data atual
+    const dataPagamento = folha.dataPagamento ? new Date(folha.dataPagamento) : new Date();
+    const dataPagamentoFormatada = formatarDataParaAPIBB(dataPagamento.toISOString());
     const competenciaRef = `${String(folha.competenciaMes).padStart(2, '0')}/${folha.competenciaAno}`;
     const quinzenaRef = folha.periodo === 1 ? '1Q' : '2Q';
 
@@ -1113,10 +1115,9 @@ export class FolhaPagamentoService {
     }
 
     // 6. Montar lista de transferências (1 por funcionário)
-    // IMPORTANTE: Usar data atual (hoje) ao invés da data salva na folha
-    // para evitar enviar remessas com data retroativa ao banco
-    const dataAtual = new Date();
-    const dataPagamentoFormatada = formatarDataParaAPIBB(dataAtual.toISOString());
+    // Usar dataPagamento do DTO (fornecido pelo usuário) se disponível, senão usar data atual
+    const dataPagamento = dto.dataPagamento ? new Date(dto.dataPagamento) : new Date();
+    const dataPagamentoFormatada = formatarDataParaAPIBB(dataPagamento.toISOString());
     const competenciaRef = `${String(folha.competenciaMes).padStart(2, '0')}/${folha.competenciaAno}`;
     const quinzenaRef = folha.periodo === 1 ? '1Q' : '2Q';
 
@@ -1737,9 +1738,15 @@ export class FolhaPagamentoService {
 
       try {
         // Criar novo lote apenas para os rejeitados
+        // Usar dataPagamento do DTO se disponível, senão usar da folha, senão usar data atual
+        const folhaComDataPagamento = {
+          ...folha,
+          dataPagamento: dto.dataPagamento ? new Date(dto.dataPagamento) : (folha.dataPagamento || null),
+        };
+        
         await this.criarLotesParaLancamentos(
           lancamentosParaReprocessar,
-          folha,
+          folhaComDataPagamento,
           {
             id: contaCorrente.id,
             agencia: contaCorrente.agencia,

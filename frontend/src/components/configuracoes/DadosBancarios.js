@@ -308,7 +308,10 @@ const DadosBancarios = () => {
         agenciaDigito: values.agenciaDigito,
         contaCorrente: values.contaCorrente,
         contaCorrenteDigito: values.contaCorrenteDigito,
-        numeroContratoPagamento: values.numeroContratoPagamento || null,
+        // Tratar numeroContratoPagamento: remover espaços e converter para null se vazio
+        numeroContratoPagamento: values.numeroContratoPagamento && String(values.numeroContratoPagamento).trim() !== '' 
+          ? String(values.numeroContratoPagamento).trim() 
+          : null,
       };
 
       // Sempre enviar campos de monitoramento quando estiver editando
@@ -852,14 +855,41 @@ const DadosBancarios = () => {
                       }
                       rules={[
                         {
-                          pattern: /^[0-9]+$/,
-                          message: "⚠️ Número do contrato deve conter apenas números",
-                        },
-                        {
-                          max: 10,
-                          message: "⚠️ Número do contrato deve ter no máximo 10 dígitos",
+                          validator: (_, value) => {
+                            // Se o campo estiver vazio, não validar (é opcional)
+                            if (!value) {
+                              return Promise.resolve();
+                            }
+                            
+                            // Converter para string e remover espaços
+                            const valueStr = String(value).trim();
+                            
+                            // Se após remover espaços estiver vazio, não validar
+                            if (valueStr === '') {
+                              return Promise.resolve();
+                            }
+                            
+                            // Validar se contém apenas números
+                            if (!/^[0-9]+$/.test(valueStr)) {
+                              return Promise.reject(new Error('⚠️ Número do contrato deve conter apenas números'));
+                            }
+                            
+                            // Validar comprimento máximo
+                            if (valueStr.length > 10) {
+                              return Promise.reject(new Error('⚠️ Número do contrato deve ter no máximo 10 dígitos'));
+                            }
+                            
+                            return Promise.resolve();
+                          },
                         },
                       ]}
+                      normalize={(value) => {
+                        // Converter para string e remover espaços em branco
+                        if (value === null || value === undefined) {
+                          return value;
+                        }
+                        return String(value).trim();
+                      }}
                     >
                       <Input size="large" placeholder="Ex: 731030" />
                     </Form.Item>

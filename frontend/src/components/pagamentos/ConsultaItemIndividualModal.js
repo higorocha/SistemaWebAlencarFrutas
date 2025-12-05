@@ -21,7 +21,7 @@ import {
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { formatCurrency } from "../../utils/formatters";
-import { formatarCPF, formatarCNPJ, formatarTelefone } from "../../utils/formatters";
+import { formatarCPF, formatarCNPJ, formatarTelefone, formatarChavePixPorTipo } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 
 const { Text, Title } = Typography;
@@ -92,12 +92,20 @@ const ConsultaItemIndividualModal = ({
 
   const formatarData = (data) => {
     if (!data) return "-";
-    const dataStr = data.toString();
+    const dataStr = data.toString().trim();
+    
+    // Formato ddmmaaaa pode ter 7 ou 8 dígitos (dia com ou sem zero à esquerda)
     if (dataStr.length === 8) {
-      // Formato ddmmaaaa
+      // Formato DDMMYYYY (dia com zero à esquerda)
       const dia = dataStr.substring(0, 2);
       const mes = dataStr.substring(2, 4);
       const ano = dataStr.substring(4, 8);
+      return `${dia}/${mes}/${ano}`;
+    } else if (dataStr.length === 7) {
+      // Formato DMMYYYY (dia sem zero à esquerda)
+      const dia = dataStr.substring(0, 1);
+      const mes = dataStr.substring(1, 3);
+      const ano = dataStr.substring(3, 7);
       return `${dia}/${mes}/${ano}`;
     }
     return dataStr;
@@ -505,62 +513,298 @@ const ConsultaItemIndividualModal = ({
               }}
             >
               <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
-                {/* Primeira linha: Beneficiário e Conta de Crédito lado a lado */}
+                {/* Primeira linha: Beneficiário e Chave PIX lado a lado */}
+                {/* Beneficiário - sempre exibir nome, e CPF/CNPJ se formaIdentificacao === 3 */}
                 <Col xs={24} sm={24} md={12}>
-                  {/* Beneficiário */}
                   <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: 0 }}>
                     <UserOutlined style={{ marginRight: 8 }} />
                     Beneficiário
                   </Title>
                   <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
                   <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
-                    {temValor(pix.nomeBeneficiario) && (
-                      <Col xs={24}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          <UserOutlined style={{ marginRight: 4 }} />
-                          Nome:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                          {pix.nomeBeneficiario}
-                        </Text>
-                      </Col>
-                    )}
-                    {temValor(pix.cpfCnpjBeneficiario) && (
-                      <Col xs={24}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          <IdcardOutlined style={{ marginRight: 4 }} />
-                          CPF/CNPJ:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
-                          {(() => {
-                            const cpfCnpjStr = String(pix.cpfCnpjBeneficiario).replace(/\D/g, '');
-                            return cpfCnpjStr.length === 11 
-                              ? formatarCPF(cpfCnpjStr)
-                              : formatarCNPJ(cpfCnpjStr);
-                          })()}
-                        </Text>
-                      </Col>
-                    )}
-                    {temValor(pix.tipoBeneficiario) && (
-                      <Col xs={24}>
-                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                          Tipo:
-                        </Text>
-                        <br />
-                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                          {mapearTipoBeneficiario(pix.tipoBeneficiario)}
-                        </Text>
-                      </Col>
+                    {/* Nome sempre exibir - usar descricaoPagamento se nomeBeneficiario estiver vazio */}
+                    <Col xs={24}>
+                      <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                        <UserOutlined style={{ marginRight: 4 }} />
+                        Nome:
+                      </Text>
+                      <br />
+                      <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                        {(() => {
+                          const nome = temValor(pix.nomeBeneficiario) 
+                            ? pix.nomeBeneficiario 
+                            : (dadosConsulta?.descricaoPagamento || '-');
+                          return nome.toUpperCase();
+                        })()}
+                      </Text>
+                    </Col>
+                    {/* CPF/CNPJ só exibir se formaIdentificacao === 3 (CPF/CNPJ) - pode vir em pix.cpf, pix.cnpj ou pix.cpfCnpjBeneficiario */}
+                    {(pix.formaIdentificacao === 3 || pix.formaIdentificacao === '3') && (
+                      <>
+                        {(() => {
+                          // Tentar pegar CPF/CNPJ de diferentes campos
+                          let cpfCnpj = null;
+                          
+                          if (temValor(pix.cpf)) {
+                            cpfCnpj = String(pix.cpf);
+                          } else if (temValor(pix.cnpj)) {
+                            cpfCnpj = String(pix.cnpj);
+                          } else if (temValor(pix.cpfCnpjBeneficiario)) {
+                            cpfCnpj = String(pix.cpfCnpjBeneficiario);
+                          }
+                          
+                          if (cpfCnpj) {
+                            // Determinar se é CPF ou CNPJ pelo tamanho (após remover caracteres não numéricos)
+                            const numeros = cpfCnpj.replace(/\D/g, '');
+                            let chaveFormatada;
+                            let label;
+                            
+                            // CPF tem 11 dígitos, CNPJ tem 14 dígitos
+                            // Se tiver 10 dígitos, provavelmente é CPF sem o primeiro zero à esquerda
+                            if (numeros.length === 11) {
+                              // CPF completo
+                              chaveFormatada = formatarCPF(numeros);
+                              label = 'CPF:';
+                            } else if (numeros.length === 14) {
+                              // CNPJ completo
+                              chaveFormatada = formatarCNPJ(numeros);
+                              label = 'CNPJ:';
+                            } else if (numeros.length === 10) {
+                              // CPF com 10 dígitos - adicionar zero à esquerda e formatar
+                              const cpfCompleto = '0' + numeros;
+                              chaveFormatada = formatarCPF(cpfCompleto);
+                              label = 'CPF:';
+                            } else {
+                              // Tentar usar formatarChavePixPorTipo como fallback
+                              chaveFormatada = formatarChavePixPorTipo(cpfCnpj, 3);
+                              // Se ainda não formatou, exibir como está
+                              if (chaveFormatada === cpfCnpj || chaveFormatada === 'Não informado') {
+                                chaveFormatada = numeros;
+                              }
+                              label = numeros.length < 12 ? 'CPF:' : 'CNPJ:';
+                            }
+                            
+                            return (
+                              <Col xs={24}>
+                                <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                                  <IdcardOutlined style={{ marginRight: 4 }} />
+                                  {label}
+                                </Text>
+                                <br />
+                                <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                                  {chaveFormatada}
+                                </Text>
+                              </Col>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </>
                     )}
                   </Row>
                 </Col>
 
-                {/* Conta de Crédito */}
+                {/* Chave PIX - sempre exibir, verificar formaIdentificacao para mostrar campo correto */}
+                <Col xs={24} sm={24} md={12}>
+                  <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: 0 }}>
+                    <KeyOutlined style={{ marginRight: 8 }} />
+                    Chave PIX
+                  </Title>
+                  <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+                  <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
+                    {temValor(pix.formaIdentificacao) && (
+                      <Col xs={24}>
+                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                          <KeyOutlined style={{ marginRight: 4 }} />
+                          Forma de Identificação:
+                        </Text>
+                        <br />
+                        <Tag color="blue" style={{ marginTop: "4px" }}>
+                          {mapearFormaIdentificacao(pix.formaIdentificacao)}
+                        </Tag>
+                      </Col>
+                    )}
+                    {/* Forma 1: Telefone - mostrar dddTelefone + telefone */}
+                    {(pix.formaIdentificacao === 1 || pix.formaIdentificacao === '1') && (
+                      <>
+                        {temValor(pix.dddTelefone) && temValor(pix.telefone) && (
+                          <Col xs={24}>
+                            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                              <PhoneOutlined style={{ marginRight: 4 }} />
+                              Telefone:
+                            </Text>
+                            <br />
+                            <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                              {(() => {
+                                const dddStr = String(pix.dddTelefone).replace(/\D/g, '');
+                                const telefoneStr = String(pix.telefone).replace(/\D/g, '');
+                                const telefoneCompleto = dddStr + telefoneStr;
+                                // Usar formatarChavePixPorTipo para manter consistência
+                                return formatarChavePixPorTipo(telefoneCompleto, 1);
+                              })()}
+                            </Text>
+                          </Col>
+                        )}
+                      </>
+                    )}
+                    {/* Forma 2: Email */}
+                    {(pix.formaIdentificacao === 2 || pix.formaIdentificacao === '2') && temValor(pix.email) && (
+                      <Col xs={24}>
+                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                          <MailOutlined style={{ marginRight: 4 }} />
+                          Email:
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                          {pix.email}
+                        </Text>
+                      </Col>
+                    )}
+                    {/* Forma 3: CPF/CNPJ - pode vir em pix.cpf, pix.cnpj ou pix.cpfCnpjBeneficiario */}
+                    {(pix.formaIdentificacao === 3 || pix.formaIdentificacao === '3') && (
+                      <>
+                        {(() => {
+                          // Tentar pegar CPF/CNPJ de diferentes campos
+                          let cpfCnpj = null;
+                          
+                          if (temValor(pix.cpf)) {
+                            cpfCnpj = String(pix.cpf);
+                          } else if (temValor(pix.cnpj)) {
+                            cpfCnpj = String(pix.cnpj);
+                          } else if (temValor(pix.cpfCnpjBeneficiario)) {
+                            cpfCnpj = String(pix.cpfCnpjBeneficiario);
+                          }
+                          
+                          if (cpfCnpj) {
+                            // Determinar se é CPF ou CNPJ pelo tamanho (após remover caracteres não numéricos)
+                            const numeros = cpfCnpj.replace(/\D/g, '');
+                            let chaveFormatada;
+                            let label;
+                            
+                            // CPF tem 11 dígitos, CNPJ tem 14 dígitos
+                            // Se tiver 10 dígitos, provavelmente é CPF sem o primeiro zero à esquerda
+                            if (numeros.length === 11) {
+                              // CPF completo
+                              chaveFormatada = formatarCPF(numeros);
+                              label = 'CPF:';
+                            } else if (numeros.length === 14) {
+                              // CNPJ completo
+                              chaveFormatada = formatarCNPJ(numeros);
+                              label = 'CNPJ:';
+                            } else if (numeros.length === 10) {
+                              // CPF com 10 dígitos - adicionar zero à esquerda e formatar
+                              const cpfCompleto = '0' + numeros;
+                              chaveFormatada = formatarCPF(cpfCompleto);
+                              label = 'CPF:';
+                            } else {
+                              // Tentar usar formatarChavePixPorTipo como fallback
+                              chaveFormatada = formatarChavePixPorTipo(cpfCnpj, 3);
+                              // Se ainda não formatou, exibir como está
+                              if (chaveFormatada === cpfCnpj || chaveFormatada === 'Não informado') {
+                                chaveFormatada = numeros;
+                              }
+                              label = numeros.length < 12 ? 'CPF:' : 'CNPJ:';
+                            }
+                            
+                            return (
+                              <Col xs={24}>
+                                <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                                  <IdcardOutlined style={{ marginRight: 4 }} />
+                                  {label}
+                                </Text>
+                                <br />
+                                <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                                  {chaveFormatada}
+                                </Text>
+                              </Col>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </>
+                    )}
+                    {/* Forma 4: Chave Aleatória */}
+                    {(pix.formaIdentificacao === 4 || pix.formaIdentificacao === '4') && temValor(pix.identificacaoAleatoria) && (
+                      <Col xs={24}>
+                        <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                          <SafetyOutlined style={{ marginRight: 4 }} />
+                          Chave Aleatória:
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                          {pix.identificacaoAleatoria}
+                        </Text>
+                      </Col>
+                    )}
+                    {/* Forma 5: Dados Bancários */}
+                    {(pix.formaIdentificacao === 5 || pix.formaIdentificacao === '5') && (
+                      <>
+                        {(temValor(pix.numeroCOMPE) || temValor(pix.numeroISPB)) && (
+                          <Col xs={24}>
+                            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                              <BankOutlined style={{ marginRight: 4 }} />
+                              Instituição:
+                            </Text>
+                            <br />
+                            <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                              {temValor(pix.numeroCOMPE) ? `COMPE: ${pix.numeroCOMPE}` : `ISPB: ${pix.numeroISPB}`}
+                            </Text>
+                          </Col>
+                        )}
+                        {temValor(pix.tipoConta) && (
+                          <Col xs={24}>
+                            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                              Tipo de Conta:
+                            </Text>
+                            <br />
+                            <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                              {mapearTipoConta(pix.tipoConta)}
+                            </Text>
+                          </Col>
+                        )}
+                        {temValor(pix.agencia) && (
+                          <Col xs={24}>
+                            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                              Agência:
+                            </Text>
+                            <br />
+                            <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                              {pix.agencia}
+                            </Text>
+                          </Col>
+                        )}
+                        {temValor(pix.conta) && (
+                          <Col xs={24}>
+                            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                              Conta:
+                            </Text>
+                            <br />
+                            <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                              {pix.conta}
+                              {temValor(pix.digitoVerificadorConta) && `-${pix.digitoVerificadorConta}`}
+                            </Text>
+                          </Col>
+                        )}
+                        {temValor(pix.contaPagamento) && (
+                          <Col xs={24}>
+                            <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
+                              Conta Pagamento:
+                            </Text>
+                            <br />
+                            <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
+                              {pix.contaPagamento}
+                            </Text>
+                          </Col>
+                        )}
+                      </>
+                    )}
+                  </Row>
+                </Col>
+
+                {/* Segunda linha: Conta de Crédito e Outras Informações lado a lado */}
                 {(temValor(pix.agenciaCredito) || temValor(pix.contaCorrenteCredito) || temValor(pix.numeroContaPagamentoCredito)) && (
                   <Col xs={24} sm={24} md={12}>
-                    <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: 0 }}>
+                    <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "16px" }}>
                       <BankOutlined style={{ marginRight: 8 }} />
                       Conta de Crédito
                     </Title>
@@ -608,73 +852,6 @@ const ConsultaItemIndividualModal = ({
                           <br />
                           <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
                             {mapearTipoConta(pix.tipoConta)}
-                          </Text>
-                        </Col>
-                      )}
-                    </Row>
-                  </Col>
-                )}
-
-                {/* Segunda linha: Chave PIX e Outras Informações lado a lado */}
-                {(temValor(pix.formaIdentificacao) || temValor(pix.telefone) || temValor(pix.email) || temValor(pix.identificacaoAleatoria)) && (
-                  <Col xs={24} sm={24} md={12}>
-                    <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "16px" }}>
-                      <KeyOutlined style={{ marginRight: 8 }} />
-                      Chave PIX
-                    </Title>
-                    <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-                    <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 12]}>
-                      {temValor(pix.formaIdentificacao) && (
-                        <Col xs={24}>
-                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                            <KeyOutlined style={{ marginRight: 4 }} />
-                            Forma de Identificação:
-                          </Text>
-                          <br />
-                          <Tag color="blue" style={{ marginTop: "4px" }}>
-                            {mapearFormaIdentificacao(pix.formaIdentificacao)}
-                          </Tag>
-                        </Col>
-                      )}
-                      {(pix.formaIdentificacao === 1 || pix.formaIdentificacao === '1') && temValor(pix.telefone) && (
-                        <Col xs={24}>
-                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                            <PhoneOutlined style={{ marginRight: 4 }} />
-                            Telefone:
-                          </Text>
-                          <br />
-                          <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
-                            {(() => {
-                              // Converte DDD e telefone para string e concatena
-                              const dddStr = temValor(pix.dddTelefone) ? String(pix.dddTelefone).replace(/\D/g, '') : '';
-                              const telefoneStr = String(pix.telefone).replace(/\D/g, '');
-                              const telefoneCompleto = dddStr + telefoneStr;
-                              return formatarTelefone(telefoneCompleto);
-                            })()}
-                          </Text>
-                        </Col>
-                      )}
-                      {(pix.formaIdentificacao === 2 || pix.formaIdentificacao === '2') && temValor(pix.email) && (
-                        <Col xs={24}>
-                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                            <MailOutlined style={{ marginRight: 4 }} />
-                            Email:
-                          </Text>
-                          <br />
-                          <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
-                            {pix.email}
-                          </Text>
-                        </Col>
-                      )}
-                      {(pix.formaIdentificacao === 4 || pix.formaIdentificacao === '4') && temValor(pix.identificacaoAleatoria) && (
-                        <Col xs={24}>
-                          <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
-                            <SafetyOutlined style={{ marginRight: 4 }} />
-                            Chave Aleatória:
-                          </Text>
-                          <br />
-                          <Text style={{ fontSize: "0.875rem", marginTop: "4px", fontFamily: 'monospace' }}>
-                            {pix.identificacaoAleatoria}
                           </Text>
                         </Col>
                       )}

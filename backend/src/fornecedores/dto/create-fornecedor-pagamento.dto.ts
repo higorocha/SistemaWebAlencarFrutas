@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsNumber, IsPositive, IsNotEmpty, IsDateString, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsNumber, IsPositive, IsNotEmpty, IsDateString, MaxLength, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UnidadeMedida, StatusPagamentoFornecedor } from '@prisma/client';
 
@@ -101,23 +101,25 @@ export class CreateFornecedorPagamentoDto {
   @IsDateString()
   dataColheita?: string;
 
-  @ApiProperty({
-    description: 'Data do pagamento',
+  @ApiPropertyOptional({
+    description: 'Data do pagamento (obrigatório quando status é PAGO, opcional quando status é PENDENTE)',
     example: '2024-12-20T10:00:00Z',
   })
+  @ValidateIf((o) => o.status !== StatusPagamentoFornecedor.PENDENTE)
   @IsDateString()
   @IsNotEmpty()
-  dataPagamento: string;
+  dataPagamento?: string;
 
-  @ApiProperty({
-    description: 'Forma de pagamento',
+  @ApiPropertyOptional({
+    description: 'Forma de pagamento (obrigatório quando status é PAGO, opcional quando status é PENDENTE)',
     example: 'PIX',
     maxLength: 50,
   })
+  @ValidateIf((o) => o.status !== StatusPagamentoFornecedor.PENDENTE)
   @IsString()
   @IsNotEmpty()
   @MaxLength(50)
-  formaPagamento: string;
+  formaPagamento?: string;
 
   @ApiPropertyOptional({
     description: 'Observações gerais',
@@ -135,5 +137,14 @@ export class CreateFornecedorPagamentoDto {
   @IsOptional()
   @IsEnum(StatusPagamentoFornecedor)
   status?: StatusPagamentoFornecedor;
+
+  @ApiPropertyOptional({
+    description: 'ID do pagamento existente (para atualização quando status é PENDENTE)',
+    example: 1,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  pagamentoId?: number;
 }
 

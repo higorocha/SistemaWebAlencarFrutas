@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import PropTypes from "prop-types";
-import { Form, Input, Row, Col, Card, Space, Typography, DatePicker, Select, Alert, Spin } from "antd";
+import { Form, Input, Row, Col, Card, Space, Typography, Select, Alert, Spin } from "antd";
 import {
   BankOutlined,
   CalendarOutlined,
@@ -12,6 +12,9 @@ import {
   ApiOutlined,
 } from "@ant-design/icons";
 import api from "../../../api/axiosConfig";
+import { MaskedDatePicker } from "../../common/inputs";
+import useRestricaoDataPagamentoLoteBB from "../../../hooks/useRestricaoDataPagamentoLoteBB";
+import moment from "moment";
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -64,6 +67,12 @@ const FinalizarFolhaForm = ({
 }) => {
   const [contasDisponiveis, setContasDisponiveis] = useState([]);
   const [loadingContas, setLoadingContas] = useState(false);
+  
+  // Hook de validação de data para pagamentos via API de Lote BB
+  const {
+    disabledDate: disabledDatePixAPI,
+    validarEMostrarErro,
+  } = useRestricaoDataPagamentoLoteBB();
 
   // Carregar contas disponíveis quando PIX_API for selecionado
   useEffect(() => {
@@ -334,14 +343,21 @@ const FinalizarFolhaForm = ({
                 help={erros.dataPagamento}
                 required
               >
-                <DatePicker
+                <MaskedDatePicker
                   placeholder="Selecione a data"
                   value={finalizacaoAtual.dataPagamento}
                   onChange={(date) => handleChange("dataPagamento", date)}
-                  format="DD/MM/YYYY"
-                  style={{ width: "100%" }}
                   size="large"
-                  allowClear={false}
+                  style={{ width: "100%", borderRadius: 6 }}
+                  disabledDate={(current) => {
+                    // Se for PIX_API: usar validação do hook (bloqueia domingos e datas anteriores)
+                    if (finalizacaoAtual.meioPagamento === "PIX_API") {
+                      return disabledDatePixAPI(current);
+                    }
+                    // Para outros métodos (PIX, ESPECIE): não permitir datas futuras
+                    // (permitir apenas data atual e anteriores)
+                    return current && current > moment().endOf('day');
+                  }}
                 />
               </Form.Item>
             </Col>

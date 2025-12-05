@@ -165,20 +165,40 @@ export class FornecedorPagamentosService {
       throw new ConflictException('Já existe um pagamento para esta combinação de área, pedido e fruta');
     }
 
-    // Validar data de pagamento (não pode ser futura)
-    const dataPagamento = new Date(dto.dataPagamento);
-    if (Number.isNaN(dataPagamento.getTime())) {
-      throw new BadRequestException('Data de pagamento inválida');
+    // Determinar status do pagamento (padrão: PAGO)
+    const statusPagamento = dto.status || StatusPagamentoFornecedor.PAGO;
+
+    // Validar data de pagamento apenas se status não for PENDENTE (precificação)
+    let dataPagamentoAjustada: Date | undefined;
+    if (statusPagamento !== StatusPagamentoFornecedor.PENDENTE) {
+      if (!dto.dataPagamento) {
+        throw new BadRequestException('Data de pagamento é obrigatória quando status não é PENDENTE');
+      }
+
+      const dataPagamento = new Date(dto.dataPagamento);
+      if (Number.isNaN(dataPagamento.getTime())) {
+        throw new BadRequestException('Data de pagamento inválida');
+      }
+
+      const limite = new Date();
+      limite.setHours(23, 59, 59, 999);
+
+      if (dataPagamento.getTime() > limite.getTime()) {
+        throw new BadRequestException('Data de pagamento não pode ser futura');
+      }
+
+      dataPagamentoAjustada = this.gerarDataComHorarioFixo(dataPagamento);
+    } else if (dto.dataPagamento) {
+      // Se status é PENDENTE mas dataPagamento foi informada, validar e usar
+      const dataPagamento = new Date(dto.dataPagamento);
+      if (!Number.isNaN(dataPagamento.getTime())) {
+        const limite = new Date();
+        limite.setHours(23, 59, 59, 999);
+        if (dataPagamento.getTime() <= limite.getTime()) {
+          dataPagamentoAjustada = this.gerarDataComHorarioFixo(dataPagamento);
+        }
+      }
     }
-
-    const limite = new Date();
-    limite.setHours(23, 59, 59, 999);
-
-    if (dataPagamento.getTime() > limite.getTime()) {
-      throw new BadRequestException('Data de pagamento não pode ser futura');
-    }
-
-    const dataPagamentoAjustada = this.gerarDataComHorarioFixo(dataPagamento);
 
     // Calcular valorTotal se não informado
     let valorTotal = dto.valorTotal;
@@ -197,8 +217,10 @@ export class FornecedorPagamentosService {
       dataColheita = pedido.dataColheita;
     }
 
-    // Criar pagamento (status padrão: PAGO, mas pode ser informado)
-    const statusPagamento = dto.status || StatusPagamentoFornecedor.PAGO;
+    // Validar forma de pagamento apenas se status não for PENDENTE
+    if (statusPagamento !== StatusPagamentoFornecedor.PENDENTE && !dto.formaPagamento) {
+      throw new BadRequestException('Forma de pagamento é obrigatória quando status não é PENDENTE');
+    }
     const pagamento = await this.prisma.fornecedorPagamento.create({
       data: {
         fornecedorId: fornecedorId,
@@ -213,8 +235,8 @@ export class FornecedorPagamentosService {
         valorTotal: valorTotal,
         dataColheita: dataColheita,
         status: statusPagamento,
-        dataPagamento: dataPagamentoAjustada,
-        formaPagamento: dto.formaPagamento,
+        ...(dataPagamentoAjustada !== undefined && { dataPagamento: dataPagamentoAjustada }),
+        ...(dto.formaPagamento !== undefined && { formaPagamento: dto.formaPagamento }),
         observacoes: dto.observacoes,
       },
       include: {
@@ -314,7 +336,7 @@ export class FornecedorPagamentosService {
             throw new NotFoundException(`Relação área ${pagamentoDto.frutaPedidoAreaId} não encontrada ou não é de fornecedor`);
           }
 
-          // Validar que não existe pagamento duplicado
+          // Verificar se já existe pagamento para esta colheita
           const pagamentoExistente = await prisma.fornecedorPagamento.findUnique({
             where: {
               frutaPedidoAreaId_pedidoId_frutaId: {
@@ -325,24 +347,58 @@ export class FornecedorPagamentosService {
             },
           });
 
-          if (pagamentoExistente) {
-            throw new ConflictException(`Já existe pagamento para área ${pagamentoDto.frutaPedidoAreaId}, pedido ${pagamentoDto.pedidoId}, fruta ${pagamentoDto.frutaId}`);
+          // Se existe pagamentoId no DTO, verificar se é o mesmo pagamento existente
+          if (pagamentoDto.pagamentoId) {
+            if (!pagamentoExistente || pagamentoExistente.id !== pagamentoDto.pagamentoId) {
+              throw new BadRequestException(`Pagamento ${pagamentoDto.pagamentoId} não encontrado ou não corresponde à colheita informada`);
+            }
+            // Se o pagamento existe e está PAGO, não permitir atualização
+            if (pagamentoExistente.status === StatusPagamentoFornecedor.PAGO) {
+              throw new BadRequestException(`Não é possível atualizar um pagamento já pago (ID: ${pagamentoDto.pagamentoId})`);
+            }
+          } else if (pagamentoExistente) {
+            // Se não foi informado pagamentoId mas existe pagamento, verificar se pode atualizar
+            if (pagamentoExistente.status === StatusPagamentoFornecedor.PAGO) {
+              throw new ConflictException(`Já existe pagamento PAGO para área ${pagamentoDto.frutaPedidoAreaId}, pedido ${pagamentoDto.pedidoId}, fruta ${pagamentoDto.frutaId}`);
+            }
+            // Se existe pagamento PENDENTE mas não foi informado pagamentoId, usar o existente
+            // (permitir atualização implícita quando status é PENDENTE)
           }
 
-          // Validar data de pagamento
-          const dataPagamento = new Date(pagamentoDto.dataPagamento);
-          if (Number.isNaN(dataPagamento.getTime())) {
-            throw new BadRequestException(`Data de pagamento inválida para pagamento ${pagamentoDto.frutaPedidoAreaId}`);
+          // Determinar status do pagamento (padrão: PAGO)
+          const statusPagamento = pagamentoDto.status || StatusPagamentoFornecedor.PAGO;
+
+          // Validar data de pagamento apenas se status não for PENDENTE (precificação)
+          let dataPagamentoAjustada: Date | undefined;
+          if (statusPagamento !== StatusPagamentoFornecedor.PENDENTE) {
+            if (!pagamentoDto.dataPagamento) {
+              throw new BadRequestException(`Data de pagamento é obrigatória quando status não é PENDENTE para pagamento ${pagamentoDto.frutaPedidoAreaId}`);
+            }
+
+            const dataPagamento = new Date(pagamentoDto.dataPagamento);
+            if (Number.isNaN(dataPagamento.getTime())) {
+              throw new BadRequestException(`Data de pagamento inválida para pagamento ${pagamentoDto.frutaPedidoAreaId}`);
+            }
+
+            const limite = new Date();
+            limite.setHours(23, 59, 59, 999);
+
+            if (dataPagamento.getTime() > limite.getTime()) {
+              throw new BadRequestException(`Data de pagamento não pode ser futura para pagamento ${pagamentoDto.frutaPedidoAreaId}`);
+            }
+
+            dataPagamentoAjustada = this.gerarDataComHorarioFixo(dataPagamento);
+          } else if (pagamentoDto.dataPagamento) {
+            // Se status é PENDENTE mas dataPagamento foi informada, validar e usar
+            const dataPagamento = new Date(pagamentoDto.dataPagamento);
+            if (!Number.isNaN(dataPagamento.getTime())) {
+              const limite = new Date();
+              limite.setHours(23, 59, 59, 999);
+              if (dataPagamento.getTime() <= limite.getTime()) {
+                dataPagamentoAjustada = this.gerarDataComHorarioFixo(dataPagamento);
+              }
+            }
           }
-
-          const limite = new Date();
-          limite.setHours(23, 59, 59, 999);
-
-          if (dataPagamento.getTime() > limite.getTime()) {
-            throw new BadRequestException(`Data de pagamento não pode ser futura para pagamento ${pagamentoDto.frutaPedidoAreaId}`);
-          }
-
-          const dataPagamentoAjustada = this.gerarDataComHorarioFixo(dataPagamento);
 
           // Calcular valorTotal se não informado
           let valorTotal = pagamentoDto.valorTotal;
@@ -361,9 +417,70 @@ export class FornecedorPagamentosService {
             dataColheita = pedido.dataColheita;
           }
 
-          // Criar pagamento (status padrão: PAGO, mas pode ser informado)
-          const statusPagamento = pagamentoDto.status || StatusPagamentoFornecedor.PAGO;
-          const pagamento = await prisma.fornecedorPagamento.create({
+          // Validar forma de pagamento apenas se status não for PENDENTE
+          if (statusPagamento !== StatusPagamentoFornecedor.PENDENTE && !pagamentoDto.formaPagamento) {
+            throw new BadRequestException(`Forma de pagamento é obrigatória quando status não é PENDENTE para pagamento ${pagamentoDto.frutaPedidoAreaId}`);
+          }
+
+          // Se já existe pagamento PENDENTE, fazer UPDATE ao invés de CREATE
+          const pagamentoIdParaAtualizar = pagamentoDto.pagamentoId || (pagamentoExistente && pagamentoExistente.status === StatusPagamentoFornecedor.PENDENTE ? pagamentoExistente.id : null);
+
+          let pagamento;
+          if (pagamentoIdParaAtualizar) {
+            // Atualizar pagamento existente
+            const updateData: any = {
+              quantidade: pagamentoDto.quantidade,
+              unidadeMedida: pagamentoDto.unidadeMedida,
+              valorUnitario: pagamentoDto.valorUnitario,
+              valorTotal: valorTotal,
+              status: statusPagamento,
+              ...(dataColheita !== undefined && { dataColheita: dataColheita }),
+              ...(dataPagamentoAjustada !== undefined && { dataPagamento: dataPagamentoAjustada }),
+              ...(pagamentoDto.formaPagamento !== undefined && { formaPagamento: pagamentoDto.formaPagamento }),
+              ...(pagamentoDto.observacoes !== undefined && { observacoes: pagamentoDto.observacoes }),
+            };
+
+            pagamento = await prisma.fornecedorPagamento.update({
+              where: { id: pagamentoIdParaAtualizar },
+              data: updateData,
+              include: {
+                fornecedor: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    cnpj: true,
+                    cpf: true,
+                  },
+                },
+                areaFornecedor: {
+                  select: {
+                    id: true,
+                    nome: true,
+                  },
+                },
+                pedido: {
+                  select: {
+                    id: true,
+                    numeroPedido: true,
+                    cliente: {
+                      select: {
+                        nome: true,
+                        razaoSocial: true,
+                      },
+                    },
+                  },
+                },
+                fruta: {
+                  select: {
+                    id: true,
+                    nome: true,
+                  },
+                },
+              },
+            });
+          } else {
+            // Criar novo pagamento
+            pagamento = await prisma.fornecedorPagamento.create({
             data: {
               fornecedorId: fornecedorId,
               areaFornecedorId: pagamentoDto.areaFornecedorId,
@@ -377,8 +494,8 @@ export class FornecedorPagamentosService {
               valorTotal: valorTotal,
               dataColheita: dataColheita,
               status: statusPagamento,
-              dataPagamento: dataPagamentoAjustada,
-              formaPagamento: pagamentoDto.formaPagamento,
+              ...(dataPagamentoAjustada !== undefined && { dataPagamento: dataPagamentoAjustada }),
+              ...(pagamentoDto.formaPagamento !== undefined && { formaPagamento: pagamentoDto.formaPagamento }),
               observacoes: pagamentoDto.observacoes,
             },
             include: {
@@ -416,7 +533,9 @@ export class FornecedorPagamentosService {
               },
             },
           });
+          }
 
+          // Adicionar pagamento ao array (tanto para UPDATE quanto CREATE)
           pagamentosCriados.push(this.mapToResponseDto(pagamento));
         }
 
@@ -1181,8 +1300,8 @@ export class FornecedorPagamentosService {
 
       for (const pagamento of pagamentos) {
         // Verificar se as relações necessárias estão presentes
-        // dataPagamento sempre existe porque é obrigatório no schema quando status é PAGO
-        if (!pagamento.pedido || !pagamento.fruta || !pagamento.areaFornecedor) {
+        // Verificar também se dataPagamento existe (deve existir para pagamentos PAGOS)
+        if (!pagamento.pedido || !pagamento.fruta || !pagamento.areaFornecedor || !pagamento.dataPagamento) {
           continue;
         }
 
@@ -1220,8 +1339,8 @@ export class FornecedorPagamentosService {
           valorUnitario: pagamento.valorUnitario || undefined,
           valorColheita: pagamento.valorTotal, // valorTotal do pagamento é o valor da colheita paga
           dataColheita: pagamento.dataColheita?.toISOString(),
-          dataPagamento: pagamento.dataPagamento.toISOString(),
-          formaPagamento: pagamento.formaPagamento,
+          dataPagamento: pagamento.dataPagamento ? pagamento.dataPagamento.toISOString() : undefined,
+          formaPagamento: pagamento.formaPagamento ?? undefined,
           observacoes: pagamento.observacoes || undefined,
         });
       }
@@ -1360,10 +1479,12 @@ export class FornecedorPagamentosService {
       unidade: string;
       valor: number;
       valorTotal?: number;
+      valorUnitario?: number;
       pagamentoId?: number;
       statusPagamento?: string;
       pagamentoEfetuado: boolean;
       dataColheita?: Date;
+      dataPagamento?: Date;
       observacoes?: string;
       areaNome: string;
     }> = [];
@@ -1431,10 +1552,12 @@ export class FornecedorPagamentosService {
           // Apenas retornar valorTotal do pagamento (se existir)
           valor: 0, // Sempre 0 - valores só vêm da tabela de pagamentos
           valorTotal: pagamento?.valorTotal || 0, // Valor total do pagamento (se precificada/paga), senão 0
+          valorUnitario: pagamento?.valorUnitario ?? undefined, // Valor unitário do pagamento
           pagamentoId: pagamento?.id,
           statusPagamento: pagamento?.status,
           pagamentoEfetuado: statusPago,
           dataColheita: pedido.dataColheita ?? pagamento?.dataColheita ?? undefined,
+          dataPagamento: pagamento?.dataPagamento ?? undefined,
           observacoes: pagamento?.observacoes || undefined,
           areaNome: area.nome,
         });
