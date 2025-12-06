@@ -279,6 +279,7 @@ export class DashboardService {
           quantidadeReal: frutaPedido.quantidadeReal ?? undefined, // ✅ Converter null para undefined
           unidade: frutaPedido.unidadeMedida1,
           dataPrevistaColheita: pedido.dataPrevistaColheita.toISOString(),
+          dataColheita: pedido.dataColheita ? pedido.dataColheita.toISOString() : undefined, // ✅ Adicionar dataColheita
           status: statusVisualizacao,
           statusPedido: pedido.status, // ✅ Status real do pedido
           diasRestantes: diasRestantes,

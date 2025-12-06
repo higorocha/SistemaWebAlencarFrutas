@@ -38,6 +38,9 @@ export class ProgramacaoColheitaDto {
   @ApiProperty({ example: '2024-01-25T00:00:00.000Z' })
   dataPrevistaColheita: string;
 
+  @ApiProperty({ example: '2024-01-25T00:00:00.000Z', required: false, description: 'Data de colheita realizada' })
+  dataColheita?: string;
+
   @ApiProperty({ example: 'AGUARDANDO_COLHEITA' })
   status: string;
 

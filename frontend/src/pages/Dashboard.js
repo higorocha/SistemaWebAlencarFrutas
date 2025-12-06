@@ -247,6 +247,7 @@ const Dashboard = () => {
   const [loadingPainelFrutas, setLoadingPainelFrutas] = useState(false); // Estado para controlar loading do painel de frutas
   const [painelFinanceiroCarregado, setPainelFinanceiroCarregado] = useState(false); // Estado para controlar se o painel financeiro já foi carregado
   const [loadingPainelFinanceiro, setLoadingPainelFinanceiro] = useState(false); // Estado para controlar loading do painel financeiro
+  const [modoColheitas, setModoColheitas] = useState('programacao'); // 'programacao' ou 'realizadas'
   const [dashboardData, setDashboardData] = useState({
     // Cards principais
     faturamentoTotal: 0,
@@ -1105,6 +1106,8 @@ const Dashboard = () => {
                 <ProgramacaoColheitaSection
                   programacaoColheita={dashboardData.programacaoColheita || []}
                   onColheitaClick={abrirModalColheita}
+                  modoColheitas={modoColheitas}
+                  onToggleModoColheitas={() => setModoColheitas(prev => prev === 'programacao' ? 'realizadas' : 'programacao')}
                 />
 
                 {/* Seção de Gráficos e Pagamentos - Responsivos */}

@@ -53,6 +53,26 @@ const StyledTabs = styled(Tabs)`
     }
   }
 
+  .ant-tabs-tab:nth-child(3) {
+    .ant-tabs-tab-btn {
+      color: #059669 !important;
+    }
+
+    &:hover {
+      border-bottom-color: #059669 !important;
+    }
+
+    &.ant-tabs-tab-active {
+      border-color: #e8e8e8 !important;
+      border-bottom-color: #fff !important;
+
+      .ant-tabs-tab-btn {
+        font-weight: 600 !important;
+        color: #059669 !important;
+      }
+    }
+  }
+
   .ant-tabs-content-holder {
     padding: 16px 0 0 0 !important;
     border-top: 1px solid #e8e8e8;

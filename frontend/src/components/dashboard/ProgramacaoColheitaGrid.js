@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Card, Typography, Row, Col, Space, Tag, Tooltip, Tabs, Button } from 'antd';
-import { CalendarOutlined, UserOutlined, NumberOutlined, ClockCircleOutlined, LeftOutlined, RightOutlined, FullscreenOutlined, FullscreenExitOutlined } from '@ant-design/icons';
+import { CalendarOutlined, UserOutlined, NumberOutlined, ClockCircleOutlined, LeftOutlined, RightOutlined, FullscreenOutlined, FullscreenExitOutlined, SwapOutlined } from '@ant-design/icons';
 import styled from 'styled-components';
 import useResponsive from '../../hooks/useResponsive';
 import { formatarData } from '../../utils/dateUtils';
@@ -61,6 +61,8 @@ const ProgramacaoColheitaGrid = ({
   onResetWeek,
   isFullscreen = false,
   onToggleFullscreen,
+  modoColheitas = 'programacao',
+  onToggleModoColheitas,
 }) => {
   const { isMobile } = useResponsive();
   const [modalDiaAberto, setModalDiaAberto] = useState(false);
@@ -162,6 +164,9 @@ const ProgramacaoColheitaGrid = ({
     }
   };
 
+  // Determinar se estamos no modo "Colheitas Realizadas"
+  const isModoRealizadas = modoColheitas === 'realizadas';
+
   // Agrupar colheitas por categoria (semana atual e atrasadas)
   const { colheitasSemanaAtual, colheitasAtrasadas } = useMemo(() => {
     const semanaAtual = {};
@@ -171,17 +176,30 @@ const ProgramacaoColheitaGrid = ({
     const datasUnicasSemana = new Set();
     const datasUnicasAtrasadas = new Set();
 
-    const statusVisiveisNaGrade = ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL'];
+    // Status visíveis dependem do modo
+    const statusVisiveisNaGrade = isModoRealizadas
+      ? ['COLHEITA_PARCIAL', 'COLHEITA_REALIZADA', 'AGUARDANDO_PRECIFICACAO', 'PRECIFICACAO_REALIZADA', 'AGUARDANDO_PAGAMENTO', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_REALIZADO', 'PEDIDO_FINALIZADO']
+      : ['PEDIDO_CRIADO', 'AGUARDANDO_COLHEITA', 'COLHEITA_PARCIAL'];
 
     // Filtrar colheitas por categoria
     programacaoColheita.forEach(item => {
-      // 1. Ocultar itens de pedidos que não devem aparecer na grade (ex: já precificados)
-      if (!statusVisiveisNaGrade.includes(item.statusPedido)) {
+      // No modo "Colheitas Realizadas", só mostrar pedidos que foram colhidos (têm dataColheita)
+      if (isModoRealizadas && !item.dataColheita) {
         return;
       }
 
-      // 2. Se o pedido é de colheita parcial, ocultar apenas a fruta que já foi colhida
-      if (item.statusPedido === 'COLHEITA_PARCIAL' && item.quantidadeReal && item.quantidadeReal > 0) {
+      // No modo "Programação", ocultar itens de pedidos que não devem aparecer na grade (ex: já precificados)
+      if (!isModoRealizadas && !statusVisiveisNaGrade.includes(item.statusPedido)) {
+        return;
+      }
+
+      // No modo "Programação", se o pedido é de colheita parcial, ocultar apenas a fruta que já foi colhida
+      if (!isModoRealizadas && item.statusPedido === 'COLHEITA_PARCIAL' && item.quantidadeReal && item.quantidadeReal > 0) {
+        return;
+      }
+
+      // No modo "Colheitas Realizadas", só mostrar pedidos com status de colheita realizada ou superior
+      if (isModoRealizadas && !statusVisiveisNaGrade.includes(item.statusPedido)) {
         return;
       }
 
@@ -190,8 +208,12 @@ const ProgramacaoColheitaGrid = ({
         return;
       }
 
-      const dataColheita = new Date(item.dataPrevistaColheita);
-      const dataColheitaNormalizada = new Date(dataColheita.getFullYear(), dataColheita.getMonth(), dataColheita.getDate(), 0, 0, 0, 0);
+      // Usar dataColheita no modo "Realizadas", dataPrevistaColheita no modo "Programação"
+      const dataReferencia = isModoRealizadas && item.dataColheita
+        ? new Date(item.dataColheita)
+        : new Date(item.dataPrevistaColheita);
+      
+      const dataColheitaNormalizada = new Date(dataReferencia.getFullYear(), dataReferencia.getMonth(), dataReferencia.getDate(), 0, 0, 0, 0);
       const dataStr = dataColheitaNormalizada.toISOString().split('T')[0];
 
       // Verificar se está dentro da semana atual
@@ -235,13 +257,23 @@ const ProgramacaoColheitaGrid = ({
 
     // Distribuir colheitas nas colunas
     programacaoColheita.forEach(item => {
-      // 1. Ocultar itens de pedidos que não devem aparecer na grade (ex: já precificados)
-      if (!statusVisiveisNaGrade.includes(item.statusPedido)) {
+      // No modo "Colheitas Realizadas", só mostrar pedidos que foram colhidos (têm dataColheita)
+      if (isModoRealizadas && !item.dataColheita) {
         return;
       }
 
-      // 2. Se o pedido é de colheita parcial, ocultar apenas a fruta que já foi colhida
-      if (item.statusPedido === 'COLHEITA_PARCIAL' && item.quantidadeReal && item.quantidadeReal > 0) {
+      // No modo "Programação", ocultar itens de pedidos que não devem aparecer na grade (ex: já precificados)
+      if (!isModoRealizadas && !statusVisiveisNaGrade.includes(item.statusPedido)) {
+        return;
+      }
+
+      // No modo "Programação", se o pedido é de colheita parcial, ocultar apenas a fruta que já foi colhida
+      if (!isModoRealizadas && item.statusPedido === 'COLHEITA_PARCIAL' && item.quantidadeReal && item.quantidadeReal > 0) {
+        return;
+      }
+
+      // No modo "Colheitas Realizadas", só mostrar pedidos com status de colheita realizada ou superior
+      if (isModoRealizadas && !statusVisiveisNaGrade.includes(item.statusPedido)) {
         return;
       }
 
@@ -250,8 +282,12 @@ const ProgramacaoColheitaGrid = ({
         return;
       }
 
-      const dataColheita = new Date(item.dataPrevistaColheita);
-      const dataStr = dataColheita.toISOString().split('T')[0];
+      // Usar dataColheita no modo "Realizadas", dataPrevistaColheita no modo "Programação"
+      const dataReferencia = isModoRealizadas && item.dataColheita
+        ? new Date(item.dataColheita)
+        : new Date(item.dataPrevistaColheita);
+      
+      const dataStr = dataReferencia.toISOString().split('T')[0];
 
       if (semanaAtual[dataStr]) {
         semanaAtual[dataStr].colheitas.push(item);
@@ -266,7 +302,7 @@ const ProgramacaoColheitaGrid = ({
       colheitasSemanaAtual: semanaAtual,
       colheitasAtrasadas: atrasadas
     };
-  }, [programacaoColheita, semanaReferencia]);
+  }, [programacaoColheita, semanaReferencia, isModoRealizadas]);
 
   // Obter colunas ordenadas para semana atual
   const colunasSemanaOrdenadas = useMemo(() => {
@@ -393,37 +429,53 @@ const ProgramacaoColheitaGrid = ({
     const dataColuna = new Date(colunaData.data);
     const dataColunaNormalizada = new Date(dataColuna.getFullYear(), dataColuna.getMonth(), dataColuna.getDate(), 0, 0, 0, 0);
     
-    const diferencaMs = dataColunaNormalizada.getTime() - dataAtual.getTime();
+    // No modo "Colheitas Realizadas", calcular dias desde a colheita (negativo = passado)
+    // No modo "Programação", calcular dias restantes (positivo = futuro)
+    const diferencaMs = isModoRealizadas
+      ? dataAtual.getTime() - dataColunaNormalizada.getTime() // Dias desde a colheita
+      : dataColunaNormalizada.getTime() - dataAtual.getTime(); // Dias restantes
+    
     const diasRestantes = Math.round(diferencaMs / (1000 * 60 * 60 * 24));
     
-    const statusConfig = getStatusConfig(diasRestantes);
+    // No modo "Colheitas Realizadas", usar cores diferentes (azul/verde para colheitas realizadas)
+    const statusConfig = isModoRealizadas
+      ? (diasRestantes === 0
+          ? { cor: '#e0f2fe', border: '#0284c7', label: 'HOJE', textColor: '#0c4a6e' }
+          : diasRestantes < 0
+          ? { cor: '#dbeafe', border: '#3b82f6', label: null, textColor: '#1e40af' }
+          : { cor: '#f0fdf4', border: '#22c55e', label: null, textColor: '#166534' })
+      : getStatusConfig(diasRestantes);
     const dataFormatada = formatarData(colunaData.data);
     const diaSemana = capitalizeName(new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(dataColunaNormalizada));
 
     const normalizarData = (data) => new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
 
-    const colheitasConcluidas = programacaoColheita.filter(item => {
-      const quantidadeReal = item.quantidadeReal || 0;
-      const statusEhConcluido = STATUS_COLHEITAS_CONCLUIDAS.includes(item.statusPedido);
-      const possuiQuantidade = quantidadeReal > 0;
+    // No modo "Colheitas Realizadas", não precisamos calcular colheitas concluídas separadamente
+    // pois todas as colheitas já são realizadas
+    const colheitasConcluidas = isModoRealizadas
+      ? [] // No modo "Colheitas Realizadas", todas as colheitas já estão em colunaData.colheitas
+      : programacaoColheita.filter(item => {
+          const quantidadeReal = item.quantidadeReal || 0;
+          const statusEhConcluido = STATUS_COLHEITAS_CONCLUIDAS.includes(item.statusPedido);
+          const possuiQuantidade = quantidadeReal > 0;
 
-      if (!statusEhConcluido && !possuiQuantidade) {
-        return false;
-      }
+          if (!statusEhConcluido && !possuiQuantidade) {
+            return false;
+          }
 
-      const dataPrevista = item.dataPrevistaColheita ? normalizarData(new Date(item.dataPrevistaColheita)) : null;
-      const dataReal = item.dataColheita ? normalizarData(new Date(item.dataColheita)) : null;
+          const dataPrevista = item.dataPrevistaColheita ? normalizarData(new Date(item.dataPrevistaColheita)) : null;
+          const dataReal = item.dataColheita ? normalizarData(new Date(item.dataColheita)) : null;
 
-      if (dataReal && dataReal.getTime() === dataColunaNormalizada.getTime()) {
-        return true;
-      }
+          if (dataReal && dataReal.getTime() === dataColunaNormalizada.getTime()) {
+            return true;
+          }
 
-      if (!dataReal && dataPrevista && dataPrevista.getTime() === dataColunaNormalizada.getTime()) {
-        return true;
-      }
+          if (!dataReal && dataPrevista && dataPrevista.getTime() === dataColunaNormalizada.getTime()) {
+            return true;
+          }
 
-      return false;
-    });
+          return false;
+        });
 
     const totalPendentesDia = colunaData.colheitas.length;
     const totalConcluidasDia = colheitasConcluidas.length;
@@ -644,7 +696,7 @@ const ProgramacaoColheitaGrid = ({
                 textAlign: 'left'
               }}
             >
-              📅 Programação de Colheita
+              📅 {isModoRealizadas ? 'Colheitas Realizadas' : 'Programação de Colheita'}
             </Title>
             <span
               style={{
@@ -676,7 +728,7 @@ const ProgramacaoColheitaGrid = ({
             {totalColheitasPendentes > 0
               ? (
                 <>
-                  {totalColheitasPendentes} colheita{totalColheitasPendentes > 1 ? 's' : ''} programada{totalColheitasPendentes > 1 ? 's' : ''}
+                  {totalColheitasPendentes} colheita{totalColheitasPendentes > 1 ? 's' : ''} {isModoRealizadas ? 'realizada' : 'programada'}{totalColheitasPendentes > 1 ? 's' : ''}
                   {totalColheitasAtrasadas > 0 && (
                     <span style={{ color: '#dc2626', fontWeight: 600 }}>
                       {' • '}{totalColheitasAtrasadas} atrasada{totalColheitasAtrasadas > 1 ? 's' : ''}
@@ -684,7 +736,7 @@ const ProgramacaoColheitaGrid = ({
                   )}
                 </>
               )
-              : 'Nenhuma colheita programada nesta semana'}
+              : `Nenhuma colheita ${isModoRealizadas ? 'realizada' : 'programada'} nesta semana`}
           </Text>
         </div>
 
@@ -769,6 +821,29 @@ const ProgramacaoColheitaGrid = ({
                 ) : (
                   <FullscreenOutlined style={{ fontSize: isMobile ? '12px' : '14px' }} />
                 )}
+              />
+            </Tooltip>
+            <Tooltip
+              title={isModoRealizadas ? 'Alternar para Programação de Colheita' : 'Alternar para Colheitas Realizadas'}
+            >
+              <Button
+                type="text"
+                icon={<SwapOutlined />}
+                onClick={onToggleModoColheitas}
+                size="small"
+                style={{
+                  color: '#059669',
+                  border: '1px solid #059669',
+                  borderRadius: '6px',
+                  padding: '6px',
+                  height: 'auto',
+                  minWidth: 'auto',
+                  width: isMobile ? '26px' : '30px',
+                  height: isMobile ? '24px' : '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               />
             </Tooltip>
         </Space>

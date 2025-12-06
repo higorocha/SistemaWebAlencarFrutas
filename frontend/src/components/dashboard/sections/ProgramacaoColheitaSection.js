@@ -46,7 +46,9 @@ const ContentRow = styled(Row)`
 
 const ProgramacaoColheitaSection = ({
   programacaoColheita = [],
-  onColheitaClick
+  onColheitaClick,
+  modoColheitas = 'programacao',
+  onToggleModoColheitas
 }) => {
   const { isMobile } = useResponsive();
   const [activeTab, setActiveTab] = useState('1'); // '1' = Semana Atual, '2' = Atrasadas
@@ -168,6 +170,8 @@ const ProgramacaoColheitaSection = ({
                   onResetWeek={handleResetWeek}
                   isFullscreen={isFullscreen}
                   onToggleFullscreen={toggleFullscreen}
+                  modoColheitas={modoColheitas}
+                  onToggleModoColheitas={onToggleModoColheitas}
                 />
               </div>
             </Col>
