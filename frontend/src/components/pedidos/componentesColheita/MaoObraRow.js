@@ -153,11 +153,21 @@ const MaoObraRow = ({
   // ✅ Ref para controlar qual campo está sendo editado (evitar loop)
   const isEditingValorUnitario = React.useRef(false);
   const isEditingValorTotal = React.useRef(false);
+  // ✅ Ref para rastrear se o valorColheita foi informado diretamente pelo usuário
+  const valorColheitaInformadoDiretamente = React.useRef(false);
+  // ✅ Ref para rastrear a última quantidade (para detectar mudanças)
+  const ultimaQuantidadeRef = React.useRef(quantidadeColhida);
+  // ✅ Ref para indicar que estamos recalculando devido a mudança de quantidade
+  const recalculandoPorQuantidade = React.useRef(false);
+  // ✅ Ref para indicar se já foi feita a inicialização (carregamento do backend)
+  const inicializadoRefMaoObra = React.useRef(false);
 
-  // ✅ Recalcular valor total automaticamente quando a quantidade mudar
-  // e já existir um valor unitário definido (edição em tempo real)
+  // ✅ Recalcular valor total automaticamente quando quantidade ou valor unitário mudarem
+  // ✅ CORREÇÃO: Se quantidade mudar, sempre recalcular (mesmo se valor foi informado diretamente)
+  // Se apenas valor unitário mudar, só recalcular se valor não foi informado diretamente
   React.useEffect(() => {
     if (isReadonly) return;
+    if (isEditingValorUnitario.current || isEditingValorTotal.current) return;
 
     const qtdNum = quantidadeColhida
       ? parseFloat(String(quantidadeColhida).replace(',', '.')) || 0
@@ -167,21 +177,94 @@ const MaoObraRow = ({
       : 0;
 
     if (!qtdNum || !valUnitNum) return;
-    if (isEditingValorUnitario.current || isEditingValorTotal.current) return;
-
-    const total = Number((qtdNum * valUnitNum).toFixed(2));
 
     const maoObraAtual = form.getFieldValue('maoObra') || [];
     const atual = maoObraAtual[index] || {};
+    const valorColheitaAtual = atual.valorColheita
+      ? parseFloat(String(atual.valorColheita).replace(',', '.')) || 0
+      : 0;
 
-    if (atual.valorColheita === total) return;
+    // ✅ Detectar se a quantidade mudou (apenas após inicialização)
+    const quantidadeAtualStr = String(quantidadeColhida || '').replace(',', '.');
+    const ultimaQuantidadeStr = String(ultimaQuantidadeRef.current || '').replace(',', '.');
+    const quantidadeMudou = inicializadoRefMaoObra.current && quantidadeAtualStr !== ultimaQuantidadeStr;
+    
+    // ✅ Se ainda não foi inicializado, marcar como inicializado e não recalcular
+    if (!inicializadoRefMaoObra.current) {
+      inicializadoRefMaoObra.current = true;
+      ultimaQuantidadeRef.current = quantidadeColhida;
+      // ✅ No carregamento inicial, marcar como informado diretamente se houver diferença
+      // (para preservar o valor do banco)
+      const valUnitNumArredondado = Number(valUnitNum.toFixed(4));
+      const totalCalculado = Number((qtdNum * valUnitNumArredondado).toFixed(2));
+      const diferenca = Math.abs(valorColheitaAtual - totalCalculado);
+      if (valorColheitaAtual > 0 && diferenca > 0.01) {
+        valorColheitaInformadoDiretamente.current = true;
+      }
+      return; // ✅ Não recalcular no carregamento inicial
+    }
+    
+    // Atualizar ref da quantidade
+    ultimaQuantidadeRef.current = quantidadeColhida;
 
+    // ✅ Arredondar valorUnitario para 4 casas decimais (igual ao decimalScale do input)
+    // para garantir que o cálculo do total use a mesma precisão exibida
+    const valUnitNumArredondado = Number(valUnitNum.toFixed(4));
+
+    // Calcular o valor esperado usando o valorUnitario arredondado
+    const totalCalculado = Number((qtdNum * valUnitNumArredondado).toFixed(2));
+
+    // ✅ Se a quantidade mudou, sempre recalcular o total (mantendo valorUnitario original)
+    if (quantidadeMudou) {
+      valorColheitaInformadoDiretamente.current = false;
+      recalculandoPorQuantidade.current = true; // ✅ Marcar que estamos recalculando por quantidade
+      
+      // ✅ IMPORTANTE: Manter o valorUnitario original arredondado para 4 casas, apenas atualizar valorColheita
+      maoObraAtual[index] = {
+        ...atual,
+        valorColheita: totalCalculado,
+        // ✅ Garantir que valorUnitario seja arredondado para 4 casas (igual ao decimalScale do input)
+        valorUnitario: atual.valorUnitario ? Number(parseFloat(String(atual.valorUnitario).replace(',', '.')).toFixed(4)) : valUnitNumArredondado,
+      };
+      form.setFieldsValue({ maoObra: maoObraAtual });
+      
+      // ✅ Resetar a flag após um pequeno delay para evitar recálculos indesejados
+      setTimeout(() => {
+        recalculandoPorQuantidade.current = false;
+      }, 200);
+      
+      return;
+    }
+
+    // ✅ Se quantidade não mudou, verificar se valor foi informado diretamente
+    const diferenca = Math.abs(valorColheitaAtual - totalCalculado);
+    const foiInformadoDiretamente = valorColheitaAtual > 0 && diferenca > 0.01;
+    
+    // ✅ Se foi informado diretamente, marcar a flag e não recalcular
+    if (foiInformadoDiretamente) {
+      valorColheitaInformadoDiretamente.current = true;
+      return;
+    }
+    
+    // ✅ Se o valorColheita foi marcado como informado diretamente, mas agora está igual ao calculado,
+    // significa que foi recalculado (ex: usuário editou valorUnitario), então resetar a flag
+    if (valorColheitaInformadoDiretamente.current && diferenca < 0.01) {
+      valorColheitaInformadoDiretamente.current = false;
+    }
+    
+    // ✅ Se o valorColheita foi informado diretamente, não recalcular
+    if (valorColheitaInformadoDiretamente.current) return;
+
+    // Se o valor já está correto, não precisa atualizar
+    if (diferenca < 0.01) return;
+
+    // Recalcular apenas se não foi informado diretamente
     maoObraAtual[index] = {
       ...atual,
-      valorColheita: total,
+      valorColheita: totalCalculado,
     };
     form.setFieldsValue({ maoObra: maoObraAtual });
-  }, [quantidadeColhida, valorUnitario, form, index, isReadonly]);
+  }, [valorUnitario, form, index, isReadonly, quantidadeColhida, valorColheita]); // ✅ Adicionado valorColheita para detectar mudanças
 
   // ✅ Handler para calcular valor total quando valor unitário muda
   const handleValorUnitarioChange = (novoValorUnitario) => {
@@ -189,6 +272,8 @@ const MaoObraRow = ({
     if (isEditingValorTotal.current) return; // Evitar loop
 
     isEditingValorUnitario.current = true;
+    // ✅ Quando o usuário edita valorUnitario, resetar a flag (permite recalcular)
+    valorColheitaInformadoDiretamente.current = false;
 
     const qtdStr = String(quantidadeColhida).replace(',', '.');
     const valUnitStr = String(novoValorUnitario).replace(',', '.');
@@ -196,10 +281,16 @@ const MaoObraRow = ({
     const valUnit = parseFloat(valUnitStr) || 0;
 
     if (quantidade > 0 && valUnit > 0) {
-      const total = quantidade * valUnit;
+      // ✅ Arredondar valorUnitario para 4 casas decimais antes de calcular o total
+      const valUnitArredondado = Number(valUnit.toFixed(4));
+      const total = Number((quantidade * valUnitArredondado).toFixed(2));
       // ✅ CORREÇÃO: Usar setFieldValue para atualizar valorColheita sem triggerar onChange
       const maoObraAtual = form.getFieldValue('maoObra');
-      maoObraAtual[index] = { ...maoObraAtual[index], valorColheita: total };
+      maoObraAtual[index] = { 
+        ...maoObraAtual[index], 
+        valorColheita: total,
+        valorUnitario: valUnitArredondado // ✅ Armazenar valor arredondado
+      };
       form.setFieldsValue({ maoObra: maoObraAtual });
     }
 
@@ -212,8 +303,12 @@ const MaoObraRow = ({
   const handleValorTotalChange = (novoValorTotal) => {
     if (!quantidadeColhida || !novoValorTotal) return;
     if (isEditingValorUnitario.current) return; // Evitar loop
+    // ✅ Se estamos recalculando por mudança de quantidade, não recalcular valorUnitario
+    if (recalculandoPorQuantidade.current) return;
 
     isEditingValorTotal.current = true;
+    // ✅ Marcar que o valorColheita foi informado diretamente pelo usuário
+    valorColheitaInformadoDiretamente.current = true;
 
     const qtdStr = String(quantidadeColhida).replace(',', '.');
     const valTotalStr = String(novoValorTotal).replace(',', '.');
@@ -591,8 +686,14 @@ const MaoObraRow = ({
               size={isMobile ? "small" : "large"}
               disabled={isReadonly || !quantidadePreenchida}
               onChange={(value) => {
+                // ✅ Marcar imediatamente que o valorColheita foi informado diretamente
+                // ANTES de qualquer processamento, para evitar recálculo pelo useEffect
                 if (value && quantidadeColhida) {
+                  valorColheitaInformadoDiretamente.current = true;
                   handleValorTotalChange(value);
+                } else {
+                  // Se o valor foi limpo, resetar a flag
+                  valorColheitaInformadoDiretamente.current = false;
                 }
               }}
               style={{

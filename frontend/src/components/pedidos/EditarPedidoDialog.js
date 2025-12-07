@@ -367,8 +367,10 @@ const EditarPedidoDialog = ({
               quantidadeColhida: item.quantidadeColhida,
               unidadeMedida: unidadeMedidaFormatada, // ✅ Campo direto no form (igual ao valorColheita)
               valorColheita: item.valorColheita,
-              // ✅ Calcular valorUnitario
-              valorUnitario: item.quantidadeColhida > 0 ? (item.valorColheita / item.quantidadeColhida) : undefined,
+              // ✅ Calcular valorUnitario e arredondar para 4 casas decimais (igual ao decimalScale do input)
+              valorUnitario: item.quantidadeColhida > 0 
+                ? Number((item.valorColheita / item.quantidadeColhida).toFixed(4)) 
+                : undefined,
               observacoes: item.observacoes || '',
               pagamentoEfetuado: item.pagamentoEfetuado || false,
               // ✅ NOVO: Incluir estado do toggle baseado na unidadeMedida do backend
@@ -937,7 +939,15 @@ const EditarPedidoDialog = ({
             });
           }
 
-          // Adicionar dados de precificação apenas nas fases apropriadas
+          // ✅ CORREÇÃO: Sempre enviar unidadePrecificada quando existir no estado
+          // (mesmo que o pedido não esteja em fase de precificação, para manter sincronização)
+          if (fruta.unidadePrecificada) {
+            Object.assign(frutaData, {
+              unidadePrecificada: fruta.unidadePrecificada,
+            });
+          }
+
+          // Adicionar dados de precificação completos apenas nas fases apropriadas
           if (
             pedido.status === 'AGUARDANDO_PRECIFICACAO' ||
             pedido.status === 'PRECIFICACAO_REALIZADA' ||
@@ -948,7 +958,6 @@ const EditarPedidoDialog = ({
           ) {
             Object.assign(frutaData, {
               valorUnitario: fruta.valorUnitario,
-              unidadePrecificada: fruta.unidadePrecificada,
               quantidadePrecificada: fruta.quantidadePrecificada,
               valorTotal: fruta.valorTotal,
             });
@@ -981,13 +990,17 @@ const EditarPedidoDialog = ({
 
           // Só incluir maoObra no formData se houver itens válidos
           if (maoObraValida.length > 0) {
-            // ✅ Sempre recalcular valorColheita a partir de quantidadeColhida * valorUnitario
-            // para evitar inconsistências e problemas de formatação
+            // ✅ CORREÇÃO: Recalcular valorColheita APENAS se não foi informado diretamente
+            // Se o usuário informou valorColheita diretamente, usar esse valor (como no ColheitaModal)
+            // Só recalcular se não houver valorColheita mas houver valorUnitario e quantidadeColhida
             const maoObraCalculada = maoObraValida
               .map((item) => {
                 let valorColheita = item.valorColheita;
 
+                // ✅ Só recalcular se NÃO houver valorColheita válido informado diretamente
+                // mas houver valorUnitario e quantidadeColhida para calcular
                 if (
+                  (!valorColheita || valorColheita <= 0) &&
                   item.quantidadeColhida &&
                   item.quantidadeColhida > 0 &&
                   item.valorUnitario &&

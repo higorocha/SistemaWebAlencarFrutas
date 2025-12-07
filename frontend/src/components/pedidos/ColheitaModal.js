@@ -399,9 +399,12 @@ const ColheitaModal = ({
         maoObra: pedido.maoObra && pedido.maoObra.length > 0
           ? pedido.maoObra.map(item => {
               // ✅ CORREÇÃO: Calcular valorUnitario a partir de valorColheita / quantidadeColhida
+              // ✅ Arredondar para 4 casas decimais (igual ao decimalScale do input)
               const quantidadeColhida = parseFloat(item.quantidadeColhida) || 0;
               const valorColheita = parseFloat(item.valorColheita) || 0;
-              const valorUnitario = quantidadeColhida > 0 ? (valorColheita / quantidadeColhida) : undefined;
+              const valorUnitario = quantidadeColhida > 0 
+                ? Number((valorColheita / quantidadeColhida).toFixed(4)) 
+                : undefined;
               
               return {
                 id: item.id,

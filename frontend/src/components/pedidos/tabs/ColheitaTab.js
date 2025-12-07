@@ -431,9 +431,11 @@ const ColheitaTab = ({
         
         if (quantidade > 0 && valTotal > 0) {
           needsUpdate = true;
+          // ✅ Arredondar valorUnitario para 4 casas decimais (igual ao decimalScale do input)
+          const valorUnitarioCalculado = Number((valTotal / quantidade).toFixed(4));
           return {
             ...item,
-            valorUnitario: valTotal / quantidade
+            valorUnitario: valorUnitarioCalculado
           };
         }
       }

@@ -104,6 +104,15 @@ export class TransferenciaPixDto {
   @IsOptional()
   @IsString()
   digitoVerificadorConta?: string;
+
+  // Campo customizado para rastreabilidade (não enviado ao BB)
+  @ApiPropertyOptional({ 
+    description: 'Responsável pela chave PIX (campo customizado para rastreabilidade, não enviado ao BB)', 
+    example: 'João Silva' 
+  })
+  @IsOptional()
+  @IsString()
+  _responsavelChavePix?: string;
 }
 
 /**

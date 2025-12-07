@@ -197,6 +197,15 @@ const DadosBasicosTab = ({
             const unidade2 = field === 'unidadeMedida2' ? processedValue : fruta.unidadeMedida2;
             const unidadePrecificadaAtual = fruta.unidadePrecificada;
 
+            // ✅ CORREÇÃO: Se mudou unidadeMedida1, e unidadePrecificada era igual à unidadeMedida1 antiga,
+            // atualizar para a nova unidadeMedida1
+            if (field === 'unidadeMedida1') {
+              const unidadeMedida1Antiga = fruta.unidadeMedida1;
+              if (unidadePrecificadaAtual === unidadeMedida1Antiga) {
+                frutaAtualizada.unidadePrecificada = unidade1;
+              }
+            }
+
             // Se a unidade precificada não coincide mais com nenhuma das unidades disponíveis
             if (unidadePrecificadaAtual &&
                 unidadePrecificadaAtual !== unidade1 &&
