@@ -12,6 +12,9 @@ import { numberFormatter, formatCurrency, formataLeitura } from '../../../../uti
 const { Text } = Typography;
 
 const CulturaHeader = ({ dados }) => {
+  // Debug: verificar estrutura dos dados
+  // console.log('CulturaHeader dados:', dados);
+  // console.log('dadosUnidades:', dados?.resumo?.dadosUnidades);
   
   // Card estilo "VisualizarPedidoModal" (Seção Financeira)
   // Padronizado no Verde (#059669) para consistência total com o Header
@@ -82,7 +85,32 @@ const CulturaHeader = ({ dados }) => {
         <Col xs={24} sm={12} md={6}>
           <KpiCard 
             title={`Produção Total`}
-            value={`${formataLeitura ? formataLeitura(dados.resumo.totalColhido) : dados.resumo.totalColhido.toLocaleString('pt-BR')} ${dados.resumo.unidade}`}
+            value={
+              <div>
+                {dados?.resumo?.dadosUnidades && Array.isArray(dados.resumo.dadosUnidades) && dados.resumo.dadosUnidades.length > 0 ? (
+                  dados.resumo.dadosUnidades.map((dadoUnidade, index) => (
+                    <div 
+                      key={dadoUnidade.unidade || index}
+                      style={{ 
+                        marginBottom: index < dados.resumo.dadosUnidades.length - 1 ? 4 : 0,
+                        ...(index > 0 && {
+                          borderTop: '1px solid #e5e7eb',
+                          paddingTop: 4,
+                          marginTop: 4,
+                          fontSize: '14px',
+                          color: '#64748b',
+                          fontWeight: 500
+                        })
+                      }}
+                    >
+                      {formataLeitura ? formataLeitura(dadoUnidade.totalColhido || 0) : (dadoUnidade.totalColhido || 0).toLocaleString('pt-BR')} {dadoUnidade.unidade || ''}
+                    </div>
+                  ))
+                ) : (
+                  <span style={{ color: '#94a3b8' }}>Sem dados</span>
+                )}
+              </div>
+            }
             subValue="Volume consolidado"
             icon={<InboxOutlined />}
           />
@@ -112,8 +140,33 @@ const CulturaHeader = ({ dados }) => {
         <Col xs={24} sm={12} md={6}>
           <KpiCard 
             title="Produtividade Média"
-            value={numberFormatter ? numberFormatter(dados.resumo.produtividadeMedia) : dados.resumo.produtividadeMedia.toLocaleString()}
-            subValue={`${dados.resumo.unidade} / ha`}
+            value={
+              <div>
+                {dados?.resumo?.dadosUnidades && Array.isArray(dados.resumo.dadosUnidades) && dados.resumo.dadosUnidades.length > 0 ? (
+                  dados.resumo.dadosUnidades.map((dadoUnidade, index) => (
+                    <div 
+                      key={dadoUnidade.unidade || index}
+                      style={{ 
+                        marginBottom: index < dados.resumo.dadosUnidades.length - 1 ? 4 : 0,
+                        ...(index > 0 && {
+                          borderTop: '1px solid #e5e7eb',
+                          paddingTop: 4,
+                          marginTop: 4,
+                          fontSize: '14px',
+                          color: '#64748b',
+                          fontWeight: 500
+                        })
+                      }}
+                    >
+                      {numberFormatter ? numberFormatter(dadoUnidade.produtividadeMedia || 0) : (dadoUnidade.produtividadeMedia || 0).toLocaleString()} {dadoUnidade.unidade || ''}/ha
+                    </div>
+                  ))
+                ) : (
+                  <span style={{ color: '#94a3b8' }}>Sem dados</span>
+                )}
+              </div>
+            }
+            subValue="Por hectare"
             icon={<LineChartOutlined />}
           />
         </Col>

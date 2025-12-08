@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, Button, Typography, Divider } from "antd";
 import PropTypes from "prop-types";
 import { SaveOutlined, CloseOutlined, FileAddOutlined, CalendarOutlined } from "@ant-design/icons";
-import dayjs from "dayjs";
+import moment from "moment";
 import NovaFolhaForm from "./NovaFolhaForm";
 import ConfirmCloseModal from "../../common/modals/ConfirmCloseModal";
 import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
@@ -77,8 +77,8 @@ const NovaFolhaDialog = ({ open, onClose, onSave }) => {
 
     // Validar se data final é posterior à data inicial
     if (folhaAtual.dataInicial && folhaAtual.dataFinal) {
-      const dataInicial = dayjs(folhaAtual.dataInicial);
-      const dataFinal = dayjs(folhaAtual.dataFinal);
+      const dataInicial = moment(folhaAtual.dataInicial);
+      const dataFinal = moment(folhaAtual.dataFinal);
       if (dataFinal.isBefore(dataInicial) || dataFinal.isSame(dataInicial)) {
         novosErros.dataFinal = "Data final deve ser posterior à data inicial";
       }
@@ -100,13 +100,13 @@ const NovaFolhaDialog = ({ open, onClose, onSave }) => {
   const handleConfirmarCriacao = async () => {
     setConfirmCreateModal(false);
 
-    // Preparar dados para envio, convertendo datas dayjs para ISO string (YYYY-MM-DD)
+    // Preparar dados para envio, convertendo datas moment para ISO string (YYYY-MM-DD)
     const dadosParaEnvio = {
       competenciaMes: folhaAtual.competenciaMes,
       competenciaAno: folhaAtual.competenciaAno,
       periodo: folhaAtual.periodo,
-      dataInicial: folhaAtual.dataInicial ? folhaAtual.dataInicial.format('YYYY-MM-DD') : null,
-      dataFinal: folhaAtual.dataFinal ? folhaAtual.dataFinal.format('YYYY-MM-DD') : null,
+      dataInicial: folhaAtual.dataInicial ? moment(folhaAtual.dataInicial).format('YYYY-MM-DD') : null,
+      dataFinal: folhaAtual.dataFinal ? moment(folhaAtual.dataFinal).format('YYYY-MM-DD') : null,
       referencia: folhaAtual.referencia || undefined,
     };
 
@@ -127,7 +127,7 @@ const NovaFolhaDialog = ({ open, onClose, onSave }) => {
 
   const formatarData = (data) => {
     if (!data) return "-";
-    return dayjs(data).format("DD/MM/YYYY");
+    return moment(data).format("DD/MM/YYYY");
   };
 
   const handleCancelar = () => {

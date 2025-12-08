@@ -317,11 +317,13 @@ const Dashboard = () => {
   };
 
   // Função para buscar dados reais do backend
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (forceReload = false) => {
     try {
       setLoading(true);
 
-      const response = await axiosInstance.get('/api/dashboard');
+      // Adicionar timestamp para forçar reload quando solicitado
+      const params = forceReload ? { _t: Date.now() } : {};
+      const response = await axiosInstance.get('/api/dashboard', { params });
 
       // Mesclar dados reais do backend com mock data das seções não implementadas
       const backendData = response.data;
@@ -625,7 +627,7 @@ const Dashboard = () => {
         <Button
           icon={<ReloadOutlined />}
           onClick={() => {
-            fetchDashboardData();
+            fetchDashboardData(true); // Forçar reload sem cache
           }}
           loading={loading}
           size={isMobile ? "small" : "middle"}

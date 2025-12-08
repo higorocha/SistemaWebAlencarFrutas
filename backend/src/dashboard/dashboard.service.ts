@@ -1557,11 +1557,17 @@ export class DashboardService {
     }
   }
 
-  async getDadosPainelFrutas(mes?: number, ano?: number) {
+  async getDadosPainelFrutas(mes?: number, ano?: number, clienteIds?: number[], meses: number = 12) {
     const whereDataColheita: any = {};
+    const whereCliente: any = {};
+
+    // Validar número de meses (deve ser 3, 6, 9 ou 12)
+    const mesesValidos = [3, 6, 9, 12];
+    const mesesFinal = mesesValidos.includes(meses) ? meses : 12;
 
     // Se mês e ano forem fornecidos, aplica o filtro. 
-    // Caso contrário, traz todo o histórico (limitado aos status válidos).
+    // Se apenas ano for fornecido, filtra todo o ano.
+    // Se nenhum filtro for fornecido, usa os últimos N meses como padrão.
     if (mes && ano) {
       const dataInicio = new Date(ano, mes - 1, 1);
       const dataFim = new Date(ano, mes, 0, 23, 59, 59);
@@ -1577,6 +1583,20 @@ export class DashboardService {
         gte: dataInicio,
         lte: dataFim
       };
+    } else {
+      // Comportamento padrão: últimos N meses
+      const hoje = new Date();
+      const dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59);
+      const dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - (mesesFinal - 1), 1); // N meses atrás (incluindo o mês atual)
+      whereDataColheita.dataColheita = {
+        gte: dataInicio,
+        lte: dataFim
+      };
+    }
+
+    // Filtro por clientes (se fornecido)
+    if (clienteIds && clienteIds.length > 0) {
+      whereCliente.clienteId = { in: clienteIds };
     }
 
     // Status considerados como "Colheita Realizada" e válidos para estatísticas
@@ -1632,11 +1652,37 @@ export class DashboardService {
       mesesPorAnoObj[ano] = Array.from(meses).sort((a, b) => a - b); // Ordem crescente
     });
 
-    // 4. Buscar pedidos no período filtrado
+    // 4. Buscar TODOS os pedidos (sem filtro de data) para calcular Produtividade Média global
+    const pedidosTodos = await this.prisma.pedido.findMany({
+      where: {
+        status: { in: statusValidos },
+        dataColheita: { not: null }, // Apenas pedidos com data de colheita
+        ...whereCliente // Espalha o filtro de cliente (ou vazio se não fornecido)
+      },
+      include: {
+        frutasPedidos: {
+          where: {
+            quantidadePrecificada: { not: null, gt: 0 } // Apenas itens precificados
+          },
+          include: {
+            fruta: true,
+            areas: {
+              include: {
+                areaPropria: true,
+                areaFornecedor: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // 5. Buscar pedidos no período filtrado (para áreas e gráfico)
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         status: { in: statusValidos },
-        ...whereDataColheita // Espalha o filtro de data (ou vazio se for tudo)
+        ...whereDataColheita, // Espalha o filtro de data (ou vazio se for tudo)
+        ...whereCliente // Espalha o filtro de cliente (ou vazio se não fornecido)
       },
       include: {
         frutasPedidos: {
@@ -1658,19 +1704,91 @@ export class DashboardService {
 
     // 3. Processar e Agrupar Dados
     const resultado = culturas.map(cultura => {
-      // Filtrar itens deste pedido que são desta cultura
+      // ===== CALCULAR RESUMO (Produtividade Média GLOBAL) usando TODOS os pedidos =====
+      // Filtrar itens de TODOS os pedidos que são desta cultura (para resumo global)
+      const itensCulturaTodos = pedidosTodos.flatMap(p => {
+        const pedido = p as any;
+        return (pedido.frutasPedidos || []).filter((fp: any) => fp.fruta?.culturaId === cultura.id);
+      });
+
+      // Identificar TODAS as unidades únicas usadas nos pedidos desta cultura (TODOS os pedidos)
+      // Apenas unidades físicas (unidadeMedida1 e unidadeMedida2), não unidadePrecificada
+      const unidadesSet = new Set<string>();
+      itensCulturaTodos.forEach(item => {
+        if (item.unidadeMedida1) unidadesSet.add(item.unidadeMedida1);
+        if (item.unidadeMedida2) unidadesSet.add(item.unidadeMedida2);
+      });
+      const unidadesUnicas = Array.from(unidadesSet);
+
+      // Calcular totais e produtividade para CADA unidade encontrada (usando TODOS os pedidos)
+      const dadosPorUnidade = new Map<string, {
+        totalColhido: number;
+        produtividadeMedia: number;
+      }>();
+
+      unidadesUnicas.forEach(unidade => {
+        let totalColhido = 0;
+
+        itensCulturaTodos.forEach(item => {
+          // Determinar qual quantidade usar baseado na unidade
+          let quantidade = 0;
+
+          if (item.unidadeMedida1 === unidade) {
+            // Soma quantidadeColhidaUnidade1 de todas as áreas
+            quantidade = item.areas?.reduce((sum: number, areaRel: any) => {
+              return sum + (areaRel.quantidadeColhidaUnidade1 || 0);
+            }, 0) || 0;
+          } else if (item.unidadeMedida2 === unidade) {
+            // Soma quantidadeColhidaUnidade2 de todas as áreas
+            quantidade = item.areas?.reduce((sum: number, areaRel: any) => {
+              return sum + (areaRel.quantidadeColhidaUnidade2 || 0);
+            }, 0) || 0;
+          }
+
+          totalColhido += quantidade;
+        });
+
+        // Só adiciona se houver quantidade colhida
+        if (totalColhido > 0) {
+          dadosPorUnidade.set(unidade, {
+            totalColhido,
+            produtividadeMedia: 0 // Será calculado depois quando tivermos a área total
+          });
+        }
+      });
+
+      // Calcular área total GLOBAL (todas as áreas únicas de TODOS os pedidos)
+      const areasUnicasGlobal = new Set<string>();
+      let areaTotalHaGlobal = 0;
+      itensCulturaTodos.forEach(item => {
+        item.areas?.forEach((areaRel: any) => {
+          const area = areaRel.areaPropria || areaRel.areaFornecedor;
+          if (!area) return;
+          const areaId = `${areaRel.areaPropriaId ? 'P' : 'F'}-${area.id}`;
+          if (!areasUnicasGlobal.has(areaId)) {
+            areasUnicasGlobal.add(areaId);
+            areaTotalHaGlobal += areaRel.areaPropria ? areaRel.areaPropria.areaTotal : (areaRel.areaFornecedor.quantidadeHa || 0);
+          }
+        });
+      });
+
+      // Calcular produtividade média GLOBAL para cada unidade
+      dadosPorUnidade.forEach((dados, unidade) => {
+        if (areaTotalHaGlobal > 0) {
+          dados.produtividadeMedia = dados.totalColhido / areaTotalHaGlobal;
+        }
+      });
+
+      // ===== CALCULAR ÁREAS E GRÁFICO usando pedidos do PERÍODO FILTRADO =====
+      // Filtrar itens dos pedidos do período que são desta cultura (para áreas e gráfico)
       const itensCultura = pedidos.flatMap(p => {
         const pedido = p as any;
         return (pedido.frutasPedidos || []).filter((fp: any) => fp.fruta?.culturaId === cultura.id);
       });
 
-      if (itensCultura.length === 0) return null; // Pula cultura sem dados
+      if (itensCultura.length === 0 && itensCulturaTodos.length === 0) return null; // Pula cultura sem dados
 
-      // Unidade padrão da cultura (pega a primeira encontrada ou define padrão)
-      const unidadePadrao = itensCultura[0]?.unidadePrecificada || 'KG';
-
-      // Totais da Cultura
-      const totalQtd = itensCultura.reduce((acc, item) => acc + (item.quantidadePrecificada || 0), 0);
+      // Valor total (precificada) - pode ser do período ou global, vou manter do período para o gráfico
       const totalValor = itensCultura.reduce((acc, item) => acc + (item.valorTotal || 0), 0);
 
       // Agrupamento por Fruta (para gráficos e detalhes)
@@ -1680,7 +1798,7 @@ export class DashboardService {
 
         const totalFruta = itensFruta.reduce((acc, item) => acc + (item.quantidadePrecificada || 0), 0);
 
-        // Agrupamento por Área (para produtividade)
+        // Agrupamento por Área (para produtividade) - com TODAS as unidades dinamicamente
         const areasMap = new Map();
         
         itensFruta.forEach(item => {
@@ -1695,69 +1813,203 @@ export class DashboardService {
                 nome: area.nome,
                 tipo: areaRel.areaPropriaId ? 'Propria' : 'Fornecedor',
                 tamanhoHa: areaRel.areaPropria ? areaRel.areaPropria.areaTotal : (areaRel.areaFornecedor.quantidadeHa || 0),
-                totalColhido: 0
+                totaisPorUnidade: new Map<string, number>() // Map<unidade, quantidade>
               });
             }
             
-            // Distribuição simples: Soma o que foi apontado na área
-            // Nota: Para precisão exata com precificação, idealmente faríamos rateio, 
-            // mas usar a qtd da área é mais seguro para "produtividade física".
-            const qtdArea = areaRel.quantidadeColhidaUnidade1 || 0; 
-            areasMap.get(areaId).totalColhido += qtdArea;
+            // Soma quantidades para cada unidade encontrada neste item
+            const areaData = areasMap.get(areaId);
+            
+            // Unidade 1
+            if (item.unidadeMedida1) {
+              const qtd = areaRel.quantidadeColhidaUnidade1 || 0;
+              const atual = areaData.totaisPorUnidade.get(item.unidadeMedida1) || 0;
+              areaData.totaisPorUnidade.set(item.unidadeMedida1, atual + qtd);
+            }
+            
+            // Unidade 2
+            if (item.unidadeMedida2) {
+              const qtd = areaRel.quantidadeColhidaUnidade2 || 0;
+              const atual = areaData.totaisPorUnidade.get(item.unidadeMedida2) || 0;
+              areaData.totaisPorUnidade.set(item.unidadeMedida2, atual + qtd);
+            }
           });
         });
 
-        // Calcular produtividade
-        const areas = Array.from(areasMap.values()).map((a: any) => ({
-          ...a,
-          produtividade: a.tamanhoHa > 0 ? (a.totalColhido / a.tamanhoHa) : 0
-        })).sort((a, b) => b.produtividade - a.produtividade);
+        // Converter Map para objeto com todas as unidades e calcular produtividade
+        const areas = Array.from(areasMap.values())
+          .map((a: any) => {
+            const dadosUnidades: Record<string, { total: number; produtividade: number }> = {};
+            
+            // Para cada unidade encontrada nesta área
+            a.totaisPorUnidade.forEach((total: number, unidade: string) => {
+              // Só adiciona se houver quantidade
+              if (total > 0) {
+                dadosUnidades[unidade] = {
+                  total,
+                  produtividade: a.tamanhoHa > 0 ? (total / a.tamanhoHa) : 0
+                };
+              }
+            });
 
-        // Agrupar dados por dia para o gráfico
-        const dadosGraficoMap = new Map();
+            return {
+              nome: a.nome,
+              tipo: a.tipo,
+              tamanhoHa: a.tamanhoHa,
+              dadosUnidades // Objeto com todas as unidades: { "KG": { total: 1000, produtividade: 50 }, "CX": { total: 200, produtividade: 10 } }
+            };
+          })
+          .filter((a: any) => Object.keys(a.dadosUnidades || {}).length > 0) // Remove áreas sem dados
+          .sort((a, b) => {
+            // Ordenar pela maior produtividade de qualquer unidade
+            const valoresA = Object.values(a.dadosUnidades || {}).map((d: any) => d.produtividade || 0);
+            const valoresB = Object.values(b.dadosUnidades || {}).map((d: any) => d.produtividade || 0);
+            const maxA = valoresA.length > 0 ? Math.max(...valoresA) : 0;
+            const maxB = valoresB.length > 0 ? Math.max(...valoresB) : 0;
+            return maxB - maxA;
+          });
+
+        // Agrupar dados por mês/ano para o gráfico (quantidade precificada)
+        const dadosGraficoMap = new Map<string, number>();
+        // Agrupar dados de unidades por mês/ano (para tooltip com média)
+        // Map<chaveMes, Map<unidade, total>> - total geral do mês
+        const dadosUnidadesPorMesMap = new Map<string, Map<string, number>>();
+        
         itensFruta.forEach(item => {
           const pedido = pedidos.find(p => p.id === item.pedidoId);
           if(pedido && pedido.dataColheita) {
-            const dia = pedido.dataColheita.getDate();
-            dadosGraficoMap.set(dia, (dadosGraficoMap.get(dia) || 0) + item.quantidadePrecificada);
+            const dataColheita = pedido.dataColheita;
+            const ano = dataColheita.getFullYear();
+            const mes = dataColheita.getMonth() + 1; // getMonth() retorna 0-11
+            // Chave no formato "YYYY-MM" para ordenação correta
+            const chave = `${ano}-${String(mes).padStart(2, '0')}`;
+            
+            // Quantidade precificada (para gráfico)
+            const valorAtual = dadosGraficoMap.get(chave) || 0;
+            dadosGraficoMap.set(chave, valorAtual + (item.quantidadePrecificada || 0));
+            
+            // Unidades físicas (para tooltip) - soma geral do mês
+            if (!dadosUnidadesPorMesMap.has(chave)) {
+              dadosUnidadesPorMesMap.set(chave, new Map<string, number>());
+            }
+            const unidadesMes = dadosUnidadesPorMesMap.get(chave)!;
+            
+            // Soma quantidades físicas por unidade deste item (todas as áreas)
+            item.areas?.forEach((areaRel: any) => {
+              if (item.unidadeMedida1 && areaRel.quantidadeColhidaUnidade1) {
+                const atual = unidadesMes.get(item.unidadeMedida1) || 0;
+                unidadesMes.set(item.unidadeMedida1, atual + areaRel.quantidadeColhidaUnidade1);
+              }
+              if (item.unidadeMedida2 && areaRel.quantidadeColhidaUnidade2) {
+                const atual = unidadesMes.get(item.unidadeMedida2) || 0;
+                unidadesMes.set(item.unidadeMedida2, atual + areaRel.quantidadeColhidaUnidade2);
+              }
+            });
           }
         });
 
-        const dadosGrafico = Array.from(dadosGraficoMap.entries())
-          .map(([dia, qtd]) => ({ dia, qtd }))
-          .sort((a, b) => a.dia - b.dia);
+        // Gerar todos os meses do período (mesmo sem dados) quando não há filtro específico
+        let todosMeses: Array<{ mes: number; ano: number; periodo: string }> = [];
+        if (!mes && !ano) {
+          // Quando não há filtro, gerar todos os meses do período
+          const hoje = new Date();
+          // Gerar os últimos N meses (incluindo o mês atual)
+          for (let i = mesesFinal - 1; i >= 0; i--) {
+            const dataMes = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+            const anoMes = dataMes.getFullYear();
+            const mesNum = dataMes.getMonth() + 1;
+            todosMeses.push({
+              mes: mesNum,
+              ano: anoMes,
+              periodo: `${String(mesNum).padStart(2, '0')}/${anoMes}`
+            });
+          }
+        }
+
+        // Converter dados reais para array
+        const dadosReais = Array.from(dadosGraficoMap.entries())
+          .map(([chave, qtd]) => {
+            const [anoStr, mesStr] = chave.split('-');
+            const ano = parseInt(anoStr, 10);
+            const mes = parseInt(mesStr, 10);
+            return { 
+              mes, 
+              ano, 
+              periodo: `${String(mes).padStart(2, '0')}/${ano}`,
+              qtd 
+            };
+          });
+
+        // Converter dados de unidades por mês para objeto
+        const dadosUnidadesPorMes: Record<string, Record<string, number>> = {};
+        dadosUnidadesPorMesMap.forEach((unidades, chave) => {
+          dadosUnidadesPorMes[chave] = {};
+          unidades.forEach((total, unidade) => {
+            dadosUnidadesPorMes[chave][unidade] = total;
+          });
+        });
+
+        // Se temos meses gerados (sem filtro), mesclar com dados reais
+        let dadosGrafico: Array<{ mes: number; ano: number; periodo: string; qtd: number; unidades?: Record<string, number> }>;
+        if (todosMeses.length > 0) {
+          dadosGrafico = todosMeses.map(mesInfo => {
+            const chave = `${mesInfo.ano}-${String(mesInfo.mes).padStart(2, '0')}`;
+            const dadoReal = dadosReais.find(d => d.mes === mesInfo.mes && d.ano === mesInfo.ano);
+            return {
+              ...mesInfo,
+              qtd: dadoReal ? dadoReal.qtd : 0,
+              unidades: dadosUnidadesPorMes[chave] || {}
+            };
+          });
+          // Ordenar por ano e mês
+          dadosGrafico.sort((a, b) => {
+            if (a.ano !== b.ano) return a.ano - b.ano;
+            return a.mes - b.mes;
+          });
+        } else {
+          // Com filtro específico, retornar apenas dados reais
+          dadosGrafico = dadosReais.map(d => {
+            const chave = `${d.ano}-${String(d.mes).padStart(2, '0')}`;
+            return {
+              ...d,
+              unidades: dadosUnidadesPorMes[chave] || {}
+            };
+          }).sort((a, b) => {
+            if (a.ano !== b.ano) return a.ano - b.ano;
+            return a.mes - b.mes;
+          });
+        }
 
         return {
           id: fruta.id,
           nome: fruta.nome,
-          total: totalFruta,
-          unidade: unidadePadrao,
+          total: totalFruta, // Total precificado (para gráfico)
           areas,
           dadosGrafico
         };
       }).filter(Boolean);
 
-      // Calcular área total envolvida (soma de todas as áreas únicas que tiveram colheita)
-      const areasUnicas = new Set();
-      let areaTotalHa = 0;
-      frutasDados.forEach((f: any) => {
-        f.areas.forEach((a: any) => {
-          if (!areasUnicas.has(a.nome)) { // Usando nome como chave única simples
-            areasUnicas.add(a.nome);
-            areaTotalHa += a.tamanhoHa;
-          }
-        });
-      });
+      // A área total para o resumo deve ser a GLOBAL (já calculada acima como areaTotalHaGlobal)
+      // Não precisa recalcular aqui, pois já foi calculada usando todos os pedidos
+
+      // Converter Map para array de objetos para facilitar no frontend
+      // Apenas unidades que têm dados (totalColhido > 0)
+      // IMPORTANTE: dadosUnidades usa dados GLOBAIS (todos os pedidos) para produtividade média
+      const dadosUnidades = Array.from(dadosPorUnidade.entries())
+        .filter(([_, dados]) => dados.totalColhido > 0)
+        .map(([unidade, dados]) => ({
+          unidade,
+          totalColhido: dados.totalColhido, // Total global
+          produtividadeMedia: dados.produtividadeMedia // Média global (já calculada acima)
+        }));
 
       return {
         cultura: cultura.descricao,
         culturaId: cultura.id,
         resumo: {
-          totalColhido: totalQtd,
-          valorTotal: totalValor,
-          areaTotalHa,
-          unidade: unidadePadrao,
-          produtividadeMedia: areaTotalHa > 0 ? totalQtd / areaTotalHa : 0
+          valorTotal: totalValor, // Valor do período filtrado
+          areaTotalHa: areaTotalHaGlobal || 0, // Área total GLOBAL (todos os pedidos)
+          dadosUnidades: dadosUnidades.length > 0 ? dadosUnidades : [] // Array com todas as unidades: [{ unidade: "KG", totalColhido: 1000, produtividadeMedia: 50 }, ...]
         },
         frutas: frutasDados
       };

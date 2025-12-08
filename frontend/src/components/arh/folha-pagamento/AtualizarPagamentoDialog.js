@@ -7,7 +7,7 @@ import { SaveOutlined, CloseOutlined, DollarOutlined } from "@ant-design/icons";
 import AtualizarPagamentoForm from "./AtualizarPagamentoForm";
 import ConfirmCloseModal from "../../common/modals/ConfirmCloseModal";
 import useConfirmClose from "../../../hooks/useConfirmClose";
-import dayjs from "dayjs";
+import moment from "moment";
 
 const AtualizarPagamentoDialog = ({ open, onClose, onSave, lancamento }) => {
   const [pagamentoAtual, setPagamentoAtual] = useState({
@@ -44,7 +44,7 @@ const AtualizarPagamentoDialog = ({ open, onClose, onSave, lancamento }) => {
         statusPagamento: lancamento.statusPagamento,
         pagamentoEfetuado: lancamento.pagamentoEfetuado,
         dataPagamento: lancamento.dataPagamento
-          ? dayjs(lancamento.dataPagamento)
+          ? moment(lancamento.dataPagamento)
           : undefined,
       });
       setErros({});

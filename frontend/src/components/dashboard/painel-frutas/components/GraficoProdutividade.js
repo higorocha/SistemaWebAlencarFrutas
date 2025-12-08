@@ -2,7 +2,7 @@ import React from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { capitalizeName, formataLeitura, numberFormatter } from '../../../../utils/formatters';
 
-const GraficoProdutividade = ({ data, keys, type = 'line', unidade }) => {
+const GraficoProdutividade = ({ data, keys, type = 'line', unidade, dadosUnidades = [], areaTotalHa = 0, onMesClick }) => {
   
   // Validação: garantir que data e keys sejam arrays válidos
   const dataArray = Array.isArray(data) ? data : [];
@@ -52,6 +52,24 @@ const GraficoProdutividade = ({ data, keys, type = 'line', unidade }) => {
     chart: {
       type: type,
       background: 'transparent',
+      events: {
+        dataPointClick: (event, chartContext, config) => {
+          if (onMesClick && config.dataPointIndex !== undefined) {
+            const dataPoint = dataArray[config.dataPointIndex];
+            if (dataPoint && dataPoint.mes && dataPoint.ano) {
+              onMesClick(dataPoint.mes, dataPoint.ano);
+            }
+          }
+        },
+        markerClick: (event, chartContext, { seriesIndex, dataPointIndex }) => {
+          if (onMesClick && dataPointIndex !== undefined) {
+            const dataPoint = dataArray[dataPointIndex];
+            if (dataPoint && dataPoint.mes && dataPoint.ano) {
+              onMesClick(dataPoint.mes, dataPoint.ano);
+            }
+          }
+        }
+      },
       toolbar: {
         show: true,
         tools: {
@@ -172,11 +190,49 @@ const GraficoProdutividade = ({ data, keys, type = 'line', unidade }) => {
       theme: 'light',
       shared: true,
       intersect: false,
-      y: {
-        formatter: (value) => {
-          // Formatação de inteiro com separador de milhar
-          return `${formataLeitura(value)} ${unidade || ''}`;
+      custom: ({ series, seriesIndex, dataPointIndex, w }) => {
+        const dataPoint = dataArray[dataPointIndex];
+        if (!dataPoint) return '';
+        
+        const periodo = dataPoint.name || '';
+        const unidadesMes = dataPoint.unidades || {};
+        
+        // Função para encontrar média global de uma unidade (Meta/Referência)
+        const getMediaGlobal = (unidade) => {
+          const dadoUnidade = dadosUnidades.find(d => d.unidade === unidade);
+          return dadoUnidade?.produtividadeMedia || 0;
+        };
+        
+        let html = `<div style="padding: 10px; background: #fff; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); min-width: 200px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">`;
+        html += `<div style="font-weight: 600; margin-bottom: 12px; color: #333; border-bottom: 2px solid #059669; padding-bottom: 6px; font-size: 14px;">${periodo}</div>`;
+        
+        // Exibir unidades físicas do mês
+        if (Object.keys(unidadesMes).length > 0) {
+          Object.keys(unidadesMes).forEach((und, index) => {
+            const totalUnidade = unidadesMes[und];
+            
+            html += `<div style="margin-bottom: ${index < Object.keys(unidadesMes).length - 1 ? '12px' : '0'};">`;
+            
+            // Seção: Quantitativo (Volume)
+            html += `<div style="margin-bottom: 4px;">`;
+            html += `<div style="font-weight: 600; color: #059669; margin-bottom: 2px; font-size: 13px;">${und}</div>`;
+            html += `<div style="font-size: 13px; color: #333; display: flex; justify-content: space-between; align-items: center;">`;
+            html += `<span style="color: #64748b; margin-right: 12px;">Volume:</span> <strong>${formataLeitura(totalUnidade)} ${und}</strong>`;
+            html += `</div>`;
+            html += `</div>`;
+            
+            html += `</div>`;
+          });
+          
+          html += `<div style="margin-top: 12px; padding-top: 8px; border-top: 1px dashed #e5e7eb; font-size: 11px; color: #94a3b8; font-style: italic;">`;
+          html += `Clique na coluna para ver detalhes de produtividade por área na tabela ao lado.`;
+          html += `</div>`;
+        } else {
+          html += `<div style="color: #94a3b8; font-size: 12px; font-style: italic;">Sem dados para este período</div>`;
         }
+        
+        html += `</div>`;
+        return html;
       },
       style: { fontSize: '13px' },
     },

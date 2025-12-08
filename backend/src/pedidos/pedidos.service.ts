@@ -1748,6 +1748,8 @@ export class PedidosService {
               select: {
                 id: true,
                 nome: true,
+                dePrimeira: true,
+                culturaId: true,
                 cultura: {
                   select: {
                     id: true,

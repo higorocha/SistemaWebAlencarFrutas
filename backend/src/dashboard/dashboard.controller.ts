@@ -99,13 +99,44 @@ export class DashboardController {
   }
 
   @Get('painel-frutas')
+  @ApiOperation({ summary: 'Obter dados do painel de frutas com filtros opcionais' })
+  @ApiQuery({ name: 'mes', required: false, type: Number, description: 'Mês para filtrar (1-12)' })
+  @ApiQuery({ name: 'ano', required: false, type: Number, description: 'Ano para filtrar' })
+  @ApiQuery({ name: 'clienteIds', required: false, type: String, description: 'IDs dos clientes separados por vírgula (ex: "1,2,3")' })
+  @ApiQuery({ name: 'meses', required: false, type: Number, description: 'Número de meses para exibir (3, 6, 9 ou 12). Padrão: 12' })
+  @ApiResponse({
+    status: 200,
+    description: 'Dados do painel de frutas retornados com sucesso',
+  })
   async getPainelFrutas(
     @Query('mes') mes?: number,
     @Query('ano') ano?: number,
+    @Query('clienteIds') clienteIds?: string,
+    @Query('meses') meses?: number,
   ) {
     const mesNum = mes ? Number(mes) : undefined;
     const anoNum = ano ? Number(ano) : undefined;
-    return this.dashboardService.getDadosPainelFrutas(mesNum, anoNum);
+    const mesesNum = meses ? Number(meses) : 12; // Padrão: 12 meses
+    
+    // Validar número de meses (deve ser 3, 6, 9 ou 12)
+    const mesesValidos = [3, 6, 9, 12];
+    const mesesFinal = mesesValidos.includes(mesesNum) ? mesesNum : 12;
+    
+    // Converter string de clienteIds para array de números
+    let clienteIdsArray: number[] | undefined = undefined;
+    if (clienteIds) {
+      clienteIdsArray = clienteIds
+        .split(',')
+        .map(id => parseInt(id.trim(), 10))
+        .filter(id => !isNaN(id) && id > 0);
+      
+      // Se após filtrar não sobrou nenhum ID válido, usar undefined
+      if (clienteIdsArray.length === 0) {
+        clienteIdsArray = undefined;
+      }
+    }
+    
+    return this.dashboardService.getDadosPainelFrutas(mesNum, anoNum, clienteIdsArray, mesesFinal);
   }
 
 }

@@ -24,8 +24,27 @@ const SafeAvatar = ({ src, size, ...props }) => {
   );
 };
 
-const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, culturaIcon }) => {
+const TabelaDesempenhoAreas = ({ frutas, dadosUnidades, culturaIcon }) => {
   const [frutaSelecionada, setFrutaSelecionada] = useState('Todas');
+  
+  // Debug: verificar estrutura dos dados
+  // console.log('TabelaDesempenhoAreas frutas:', frutas);
+  // console.log('TabelaDesempenhoAreas dadosUnidades:', dadosUnidades);
+
+  // Obter todas as unidades únicas das áreas
+  const getUnidadesUnicas = () => {
+    const unidadesSet = new Set();
+    frutas.forEach(f => {
+      f.areas.forEach(a => {
+        if (a.dadosUnidades) {
+          Object.keys(a.dadosUnidades).forEach(unidade => unidadesSet.add(unidade));
+        }
+      });
+    });
+    return Array.from(unidadesSet);
+  };
+
+  const unidadesUnicas = getUnidadesUnicas();
 
   const getDadosTabela = () => {
     let todasAreas = [];
@@ -35,20 +54,57 @@ const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, culturaIcon }) => 
       frutas.forEach(f => {
         f.areas.forEach(a => {
           const id = `${a.nome}-${a.tipo}`;
-          if (!mapa.has(id)) mapa.set(id, { ...a, totalColhido: 0 });
-          mapa.get(id).totalColhido += a.totalColhido;
+          if (!mapa.has(id)) {
+            mapa.set(id, { 
+              nome: a.nome,
+              tipo: a.tipo,
+              tamanhoHa: a.tamanhoHa,
+              dadosUnidades: {} // Objeto para agrupar por unidade
+            });
+          }
+          
+          // Agrupar dados de todas as unidades
+          if (a.dadosUnidades) {
+            Object.keys(a.dadosUnidades).forEach(unidade => {
+              const dados = a.dadosUnidades[unidade];
+              if (!mapa.get(id).dadosUnidades[unidade]) {
+                mapa.get(id).dadosUnidades[unidade] = { total: 0, produtividade: 0 };
+              }
+              mapa.get(id).dadosUnidades[unidade].total += dados.total || 0;
+              // Produtividade será recalculada depois
+            });
+          }
         });
       });
-      todasAreas = Array.from(mapa.values());
+      
+      // Recalcular produtividade após agrupar
+      todasAreas = Array.from(mapa.values()).map(a => {
+        const dadosUnidadesRecalculados = {};
+        Object.keys(a.dadosUnidades).forEach(unidade => {
+          const dados = a.dadosUnidades[unidade];
+          dadosUnidadesRecalculados[unidade] = {
+            total: dados.total,
+            produtividade: a.tamanhoHa > 0 ? (dados.total / a.tamanhoHa) : 0
+          };
+        });
+        return {
+          ...a,
+          dadosUnidades: dadosUnidadesRecalculados
+        };
+      });
     } else {
       const fruta = frutas.find(f => f.nome === frutaSelecionada);
       todasAreas = fruta ? fruta.areas : [];
     }
 
-    return todasAreas.map((a) => ({
-      ...a,
-      produtividade: a.tamanhoHa > 0 ? (a.totalColhido / a.tamanhoHa) : 0
-    })).sort((a, b) => b.produtividade - a.produtividade);
+    // Ordenar pela maior produtividade de qualquer unidade
+    return todasAreas.sort((a, b) => {
+      const valoresA = Object.values(a.dadosUnidades || {}).map((d: any) => d.produtividade || 0);
+      const valoresB = Object.values(b.dadosUnidades || {}).map((d: any) => d.produtividade || 0);
+      const maxA = valoresA.length > 0 ? Math.max(...valoresA) : 0;
+      const maxB = valoresB.length > 0 ? Math.max(...valoresB) : 0;
+      return maxB - maxA;
+    });
   };
 
   const dataSource = getDadosTabela();
@@ -90,11 +146,14 @@ const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, culturaIcon }) => 
             dataSource={dataSource}
             split={false}
             renderItem={item => {
-              const percentual = mediaGeral > 0 ? (item.produtividade / mediaGeral) * 100 : 0;
-              // Cores baseadas no desempenho (usando tons de verde para consistência)
-              let statusColor = '#f59e0b'; // Médio (Amber, não vermelho)
-              if (percentual >= 100) statusColor = '#059669'; // Bom (Verde principal)
-              if (percentual < 60) statusColor = '#dc2626'; // Ruim (Vermelho, mas mais escuro)
+              // Obter unidades desta área
+              const unidadesArea = item.dadosUnidades ? Object.keys(item.dadosUnidades) : [];
+              
+              // Encontrar média geral para cada unidade
+              const getMediaGeral = (unidade) => {
+                const dadoUnidade = dadosUnidades?.find(d => d.unidade === unidade);
+                return dadoUnidade?.produtividadeMedia || 0;
+              };
 
               return (
                 <List.Item style={{ 
@@ -110,31 +169,83 @@ const TabelaDesempenhoAreas = ({ frutas, mediaGeral, unidade, culturaIcon }) => 
                         {item.tipo === 'Propria' ? <EnvironmentOutlined style={{ marginRight: 6, color: '#059669' }} /> : <UserOutlined style={{ marginRight: 6, color: '#888' }} />}
                         {item.nome}
                       </Text>
-                      <Text strong style={{ color: '#333' }}>
-                        {formataLeitura ? formataLeitura(item.totalColhido) : item.totalColhido.toLocaleString('pt-BR')} {unidade}
-                      </Text>
+                      <div style={{ textAlign: 'right' }}>
+                        {unidadesArea.map((unidade, idx) => {
+                          const dados = item.dadosUnidades[unidade];
+                          return (
+                            <Text 
+                              key={unidade}
+                              strong={idx === 0}
+                              style={{ 
+                                color: idx === 0 ? '#333' : '#64748b',
+                                fontSize: idx === 0 ? undefined : 12,
+                                display: 'block' 
+                              }}
+                            >
+                              {formataLeitura ? formataLeitura(dados.total) : dados.total.toLocaleString('pt-BR')} {unidade}
+                            </Text>
+                          );
+                        })}
+                      </div>
                     </div>
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 6 }}>
                       <span>{item.tamanhoHa} hectares</span>
-                      <span>Eficiência: {percentual.toFixed(0)}% da média</span>
                     </div>
 
-                    <Tooltip title={`Produtividade: ${formataLeitura ? formataLeitura(Math.round(item.produtividade)) : item.produtividade.toFixed(0)} ${unidade}/ha (Média da Cultura: ${formataLeitura ? formataLeitura(Math.round(mediaGeral)) : mediaGeral.toFixed(0)})`}>
-                      <Progress 
-                        percent={Math.min(percentual, 100)} 
-                        strokeColor={statusColor} 
-                        showInfo={false} 
-                        size="small" 
-                        strokeWidth={8}
-                        trailColor="#e2e8f0"
-                      />
-                    </Tooltip>
-                    <div style={{ textAlign: 'right', marginTop: 2 }}>
-                      <Text style={{ fontSize: 10, color: statusColor, fontWeight: 600 }}>
-                        {formataLeitura ? formataLeitura(Math.round(item.produtividade)) : item.produtividade.toFixed(0)} {unidade}/ha
-                      </Text>
-                    </div>
+                    {/* Barras de Progresso - uma para cada unidade */}
+                    {unidadesArea.length > 0 ? (
+                      unidadesArea.map((unidade, idx) => {
+                        const dados = item.dadosUnidades[unidade];
+                        if (!dados) return null;
+                        
+                        const mediaGeral = getMediaGeral(unidade);
+                        const percentual = mediaGeral > 0 ? (dados.produtividade / mediaGeral) * 100 : 0;
+                        
+                        // Cores baseadas no desempenho
+                        let statusColor = '#f59e0b'; // Médio
+                        if (percentual >= 100) statusColor = '#059669'; // Bom
+                        if (percentual < 60) statusColor = '#dc2626'; // Ruim
+
+                        return (
+                          <div 
+                            key={unidade}
+                            style={{ 
+                              marginBottom: idx < unidadesArea.length - 1 ? 8 : 0,
+                              ...(idx > 0 && {
+                                borderTop: '1px solid #e5e7eb',
+                                paddingTop: 8,
+                                marginTop: 8
+                              })
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 6 }}>
+                              <span style={{ fontWeight: 500 }}>{unidade}</span>
+                              <span>Eficiência: {percentual.toFixed(0)}% da média</span>
+                            </div>
+                            <Tooltip title={`Produtividade: ${formataLeitura ? formataLeitura(Math.round(dados.produtividade)) : dados.produtividade.toFixed(0)} ${unidade}/ha (Média: ${formataLeitura ? formataLeitura(Math.round(mediaGeral)) : mediaGeral.toFixed(0)} ${unidade}/ha)`}>
+                              <Progress 
+                                percent={Math.min(percentual, 100)} 
+                                strokeColor={statusColor} 
+                                showInfo={false} 
+                                size="small" 
+                                strokeWidth={8}
+                                trailColor="#e2e8f0"
+                              />
+                            </Tooltip>
+                            <div style={{ textAlign: 'right', marginTop: 2 }}>
+                              <Text style={{ fontSize: 10, color: statusColor, fontWeight: 600 }}>
+                                {formataLeitura ? formataLeitura(Math.round(dados.produtividade)) : dados.produtividade.toFixed(0)} {unidade}/ha
+                              </Text>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>
+                        Sem dados de unidades para esta área
+                      </div>
+                    )}
                   </div>
                 </List.Item>
               );

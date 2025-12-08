@@ -4,7 +4,7 @@ import React from "react";
 import PropTypes from "prop-types";
 import { Form, Input, Row, Col, Card, Space, Typography, DatePicker, Select } from "antd";
 import { CalendarOutlined, FileTextOutlined } from "@ant-design/icons";
-import dayjs from "dayjs";
+import moment from "moment";
 
 const { Text } = Typography;
 
@@ -28,12 +28,12 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
     if (!mes || !ano || !periodo) return { dataInicial: null, dataFinal: null };
 
     let dataInicial, dataFinal;
-    const primeiroDiaMes = dayjs().year(ano).month(mes - 1).date(1);
-    const ultimoDiaMes = dayjs().year(ano).month(mes - 1).endOf('month');
+    const primeiroDiaMes = moment().year(ano).month(mes - 1).date(1);
+    const ultimoDiaMes = moment().year(ano).month(mes - 1).endOf('month');
 
-    // Encontrar o primeiro sábado do mês (dia da semana 6 = sábado no dayjs)
+    // Encontrar o primeiro sábado do mês (dia da semana 6 = sábado no moment)
     const encontrarProximoSabado = (data) => {
-      let dataAtual = data;
+      let dataAtual = data.clone();
       while (dataAtual.day() !== 6) { // 6 = sábado
         dataAtual = dataAtual.add(1, 'day');
       }
@@ -44,17 +44,17 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
 
     if (periodo === 1) {
       // Primeira quinzena: primeiro sábado até 14 dias depois (15 dias no total, incluindo o sábado inicial)
-      dataInicial = primeiroSabado;
-      dataFinal = primeiroSabado.add(14, 'days'); // 15 dias no total (sábado inicial + 14 dias)
+      dataInicial = primeiroSabado.clone();
+      dataFinal = primeiroSabado.clone().add(14, 'days'); // 15 dias no total (sábado inicial + 14 dias)
       
       // Se a data final ultrapassar o mês, ajustar para o último dia do mês
       if (dataFinal.month() !== mes - 1 || dataFinal.year() !== ano) {
-        dataFinal = ultimoDiaMes;
+        dataFinal = ultimoDiaMes.clone();
       }
     } else {
       // Segunda quinzena: começa no sábado seguinte ao final da primeira quinzena
-      const finalPrimeiraQuinzena = primeiroSabado.add(14, 'days');
-      const inicioSegundaQuinzena = finalPrimeiraQuinzena.add(1, 'day'); // Dia seguinte ao final da primeira quinzena
+      const finalPrimeiraQuinzena = primeiroSabado.clone().add(14, 'days');
+      const inicioSegundaQuinzena = finalPrimeiraQuinzena.clone().add(1, 'day'); // Dia seguinte ao final da primeira quinzena
       
       // Encontrar o sábado mais próximo do início da segunda quinzena
       const sabadoInicialSegunda = encontrarProximoSabado(inicioSegundaQuinzena);
@@ -62,27 +62,27 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
       // Garantir que não ultrapasse o mês
       if (sabadoInicialSegunda.month() !== mes - 1 || sabadoInicialSegunda.year() !== ano) {
         // Se o sábado encontrado está fora do mês, usar o dia seguinte ao final da primeira quinzena até o último dia do mês
-        dataInicial = inicioSegundaQuinzena;
-        dataFinal = ultimoDiaMes;
+        dataInicial = inicioSegundaQuinzena.clone();
+        dataFinal = ultimoDiaMes.clone();
       } else {
-        dataInicial = sabadoInicialSegunda;
+        dataInicial = sabadoInicialSegunda.clone();
         
         // Calcular 14 dias depois do sábado inicial (15 dias no total)
-        const dataFinalCalculada = sabadoInicialSegunda.add(14, 'days');
+        const dataFinalCalculada = sabadoInicialSegunda.clone().add(14, 'days');
         
         // Se ultrapassar o mês, usar o último dia do mês
         if (dataFinalCalculada.month() !== mes - 1 || dataFinalCalculada.year() !== ano) {
-          dataFinal = ultimoDiaMes;
+          dataFinal = ultimoDiaMes.clone();
         } else {
           // Encontrar o sábado mais próximo da data final calculada
           const sabadoFinal = encontrarProximoSabado(dataFinalCalculada);
           
           // Se o sábado encontrado está dentro do mês e tem pelo menos 14 dias de diferença, usar ele
           if (sabadoFinal.month() === mes - 1 && sabadoFinal.year() === ano && sabadoFinal.diff(sabadoInicialSegunda, 'day') >= 14) {
-            dataFinal = sabadoFinal;
+            dataFinal = sabadoFinal.clone();
           } else {
             // Caso contrário, usar o último dia do mês
-            dataFinal = ultimoDiaMes;
+            dataFinal = ultimoDiaMes.clone();
           }
         }
       }
@@ -93,7 +93,7 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
 
   const handleCompetenciaChange = (date) => {
     if (date) {
-      const mes = date.month() + 1; // dayjs usa 0-11 para meses
+      const mes = date.month() + 1; // moment usa 0-11 para meses
       const ano = date.year();
       const periodo = folhaAtual.periodo;
 
@@ -147,9 +147,9 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
     }
   };
 
-  // Converter competenciaMes e competenciaAno para dayjs
+  // Converter competenciaMes e competenciaAno para moment
   const competenciaValue = folhaAtual.competenciaMes && folhaAtual.competenciaAno
-    ? dayjs().month(folhaAtual.competenciaMes - 1).year(folhaAtual.competenciaAno)
+    ? moment().month(folhaAtual.competenciaMes - 1).year(folhaAtual.competenciaAno)
     : null;
 
   return (
@@ -245,7 +245,7 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
               >
                 <DatePicker
                   placeholder="Selecione a data inicial"
-                  value={folhaAtual.dataInicial ? dayjs(folhaAtual.dataInicial) : null}
+                  value={folhaAtual.dataInicial ? moment(folhaAtual.dataInicial) : null}
                   onChange={(date) => {
                     setFolhaAtual((prev) => ({
                       ...prev,
@@ -279,7 +279,7 @@ const NovaFolhaForm = ({ folhaAtual, setFolhaAtual, erros, setErros }) => {
               >
                 <DatePicker
                   placeholder="Selecione a data final"
-                  value={folhaAtual.dataFinal ? dayjs(folhaAtual.dataFinal) : null}
+                  value={folhaAtual.dataFinal ? moment(folhaAtual.dataFinal) : null}
                   onChange={(date) => {
                     setFolhaAtual((prev) => ({
                       ...prev,

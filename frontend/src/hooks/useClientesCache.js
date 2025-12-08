@@ -1,28 +1,64 @@
 // src/hooks/useClientesCache.js
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import axiosInstance from '../api/axiosConfig';
 import { showNotification } from '../config/notificationConfig';
 import { validateClientesResponse } from '../utils/validation';
 
+const STORAGE_KEY = 'clientes_cache';
+const STORAGE_TIMESTAMP_KEY = 'clientes_cache_timestamp';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
 /**
- * Hook para cache de clientes com otimizações de performance
+ * Hook para cache de clientes com localStorage e otimizações de performance
  */
 export const useClientesCache = () => {
   const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(false);
   const loadedRef = useRef(false);
-  const cacheTimeRef = useRef(null);
 
-  // Cache válido por 5 minutos
-  const CACHE_DURATION = 5 * 60 * 1000;
+  // Carregar do localStorage na inicialização
+  useEffect(() => {
+    try {
+      const cachedData = localStorage.getItem(STORAGE_KEY);
+      const cachedTimestamp = localStorage.getItem(STORAGE_TIMESTAMP_KEY);
+      
+      if (cachedData && cachedTimestamp) {
+        const timestamp = parseInt(cachedTimestamp, 10);
+        const now = Date.now();
+        
+        if (now - timestamp < CACHE_DURATION) {
+          const parsedData = JSON.parse(cachedData);
+          setClientes(parsedData);
+          loadedRef.current = true;
+        } else {
+          // Cache expirado, limpar
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar cache de clientes:', error);
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
+    }
+  }, []);
 
   const carregarClientes = useCallback(async (forceReload = false) => {
-    // Verificar se já carregou e cache ainda é válido
-    if (!forceReload && loadedRef.current && cacheTimeRef.current) {
-      const now = Date.now();
-      if (now - cacheTimeRef.current < CACHE_DURATION) {
-        return clientes;
+    // Verificar cache em memória
+    if (!forceReload && loadedRef.current && clientes.length > 0) {
+      // Verificar cache do localStorage
+      try {
+        const cachedTimestamp = localStorage.getItem(STORAGE_TIMESTAMP_KEY);
+        if (cachedTimestamp) {
+          const timestamp = parseInt(cachedTimestamp, 10);
+          const now = Date.now();
+          if (now - timestamp < CACHE_DURATION) {
+            return clientes;
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar cache:', error);
       }
     }
 
@@ -34,7 +70,14 @@ export const useClientesCache = () => {
 
       setClientes(clientesData);
       loadedRef.current = true;
-      cacheTimeRef.current = Date.now();
+
+      // Salvar no localStorage
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(clientesData));
+        localStorage.setItem(STORAGE_TIMESTAMP_KEY, Date.now().toString());
+      } catch (error) {
+        console.error('Erro ao salvar cache de clientes:', error);
+      }
 
       return clientesData;
     } catch (error) {
@@ -48,8 +91,13 @@ export const useClientesCache = () => {
 
   const invalidateCache = useCallback(() => {
     loadedRef.current = false;
-    cacheTimeRef.current = null;
     setClientes([]);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
+    } catch (error) {
+      console.error('Erro ao limpar cache:', error);
+    }
   }, []);
 
   const findClienteById = useCallback((id) => {
@@ -62,7 +110,6 @@ export const useClientesCache = () => {
     carregarClientes,
     invalidateCache,
     findClienteById,
-    isCacheValid: loadedRef.current && cacheTimeRef.current &&
-                  (Date.now() - cacheTimeRef.current < CACHE_DURATION)
+    isCacheValid: loadedRef.current && clientes.length > 0
   };
 };
