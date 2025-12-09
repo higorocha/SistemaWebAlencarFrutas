@@ -76,7 +76,13 @@ const PainelFrutas = () => {
         const response = await axiosInstance.get('/api/dashboard/painel-frutas', { params });
         
         // O backend retorna { dados, periodosDisponiveis }
-        setDados(response.data.dados || response.data); // Compatibilidade: se não vier no novo formato, usa o antigo
+        const dadosRecebidos = response.data.dados || response.data; // Compatibilidade: se não vier no novo formato, usa o antigo
+        
+        // LOG: Dados recebidos da API no comportamento inicial
+        console.log('[PainelFrutas] Dados recebidos da API:', JSON.stringify(dadosRecebidos, null, 2));
+        console.log('[PainelFrutas] Parâmetros da requisição:', JSON.stringify(params, null, 2));
+        
+        setDados(dadosRecebidos);
         
         // Atualizar períodos disponíveis se vierem na resposta
         if (response.data.periodosDisponiveis) {
@@ -86,7 +92,7 @@ const PainelFrutas = () => {
           });
         }
       } catch (error) {
-        console.error(error);
+        console.error('[PainelFrutas] Erro ao buscar dados:', error);
       } finally {
         setLoading(false);
       }
@@ -247,7 +253,7 @@ const PainelFrutas = () => {
           borderRadius: 12, 
           boxShadow: '0 4px 20px rgba(0,0,0,0.03)' 
         }}
-        bodyStyle={{ padding: '16px 24px' }}
+        styles={{ body: { padding: '16px 24px' } }}
       >
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col xs={24} md={18}>
@@ -265,7 +271,7 @@ const PainelFrutas = () => {
                   onChange={setClienteFiltro}
                   placeholder=" "
                   style={{ width: '100%', borderBottom: '1px solid #d9d9d9' }}
-                  bordered={false}
+                  variant="borderless"
                   showSearch
                   optionLabelProp="label"
                   tagRender={tagRender}
@@ -334,7 +340,7 @@ const PainelFrutas = () => {
                   onChange={setAreaFiltro}
                   placeholder=" "
                   style={{ width: '100%', borderBottom: '1px solid #d9d9d9' }}
-                  bordered={false}
+                  variant="borderless"
                   showSearch
                   optionLabelProp="label"
                   tagRender={tagRender}
@@ -397,7 +403,7 @@ const PainelFrutas = () => {
                   onChange={setCulturaFiltro}
                   placeholder=" "
                   style={{ width: '100%', borderBottom: '1px solid #d9d9d9' }}
-                  bordered={false}
+                  variant="borderless"
                   showSearch
                   optionLabelProp="label"
                   tagRender={tagRender}
@@ -569,7 +575,10 @@ const PainelFrutas = () => {
       {/* Conteúdo */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
-          <Spin size="large" tip="Processando colheitas..." />
+          <Spin size="large" />
+          <div style={{ marginTop: 16, color: '#666' }}>
+            <Text type="secondary">Processando colheitas...</Text>
+          </div>
         </div>
       ) : dados.length === 0 ? (
         <Empty 

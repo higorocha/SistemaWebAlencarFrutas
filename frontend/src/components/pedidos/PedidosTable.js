@@ -240,21 +240,16 @@ const PedidosTable = ({
     return formatarValorMonetario(value);
   };
 
-  // Função para formatar quantidade com lógica inteligente
+  // Função para formatar quantidade sempre como inteiro
   const formatQuantity = (quantidade, unidade) => {
     if (!quantidade) return '-';
     
-    // Unidades que devem ser exibidas como inteiros
-    const unidadesInteiras = ['UND', 'CX'];
+    // Sempre arredondar para inteiro e usar intFormatter
+    const quantidadeInteira = Math.round(quantidade);
+    const quantidadeFormatada = intFormatter(quantidadeInteira);
     
-    // Verificar se a unidade deve ser formatada como inteiro
-    if (unidadesInteiras.includes(unidade)) {
-      const quantidadeInteira = Math.round(quantidade);
-      return `${intFormatter(quantidadeInteira)} ${unidade}`;
-    }
-    
-    // Para outras unidades (KG, TON, ML, LT), usar formatação decimal
-    return `${formatarNumero(quantidade)} ${unidade}`;
+    // Retornar com a unidade se existir
+    return unidade ? `${quantidadeFormatada} ${unidade}` : quantidadeFormatada;
   };
 
   // Função para obter ações baseadas no status
@@ -689,7 +684,9 @@ const PedidosTable = ({
           if (unidade) {
             return formatQuantity(quantidade, unidade);
           }
-          return formatarNumero(quantidade);
+          // Sem unidade, usar intFormatter mesmo assim
+          const quantidadeInteira = Math.round(quantidade);
+          return intFormatter(quantidadeInteira);
         };
         
         return (

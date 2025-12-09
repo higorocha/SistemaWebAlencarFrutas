@@ -1599,8 +1599,10 @@ export class DashboardService {
       whereCliente.clienteId = { in: clienteIds };
     }
 
-    // Status considerados como "Colheita Realizada" e válidos para estatísticas
+    // Status válidos: todos os pedidos acima de AGUARDANDO_COLHEITA
+    // Ou seja, a partir de COLHEITA_PARCIAL em diante
     const statusValidos: StatusPedido[] = [
+      StatusPedido.COLHEITA_PARCIAL,
       StatusPedido.COLHEITA_REALIZADA,
       StatusPedido.AGUARDANDO_PRECIFICACAO,
       StatusPedido.PRECIFICACAO_REALIZADA,
@@ -1653,6 +1655,7 @@ export class DashboardService {
     });
 
     // 4. Buscar TODOS os pedidos (sem filtro de data) para calcular Produtividade Média global
+    // IMPORTANTE: Usa quantidadeReal e quantidadeReal2 do FrutasPedidos (não das áreas)
     const pedidosTodos = await this.prisma.pedido.findMany({
       where: {
         status: { in: statusValidos },
@@ -1661,8 +1664,12 @@ export class DashboardService {
       },
       include: {
         frutasPedidos: {
+          // Apenas frutas que foram colhidas (têm quantidadeReal ou quantidadeReal2)
           where: {
-            quantidadePrecificada: { not: null, gt: 0 } // Apenas itens precificados
+            OR: [
+              { quantidadeReal: { not: null, gt: 0 } },
+              { quantidadeReal2: { not: null, gt: 0 } }
+            ]
           },
           include: {
             fruta: true,
@@ -1678,6 +1685,7 @@ export class DashboardService {
     });
 
     // 5. Buscar pedidos no período filtrado (para áreas e gráfico)
+    // IMPORTANTE: Usa quantidadeReal e quantidadeReal2 do FrutasPedidos (não das áreas)
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         status: { in: statusValidos },
@@ -1686,8 +1694,12 @@ export class DashboardService {
       },
       include: {
         frutasPedidos: {
+          // Apenas frutas que foram colhidas (têm quantidadeReal ou quantidadeReal2)
           where: {
-            quantidadePrecificada: { not: null, gt: 0 } // Apenas itens precificados
+            OR: [
+              { quantidadeReal: { not: null, gt: 0 } },
+              { quantidadeReal2: { not: null, gt: 0 } }
+            ]
           },
           include: {
             fruta: true,
@@ -1706,9 +1718,15 @@ export class DashboardService {
     const resultado = culturas.map(cultura => {
       // ===== CALCULAR RESUMO (Produtividade Média GLOBAL) usando TODOS os pedidos =====
       // Filtrar itens de TODOS os pedidos que são desta cultura (para resumo global)
+      // IMPORTANTE: Usa quantidadeReal e quantidadeReal2 do FrutasPedidos
       const itensCulturaTodos = pedidosTodos.flatMap(p => {
         const pedido = p as any;
-        return (pedido.frutasPedidos || []).filter((fp: any) => fp.fruta?.culturaId === cultura.id);
+        return (pedido.frutasPedidos || []).filter((fp: any) => {
+          // Verifica se é da cultura e se tem quantidadeReal ou quantidadeReal2
+          if (fp.fruta?.culturaId !== cultura.id) return false;
+          return (fp.quantidadeReal && fp.quantidadeReal > 0) || 
+                 (fp.quantidadeReal2 && fp.quantidadeReal2 > 0);
+        });
       });
 
       // Identificar TODAS as unidades únicas usadas nos pedidos desta cultura (TODOS os pedidos)
@@ -1720,6 +1738,31 @@ export class DashboardService {
       });
       const unidadesUnicas = Array.from(unidadesSet);
 
+      // Contar meses únicos com colheita para esta cultura
+      // Usar pedidosTodos que já têm dataColheita filtrada
+      const mesesUnicosComColheita = new Set<string>();
+      pedidosTodos.forEach((pedido: any) => {
+        if (pedido.dataColheita) {
+          const dataColheita = new Date(pedido.dataColheita);
+          const ano = dataColheita.getFullYear();
+          const mes = dataColheita.getMonth() + 1;
+          const chaveMes = `${ano}-${String(mes).padStart(2, '0')}`;
+          
+          // Verificar se este pedido tem itens desta cultura
+          const temItemCultura = (pedido.frutasPedidos || []).some((fp: any) => {
+            if (fp.fruta?.culturaId !== cultura.id) return false;
+            return (fp.quantidadeReal && fp.quantidadeReal > 0) || 
+                   (fp.quantidadeReal2 && fp.quantidadeReal2 > 0);
+          });
+          
+          if (temItemCultura) {
+            mesesUnicosComColheita.add(chaveMes);
+          }
+        }
+      });
+      
+      const numeroMesesComColheita = mesesUnicosComColheita.size || 1; // Evitar divisão por zero
+
       // Calcular totais e produtividade para CADA unidade encontrada (usando TODOS os pedidos)
       const dadosPorUnidade = new Map<string, {
         totalColhido: number;
@@ -1730,22 +1773,12 @@ export class DashboardService {
         let totalColhido = 0;
 
         itensCulturaTodos.forEach(item => {
-          // Determinar qual quantidade usar baseado na unidade
-          let quantidade = 0;
-
-          if (item.unidadeMedida1 === unidade) {
-            // Soma quantidadeColhidaUnidade1 de todas as áreas
-            quantidade = item.areas?.reduce((sum: number, areaRel: any) => {
-              return sum + (areaRel.quantidadeColhidaUnidade1 || 0);
-            }, 0) || 0;
-          } else if (item.unidadeMedida2 === unidade) {
-            // Soma quantidadeColhidaUnidade2 de todas as áreas
-            quantidade = item.areas?.reduce((sum: number, areaRel: any) => {
-              return sum + (areaRel.quantidadeColhidaUnidade2 || 0);
-            }, 0) || 0;
+          // Usar quantidadeReal ou quantidadeReal2 diretamente do FrutasPedidos
+          if (item.unidadeMedida1 === unidade && item.quantidadeReal) {
+            totalColhido += item.quantidadeReal;
+          } else if (item.unidadeMedida2 === unidade && item.quantidadeReal2) {
+            totalColhido += item.quantidadeReal2;
           }
-
-          totalColhido += quantidade;
         });
 
         // Só adiciona se houver quantidade colhida
@@ -1761,6 +1794,7 @@ export class DashboardService {
       const areasUnicasGlobal = new Set<string>();
       let areaTotalHaGlobal = 0;
       itensCulturaTodos.forEach(item => {
+        // Soma áreas de todas as áreas relacionadas a este item
         item.areas?.forEach((areaRel: any) => {
           const area = areaRel.areaPropria || areaRel.areaFornecedor;
           if (!area) return;
@@ -1772,64 +1806,137 @@ export class DashboardService {
         });
       });
 
-      // Calcular produtividade média GLOBAL para cada unidade
+      // Calcular produtividade média MENSAL para cada unidade
+      // Fórmula: (totalColhido / número de meses) / área total = média mensal por hectare
       dadosPorUnidade.forEach((dados, unidade) => {
-        if (areaTotalHaGlobal > 0) {
-          dados.produtividadeMedia = dados.totalColhido / areaTotalHaGlobal;
+        if (areaTotalHaGlobal > 0 && numeroMesesComColheita > 0) {
+          const mediaMensal = dados.totalColhido / numeroMesesComColheita;
+          dados.produtividadeMedia = mediaMensal / areaTotalHaGlobal;
         }
       });
 
       // ===== CALCULAR ÁREAS E GRÁFICO usando pedidos do PERÍODO FILTRADO =====
       // Filtrar itens dos pedidos do período que são desta cultura (para áreas e gráfico)
+      // IMPORTANTE: Usa quantidadeReal e quantidadeReal2 do FrutasPedidos
       const itensCultura = pedidos.flatMap(p => {
         const pedido = p as any;
-        return (pedido.frutasPedidos || []).filter((fp: any) => fp.fruta?.culturaId === cultura.id);
+        return (pedido.frutasPedidos || []).filter((fp: any) => {
+          // Verifica se é da cultura e se tem quantidadeReal ou quantidadeReal2
+          if (fp.fruta?.culturaId !== cultura.id) return false;
+          return (fp.quantidadeReal && fp.quantidadeReal > 0) || 
+                 (fp.quantidadeReal2 && fp.quantidadeReal2 > 0);
+        });
       });
 
       if (itensCultura.length === 0 && itensCulturaTodos.length === 0) return null; // Pula cultura sem dados
 
-      // Valor total (precificada) - pode ser do período ou global, vou manter do período para o gráfico
-      const totalValor = itensCultura.reduce((acc, item) => acc + (item.valorTotal || 0), 0);
+      // Contar meses únicos com colheita no PERÍODO FILTRADO (para calcular produtividade das áreas)
+      // Se não há filtro específico de mês/ano, usar o número de meses global (numeroMesesComColheita)
+      // para manter consistência com a média global
+      let numeroMesesPeriodo = numeroMesesComColheita;
+      
+      // Se há filtro específico (mes ou ano), contar meses apenas do período filtrado
+      if (mes || ano) {
+        const mesesUnicosPeriodo = new Set<string>();
+        pedidos.forEach((pedido: any) => {
+          if (pedido.dataColheita) {
+            const dataColheita = new Date(pedido.dataColheita);
+            const anoPedido = dataColheita.getFullYear();
+            const mesPedido = dataColheita.getMonth() + 1;
+            const chaveMes = `${anoPedido}-${String(mesPedido).padStart(2, '0')}`;
+            
+            // Verificar se este pedido tem itens desta cultura
+            const temItemCultura = (pedido.frutasPedidos || []).some((fp: any) => {
+              if (fp.fruta?.culturaId !== cultura.id) return false;
+              return (fp.quantidadeReal && fp.quantidadeReal > 0) || 
+                     (fp.quantidadeReal2 && fp.quantidadeReal2 > 0);
+            });
+            
+            if (temItemCultura) {
+              mesesUnicosPeriodo.add(chaveMes);
+            }
+          }
+        });
+        
+        numeroMesesPeriodo = mesesUnicosPeriodo.size || 1; // Evitar divisão por zero
+      }
+
+      // Valor total GLOBAL (precificada) - soma apenas itens que foram precificados de TODOS os pedidos
+      // Nota: itens apenas colhidos (sem precificação) não têm valorTotal
+      // IMPORTANTE: Usa itensCulturaTodos para manter consistência com totalColhido e produtividadeMedia
+      const totalValorGlobal = itensCulturaTodos.reduce((acc, item) => acc + (item.valorTotal || 0), 0);
 
       // Agrupamento por Fruta (para gráficos e detalhes)
       const frutasDados = cultura.frutas.map(fruta => {
         const itensFruta = itensCultura.filter(i => i.frutaId === fruta.id);
         if (itensFruta.length === 0) return null;
 
-        const totalFruta = itensFruta.reduce((acc, item) => acc + (item.quantidadePrecificada || 0), 0);
+        // Total da fruta: usa quantidadeReal (unidade principal)
+        // Nota: O total aqui é apenas para referência, o gráfico usa dadosGrafico que é calculado por mês
+        // Não somamos quantidadeReal + quantidadeReal2 pois são unidades diferentes
+        const totalFruta = itensFruta.reduce((acc, item) => {
+          return acc + (item.quantidadeReal || 0);
+        }, 0);
 
         // Agrupamento por Área (para produtividade) - com TODAS as unidades dinamicamente
+        // IMPORTANTE: Distribui quantidadeReal e quantidadeReal2 proporcionalmente entre as áreas
         const areasMap = new Map();
         
         itensFruta.forEach(item => {
-          item.areas.forEach(areaRel => {
+          // Filtrar áreas válidas
+          const areasComTamanho = (item.areas || []).filter(areaRel => {
+            const area = areaRel.areaPropria || areaRel.areaFornecedor;
+            return area !== null;
+          });
+          
+          if (areasComTamanho.length === 0) return; // Pula se não tiver áreas
+          
+          // Calcular tamanho total das áreas para distribuição proporcional das quantidades
+          const tamanhoTotalAreas = areasComTamanho.reduce((sum, areaRel) => {
+            const area = areaRel.areaPropria || areaRel.areaFornecedor;
+            if (!area) return sum;
+            return sum + (areaRel.areaPropria ? areaRel.areaPropria.areaTotal : (areaRel.areaFornecedor.quantidadeHa || 0));
+          }, 0);
+          
+          areasComTamanho.forEach(areaRel => {
             const area = areaRel.areaPropria || areaRel.areaFornecedor;
             if (!area) return;
             
             const areaId = `${areaRel.areaPropriaId ? 'P' : 'F'}-${area.id}`;
+            const tamanhoArea = areaRel.areaPropria ? areaRel.areaPropria.areaTotal : (areaRel.areaFornecedor.quantidadeHa || 0);
             
             if (!areasMap.has(areaId)) {
               areasMap.set(areaId, {
                 nome: area.nome,
                 tipo: areaRel.areaPropriaId ? 'Propria' : 'Fornecedor',
-                tamanhoHa: areaRel.areaPropria ? areaRel.areaPropria.areaTotal : (areaRel.areaFornecedor.quantidadeHa || 0),
-                totaisPorUnidade: new Map<string, number>() // Map<unidade, quantidade>
+                tamanhoHa: tamanhoArea,
+                totaisPorUnidade: new Map<string, number>(), // Map<unidade, quantidade>
+                valorTotal: 0 // Soma do valorTotal dos frutasPedidos vinculados a esta área
               });
             }
             
-            // Soma quantidades para cada unidade encontrada neste item
             const areaData = areasMap.get(areaId);
+            const proporcao = tamanhoTotalAreas > 0 ? (tamanhoArea / tamanhoTotalAreas) : (1 / areasComTamanho.length);
             
-            // Unidade 1
-            if (item.unidadeMedida1) {
-              const qtd = areaRel.quantidadeColhidaUnidade1 || 0;
+            // Somar valorTotal diretamente - cada frutasPedidos vinculado a esta área contribui com seu valorTotal completo
+            // Se um frutasPedidos está vinculado a múltiplas áreas, o valorTotal será somado em todas (sem distribuição)
+            // IMPORTANTE: Somar o valorTotal completo do item, independente de quantas áreas ele está vinculado
+            // Tratar null/undefined como 0
+            const valorItem = item.valorTotal ?? 0;
+            if (valorItem > 0) {
+              areaData.valorTotal += valorItem;
+            }
+            
+            // Unidade 1 - distribuir quantidadeReal proporcionalmente ao tamanho da área
+            if (item.unidadeMedida1 && item.quantidadeReal && item.quantidadeReal > 0) {
+              const qtd = item.quantidadeReal * proporcao;
               const atual = areaData.totaisPorUnidade.get(item.unidadeMedida1) || 0;
               areaData.totaisPorUnidade.set(item.unidadeMedida1, atual + qtd);
             }
             
-            // Unidade 2
-            if (item.unidadeMedida2) {
-              const qtd = areaRel.quantidadeColhidaUnidade2 || 0;
+            // Unidade 2 - distribuir quantidadeReal2 proporcionalmente ao tamanho da área
+            if (item.unidadeMedida2 && item.quantidadeReal2 && item.quantidadeReal2 > 0) {
+              const qtd = item.quantidadeReal2 * proporcao;
               const atual = areaData.totaisPorUnidade.get(item.unidadeMedida2) || 0;
               areaData.totaisPorUnidade.set(item.unidadeMedida2, atual + qtd);
             }
@@ -1845,9 +1952,11 @@ export class DashboardService {
             a.totaisPorUnidade.forEach((total: number, unidade: string) => {
               // Só adiciona se houver quantidade
               if (total > 0) {
+                // Calcular produtividade como média mensal: (total / número de meses) / área
+                const mediaMensal = total / numeroMesesPeriodo;
                 dadosUnidades[unidade] = {
                   total,
-                  produtividade: a.tamanhoHa > 0 ? (total / a.tamanhoHa) : 0
+                  produtividade: a.tamanhoHa > 0 ? (mediaMensal / a.tamanhoHa) : 0
                 };
               }
             });
@@ -1856,6 +1965,7 @@ export class DashboardService {
               nome: a.nome,
               tipo: a.tipo,
               tamanhoHa: a.tamanhoHa,
+              valorTotal: a.valorTotal || 0, // Valor total desta área (soma dos frutasPedidos vinculados)
               dadosUnidades // Objeto com todas as unidades: { "KG": { total: 1000, produtividade: 50 }, "CX": { total: 200, produtividade: 10 } }
             };
           })
@@ -1869,7 +1979,8 @@ export class DashboardService {
             return maxB - maxA;
           });
 
-        // Agrupar dados por mês/ano para o gráfico (quantidade precificada)
+        // Agrupar dados por mês/ano para o gráfico usando dataColheita
+        // IMPORTANTE: Usa quantidadeReal e quantidadeReal2 do FrutasPedidos
         const dadosGraficoMap = new Map<string, number>();
         // Agrupar dados de unidades por mês/ano (para tooltip com média)
         // Map<chaveMes, Map<unidade, total>> - total geral do mês
@@ -1884,9 +1995,14 @@ export class DashboardService {
             // Chave no formato "YYYY-MM" para ordenação correta
             const chave = `${ano}-${String(mes).padStart(2, '0')}`;
             
-            // Quantidade precificada (para gráfico)
-            const valorAtual = dadosGraficoMap.get(chave) || 0;
-            dadosGraficoMap.set(chave, valorAtual + (item.quantidadePrecificada || 0));
+            // Quantidade para gráfico: usa quantidadeReal (unidade principal)
+            // O gráfico mostra séries por fruta, então usa a unidade principal
+            // Não somamos quantidadeReal + quantidadeReal2 pois são unidades diferentes
+            const quantidadeGrafico = item.quantidadeReal || 0;
+            if (quantidadeGrafico > 0) {
+              const valorAtual = dadosGraficoMap.get(chave) || 0;
+              dadosGraficoMap.set(chave, valorAtual + quantidadeGrafico);
+            }
             
             // Unidades físicas (para tooltip) - soma geral do mês
             if (!dadosUnidadesPorMesMap.has(chave)) {
@@ -1894,17 +2010,15 @@ export class DashboardService {
             }
             const unidadesMes = dadosUnidadesPorMesMap.get(chave)!;
             
-            // Soma quantidades físicas por unidade deste item (todas as áreas)
-            item.areas?.forEach((areaRel: any) => {
-              if (item.unidadeMedida1 && areaRel.quantidadeColhidaUnidade1) {
-                const atual = unidadesMes.get(item.unidadeMedida1) || 0;
-                unidadesMes.set(item.unidadeMedida1, atual + areaRel.quantidadeColhidaUnidade1);
-              }
-              if (item.unidadeMedida2 && areaRel.quantidadeColhidaUnidade2) {
-                const atual = unidadesMes.get(item.unidadeMedida2) || 0;
-                unidadesMes.set(item.unidadeMedida2, atual + areaRel.quantidadeColhidaUnidade2);
-              }
-            });
+            // Soma quantidades físicas por unidade deste item
+            if (item.unidadeMedida1 && item.quantidadeReal && item.quantidadeReal > 0) {
+              const atual = unidadesMes.get(item.unidadeMedida1) || 0;
+              unidadesMes.set(item.unidadeMedida1, atual + item.quantidadeReal);
+            }
+            if (item.unidadeMedida2 && item.quantidadeReal2 && item.quantidadeReal2 > 0) {
+              const atual = unidadesMes.get(item.unidadeMedida2) || 0;
+              unidadesMes.set(item.unidadeMedida2, atual + item.quantidadeReal2);
+            }
           }
         });
 
@@ -1983,7 +2097,7 @@ export class DashboardService {
         return {
           id: fruta.id,
           nome: fruta.nome,
-          total: totalFruta, // Total precificado (para gráfico)
+          total: totalFruta, // Total colhido (quantidadeReal - unidade principal)
           areas,
           dadosGrafico
         };
@@ -2007,7 +2121,7 @@ export class DashboardService {
         cultura: cultura.descricao,
         culturaId: cultura.id,
         resumo: {
-          valorTotal: totalValor, // Valor do período filtrado
+          valorTotal: totalValorGlobal, // Valor GLOBAL (todos os pedidos) - mantém consistência com totalColhido e produtividadeMedia
           areaTotalHa: areaTotalHaGlobal || 0, // Área total GLOBAL (todos os pedidos)
           dadosUnidades: dadosUnidades.length > 0 ? dadosUnidades : [] // Array com todas as unidades: [{ unidade: "KG", totalColhido: 1000, produtividadeMedia: 50 }, ...]
         },

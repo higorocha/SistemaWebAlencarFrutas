@@ -139,7 +139,7 @@ const CulturaHeader = ({ dados }) => {
         {/* KPI 4: Produtividade */}
         <Col xs={24} sm={12} md={6}>
           <KpiCard 
-            title="Produtividade Média"
+            title="Produtividade Média Total"
             value={
               <div>
                 {dados?.resumo?.dadosUnidades && Array.isArray(dados.resumo.dadosUnidades) && dados.resumo.dadosUnidades.length > 0 ? (

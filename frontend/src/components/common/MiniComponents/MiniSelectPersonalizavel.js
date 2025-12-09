@@ -9,7 +9,9 @@ const SelectContainer = styled.div`
 `;
 
 // Estilo do elemento de seleção que o usuário clica
-const SelectTrigger = styled.div`
+const SelectTrigger = styled.div.withConfig({
+  shouldForwardProp: (prop) => !['isOpen', 'hasValue', 'iconColor', 'customPadding', 'height', 'fontSize', 'iconSize', 'placeholder'].includes(prop),
+})`
   width: 100%;
   height: ${props => props.height || '40px'};
   padding: ${props => props.customPadding || '8px 12px 8px 36px'};
@@ -63,7 +65,9 @@ const SelectTrigger = styled.div`
 `;
 
 // Dropdown com as opções
-const SelectDropdown = styled.div`
+const SelectDropdown = styled.div.withConfig({
+  shouldForwardProp: (prop) => !['isOpen', 'maxHeight'].includes(prop),
+})`
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
@@ -79,7 +83,9 @@ const SelectDropdown = styled.div`
 `;
 
 // Item individual no dropdown
-const SelectOption = styled.div`
+const SelectOption = styled.div.withConfig({
+  shouldForwardProp: (prop) => !['isSelected'].includes(prop),
+})`
   padding: 8px 12px;
   cursor: pointer;
   transition: all 0.3s;

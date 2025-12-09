@@ -1060,24 +1060,23 @@ const Dashboard = () => {
       <StyledTabs
         activeKey={activeTab}
         onChange={(key) => {
-          // Verificar se está tentando acessar 'painel-frutas' e não é PROGRAMADOR
-          if (key === 'painel-frutas' && !isProgramador) {
+          // Se está acessando o painel de frutas, mostrar notificação informativa
+          if (key === 'painel-frutas') {
             showNotification(
               "info",
-              "Em desenvolvimento",
-              "Esta funcionalidade está em desenvolvimento."
+              "Funcionalidade em implementação",
+              "Esta funcionalidade está em implementação e pode estar imprecisa."
             );
-            return; // Não muda a aba
-          }
-          
-          // Se está acessando o painel de frutas pela primeira vez, carregar dados
-          if (key === 'painel-frutas' && !painelFrutasCarregado && isProgramador) {
-            setLoadingPainelFrutas(true);
-            // Simular carregamento inicial (será substituído pelo carregamento real dos dados)
-            setTimeout(() => {
-              setPainelFrutasCarregado(true);
-              setLoadingPainelFrutas(false);
-            }, 500);
+            
+            // Se está acessando o painel de frutas pela primeira vez, carregar dados
+            if (!painelFrutasCarregado) {
+              setLoadingPainelFrutas(true);
+              // Simular carregamento inicial (será substituído pelo carregamento real dos dados)
+              setTimeout(() => {
+                setPainelFrutasCarregado(true);
+                setLoadingPainelFrutas(false);
+              }, 500);
+            }
           }
           
           // Se está acessando o painel financeiro pela primeira vez, carregar dados
@@ -1261,28 +1260,16 @@ const Dashboard = () => {
                 Painel de Frutas
               </span>
             ),
-            children: isProgramador ? (
-              painelFrutasCarregado ? (
-                <PainelFrutas />
-              ) : (
-                <div style={{ padding: '24px', textAlign: 'center', color: '#8c8c8c', minHeight: '400px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                  <Icon icon="healthicons:fruits" style={{ fontSize: '64px', marginBottom: '16px', color: '#d9d9d9' }} />
-                  <Typography.Title level={4} type="secondary">
-                    Painel de Frutas
-                  </Typography.Title>
-                  <Typography.Text type="secondary">
-                    Clique na aba para carregar os dados.
-                  </Typography.Text>
-                </div>
-              )
+            children: painelFrutasCarregado ? (
+              <PainelFrutas />
             ) : (
-              <div style={{ padding: '24px', textAlign: 'center', color: '#8c8c8c' }}>
-                <Icon icon="mdi:lock" style={{ fontSize: '64px', marginBottom: '16px', color: '#d9d9d9' }} />
+              <div style={{ padding: '24px', textAlign: 'center', color: '#8c8c8c', minHeight: '400px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                <Icon icon="healthicons:fruits" style={{ fontSize: '64px', marginBottom: '16px', color: '#d9d9d9' }} />
                 <Typography.Title level={4} type="secondary">
-                  Acesso Restrito
+                  Painel de Frutas
                 </Typography.Title>
                 <Typography.Text type="secondary">
-                  Esta funcionalidade está em desenvolvimento e disponível apenas para programadores.
+                  Clique na aba para carregar os dados.
                 </Typography.Text>
               </div>
             )

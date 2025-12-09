@@ -525,11 +525,13 @@ const ProgramacaoColheitaGrid = ({
             cursor: 'pointer',
             transition: 'box-shadow 0.2s ease, transform 0.2s ease'
           }}
-          bodyStyle={{
-            padding: isMobile ? '6px' : '8px',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column'
+          styles={{
+            body: {
+              padding: isMobile ? '6px' : '8px',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
+            }
           }}
           onClick={() => handleAbrirModalDia(modalPayload)}
           onMouseEnter={(event) => {
