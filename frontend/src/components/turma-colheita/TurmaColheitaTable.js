@@ -25,7 +25,7 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString("pt-BR");
 };
 
-const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, onDelete = null }) => {
+const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, onDelete = null, onRowClick = null }) => {
   const [modalEstatisticas, setModalEstatisticas] = useState({
     open: false,
     turmaId: null,
@@ -75,11 +75,18 @@ const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, on
         const nomeB = b.nomeColhedor || "";
         return nomeA.localeCompare(nomeB);
       },
-      render: (text) => (
-        <Space>
-          <UserOutlined style={{ color: "#059669" }} />
-          <Text strong>{text ? capitalizeName(text) : "Não informado"}</Text>
-        </Space>
+      render: (text, record) => (
+        <Tooltip 
+          title={onRowClick ? "Clique na linha para ver os dados consolidados desta turma" : undefined}
+          placement="top"
+        >
+          <Space>
+            <UserOutlined style={{ color: "#059669" }} />
+            <Text strong style={{ cursor: onRowClick ? "pointer" : "default" }}>
+              {text ? capitalizeName(text) : "Não informado"}
+            </Text>
+          </Space>
+        </Tooltip>
       ),
     },
     {
@@ -112,17 +119,6 @@ const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, on
       align: "center",
       render: (date) => (
         <Text type="secondary">{formatDate(date)}</Text>
-      ),
-    },
-    {
-      title: "Observações",
-      dataIndex: "observacoes",
-      key: "observacoes",
-      align: "center",
-      render: (text) => (
-        <Text ellipsis={{ tooltip: text }}>
-          {text || "Nenhuma observação"}
-        </Text>
       ),
     },
     {
@@ -323,7 +319,12 @@ const TurmaColheitaTable = ({ turmasColheita, loading = false, onEdit = null, on
         }}
         onRow={(record) => ({
           onClick: () => {
-            // Pode adicionar ação de clique na linha se necessário
+            if (onRowClick) {
+              onRowClick(record);
+            }
+          },
+          style: {
+            cursor: onRowClick ? 'pointer' : 'default',
           },
         })}
       />

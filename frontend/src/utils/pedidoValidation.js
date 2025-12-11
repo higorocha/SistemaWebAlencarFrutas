@@ -154,13 +154,9 @@ export const validarPedidoCompleto = (dadosPedido, frutasDisponiveis = []) => {
         }
       }
 
-      // Avisos para quantidades muito baixas ou muito altas
+      // Avisos para quantidades muito baixas
       if (fruta.quantidadePrevista && fruta.quantidadePrevista < 1) {
         avisos.push(`${nomeFruta}: Quantidade prevista muito baixa (${fruta.quantidadePrevista})`);
-      }
-      
-      if (fruta.quantidadePrevista && fruta.quantidadePrevista > 15000) {
-        avisos.push(`${nomeFruta}: Quantidade prevista muito alta (${fruta.quantidadePrevista}). Verifique se está correta.`);
       }
     });
   }

@@ -1678,6 +1678,19 @@ export class PdfController {
       const dataColheitaExibicao = pedido.dataColheita || pedido.dataPrevistaColheita;
       const dataColheitaFormatada = dataColheitaExibicao ? formatDateBR(dataColheitaExibicao) : null;
 
+      // Extrair vales (referenciaExterna) dos pagamentos do pedido
+      // Se houver múltiplos vales, concatenar separados por vírgula
+      let valesFormatados: string = '-';
+      if (pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0) {
+        const vales = pedido.pagamentosPedidos
+          .map((pagamento: any) => pagamento.referenciaExterna)
+          .filter((vale: any) => vale && vale.trim() !== '');
+        
+        if (vales.length > 0) {
+          valesFormatados = vales.join(', ');
+        }
+      }
+
       return {
         id: pedido.id,
         numeroPedido: pedido.numeroPedido,
@@ -1700,6 +1713,7 @@ export class PdfController {
         diasCor: mostrarDias ? diasCor : null,
         diasVencido: mostrarDias ? vencido : false,
         mostrarDias,
+        valesFormatados, // Campo Vale para exibição no PDF
       };
     });
 

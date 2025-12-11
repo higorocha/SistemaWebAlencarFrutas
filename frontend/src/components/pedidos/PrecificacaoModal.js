@@ -181,6 +181,26 @@ const PrecificacaoModal = ({
     }, 100);
   };
 
+  // Função para lidar com mudança na quantidadeReal2 (quando cliente é indústria e tem segunda unidade)
+  const handleQuantidadeReal2Change = (frutaIndex, value) => {
+    const unidadePrecificada = form.getFieldValue(['frutas', frutaIndex, 'unidadePrecificada']);
+    const fruta = form.getFieldValue('frutas')?.[frutaIndex];
+    
+    // Se estiver usando unidadeMedida2, atualizar quantidadePrecificada também
+    if (unidadePrecificada === fruta?.unidadeMedida2) {
+      form.setFieldValue(['frutas', frutaIndex, 'quantidadePrecificada'], value || 0);
+      // Recalcular valores
+      setTimeout(() => {
+        const frutasAtualizadas = form.getFieldValue('frutas');
+        const frete = form.getFieldValue('frete') || 0;
+        const icms = form.getFieldValue('icms') || 0;
+        const desconto = form.getFieldValue('desconto') || 0;
+        const avaria = form.getFieldValue('avaria') || 0;
+        calcularValoresConsolidados(frutasAtualizadas, frete, icms, desconto, avaria);
+      }, 100);
+    }
+  };
+
   // Observar mudanças nos campos do formulário
   const handleFieldChange = (changedFields, allFields) => {
     const formValues = form.getFieldsValue();
@@ -221,12 +241,41 @@ const PrecificacaoModal = ({
       }
 
       const formData = {
-        frutas: values.frutas.map(fruta => ({
-          frutaPedidoId: fruta.frutaPedidoId,
-          valorUnitario: typeof fruta.valorUnitario === 'string' ? parseFloat(fruta.valorUnitario) : fruta.valorUnitario,
-          unidadePrecificada: fruta.unidadePrecificada,
-          quantidadePrecificada: typeof fruta.quantidadePrecificada === 'string' ? parseFloat(fruta.quantidadePrecificada) : fruta.quantidadePrecificada,
-        })),
+        frutas: values.frutas.map(fruta => {
+          const frutaData = {
+            frutaPedidoId: fruta.frutaPedidoId,
+            valorUnitario: typeof fruta.valorUnitario === 'string' ? parseFloat(fruta.valorUnitario) : fruta.valorUnitario,
+            unidadePrecificada: fruta.unidadePrecificada,
+            quantidadePrecificada: typeof fruta.quantidadePrecificada === 'string' ? parseFloat(fruta.quantidadePrecificada) : fruta.quantidadePrecificada,
+          };
+          
+          // Se cliente é indústria, SEMPRE incluir quantidadeReal e quantidadeReal2
+          // IMPORTANTE: Buscar valores diretamente do formulário para garantir que capturamos os valores atualizados
+          if (pedido?.cliente?.industria) {
+            // Buscar valores diretamente do formulário para garantir que capturamos os valores atualizados
+            const frutaFormValues = form.getFieldValue(['frutas', values.frutas.indexOf(fruta)]);
+            
+            // Incluir quantidadeReal se existir no formulário
+            const qtdReal = frutaFormValues?.quantidadeReal ?? fruta.quantidadeReal;
+            if (qtdReal !== undefined && qtdReal !== null && qtdReal !== '') {
+              const qtdRealNum = typeof qtdReal === 'string' ? parseFloat(qtdReal) : qtdReal;
+              if (!isNaN(qtdRealNum)) {
+                frutaData.quantidadeReal = qtdRealNum;
+              }
+            }
+            
+            // Incluir quantidadeReal2 se existir no formulário
+            const qtdReal2 = frutaFormValues?.quantidadeReal2 ?? fruta.quantidadeReal2;
+            if (qtdReal2 !== undefined && qtdReal2 !== null && qtdReal2 !== '') {
+              const qtdReal2Num = typeof qtdReal2 === 'string' ? parseFloat(qtdReal2) : qtdReal2;
+              if (!isNaN(qtdReal2Num)) {
+                frutaData.quantidadeReal2 = qtdReal2Num;
+              }
+            }
+          }
+          
+          return frutaData;
+        }),
         frete: values.frete ? (typeof values.frete === 'string' ? parseFloat(values.frete) : values.frete) : 0,
         icms: values.icms ? (typeof values.icms === 'string' ? parseFloat(values.icms) : values.icms) : 0,
         desconto: values.desconto ? (typeof values.desconto === 'string' ? parseFloat(values.desconto) : values.desconto) : 0,
@@ -519,32 +568,98 @@ const PrecificacaoModal = ({
                               Colhida
                             </span>
                           )}
-                          <Input
-                            disabled
-                            value={(() => {
-                              // Lógica simples: sempre mostrar quantidadeReal com a unidade padrão (primeira unidade)
-                              // Se o usuário alternar para segunda unidade via toggle, mostrará quantidadeReal2
+                          {pedido?.cliente?.industria ? (
+                            (() => {
                               const unidadePrecificada = fruta?.unidadePrecificada || fruta?.unidadeMedida1;
-
-                              // Se unidade precificada é a segunda unidade E temos quantidadeReal2
-                              if (fruta?.unidadeMedida2 &&
-                                  unidadePrecificada === fruta.unidadeMedida2 &&
-                                  fruta.quantidadeReal2) {
-                                return `${fruta.quantidadeReal2} ${fruta.unidadeMedida2}`;
-                              }
-
-                              // Caso padrão: primeira unidade
-                              return `${fruta?.quantidadeReal || '0'} ${fruta?.unidadeMedida1 || ''}`;
-                            })()}
-                            style={{
-                              borderRadius: "0.375rem",
-                              textAlign: "center",
-                              color: "#10b981",
-                              fontWeight: "600",
-                              fontSize: isMobile ? "0.875rem" : undefined
-                            }}
-                            size={isMobile ? "small" : "middle"}
-                          />
+                              const isUnidade2 = fruta?.unidadeMedida2 && unidadePrecificada === fruta.unidadeMedida2;
+                              
+                              return isUnidade2 ? (
+                                <Form.Item
+                                  {...restField}
+                                  name={[name, 'quantidadeReal2']}
+                                  style={{ marginBottom: 0 }}
+                                  rules={[
+                                    {
+                                      validator: (_, value) => {
+                                        if (!value && value !== 0) return Promise.resolve();
+                                        const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                        if (numValue < 0) {
+                                          return Promise.reject(new Error("Quantidade não pode ser negativa"));
+                                        }
+                                        return Promise.resolve();
+                                      }
+                                    }
+                                  ]}
+                                >
+                                  <MonetaryInput
+                                    placeholder="Ex: 1.250,00"
+                                    addonAfter={fruta?.unidadeMedida2 || 'UND'}
+                                    size={isMobile ? "small" : "large"}
+                                    onChange={(value) => handleQuantidadeReal2Change(index, value)}
+                                  />
+                                </Form.Item>
+                              ) : (
+                                <Form.Item
+                                  {...restField}
+                                  name={[name, 'quantidadeReal']}
+                                  style={{ marginBottom: 0 }}
+                                  rules={[
+                                    {
+                                      validator: (_, value) => {
+                                        if (!value && value !== 0) return Promise.resolve();
+                                        const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                                        if (numValue < 0) {
+                                          return Promise.reject(new Error("Quantidade não pode ser negativa"));
+                                        }
+                                        return Promise.resolve();
+                                      }
+                                    }
+                                  ]}
+                                >
+                                  <MonetaryInput
+                                    placeholder="Ex: 1.250,00"
+                                    addonAfter={fruta?.unidadeMedida1 || 'UND'}
+                                    size={isMobile ? "small" : "large"}
+                                    onChange={(value) => {
+                                      const unidadePrecificada = form.getFieldValue(['frutas', index, 'unidadePrecificada']) || fruta?.unidadeMedida1;
+                                      if (unidadePrecificada === fruta?.unidadeMedida1) {
+                                        form.setFieldValue(['frutas', index, 'quantidadePrecificada'], value || 0);
+                                        setTimeout(() => {
+                                          const frutasAtualizadas = form.getFieldValue('frutas');
+                                          const frete = form.getFieldValue('frete') || 0;
+                                          const icms = form.getFieldValue('icms') || 0;
+                                          const desconto = form.getFieldValue('desconto') || 0;
+                                          const avaria = form.getFieldValue('avaria') || 0;
+                                          calcularValoresConsolidados(frutasAtualizadas, frete, icms, desconto, avaria);
+                                        }, 100);
+                                      }
+                                    }}
+                                  />
+                                </Form.Item>
+                              );
+                            })()
+                          ) : (
+                            <Input
+                              disabled
+                              value={(() => {
+                                const unidadePrecificada = fruta?.unidadePrecificada || fruta?.unidadeMedida1;
+                                if (fruta?.unidadeMedida2 &&
+                                    unidadePrecificada === fruta.unidadeMedida2 &&
+                                    fruta.quantidadeReal2) {
+                                  return `${fruta.quantidadeReal2} ${fruta.unidadeMedida2}`;
+                                }
+                                return `${fruta?.quantidadeReal || '0'} ${fruta?.unidadeMedida1 || ''}`;
+                              })()}
+                              style={{
+                                borderRadius: "0.375rem",
+                                textAlign: "center",
+                                color: "#10b981",
+                                fontWeight: "600",
+                                fontSize: isMobile ? "0.875rem" : undefined
+                              }}
+                              size={isMobile ? "small" : "middle"}
+                            />
+                          )}
                         </Col>
 
                         {/* Quantidade Precificada */}

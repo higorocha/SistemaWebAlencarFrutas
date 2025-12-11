@@ -1,28 +1,42 @@
 // src/pages/TurmaColheita.js
 
 import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
-import { Typography, Button, Space, Modal, Spin } from "antd";
+import { Typography, Button, Space, Modal, Spin, Select, DatePicker, Divider } from "antd";
 import {
   OrderedListOutlined,
   PartitionOutlined,
   PlusCircleOutlined,
   UserOutlined,
+  BarChartOutlined,
+  FilterOutlined,
 } from "@ant-design/icons";
 // Importar ícones do Iconify para agricultura
 import { Icon } from "@iconify/react";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
 import { CentralizedLoader } from "components/common/loaders";
-import { PrimaryButton } from "components/common/buttons";
+import { PrimaryButton, SecondaryButton } from "components/common/buttons";
+import BackButton from "components/common/buttons/BackButton";
 import { SearchInput } from "components/common/search";
 import axiosInstance from "../api/axiosConfig";
 import { Pagination } from "antd";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
 import useResponsive from "../hooks/useResponsive";
+import moment from "moment";
+import { capitalizeName } from "../utils/formatters";
+
+const { RangePicker } = DatePicker;
+const { Option } = Select;
 
 const TurmaColheitaTable = lazy(() => import("../components/turma-colheita/TurmaColheitaTable"));
 const AddEditTurmaColheitaDialog = lazy(() =>
   import("../components/turma-colheita/AddEditTurmaColheitaDialog")
+);
+const ColheitasConsolidadasTable = lazy(() => 
+  import("../components/turma-colheita/ColheitasConsolidadasTable")
+);
+const EstatisticasGeraisColheitas = lazy(() => 
+  import("../components/turma-colheita/EstatisticasGeraisColheitas")
 );
 
 const TurmaColheita = () => {
@@ -47,7 +61,37 @@ const TurmaColheita = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [turmaEditando, setTurmaEditando] = useState(null);
 
-  const { Title } = Typography;
+  // Estados para seção de dados consolidados
+  const [colheitasConsolidadas, setColheitasConsolidadas] = useState([]);
+  const [loadingConsolidadas, setLoadingConsolidadas] = useState(false);
+  const [estatisticasGerais, setEstatisticasGerais] = useState(null);
+  const [loadingEstatisticas, setLoadingEstatisticas] = useState(false);
+  const [culturas, setCulturas] = useState([]);
+  const [culturaFiltro, setCulturaFiltro] = useState(null);
+  const [dateRangeConsolidadas, setDateRangeConsolidadas] = useState([]);
+  const [searchTermConsolidadas, setSearchTermConsolidadas] = useState("");
+  const [currentPageConsolidadas, setCurrentPageConsolidadas] = useState(1);
+  const [pageSizeConsolidadas, setPageSizeConsolidadas] = useState(20);
+  const [totalConsolidadas, setTotalConsolidadas] = useState(0);
+  const [totalGeralQuantidade, setTotalGeralQuantidade] = useState(0);
+  const [totalGeralValor, setTotalGeralValor] = useState(0);
+  
+  // Estado para turma selecionada
+  const [turmaSelecionada, setTurmaSelecionada] = useState(null);
+  const [estatisticasTurmaSelecionada, setEstatisticasTurmaSelecionada] = useState(null);
+  const [loadingEstatisticasTurma, setLoadingEstatisticasTurma] = useState(false);
+
+  // Verificar se há filtros aplicados (usando useMemo para evitar recálculos)
+  // Nota: turmaSelecionada não é considerado filtro, apenas os filtros adicionais (cultura, data, busca)
+  const temFiltrosAplicados = React.useMemo(() => {
+    return !!(
+      culturaFiltro || 
+      (dateRangeConsolidadas && dateRangeConsolidadas.length === 2) || 
+      (searchTermConsolidadas && searchTermConsolidadas.trim())
+    );
+  }, [culturaFiltro, dateRangeConsolidadas, searchTermConsolidadas]);
+
+  const { Title, Text } = Typography;
 
   // Função para buscar TODAS as turmas de colheita (sem paginação no backend)
   const fetchTurmasColheita = useCallback(async () => {
@@ -75,10 +119,257 @@ const TurmaColheita = () => {
     }
   }, []);
 
+  // Função para buscar culturas
+  const fetchCulturas = useCallback(async () => {
+    try {
+      const response = await axiosInstance.get("/api/culturas");
+      setCulturas(response.data || []);
+    } catch (error) {
+      console.error("Erro ao buscar culturas:", error);
+    }
+  }, []);
+
+  // Função para buscar estatísticas gerais
+  const fetchEstatisticasGerais = useCallback(async () => {
+    try {
+      setLoadingEstatisticas(true);
+      const response = await axiosInstance.get('/api/turma-colheita/estatisticas-gerais');
+      setEstatisticasGerais(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar estatísticas gerais:", error);
+      showNotification("error", "Erro", "Erro ao carregar estatísticas gerais");
+      setEstatisticasGerais(null);
+    } finally {
+      setLoadingEstatisticas(false);
+    }
+  }, []);
+
+  // Função para buscar estatísticas de uma turma específica
+  const fetchEstatisticasTurma = useCallback(async (turmaId) => {
+    try {
+      setLoadingEstatisticasTurma(true);
+      
+      // Buscar estatísticas da turma
+      const responseEstatisticas = await axiosInstance.get(`/api/turma-colheita/${turmaId}/estatisticas`);
+      const dadosEstatisticas = responseEstatisticas.data;
+      
+      // Buscar todas as colheitas da turma para agrupar por cultura
+      const responseColheitas = await axiosInstance.get(`/api/turma-colheita/colheita-pedido/turma/${turmaId}`);
+      const colheitas = responseColheitas.data || [];
+      
+      // Agrupar por cultura
+      const culturaMap = new Map();
+      colheitas.forEach((colheita) => {
+        const culturaId = colheita.fruta?.cultura?.id;
+        const culturaDescricao = colheita.fruta?.cultura?.descricao || 'Desconhecida';
+        
+        if (!culturaMap.has(culturaId)) {
+          culturaMap.set(culturaId, {
+            culturaId,
+            culturaDescricao,
+            totalQuantidade: 0,
+            totalValor: 0,
+            totalColheitas: 0,
+          });
+        }
+        
+        const cultura = culturaMap.get(culturaId);
+        cultura.totalQuantidade += colheita.quantidadeColhida || 0;
+        cultura.totalValor += colheita.valorColheita || 0;
+        cultura.totalColheitas += 1;
+      });
+      
+      const colheitasPorCultura = Array.from(culturaMap.values());
+      
+      // Calcular pagamentos dos detalhes
+      const detalhes = dadosEstatisticas.detalhes || [];
+      const pagamentosEfetuados = detalhes.filter(d => d.pagamentoEfetuado).length;
+      const pagamentosPendentes = detalhes.filter(d => !d.pagamentoEfetuado).length;
+      const valorPago = detalhes
+        .filter(d => d.pagamentoEfetuado)
+        .reduce((sum, d) => sum + (d.valorPago || 0), 0);
+      const valorPendente = detalhes
+        .filter(d => !d.pagamentoEfetuado)
+        .reduce((sum, d) => sum + (d.valor || 0), 0);
+      
+      // Formatar dados no formato esperado
+      const estatisticasFormatadas = {
+        totalTurmas: 1, // Apenas a turma selecionada
+        totalColheitas: detalhes.length,
+        totalQuantidade: dadosEstatisticas.totalGeral?.quantidade || 0,
+        totalValor: dadosEstatisticas.totalGeral?.valor || 0,
+        colheitasPorCultura,
+        pagamentos: {
+          efetuados: pagamentosEfetuados,
+          pendentes: pagamentosPendentes,
+          valorPago,
+          valorPendente,
+        },
+        detalhes, // Manter detalhes para quando clicar em cultura
+        colheitas, // Manter colheitas completas para filtrar por cultura
+      };
+      
+      setEstatisticasTurmaSelecionada(estatisticasFormatadas);
+    } catch (error) {
+      console.error("Erro ao buscar estatísticas da turma:", error);
+      showNotification("error", "Erro", "Erro ao carregar estatísticas da turma");
+      setEstatisticasTurmaSelecionada(null);
+    } finally {
+      setLoadingEstatisticasTurma(false);
+    }
+  }, []);
+
+  // Função para buscar dados consolidados (só é chamada quando há filtros aplicados)
+  const fetchColheitasConsolidadas = useCallback(async () => {
+    try {
+      setLoadingConsolidadas(true);
+      
+      // Se uma turma está selecionada E há filtros, filtrar suas colheitas
+      if (turmaSelecionada && estatisticasTurmaSelecionada) {
+        let colheitasFiltradas = estatisticasTurmaSelecionada.colheitas || [];
+        
+        // Filtrar por cultura se selecionada
+        if (culturaFiltro) {
+          colheitasFiltradas = colheitasFiltradas.filter(
+            (c) => c.fruta?.cultura?.id === culturaFiltro
+          );
+        }
+        
+        // Filtrar por data se selecionada
+        if (dateRangeConsolidadas && dateRangeConsolidadas.length === 2) {
+          const dataInicio = moment(dateRangeConsolidadas[0]).startOf('day');
+          const dataFim = moment(dateRangeConsolidadas[1]).endOf('day');
+          colheitasFiltradas = colheitasFiltradas.filter((c) => {
+            const dataColheita = moment(c.dataColheita);
+            return dataColheita.isBetween(dataInicio, dataFim, null, '[]');
+          });
+        }
+        
+        // Formatar para o formato da tabela
+        const dadosFormatados = colheitasFiltradas.map((colheita) => ({
+          turmaId: turmaSelecionada.id,
+          turmaNome: turmaSelecionada.nomeColhedor || 'Sem nome',
+          dataColheita: colheita.dataColheita,
+          totalQuantidade: colheita.quantidadeColhida || 0,
+          totalValor: colheita.valorColheita || 0,
+        }));
+        
+        const totalGeralQuantidadeCalc = dadosFormatados.reduce((sum, d) => sum + d.totalQuantidade, 0);
+        const totalGeralValorCalc = dadosFormatados.reduce((sum, d) => sum + d.totalValor, 0);
+        
+        // Paginação
+        const total = dadosFormatados.length;
+        const startIndex = (currentPageConsolidadas - 1) * pageSizeConsolidadas;
+        const endIndex = startIndex + pageSizeConsolidadas;
+        const dadosPaginados = dadosFormatados.slice(startIndex, endIndex);
+        
+        setColheitasConsolidadas(dadosPaginados);
+        setTotalConsolidadas(total);
+        setTotalGeralQuantidade(totalGeralQuantidadeCalc);
+        setTotalGeralValor(totalGeralValorCalc);
+      } else {
+        // Comportamento normal (sem turma selecionada, com filtros gerais)
+        const params = new URLSearchParams();
+        
+        if (culturaFiltro) {
+          params.append('culturaId', culturaFiltro.toString());
+        }
+        
+        if (dateRangeConsolidadas && dateRangeConsolidadas.length === 2) {
+          params.append('dataInicio', dateRangeConsolidadas[0].toISOString());
+          params.append('dataFim', dateRangeConsolidadas[1].toISOString());
+        }
+        
+        if (searchTermConsolidadas && searchTermConsolidadas.trim()) {
+          params.append('searchTerm', searchTermConsolidadas.trim());
+        }
+        
+        params.append('page', currentPageConsolidadas.toString());
+        params.append('limit', pageSizeConsolidadas.toString());
+
+        const response = await axiosInstance.get(`/api/turma-colheita/colheitas-consolidadas?${params.toString()}`);
+        
+        setColheitasConsolidadas(response.data.data || []);
+        setTotalConsolidadas(response.data.total || 0);
+        setTotalGeralQuantidade(response.data.totalGeralQuantidade || 0);
+        setTotalGeralValor(response.data.totalGeralValor || 0);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar colheitas consolidadas:", error);
+      showNotification("error", "Erro", "Erro ao carregar dados consolidados");
+      setColheitasConsolidadas([]);
+      setTotalConsolidadas(0);
+      setTotalGeralQuantidade(0);
+      setTotalGeralValor(0);
+    } finally {
+      setLoadingConsolidadas(false);
+    }
+  }, [turmaSelecionada, estatisticasTurmaSelecionada, culturaFiltro, dateRangeConsolidadas, searchTermConsolidadas, currentPageConsolidadas, pageSizeConsolidadas]);
+
   // useEffect para carregar turmas na inicialização
   useEffect(() => {
     fetchTurmasColheita();
-  }, [fetchTurmasColheita]);
+    fetchCulturas();
+  }, [fetchTurmasColheita, fetchCulturas]);
+  
+  // useEffect para buscar estatísticas quando turma é selecionada ou removida
+  useEffect(() => {
+    if (turmaSelecionada) {
+      fetchEstatisticasTurma(turmaSelecionada.id);
+    } else {
+      fetchEstatisticasGerais();
+    }
+  }, [turmaSelecionada, fetchEstatisticasTurma, fetchEstatisticasGerais]);
+
+  // useEffect para buscar dados consolidados quando há filtros
+  useEffect(() => {
+    if (temFiltrosAplicados) {
+      fetchColheitasConsolidadas();
+    }
+  }, [temFiltrosAplicados, fetchColheitasConsolidadas]);
+
+  // Função para lidar com clique na turma
+  const handleTurmaClick = useCallback((turma) => {
+    setTurmaSelecionada(turma);
+    setCulturaFiltro(null);
+    setDateRangeConsolidadas([]);
+    setSearchTermConsolidadas("");
+    setCurrentPageConsolidadas(1);
+  }, []);
+
+  // Função para limpar seleção da turma
+  const handleLimparSelecaoTurma = useCallback(() => {
+    setTurmaSelecionada(null);
+    setEstatisticasTurmaSelecionada(null);
+    setCulturaFiltro(null);
+    setDateRangeConsolidadas([]);
+    setSearchTermConsolidadas("");
+    setCurrentPageConsolidadas(1);
+  }, []);
+
+  // Função para lidar com clique no card de cultura
+  const handleCulturaCardClick = useCallback((culturaId) => {
+    setCulturaFiltro(culturaId);
+    setCurrentPageConsolidadas(1);
+    // Se uma turma está selecionada, já temos os dados, só aplicar o filtro
+    // Se não, o useEffect vai buscar os dados consolidados
+  }, []);
+
+  // Função para limpar filtros (sem limpar seleção de turma)
+  const handleClearConsolidatedFilters = useCallback(() => {
+    setCulturaFiltro(null);
+    setDateRangeConsolidadas([]);
+    setSearchTermConsolidadas("");
+    setCurrentPageConsolidadas(1);
+  }, []);
+
+  // Função para voltar às estatísticas da turma (remove filtros mas mantém turma selecionada)
+  const handleVoltarEstatisticasTurma = useCallback(() => {
+    setCulturaFiltro(null);
+    setDateRangeConsolidadas([]);
+    setSearchTermConsolidadas("");
+    setCurrentPageConsolidadas(1);
+  }, []);
 
   // Função para lidar com busca
   const handleSearch = useCallback((value) => {
@@ -253,61 +544,329 @@ const TurmaColheita = () => {
         </Typography.Title>
       </Box>
 
-      {/* Botão Nova Turma de Colheita */}
-      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
-        <PrimaryButton
-          onClick={handleOpenCreateModal}
-          icon={<PlusCircleOutlined />}
-        >
-          Nova Turma de Colheita
-        </PrimaryButton>
-      </Box>
 
-      {/* Busca */}
-      <Box sx={{ mb: 2 }}>
-        <SearchInput
-          placeholder={isMobile ? "Buscar..." : "Buscar por nome do colhedor, PIX, responsável ou observações..."}
-          value={searchTerm}
-          onChange={(value) => setSearchTerm(value)}
-          size={isMobile ? "small" : "middle"}
-          style={{
-            width: "100%",
-            fontSize: isMobile ? '0.875rem' : '1rem'
-          }}
-        />
-      </Box>
-
-      {/* Tabela de Turmas de Colheita */}
-      <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <Suspense fallback={<LoadingFallback />}>
-          <TurmaColheitaTable
-            turmasColheita={dadosPaginados}
-            loading={false}
-            onEdit={handleOpenEditModal}
-            onDelete={handleDeleteTurma}
-          />
-        </Suspense>
-
-        {/* Paginação */}
-        {totalTurmas > 0 && (
-          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0 }}>
-            <Pagination
-              current={currentPage}
-              pageSize={pageSize}
-              total={totalTurmas}
-              onChange={handlePageChange}
-              onShowSizeChanger={handlePageChange}
-              showSizeChanger={!isMobile}
-              showTotal={(total, range) =>
-                isMobile
-                  ? `${range[0]}-${range[1]}/${total}`
-                  : `${range[0]}-${range[1]} de ${total} turmas de colheita`
-              }
-              pageSizeOptions={['10', '20', '50', '100']}
-              size={isMobile ? "small" : "default"}
-            />
+      {/* Grid com duas colunas */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gap: 2,
+          alignItems: "start",
+        }}
+      >
+        {/* Coluna 1: Listagem de Turmas */}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {/* Botão Nova Turma de Colheita */}
+          <Box sx={{ height: "40px", display: "flex", alignItems: "center", mb: 0 }}>
+            <PrimaryButton
+              onClick={handleOpenCreateModal}
+              icon={<PlusCircleOutlined />}
+            >
+              Nova Turma de Colheita
+            </PrimaryButton>
           </Box>
-        )}
+          {/* Card com busca e tabela */}
+          <Box
+            sx={{
+              background: "#fff",
+              borderRadius: 2,
+              padding: 2,
+              boxShadow: "0 3px 12px rgba(15,118,110,0.08)",
+              minHeight: "750px",
+              display: "flex",
+              flexDirection: "column",
+              mt: 0,
+            }}
+          >
+            <Typography.Title
+              level={5}
+              style={{
+                color: "#059669",
+                marginBottom: "8px",
+                marginTop: "0",
+                fontSize: "20px",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <Icon icon="game-icons:farmer" style={{ marginRight: 8, color: "#059669", fontSize: 24, verticalAlign: "middle" }} />
+              Listagem de Turmas
+            </Typography.Title>
+            <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+
+            {/* Busca */}
+            <Box sx={{ mb: 2 }}>
+              <SearchInput
+                placeholder={isMobile ? "Buscar..." : "Buscar por nome do colhedor, PIX, responsável..."}
+                value={searchTerm}
+                onChange={(value) => setSearchTerm(value)}
+                size={isMobile ? "small" : "middle"}
+                style={{
+                  width: "100%",
+                  fontSize: isMobile ? '0.875rem' : '1rem'
+                }}
+              />
+            </Box>
+
+            {/* Tabela */}
+            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <Suspense fallback={<LoadingFallback />}>
+                <TurmaColheitaTable
+                  turmasColheita={dadosPaginados}
+                  loading={false}
+                  onEdit={handleOpenEditModal}
+                  onDelete={handleDeleteTurma}
+                  onRowClick={handleTurmaClick}
+                />
+              </Suspense>
+
+              {/* Paginação */}
+              {totalTurmas > 0 && (
+                <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={totalTurmas}
+                    onChange={handlePageChange}
+                    onShowSizeChange={handlePageChange}
+                    showSizeChanger={!isMobile}
+                    showTotal={(total, range) =>
+                      isMobile
+                        ? `${range[0]}-${range[1]}/${total}`
+                        : `${range[0]}-${range[1]} de ${total} turmas`
+                    }
+                    pageSizeOptions={['10', '20', '50', '100']}
+                    size={isMobile ? "small" : "default"}
+                  />
+                </Box>
+              )}
+            </Box>
+
+            {/* Info de totais */}
+            <Box sx={{ mt: 1, textAlign: "right" }}>
+              <Typography variant="caption" sx={{ color: "#666" }}>
+                Total: {totalTurmas} {totalTurmas === 1 ? "turma" : "turmas"}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Coluna 2: Dados Consolidados / Estatísticas */}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {/* Espaço vazio para alinhar com o botão da primeira coluna */}
+          <Box sx={{ height: "40px", display: "flex", alignItems: "center", mb: 0 }} />
+
+          {/* Card com filtros e conteúdo */}
+          <Box
+            sx={{
+              background: "#fff",
+              borderRadius: 2,
+              padding: 2,
+              boxShadow: "0 3px 12px rgba(15,118,110,0.08)",
+              minHeight: "750px",
+              display: "flex",
+              flexDirection: "column",
+              mt: 0,
+            }}
+          >
+            <Typography.Title
+              level={5}
+              style={{
+                color: "#059669",
+                marginBottom: "8px",
+                marginTop: "0",
+                fontSize: "20px",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <BarChartOutlined style={{ marginRight: 8, color: "#059669", fontSize: 24, verticalAlign: "middle" }} />
+              {turmaSelecionada 
+                ? `Dados Consolidados - ${turmaSelecionada.nomeColhedor || 'Turma Selecionada'}`
+                : 'Dados Consolidados'
+              }
+            </Typography.Title>
+            <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+
+            {/* Filtros */}
+            <Box sx={{ 
+              mb: 2, 
+              display: "flex", 
+              flexDirection: isMobile ? "column" : "row",
+              gap: 1,
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+              width: "100%"
+            }}>
+              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 180px" }, minWidth: 0 }}>
+                <Text style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontWeight: 500,
+                  fontSize: isMobile ? '0.8125rem' : '0.875rem'
+                }}>
+                  Cultura:
+                </Text>
+                <Select
+                  placeholder="Selecione"
+                  value={culturaFiltro}
+                  onChange={(value) => {
+                    setCulturaFiltro(value);
+                    setCurrentPageConsolidadas(1);
+                  }}
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const cultura = culturas.find(c => c.id === option.value);
+                    const descricao = cultura?.descricao || '';
+                    return descricao.toLowerCase().includes(input.toLowerCase());
+                  }}
+                  style={{ width: "100%" }}
+                  size={isMobile ? "small" : "middle"}
+                >
+                  {culturas.map((cultura) => (
+                    <Option key={cultura.id} value={cultura.id}>
+                      {capitalizeName(cultura.descricao || '')}
+                    </Option>
+                  ))}
+                </Select>
+              </Box>
+
+              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 240px" }, minWidth: 0 }}>
+                <Text style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontWeight: 500,
+                  fontSize: isMobile ? '0.8125rem' : '0.875rem'
+                }}>
+                  Período:
+                </Text>
+                <RangePicker
+                  value={dateRangeConsolidadas}
+                  onChange={(dates) => {
+                    setDateRangeConsolidadas(dates || []);
+                    setCurrentPageConsolidadas(1);
+                  }}
+                  placeholder={["Início", "Fim"]}
+                  format="DD/MM/YYYY"
+                  style={{ width: "100%" }}
+                  size={isMobile ? "small" : "middle"}
+                />
+              </Box>
+
+              <Box sx={{ flex: { xs: "1 1 100%", sm: "1 1 auto" }, minWidth: 0 }}>
+                <Text style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontWeight: 500,
+                  fontSize: isMobile ? '0.8125rem' : '0.875rem'
+                }}>
+                  Buscar:
+                </Text>
+                <SearchInput
+                  placeholder={isMobile ? "Buscar..." : "Buscar turma..."}
+                  value={searchTermConsolidadas}
+                  onChange={(value) => {
+                    setSearchTermConsolidadas(value);
+                    setCurrentPageConsolidadas(1);
+                  }}
+                  size={isMobile ? "small" : "middle"}
+                  style={{
+                    width: "100%",
+                    fontSize: isMobile ? '0.875rem' : '1rem'
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" }, minWidth: 0 }}>
+                <Text style={{ display: "block", marginBottom: 8 }}>&nbsp;</Text>
+                <SecondaryButton
+                  icon={<FilterOutlined />}
+                  onClick={() => {
+                    if (turmaSelecionada) {
+                      handleLimparSelecaoTurma();
+                    } else {
+                      handleClearConsolidatedFilters();
+                    }
+                  }}
+                  size={isMobile ? "small" : "middle"}
+                  style={{
+                    height: isMobile ? "32px" : "40px",
+                    padding: isMobile ? '0 12px' : '0 16px',
+                    fontSize: isMobile ? '0.75rem' : undefined
+                  }}
+                >
+                  {turmaSelecionada ? "Limpar Seleção" : "Limpar"}
+                </SecondaryButton>
+              </Box>
+            </Box>
+
+            {/* Conteúdo: Estatísticas ou Listagem */}
+            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
+              {temFiltrosAplicados ? (
+                // Mostrar listagem quando há filtros
+                <>
+                  {/* Botão Voltar - aparece acima da tabela quando turma está selecionada E há filtros */}
+                  {turmaSelecionada && (
+                    <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-start" }}>
+                      <BackButton
+                        onClick={handleVoltarEstatisticasTurma}
+                        title="Voltar para estatísticas da turma"
+                      />
+                    </Box>
+                  )}
+                  <Suspense fallback={<LoadingFallback />}>
+                    <ColheitasConsolidadasTable
+                      dados={colheitasConsolidadas}
+                      loading={loadingConsolidadas}
+                      totalGeralQuantidade={totalGeralQuantidade}
+                      totalGeralValor={totalGeralValor}
+                    />
+                  </Suspense>
+
+                  {/* Paginação */}
+                  {totalConsolidadas > 0 && (
+                    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                      <Pagination
+                        current={currentPageConsolidadas}
+                        pageSize={pageSizeConsolidadas}
+                        total={totalConsolidadas}
+                        onChange={(page, size) => {
+                          setCurrentPageConsolidadas(page);
+                          setPageSizeConsolidadas(size);
+                        }}
+                        onShowSizeChange={(current, size) => {
+                          setCurrentPageConsolidadas(1);
+                          setPageSizeConsolidadas(size);
+                        }}
+                        showSizeChanger={!isMobile}
+                        showTotal={(total, range) =>
+                          isMobile
+                            ? `${range[0]}-${range[1]}/${total}`
+                            : `${range[0]}-${range[1]} de ${total} turmas`
+                        }
+                        pageSizeOptions={['10', '20', '50', '100']}
+                        size={isMobile ? "small" : "default"}
+                      />
+                    </Box>
+                  )}
+                </>
+              ) : (
+                // Mostrar estatísticas quando não há filtros
+                <Suspense fallback={<LoadingFallback />}>
+                  <EstatisticasGeraisColheitas
+                    dados={turmaSelecionada ? estatisticasTurmaSelecionada : estatisticasGerais}
+                    loading={turmaSelecionada ? loadingEstatisticasTurma : loadingEstatisticas}
+                    onCulturaClick={handleCulturaCardClick}
+                    turmaSelecionada={!!turmaSelecionada}
+                  />
+                </Suspense>
+              )}
+            </Box>
+          </Box>
+        </Box>
       </Box>
 
       {/* Modal de Criação/Edição */}

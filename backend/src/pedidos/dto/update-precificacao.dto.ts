@@ -40,6 +40,24 @@ export class UpdatePrecificacaoFrutaDto {
   @IsNumber()
   @Min(0.01)
   quantidadePrecificada?: number;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade real colhida na primeira unidade de medida (apenas para clientes indústria)',
+    example: 1250.75,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantidadeReal?: number;
+
+  @ApiPropertyOptional({
+    description: 'Quantidade real colhida na segunda unidade de medida (apenas para clientes indústria)',
+    example: 500.25,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantidadeReal2?: number;
 }
 
 export class UpdatePrecificacaoDto {

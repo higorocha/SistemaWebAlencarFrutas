@@ -67,6 +67,46 @@ export class TurmaColheitaController {
     return this.turmaColheitaService.getRelatorio();
   }
 
+  @Get('colheitas-consolidadas')
+  @ApiOperation({ summary: 'Obter dados consolidados de colheitas com filtros' })
+  @ApiQuery({ name: 'culturaId', required: false, type: Number, description: 'ID da cultura para filtrar' })
+  @ApiQuery({ name: 'dataInicio', required: false, type: String, description: 'Data inicial (ISO string)' })
+  @ApiQuery({ name: 'dataFim', required: false, type: String, description: 'Data final (ISO string)' })
+  @ApiQuery({ name: 'searchTerm', required: false, type: String, description: 'Termo de busca para filtrar turmas' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Página (padrão: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Itens por página (padrão: 20)' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Dados consolidados obtidos com sucesso',
+  })
+  getColheitasConsolidadas(
+    @Query('culturaId') culturaId?: string,
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
+    @Query('searchTerm') searchTerm?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.turmaColheitaService.getColheitasConsolidadas(
+      culturaId ? +culturaId : undefined,
+      dataInicio,
+      dataFim,
+      searchTerm,
+      page ? +page : 1,
+      limit ? +limit : 20
+    );
+  }
+
+  @Get('estatisticas-gerais')
+  @ApiOperation({ summary: 'Obter estatísticas gerais de colheitas' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Estatísticas gerais obtidas com sucesso',
+  })
+  getEstatisticasGerais() {
+    return this.turmaColheitaService.getEstatisticasGerais();
+  }
+
   // ========================================
   // ENDPOINTS PARA COLHEITAS DE PEDIDOS
   // ========================================

@@ -69,6 +69,41 @@ export class CreateFuncionarioDto {
   @MaxLength(30)
   estadoCivil?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(9)
+  cep?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  logradouro?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  numero?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  complemento?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  bairro?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  cidade?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
+  estado?: string;
+
   @IsEnum(TipoContratoFuncionario)
   tipoContrato: TipoContratoFuncionario;
 

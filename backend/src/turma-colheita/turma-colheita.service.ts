@@ -846,6 +846,241 @@ export class TurmaColheitaService {
     };
   }
 
+  async getColheitasConsolidadas(
+    culturaId?: number,
+    dataInicio?: string,
+    dataFim?: string,
+    searchTerm?: string,
+    page: number = 1,
+    limit: number = 20
+  ) {
+    // Construir filtros WHERE
+    const where: any = {};
+
+    // Filtro por cultura (via fruta)
+    if (culturaId) {
+      where.fruta = {
+        culturaId: culturaId
+      };
+    }
+
+    // Filtro por data (dataColheita)
+    if (dataInicio || dataFim) {
+      where.dataColheita = {};
+      if (dataInicio) {
+        where.dataColheita.gte = new Date(dataInicio);
+      }
+      if (dataFim) {
+        const dataFimAjustada = new Date(dataFim);
+        dataFimAjustada.setHours(23, 59, 59, 999);
+        where.dataColheita.lte = dataFimAjustada;
+      }
+    }
+
+    // Buscar todas as colheitas que atendem aos filtros
+    const colheitas = await this.prisma.turmaColheitaPedidoCusto.findMany({
+      where,
+      include: {
+        turmaColheita: {
+          select: {
+            id: true,
+            nomeColhedor: true,
+            chavePix: true,
+            responsavelChavePix: true
+          }
+        },
+        fruta: {
+          select: {
+            id: true,
+            nome: true,
+            codigo: true,
+            cultura: {
+              select: {
+                id: true,
+                descricao: true
+              }
+            }
+          }
+        },
+        pedido: {
+          select: {
+            id: true,
+            numeroPedido: true,
+            cliente: {
+              select: {
+                nome: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        dataColheita: 'desc'
+      }
+    });
+
+    // Agrupar por turma
+    const agrupadoPorTurma = new Map();
+
+    colheitas.forEach(colheita => {
+      const turmaId = colheita.turmaColheitaId;
+      const turmaNome = colheita.turmaColheita.nomeColhedor || 'Sem nome';
+
+      if (!agrupadoPorTurma.has(turmaId)) {
+        agrupadoPorTurma.set(turmaId, {
+          turmaId,
+          turmaNome,
+          chavePix: colheita.turmaColheita.chavePix,
+          responsavelChavePix: colheita.turmaColheita.responsavelChavePix,
+          totalQuantidade: 0,
+          totalValor: 0,
+          dataColheita: colheita.dataColheita, // Primeira data (mais recente devido ao orderBy)
+          colheitas: []
+        });
+      }
+
+      const turma = agrupadoPorTurma.get(turmaId);
+      turma.totalQuantidade += colheita.quantidadeColhida || 0;
+      turma.totalValor += colheita.valorColheita || 0;
+      turma.colheitas.push(colheita);
+    });
+
+    // Converter para array e retornar apenas os campos necessários
+    let resultados = Array.from(agrupadoPorTurma.values()).map(turma => ({
+      turmaId: turma.turmaId,
+      turmaNome: turma.turmaNome || 'Sem nome',
+      dataColheita: turma.dataColheita || null,
+      totalQuantidade: turma.totalQuantidade || 0,
+      totalValor: turma.totalValor || 0,
+    }));
+
+    // Aplicar filtro de busca (searchTerm) se fornecido
+    if (searchTerm && searchTerm.trim()) {
+      const termo = searchTerm.toLowerCase().trim();
+      resultados = resultados.filter(turma => {
+        const nome = (turma.turmaNome || '').toLowerCase();
+        return nome.includes(termo);
+      });
+    }
+
+    // Calcular totais gerais
+    const totalGeralQuantidade = resultados.reduce((acc, turma) => acc + (turma.totalQuantidade || 0), 0);
+    const totalGeralValor = resultados.reduce((acc, turma) => acc + (turma.totalValor || 0), 0);
+
+    // Aplicar paginação
+    const total = resultados.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const dadosPaginados = resultados.slice(startIndex, endIndex);
+
+    return {
+      data: dadosPaginados,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      totalGeralQuantidade,
+      totalGeralValor
+    };
+  }
+
+  async getEstatisticasGerais() {
+    // Total de turmas
+    const totalTurmas = await this.prisma.turmaColheita.count();
+
+    // Total de colheitas
+    const totalColheitas = await this.prisma.turmaColheitaPedidoCusto.count();
+
+    // Totais gerais
+    const totaisGerais = await this.prisma.turmaColheitaPedidoCusto.aggregate({
+      _sum: {
+        quantidadeColhida: true,
+        valorColheita: true,
+      },
+    });
+
+    // Colheitas por cultura
+    const colheitasPorCultura = await this.prisma.turmaColheitaPedidoCusto.findMany({
+      include: {
+        fruta: {
+          select: {
+            cultura: {
+              select: {
+                id: true,
+                descricao: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Agrupar por cultura
+    const culturaMap = new Map();
+    colheitasPorCultura.forEach((colheita) => {
+      const cultura = colheita.fruta?.cultura;
+      if (cultura) {
+        const culturaId = cultura.id;
+        if (!culturaMap.has(culturaId)) {
+          culturaMap.set(culturaId, {
+            culturaId: cultura.id,
+            culturaDescricao: cultura.descricao,
+            totalQuantidade: 0,
+            totalValor: 0,
+            totalColheitas: 0,
+          });
+        }
+        const item = culturaMap.get(culturaId);
+        item.totalQuantidade += colheita.quantidadeColhida || 0;
+        item.totalValor += colheita.valorColheita || 0;
+        item.totalColheitas += 1;
+      }
+    });
+
+    const colheitasPorCulturaArray = Array.from(culturaMap.values()).sort(
+      (a, b) => b.totalValor - a.totalValor
+    );
+
+    // Pagamentos
+    const pagamentosEfetuados = await this.prisma.turmaColheitaPedidoCusto.count({
+      where: { pagamentoEfetuado: true },
+    });
+
+    const pagamentosPendentes = await this.prisma.turmaColheitaPedidoCusto.count({
+      where: { pagamentoEfetuado: false },
+    });
+
+    // Total de valor pago
+    const valorPagoTotal = await this.prisma.turmaColheitaPedidoCusto.aggregate({
+      where: { pagamentoEfetuado: true },
+      _sum: {
+        valorColheita: true,
+      },
+    });
+
+    // Total de valor pendente
+    const valorPendenteTotal = await this.prisma.turmaColheitaPedidoCusto.aggregate({
+      where: { pagamentoEfetuado: false },
+      _sum: {
+        valorColheita: true,
+      },
+    });
+
+    return {
+      totalTurmas,
+      totalColheitas,
+      totalQuantidade: totaisGerais._sum.quantidadeColhida || 0,
+      totalValor: totaisGerais._sum.valorColheita || 0,
+      colheitasPorCultura: colheitasPorCulturaArray,
+      pagamentos: {
+        efetuados: pagamentosEfetuados,
+        pendentes: pagamentosPendentes,
+        valorPago: valorPagoTotal._sum.valorColheita || 0,
+        valorPendente: valorPendenteTotal._sum.valorColheita || 0,
+      },
+    };
+  }
+
   async getPagamentosPendentesDetalhado(turmaId: number) {
     // Verificar se a turma existe
     // Buscar todos os campos necessários (incluindo tipoChavePix e modalidadeChave que foram adicionados)

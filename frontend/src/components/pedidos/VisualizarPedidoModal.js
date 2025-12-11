@@ -750,10 +750,18 @@ const VisualizarPedidoModal = ({
                 <Col xs={24} sm={12} md={6}>
                   <Text strong style={{ color: "#059669", fontSize: "0.8125rem" }}>
                     <CalendarOutlined style={{ marginRight: 4 }} />
-                    Data Prevista Colheita:
+                    {pedido.status === 'PEDIDO_CRIADO' 
+                      ? 'Data Prevista Colheita:'
+                      : 'Data Colheita:'
+                    }
                   </Text>
                   <br />
-                  <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>{formatarData(pedido.dataPrevistaColheita)}</Text>
+                  <Text style={{ fontSize: "0.875rem", marginTop: "4px" }}>
+                    {pedido.status === 'PEDIDO_CRIADO' 
+                      ? formatarData(pedido.dataPrevistaColheita)
+                      : formatarData(pedido.dataColheita)
+                    }
+                  </Text>
                 </Col>
               </Row>
               <Divider style={{ margin: isMobile ? "8px 0" : "12px 0" }} />

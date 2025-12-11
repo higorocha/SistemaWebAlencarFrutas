@@ -8,9 +8,17 @@ import {
   IdcardOutlined,
   BankOutlined,
   DollarOutlined,
+  EnvironmentOutlined,
 } from "@ant-design/icons";
 import { IMaskInput } from "react-imask";
 import { capitalizeName } from "../../../utils/formatters";
+
+// Lista de estados brasileiros
+const ESTADOS_BRASILEIROS = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+];
 
 const { Text } = Typography;
 
@@ -307,7 +315,182 @@ const FuncionarioForm = ({
           </Row>
         </Card>
 
-        {/* Seção 2: Vínculo Empregatício */}
+        {/* Seção 2: Endereço */}
+        <Card
+          title={
+            <Space>
+              <EnvironmentOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600" }}>
+                Endereço
+              </span>
+            </Space>
+          }
+          style={{
+            marginBottom: 16,
+            border: "1px solid #e8e8e8",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9",
+          }}
+          styles={{
+            header: {
+              backgroundColor: "#059669",
+              borderBottom: "2px solid #047857",
+              color: "#ffffff",
+              borderRadius: "8px 8px 0 0",
+            },
+          }}
+        >
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                label={
+                  <Space>
+                    <EnvironmentOutlined style={{ color: "#059669" }} />
+                    <Text strong>CEP</Text>
+                  </Space>
+                }
+              >
+                <IMaskInput
+                  mask="00000-000"
+                  placeholder="00000-000"
+                  onAccept={(value) => handleChange("cep", value)}
+                  value={funcionarioAtual.cep || ""}
+                  className="ant-input ant-input-lg"
+                  style={{
+                    borderRadius: "6px",
+                    borderColor: erros.cep ? "#ff4d4f" : "#d9d9d9",
+                    width: "100%",
+                    height: "40px",
+                    padding: "4px 11px",
+                    fontSize: "14px",
+                    border: "1px solid",
+                    transition: "all 0.3s",
+                  }}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={16}>
+              <Form.Item
+                label={
+                  <Space>
+                    <EnvironmentOutlined style={{ color: "#059669" }} />
+                    <Text strong>Logradouro</Text>
+                  </Space>
+                }
+              >
+                <Input
+                  placeholder="Rua, Avenida, etc."
+                  value={funcionarioAtual.logradouro || ""}
+                  onChange={(e) => handleChange("logradouro", e.target.value)}
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                label={
+                  <Space>
+                    <EnvironmentOutlined style={{ color: "#059669" }} />
+                    <Text strong>Número</Text>
+                  </Space>
+                }
+              >
+                <Input
+                  placeholder="Número"
+                  value={funcionarioAtual.numero || ""}
+                  onChange={(e) => handleChange("numero", e.target.value)}
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={16}>
+              <Form.Item
+                label={
+                  <Space>
+                    <EnvironmentOutlined style={{ color: "#059669" }} />
+                    <Text strong>Complemento</Text>
+                  </Space>
+                }
+              >
+                <Input
+                  placeholder="Apto, Bloco, etc."
+                  value={funcionarioAtual.complemento || ""}
+                  onChange={(e) => handleChange("complemento", e.target.value)}
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                label={
+                  <Space>
+                    <EnvironmentOutlined style={{ color: "#059669" }} />
+                    <Text strong>Bairro</Text>
+                  </Space>
+                }
+              >
+                <Input
+                  placeholder="Bairro"
+                  value={funcionarioAtual.bairro || ""}
+                  onChange={(e) => handleChange("bairro", e.target.value)}
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={10}>
+              <Form.Item
+                label={
+                  <Space>
+                    <EnvironmentOutlined style={{ color: "#059669" }} />
+                    <Text strong>Cidade</Text>
+                  </Space>
+                }
+              >
+                <Input
+                  placeholder="Cidade"
+                  value={funcionarioAtual.cidade || ""}
+                  onChange={(e) => handleChange("cidade", e.target.value)}
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item
+                label={
+                  <Space>
+                    <EnvironmentOutlined style={{ color: "#059669" }} />
+                    <Text strong>Estado</Text>
+                  </Space>
+                }
+              >
+                <Select
+                  placeholder="UF"
+                  value={funcionarioAtual.estado || undefined}
+                  onChange={(value) => handleChange("estado", value)}
+                  size="large"
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.children ?? "").toLowerCase().includes(input.toLowerCase())
+                  }
+                >
+                  {ESTADOS_BRASILEIROS.map((estado) => (
+                    <Select.Option key={estado} value={estado}>
+                      {estado}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Card>
+
+        {/* Seção 3: Vínculo Empregatício */}
         <Card
           title={
             <Space>
@@ -376,7 +559,7 @@ const FuncionarioForm = ({
                   >
                     {cargos.map((cargo) => (
                       <Select.Option value={cargo.id} key={cargo.id}>
-                        {cargo.nome}
+                        {cargo.nome ? capitalizeName(cargo.nome) : cargo.nome}
                       </Select.Option>
                     ))}
                   </Select>
@@ -404,7 +587,7 @@ const FuncionarioForm = ({
                   >
                     {funcoes.map((funcao) => (
                       <Select.Option value={funcao.id} key={funcao.id}>
-                        {funcao.nome}
+                        {funcao.nome ? capitalizeName(funcao.nome) : funcao.nome}
                       </Select.Option>
                     ))}
                   </Select>
@@ -451,7 +634,7 @@ const FuncionarioForm = ({
           </Row>
         </Card>
 
-        {/* Seção 3: Dados de Pagamento */}
+        {/* Seção 4: Dados de Pagamento */}
         <Card
           title={
             <Space>

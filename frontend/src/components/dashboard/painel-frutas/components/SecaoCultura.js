@@ -1010,9 +1010,13 @@ const SecaoCultura = ({ culturaId, dadosIniciais, periodosDisponiveis, filtroAre
               }
               culturaIcon={iconMain}
               numeroMesesSelecionados={
-                // Sempre passar o número de meses em exibição no gráfico (não apenas os selecionados)
-                // Isso garante que a produtividade média seja calculada com base em todos os meses visíveis
-                !loadingTabela ? numeroMesesEmExibicao : null
+                // Quando há meses selecionados, usar o número de meses selecionados para calcular produtividade da área
+                // Quando não há seleção, usar o número de meses em exibição no gráfico
+                !loadingTabela 
+                  ? (mesesSelecionadosGrafico.length > 0 
+                      ? mesesSelecionadosGrafico.length 
+                      : numeroMesesEmExibicao)
+                  : null
               }
               resumo={
                 // Passar resumo completo para exibir no card de resumo global

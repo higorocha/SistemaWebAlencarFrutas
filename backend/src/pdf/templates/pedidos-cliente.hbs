@@ -512,6 +512,7 @@
                   <th style="min-width: 100px;">Data Pedido</th>
                   <th style="min-width: 100px;">Data Colheita</th>
                   <th class="text-center" style="min-width: 80px;">Dias</th>
+                  <th class="text-center" style="min-width: 100px;">Vale</th>
                   <th class="text-right" style="min-width: 120px;">Valor Total</th>
                 </tr>
               </thead>
@@ -569,6 +570,17 @@
                       <span style="color: #9ca3af;">-</span>
                     {{/if}}
                   </td>
+                  <td class="text-center">
+                    {{#if valesFormatados}}
+                      {{#if (eq valesFormatados '-')}}
+                        <span style="color: #9ca3af;">-</span>
+                      {{else}}
+                        <span class="produto-nome">{{valesFormatados}}</span>
+                      {{/if}}
+                    {{else}}
+                      <span style="color: #9ca3af;">-</span>
+                    {{/if}}
+                  </td>
                   <td class="text-right">
                     {{#if valorFinalFormatado}}
                       <span class="produto-nome">{{valorFinalFormatado}}</span>
@@ -579,7 +591,7 @@
                 </tr>
                 {{/each}}
                 <tr class="table-total-row">
-                  <td colspan="{{#if cliente.industria}}7{{else}}6{{/if}}" class="table-total-label text-right">Total Geral dos Pedidos:</td>
+                  <td colspan="{{#if cliente.industria}}8{{else}}7{{/if}}" class="table-total-label text-right">Total Geral dos Pedidos:</td>
                   <td class="table-total-value text-right">{{valorTotalFormatado}}</td>
                 </tr>
               </tbody>

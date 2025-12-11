@@ -640,12 +640,12 @@ const VincularPagamentoManualModal = ({
       ),
     },
     {
-      title: 'Data Colheita',
-      dataIndex: 'dataColheita',
-      key: 'dataColheita',
+      title: 'Nota Fiscal',
+      dataIndex: 'numeroNf',
+      key: 'numeroNf',
       width: 110,
       align: 'center',
-      render: (value) => value ? formatarDataBR(value) : '-',
+      render: (value) => value ? `#${value}` : '-',
     },
     {
       title: 'Valor Total',

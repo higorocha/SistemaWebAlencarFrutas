@@ -10,6 +10,7 @@ import {
   Prisma,
   StatusFuncionario,
   TipoContratoFuncionario,
+  Cargo,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateFuncionarioDto } from './dto/create-funcionario.dto';
@@ -224,11 +225,18 @@ export class FuncionariosService {
       );
     }
 
+    // Validar e buscar cargo se necessário
+    let cargoAtual: Cargo | null = null;
     if (
       dto.cargoId !== undefined &&
       tipoContrato !== TipoContratoFuncionario.DIARISTA
     ) {
-      await this.ensureCargo(dto.cargoId);
+      cargoAtual = await this.ensureCargo(dto.cargoId);
+    } else if (
+      options.current?.cargoId &&
+      tipoContrato !== TipoContratoFuncionario.DIARISTA
+    ) {
+      cargoAtual = await this.ensureCargo(options.current.cargoId);
     }
 
     if (
@@ -240,26 +248,26 @@ export class FuncionariosService {
 
     // Validar gerenteId
     const gerenteIdTarget = dto.gerenteId ?? options.current?.gerenteId ?? undefined;
-    if (dto.gerenteId !== undefined || gerenteIdTarget !== undefined) {
-      // Só permite gerenteId para funcionários DIARISTAS
-      if (tipoContrato !== TipoContratoFuncionario.DIARISTA) {
+    
+    // Se o funcionário tem cargo gerencial, não pode ter gerente
+    if (cargoAtual?.isGerencial === true && (dto.gerenteId !== undefined && dto.gerenteId !== null)) {
+      throw new BadRequestException(
+        'Funcionários com cargo gerencial não podem ter um gerente vinculado.',
+      );
+    }
+
+    // Se está definindo um gerente, validar
+    if (dto.gerenteId !== undefined && dto.gerenteId !== null) {
+      // Não pode ser gerente de si mesmo
+      const funcionarioId = options.mode === 'update' ? options.current?.id : undefined;
+      if (funcionarioId && funcionarioId === dto.gerenteId) {
         throw new BadRequestException(
-          'Apenas funcionários diaristas podem ter um gerente vinculado.',
+          'Um funcionário não pode ser gerente de si mesmo.',
         );
       }
 
-      // Se está definindo um gerente, validar
-      if (dto.gerenteId !== undefined && dto.gerenteId !== null) {
-        // Não pode ser gerente de si mesmo (apenas no update)
-        if (options.mode === 'update' && options.current?.id === dto.gerenteId) {
-          throw new BadRequestException(
-            'Um funcionário não pode ser gerente de si mesmo.',
-          );
-        }
-
-        // Validar que o gerente existe e é válido
-        await this.ensureGerente(dto.gerenteId);
-      }
+      // Validar que o gerente existe e é válido
+      await this.ensureGerente(dto.gerenteId);
     }
 
     const data =
@@ -288,6 +296,34 @@ export class FuncionariosService {
     if (dto.email !== undefined) data.email = dto.email?.trim() || null;
     if (dto.estadoCivil !== undefined) {
       data.estadoCivil = dto.estadoCivil?.trim() || null;
+    }
+
+    if (dto.cep !== undefined) {
+      data.cep = dto.cep?.trim() || null;
+    }
+
+    if (dto.logradouro !== undefined) {
+      data.logradouro = dto.logradouro?.trim() || null;
+    }
+
+    if (dto.numero !== undefined) {
+      data.numero = dto.numero?.trim() || null;
+    }
+
+    if (dto.complemento !== undefined) {
+      data.complemento = dto.complemento?.trim() || null;
+    }
+
+    if (dto.bairro !== undefined) {
+      data.bairro = dto.bairro?.trim() || null;
+    }
+
+    if (dto.cidade !== undefined) {
+      data.cidade = dto.cidade?.trim() || null;
+    }
+
+    if (dto.estado !== undefined) {
+      data.estado = dto.estado?.trim() || null;
     }
 
     if (dto.tipoContrato !== undefined) {
@@ -372,7 +408,10 @@ export class FuncionariosService {
       data.status = dto.status ?? StatusFuncionario.ATIVO;
     }
 
-    if (dto.gerenteId !== undefined) {
+    // Atribuir gerenteId - se o cargo for gerencial, forçar null
+    if (cargoAtual?.isGerencial === true) {
+      data.gerenteId = null;
+    } else if (dto.gerenteId !== undefined) {
       data.gerenteId = dto.gerenteId ?? null;
     } else if (options.mode === 'create') {
       data.gerenteId = gerenteIdTarget ?? null;

@@ -6,6 +6,7 @@ import { Tag, Button, Space, Switch, Empty, Typography, Dropdown } from "antd";
 import { EditOutlined, MoreOutlined, CheckCircleOutlined, StopOutlined } from "@ant-design/icons";
 import ResponsiveTable from "../../common/ResponsiveTable";
 import useResponsive from "../../../hooks/useResponsive";
+import { capitalizeName } from "../../../utils/formatters";
 
 const { Text } = Typography;
 
@@ -67,7 +68,7 @@ const CargosTable = ({
         key: "nome",
         render: (text) => (
           <Text strong style={{ color: "#059669", fontSize: "14px", fontWeight: "600" }}>
-            {text}
+            {text ? capitalizeName(text) : text}
           </Text>
         ),
         sorter: (a, b) => (a.nome || "").localeCompare(b.nome || ""),

@@ -2509,14 +2509,28 @@ export class PedidosService {
           fruta.valorUnitario
         );
 
+        // Preparar dados de atualização
+        const dataUpdate: any = {
+          valorUnitario: fruta.valorUnitario,
+          valorTotal: valores.valorTotal,
+          unidadePrecificada: unidadeEfetiva as any,
+          quantidadePrecificada: quantidadeParaCalculo,
+        };
+
+        // Se quantidadeReal ou quantidadeReal2 foram fornecidas, atualizar (apenas para clientes indústria)
+        // IMPORTANTE: Aceitar valores 0 também, pois o usuário pode querer zerar a quantidade
+        if (fruta.quantidadeReal !== undefined && fruta.quantidadeReal !== null && !isNaN(Number(fruta.quantidadeReal))) {
+          dataUpdate.quantidadeReal = Number(fruta.quantidadeReal);
+          console.log(`[updatePrecificacao] Atualizando quantidadeReal para fruta ${fruta.frutaPedidoId}: ${dataUpdate.quantidadeReal}`);
+        }
+        if (fruta.quantidadeReal2 !== undefined && fruta.quantidadeReal2 !== null && !isNaN(Number(fruta.quantidadeReal2))) {
+          dataUpdate.quantidadeReal2 = Number(fruta.quantidadeReal2);
+          console.log(`[updatePrecificacao] Atualizando quantidadeReal2 para fruta ${fruta.frutaPedidoId}: ${dataUpdate.quantidadeReal2}`);
+        }
+
         await prisma.frutasPedidos.update({
           where: { id: fruta.frutaPedidoId },
-          data: {
-            valorUnitario: fruta.valorUnitario,
-            valorTotal: valores.valorTotal,
-            unidadePrecificada: unidadeEfetiva as any,
-            quantidadePrecificada: quantidadeParaCalculo,
-          },
+          data: dataUpdate,
         });
       }
 
@@ -5159,8 +5173,14 @@ export class PedidosService {
 
       // 8. Buscar por fruta (ignorando acentos)
       if (term.length >= 3) {
-        // Buscar um pouco mais de resultados para filtrar por acentos
+        // Buscar mais resultados para filtrar por acentos
         const frutasRaw = await this.prisma.fruta.findMany({
+          where: {
+            OR: [
+              { nome: { contains: term.substring(0, 2), mode: 'insensitive' } }, // Pré-filtro com 2 primeiros caracteres
+              { codigo: { contains: term.substring(0, 2), mode: 'insensitive' } }
+            ]
+          },
           select: {
             id: true,
             nome: true,
@@ -5175,7 +5195,7 @@ export class PedidosService {
               select: { frutasPedidos: true }
             }
           },
-          take: 10, // Buscar mais para filtrar depois
+          take: 20, // Buscar mais para filtrar depois
           orderBy: { nome: 'asc' }
         });
 

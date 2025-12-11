@@ -721,6 +721,13 @@ model Funcionario {
   celular                String?                 @db.VarChar(20)
   email                  String?                 @db.VarChar(120)
   estadoCivil            String?                 @db.VarChar(30)
+  cep                    String?                 @db.VarChar(9)
+  logradouro             String?                 @db.VarChar(100)
+  numero                 String?                 @db.VarChar(10)
+  complemento            String?                 @db.VarChar(50)
+  bairro                 String?                 @db.VarChar(50)
+  cidade                 String?                 @db.VarChar(50)
+  estado                 String?                 @db.VarChar(2)
   endereco               Json?
   dadosBancarios         Json?
   dependentes            Json?
