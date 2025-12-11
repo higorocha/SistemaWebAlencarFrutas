@@ -349,7 +349,7 @@ const EstatisticasGeraisColheitas = ({ dados, loading = false, onCulturaClick, t
                       {Math.round(cultura.totalQuantidade || 0).toLocaleString("pt-BR", {
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 0,
-                      })}
+                      })} {cultura.unidadeMedida || 'UND'}
                     </Text>
                   </Box>
 
@@ -421,6 +421,7 @@ EstatisticasGeraisColheitas.propTypes = {
         totalQuantidade: PropTypes.number,
         totalValor: PropTypes.number,
         totalColheitas: PropTypes.number,
+        unidadeMedida: PropTypes.string,
       })
     ),
     pagamentos: PropTypes.shape({

@@ -22,7 +22,8 @@ const ColheitasConsolidadasTable = ({
   dados, 
   loading = false,
   totalGeralQuantidade = 0,
-  totalGeralValor = 0
+  totalGeralValor = 0,
+  totalGeralUnidadeMedida = null
 }) => {
   const { isMobile } = useResponsive();
 
@@ -67,9 +68,9 @@ const ColheitasConsolidadasTable = ({
       key: "totalQuantidade",
       align: "right",
       sorter: (a, b) => (a.totalQuantidade || 0) - (b.totalQuantidade || 0),
-      render: (value) => (
+      render: (value, record) => (
         <Text strong style={{ color: "#059669" }}>
-          {value ? Math.round(value).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : "0"}
+          {value ? Math.round(value).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : "0"} {record.unidadeMedida || 'UND'}
         </Text>
       ),
     },
@@ -144,6 +145,7 @@ const ColheitasConsolidadasTable = ({
               </Text>
               <Text strong style={{ fontSize: "16px", color: "#059669" }}>
                 {Math.round(totalGeralQuantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                {totalGeralUnidadeMedida ? ` ${totalGeralUnidadeMedida}` : ''}
               </Text>
             </Box>
             <Box>
@@ -169,11 +171,13 @@ ColheitasConsolidadasTable.propTypes = {
       dataColheita: PropTypes.string,
       totalQuantidade: PropTypes.number.isRequired,
       totalValor: PropTypes.number.isRequired,
+      unidadeMedida: PropTypes.string,
     })
   ),
   loading: PropTypes.bool,
   totalGeralQuantidade: PropTypes.number,
   totalGeralValor: PropTypes.number,
+  totalGeralUnidadeMedida: PropTypes.string,
 };
 
 export default ColheitasConsolidadasTable;

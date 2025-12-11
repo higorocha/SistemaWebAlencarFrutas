@@ -75,6 +75,7 @@ const TurmaColheita = () => {
   const [totalConsolidadas, setTotalConsolidadas] = useState(0);
   const [totalGeralQuantidade, setTotalGeralQuantidade] = useState(0);
   const [totalGeralValor, setTotalGeralValor] = useState(0);
+  const [totalGeralUnidadeMedida, setTotalGeralUnidadeMedida] = useState(null);
   
   // Estado para turma selecionada
   const [turmaSelecionada, setTurmaSelecionada] = useState(null);
@@ -170,6 +171,8 @@ const TurmaColheita = () => {
             totalQuantidade: 0,
             totalValor: 0,
             totalColheitas: 0,
+            unidadeMedida: colheita.unidadeMedida || 'UND', // Usar a primeira unidade encontrada
+            unidadesMedida: {}, // Objeto para contar frequência de unidades
           });
         }
         
@@ -177,6 +180,25 @@ const TurmaColheita = () => {
         cultura.totalQuantidade += colheita.quantidadeColhida || 0;
         cultura.totalValor += colheita.valorColheita || 0;
         cultura.totalColheitas += 1;
+        
+        // Contar frequência de unidades
+        const unidade = colheita.unidadeMedida || 'UND';
+        cultura.unidadesMedida[unidade] = (cultura.unidadesMedida[unidade] || 0) + 1;
+      });
+      
+      // Determinar a unidade mais frequente para cada cultura
+      culturaMap.forEach((cultura) => {
+        let maxCount = 0;
+        let unidadeMaisFrequente = cultura.unidadeMedida;
+        Object.entries(cultura.unidadesMedida).forEach(([unidade, count]) => {
+          if (count > maxCount) {
+            maxCount = count;
+            unidadeMaisFrequente = unidade;
+          }
+        });
+        cultura.unidadeMedida = unidadeMaisFrequente;
+        // Remover o objeto de unidades (não precisa manter)
+        delete cultura.unidadesMedida;
       });
       
       const colheitasPorCultura = Array.from(culturaMap.values());
@@ -252,10 +274,26 @@ const TurmaColheita = () => {
           dataColheita: colheita.dataColheita,
           totalQuantidade: colheita.quantidadeColhida || 0,
           totalValor: colheita.valorColheita || 0,
+          unidadeMedida: colheita.unidadeMedida || 'UND',
         }));
         
         const totalGeralQuantidadeCalc = dadosFormatados.reduce((sum, d) => sum + d.totalQuantidade, 0);
         const totalGeralValorCalc = dadosFormatados.reduce((sum, d) => sum + d.totalValor, 0);
+        
+        // Calcular unidade mais frequente para o totalizador
+        const unidadesFreq = {};
+        dadosFormatados.forEach((d) => {
+          const unidade = d.unidadeMedida || 'UND';
+          unidadesFreq[unidade] = (unidadesFreq[unidade] || 0) + 1;
+        });
+        let maxCount = 0;
+        let unidadeMaisFrequente = null;
+        Object.entries(unidadesFreq).forEach(([unidade, count]) => {
+          if (count > maxCount) {
+            maxCount = count;
+            unidadeMaisFrequente = unidade;
+          }
+        });
         
         // Paginação
         const total = dadosFormatados.length;
@@ -267,6 +305,7 @@ const TurmaColheita = () => {
         setTotalConsolidadas(total);
         setTotalGeralQuantidade(totalGeralQuantidadeCalc);
         setTotalGeralValor(totalGeralValorCalc);
+        setTotalGeralUnidadeMedida(unidadeMaisFrequente);
       } else {
         // Comportamento normal (sem turma selecionada, com filtros gerais)
         const params = new URLSearchParams();
@@ -289,10 +328,27 @@ const TurmaColheita = () => {
 
         const response = await axiosInstance.get(`/api/turma-colheita/colheitas-consolidadas?${params.toString()}`);
         
-        setColheitasConsolidadas(response.data.data || []);
+        const dados = response.data.data || [];
+        setColheitasConsolidadas(dados);
         setTotalConsolidadas(response.data.total || 0);
         setTotalGeralQuantidade(response.data.totalGeralQuantidade || 0);
         setTotalGeralValor(response.data.totalGeralValor || 0);
+        
+        // Calcular unidade mais frequente para o totalizador
+        const unidadesFreq = {};
+        dados.forEach((d) => {
+          const unidade = d.unidadeMedida || 'UND';
+          unidadesFreq[unidade] = (unidadesFreq[unidade] || 0) + 1;
+        });
+        let maxCount = 0;
+        let unidadeMaisFrequente = null;
+        Object.entries(unidadesFreq).forEach(([unidade, count]) => {
+          if (count > maxCount) {
+            maxCount = count;
+            unidadeMaisFrequente = unidade;
+          }
+        });
+        setTotalGeralUnidadeMedida(unidadeMaisFrequente);
       }
     } catch (error) {
       console.error("Erro ao buscar colheitas consolidadas:", error);
@@ -301,6 +357,7 @@ const TurmaColheita = () => {
       setTotalConsolidadas(0);
       setTotalGeralQuantidade(0);
       setTotalGeralValor(0);
+      setTotalGeralUnidadeMedida(null);
     } finally {
       setLoadingConsolidadas(false);
     }
@@ -365,6 +422,13 @@ const TurmaColheita = () => {
 
   // Função para voltar às estatísticas da turma (remove filtros mas mantém turma selecionada)
   const handleVoltarEstatisticasTurma = useCallback(() => {
+    setCulturaFiltro(null);
+    setDateRangeConsolidadas([]);
+    setSearchTermConsolidadas("");
+    setCurrentPageConsolidadas(1);
+  }, []);
+
+  const handleVoltarEstatisticasGerais = useCallback(() => {
     setCulturaFiltro(null);
     setDateRangeConsolidadas([]);
     setSearchTermConsolidadas("");
@@ -808,21 +872,20 @@ const TurmaColheita = () => {
               {temFiltrosAplicados ? (
                 // Mostrar listagem quando há filtros
                 <>
-                  {/* Botão Voltar - aparece acima da tabela quando turma está selecionada E há filtros */}
-                  {turmaSelecionada && (
-                    <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-start" }}>
-                      <BackButton
-                        onClick={handleVoltarEstatisticasTurma}
-                        title="Voltar para estatísticas da turma"
-                      />
-                    </Box>
-                  )}
+                  {/* Botão Voltar - aparece acima da tabela quando há filtros aplicados */}
+                  <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-start" }}>
+                    <BackButton
+                      onClick={turmaSelecionada ? handleVoltarEstatisticasTurma : handleVoltarEstatisticasGerais}
+                      title={turmaSelecionada ? "Voltar para estatísticas da turma" : "Voltar para estatísticas gerais"}
+                    />
+                  </Box>
                   <Suspense fallback={<LoadingFallback />}>
                     <ColheitasConsolidadasTable
                       dados={colheitasConsolidadas}
                       loading={loadingConsolidadas}
                       totalGeralQuantidade={totalGeralQuantidade}
                       totalGeralValor={totalGeralValor}
+                      totalGeralUnidadeMedida={totalGeralUnidadeMedida}
                     />
                   </Suspense>
 

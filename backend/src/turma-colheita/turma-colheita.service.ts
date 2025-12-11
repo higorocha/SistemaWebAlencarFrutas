@@ -935,6 +935,8 @@ export class TurmaColheitaService {
           totalQuantidade: 0,
           totalValor: 0,
           dataColheita: colheita.dataColheita, // Primeira data (mais recente devido ao orderBy)
+          unidadeMedida: colheita.unidadeMedida || 'UND', // Usar a primeira unidade encontrada
+          unidadesMedida: {}, // Objeto para contar frequência de unidades (serializável)
           colheitas: []
         });
       }
@@ -943,6 +945,26 @@ export class TurmaColheitaService {
       turma.totalQuantidade += colheita.quantidadeColhida || 0;
       turma.totalValor += colheita.valorColheita || 0;
       turma.colheitas.push(colheita);
+      
+      // Contar frequência de unidades
+      const unidade = colheita.unidadeMedida || 'UND';
+      turma.unidadesMedida[unidade] = (turma.unidadesMedida[unidade] || 0) + 1;
+    });
+    
+    // Determinar a unidade mais frequente para cada turma
+    agrupadoPorTurma.forEach((turma) => {
+      let maxCount = 0;
+      let unidadeMaisFrequente = turma.unidadeMedida;
+      Object.entries(turma.unidadesMedida).forEach(([unidade, count]) => {
+        const countNum = typeof count === 'number' ? count : Number(count) || 0;
+        if (countNum > maxCount) {
+          maxCount = countNum;
+          unidadeMaisFrequente = unidade;
+        }
+      });
+      turma.unidadeMedida = unidadeMaisFrequente;
+      // Remover o objeto de unidades (não precisa enviar ao frontend)
+      delete turma.unidadesMedida;
     });
 
     // Converter para array e retornar apenas os campos necessários
@@ -952,6 +974,7 @@ export class TurmaColheitaService {
       dataColheita: turma.dataColheita || null,
       totalQuantidade: turma.totalQuantidade || 0,
       totalValor: turma.totalValor || 0,
+      unidadeMedida: turma.unidadeMedida || 'UND',
     }));
 
     // Aplicar filtro de busca (searchTerm) se fornecido
@@ -1028,13 +1051,35 @@ export class TurmaColheitaService {
             totalQuantidade: 0,
             totalValor: 0,
             totalColheitas: 0,
+            unidadeMedida: colheita.unidadeMedida || 'UND', // Usar a primeira unidade encontrada
+            unidadesMedida: {}, // Objeto para contar frequência de unidades (serializável)
           });
         }
         const item = culturaMap.get(culturaId);
         item.totalQuantidade += colheita.quantidadeColhida || 0;
         item.totalValor += colheita.valorColheita || 0;
         item.totalColheitas += 1;
+        
+        // Contar frequência de unidades
+        const unidade = colheita.unidadeMedida || 'UND';
+        item.unidadesMedida[unidade] = (item.unidadesMedida[unidade] || 0) + 1;
       }
+    });
+    
+    // Determinar a unidade mais frequente para cada cultura
+    culturaMap.forEach((item) => {
+      let maxCount = 0;
+      let unidadeMaisFrequente = item.unidadeMedida;
+      Object.entries(item.unidadesMedida).forEach(([unidade, count]) => {
+        const countNum = typeof count === 'number' ? count : Number(count) || 0;
+        if (countNum > maxCount) {
+          maxCount = countNum;
+          unidadeMaisFrequente = unidade;
+        }
+      });
+      item.unidadeMedida = unidadeMaisFrequente;
+      // Remover o objeto de unidades (não precisa enviar ao frontend)
+      delete item.unidadesMedida;
     });
 
     const colheitasPorCulturaArray = Array.from(culturaMap.values()).sort(
