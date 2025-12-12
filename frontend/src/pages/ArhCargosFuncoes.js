@@ -1,7 +1,7 @@
 // src/pages/ArhCargosFuncoes.js
 
 import React, { useEffect, useState, useCallback, Suspense, lazy, useMemo } from "react";
-import { Typography, Spin, Select, Divider } from "antd";
+import { Typography, Spin, Select, Divider, Pagination } from "antd";
 import { PlusCircleOutlined } from "@ant-design/icons";
 import { Icon } from "@iconify/react";
 import { CentralizedLoader } from "components/common/loaders";
@@ -29,7 +29,7 @@ const ArhCargosFuncoes = () => {
   const [searchCargo, setSearchCargo] = useState("");
   const [statusFilterCargo, setStatusFilterCargo] = useState("ALL");
   const [currentPageCargo, setCurrentPageCargo] = useState(1);
-  const pageSizeCargo = 10;
+  const [pageSizeCargo, setPageSizeCargo] = useState(20);
   
   // Estados para funções
   const [funcoes, setFuncoes] = useState([]);
@@ -38,7 +38,7 @@ const ArhCargosFuncoes = () => {
   const [searchFuncao, setSearchFuncao] = useState("");
   const [statusFilterFuncao, setStatusFilterFuncao] = useState("ALL");
   const [currentPageFuncao, setCurrentPageFuncao] = useState(1);
-  const pageSizeFuncao = 10;
+  const [pageSizeFuncao, setPageSizeFuncao] = useState(20);
   
   // Estados gerais
   const [loading, setLoading] = useState(false);
@@ -219,6 +219,20 @@ const ArhCargosFuncoes = () => {
     }
   }, [fetchCargos]);
 
+  // Handlers de paginação para Cargos
+  const handlePageChangeCargo = useCallback((page, size) => {
+    setCurrentPageCargo(page);
+    if (size && size !== pageSizeCargo) {
+      setPageSizeCargo(size);
+      setCurrentPageCargo(1);
+    }
+  }, [pageSizeCargo]);
+
+  const handleShowSizeChangeCargo = useCallback((current, size) => {
+    setPageSizeCargo(size);
+    setCurrentPageCargo(1);
+  }, []);
+
   // Handlers para Funções
   const handleOpenCreateFuncaoModal = useCallback(() => {
     setFuncaoEditando(null);
@@ -291,6 +305,20 @@ const ArhCargosFuncoes = () => {
       setCentralizedLoading(false);
     }
   }, [fetchFuncoes]);
+
+  // Handlers de paginação para Funções
+  const handlePageChangeFuncao = useCallback((page, size) => {
+    setCurrentPageFuncao(page);
+    if (size && size !== pageSizeFuncao) {
+      setPageSizeFuncao(size);
+      setCurrentPageFuncao(1);
+    }
+  }, [pageSizeFuncao]);
+
+  const handleShowSizeChangeFuncao = useCallback((current, size) => {
+    setPageSizeFuncao(size);
+    setCurrentPageFuncao(1);
+  }, []);
 
   return (
     <Box
@@ -383,7 +411,10 @@ const ArhCargosFuncoes = () => {
               <SearchInput
                 placeholder={isMobile ? "Buscar..." : "Buscar cargo..."}
                 value={searchCargo}
-                onChange={setSearchCargo}
+                onChange={(value) => {
+                  setSearchCargo(value);
+                  setCurrentPageCargo(1);
+                }}
                 size={isMobile ? "small" : "middle"}
                 style={{ flex: 1, minWidth: 200 }}
               />
@@ -413,6 +444,26 @@ const ArhCargosFuncoes = () => {
                 pageSize={pageSizeCargo}
               />
             </Suspense>
+
+            {/* Paginação */}
+            {cargosFiltrados.length > 0 && (
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                <Pagination
+                  current={currentPageCargo}
+                  pageSize={pageSizeCargo}
+                  total={cargosFiltrados.length}
+                  onChange={handlePageChangeCargo}
+                  onShowSizeChange={handleShowSizeChangeCargo}
+                  showSizeChanger={!isMobile}
+                  showTotal={(total, range) =>
+                    isMobile
+                      ? `${range[0]}-${range[1]}/${total}`
+                      : `${range[0]}-${range[1]} de ${total} cargos`
+                  }
+                  pageSizeOptions={['10', '20', '50', '100']}
+                />
+              </Box>
+            )}
 
             {/* Info de totais */}
             <Box sx={{ mt: 1, textAlign: "right" }}>
@@ -469,7 +520,10 @@ const ArhCargosFuncoes = () => {
               <SearchInput
                 placeholder={isMobile ? "Buscar..." : "Buscar função..."}
                 value={searchFuncao}
-                onChange={setSearchFuncao}
+                onChange={(value) => {
+                  setSearchFuncao(value);
+                  setCurrentPageFuncao(1);
+                }}
                 size={isMobile ? "small" : "middle"}
                 style={{ flex: 1, minWidth: 200 }}
               />
@@ -499,6 +553,26 @@ const ArhCargosFuncoes = () => {
                 pageSize={pageSizeFuncao}
               />
             </Suspense>
+
+            {/* Paginação */}
+            {funcoesFiltradas.length > 0 && (
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                <Pagination
+                  current={currentPageFuncao}
+                  pageSize={pageSizeFuncao}
+                  total={funcoesFiltradas.length}
+                  onChange={handlePageChangeFuncao}
+                  onShowSizeChange={handleShowSizeChangeFuncao}
+                  showSizeChanger={!isMobile}
+                  showTotal={(total, range) =>
+                    isMobile
+                      ? `${range[0]}-${range[1]}/${total}`
+                      : `${range[0]}-${range[1]} de ${total} funções`
+                  }
+                  pageSizeOptions={['10', '20', '50', '100']}
+                />
+              </Box>
+            )}
 
             {/* Info de totais */}
             <Box sx={{ mt: 1, textAlign: "right" }}>
