@@ -203,7 +203,7 @@ const ArhCargosFuncoes = () => {
       setCentralizedLoading(true);
       setLoadingMessage("Atualizando status do cargo...");
 
-      await axiosInstance.patch(`/api/arh/cargos/${cargo.id}/status`, {
+      await axiosInstance.patch(`/api/arh/cargos/${cargo.id}/ativo`, {
         ativo: !cargo.ativo,
       });
 
@@ -290,7 +290,7 @@ const ArhCargosFuncoes = () => {
       setCentralizedLoading(true);
       setLoadingMessage("Atualizando status da função...");
 
-      await axiosInstance.patch(`/api/arh/funcoes/${funcao.id}/status`, {
+      await axiosInstance.patch(`/api/arh/funcoes/${funcao.id}/ativo`, {
         ativo: !funcao.ativo,
       });
 
