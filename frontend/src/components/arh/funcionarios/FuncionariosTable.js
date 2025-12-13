@@ -165,17 +165,33 @@ const FuncionariosTable = React.memo(
         key: "nome",
         width: 160,
         sorter: (a, b) => a.nome.localeCompare(b.nome),
-        render: (text) => (
-          <Text
-            strong
-            style={{
-              color: "#059669",
-              fontSize: "14px",
-              fontWeight: "600",
-            }}
-          >
-            {text ? capitalizeName(text) : "-"}
-          </Text>
+        render: (text, record) => (
+          <div>
+            <Text
+              strong
+              style={{
+                color: "#059669",
+                fontSize: "14px",
+                fontWeight: "600",
+                display: "block",
+              }}
+            >
+              {text ? capitalizeName(text) : "-"}
+            </Text>
+            {record.apelido && (
+              <Text
+                style={{
+                  color: "#999999",
+                  fontSize: "12px",
+                  fontWeight: "400",
+                  display: "block",
+                  marginTop: "2px",
+                }}
+              >
+                {capitalizeName(record.apelido)}
+              </Text>
+            )}
+          </div>
         ),
       },
       {

@@ -45,7 +45,7 @@ export class UpdateLancamentoDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  descontosExtras?: number;
+  extras?: number;
 
   @IsOptional()
   @Type(() => Number)

@@ -257,8 +257,8 @@ const EditarLancamentoForm = ({
               <Form.Item
                 label={
                   <Space>
-                    <MinusCircleOutlined style={{ color: "#ff4d4f" }} />
-                    <Text strong>Descontos Extras (R$)</Text>
+                    <PlusCircleOutlined style={{ color: "#52c41a" }} />
+                    <Text strong>Extra (R$)</Text>
                   </Space>
                 }
               >
@@ -266,8 +266,8 @@ const EditarLancamentoForm = ({
                   min={0}
                   precision={2}
                   placeholder="0,00"
-                  value={lancamentoAtual.descontosExtras}
-                  onChange={(value) => handleChange("descontosExtras", value)}
+                  value={lancamentoAtual.extras}
+                  onChange={(value) => handleChange("extras", value)}
                   style={{ width: "100%" }}
                   size="large"
                   addonAfter="R$"

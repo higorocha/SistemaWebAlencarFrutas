@@ -110,11 +110,13 @@ const ArhFuncionarios = () => {
     if (termo) {
       lista = lista.filter((func) => {
         const nome = func.nome?.toLowerCase() || "";
+        const apelido = func.apelido?.toLowerCase() || "";
         const cpf = func.cpf?.toLowerCase() || "";
         const termoNumerico = termo.replace(/\D/g, "");
         const cpfNumerico = cpf.replace(/\D/g, "");
         return (
           nome.includes(termo) ||
+          apelido.includes(termo) ||
           cpf.includes(termo) ||
           (termoNumerico && cpfNumerico.includes(termoNumerico))
         );
@@ -346,7 +348,7 @@ const ArhFuncionarios = () => {
       <Box sx={{ mb: 2 }}>
         <SearchInput
           placeholder={
-            isMobile ? "Buscar..." : "Buscar funcionários por nome ou CPF..."
+            isMobile ? "Buscar..." : "Buscar funcionários por nome, apelido ou CPF..."
           }
           value={searchTerm}
           onChange={(value) => setSearchTerm(value)}

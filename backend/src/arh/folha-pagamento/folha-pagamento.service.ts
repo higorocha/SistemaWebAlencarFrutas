@@ -349,8 +349,8 @@ export class FolhaPagamentoService {
     const horasExtras = dto.horasExtras ?? this.toNumber(lancamento.horasExtras);
     const valorHoraExtra = dto.valorHoraExtra ?? this.toNumber(lancamento.valorHoraExtra);
     const ajudaCusto = dto.ajudaCusto ?? this.toNumber(lancamento.ajudaCusto);
-    const descontosExtras =
-      dto.descontosExtras ?? this.toNumber(lancamento.descontosExtras);
+    const extras =
+      dto.extras ?? this.toNumber(lancamento.extras);
     const adiantamento = dto.adiantamento ?? this.toNumber(lancamento.adiantamento);
 
     const calculo = this.calculoService.calcularValores({
@@ -361,7 +361,7 @@ export class FolhaPagamentoService {
       horasExtras,
       valorHoraExtra,
       ajudaCusto,
-      descontosExtras,
+      extras,
       adiantamento,
     });
 
@@ -381,9 +381,9 @@ export class FolhaPagamentoService {
             dto.ajudaCusto !== undefined
               ? new Prisma.Decimal(dto.ajudaCusto)
               : undefined,
-          descontosExtras:
-            dto.descontosExtras !== undefined
-              ? new Prisma.Decimal(dto.descontosExtras)
+          extras:
+            dto.extras !== undefined
+              ? new Prisma.Decimal(dto.extras)
               : undefined,
           adiantamento:
             dto.adiantamento !== undefined
@@ -1344,7 +1344,7 @@ export class FolhaPagamentoService {
       horasExtras: 0,
       valorHoraExtra: 0,
       ajudaCusto: 0,
-      descontosExtras: 0,
+      extras: 0,
       adiantamento: 0,
     });
 
@@ -1361,7 +1361,7 @@ export class FolhaPagamentoService {
       diasTrabalhados: 0,
       faltas: 0,
       ajudaCusto: new Prisma.Decimal(0),
-      descontosExtras: new Prisma.Decimal(0),
+      extras: new Prisma.Decimal(0),
       adiantamento: new Prisma.Decimal(0),
       valorBruto: new Prisma.Decimal(calculo.valorBruto),
       valorLiquido: new Prisma.Decimal(calculo.valorLiquido),
@@ -1572,7 +1572,7 @@ export class FolhaPagamentoService {
           horasExtras: this.toNumber(lancamento.horasExtras),
           valorHoraExtra: this.toNumber(lancamento.valorHoraExtra),
           ajudaCusto: this.toNumber(lancamento.ajudaCusto),
-          descontosExtras: this.toNumber(lancamento.descontosExtras),
+          extras: this.toNumber(lancamento.extras),
           adiantamento: this.toNumber(lancamento.adiantamento),
         });
 

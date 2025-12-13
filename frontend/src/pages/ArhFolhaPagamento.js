@@ -810,7 +810,7 @@ const ArhFolhaPagamento = () => {
         totalHorasExtras: 0,
         totalValorHorasExtras: 0,
         totalAjudaCusto: 0,
-        totalDescontos: 0,
+        totalExtras: 0,
         totalAdiantamento: 0,
         quantidadeFuncionarios: 0,
         quantidadeComValores: 0,
@@ -826,7 +826,7 @@ const ArhFolhaPagamento = () => {
       return sum + (horas * valorHora);
     }, 0);
     const totalAjudaCusto = lancamentos.reduce((sum, l) => sum + Number(l.ajudaCusto || 0), 0);
-    const totalDescontos = lancamentos.reduce((sum, l) => sum + Number(l.descontosExtras || 0), 0);
+    const totalExtras = lancamentos.reduce((sum, l) => sum + Number(l.extras || 0), 0);
     const totalAdiantamento = lancamentos.reduce((sum, l) => sum + Number(l.adiantamento || 0), 0);
     const quantidadeFuncionarios = lancamentos.length;
     // Lógica: Mensalistas já têm salário inicial, então contam se tiverem valorBruto > 0
@@ -855,7 +855,7 @@ const ArhFolhaPagamento = () => {
       totalHorasExtras,
       totalValorHorasExtras,
       totalAjudaCusto,
-      totalDescontos,
+      totalExtras,
       totalAdiantamento,
       quantidadeFuncionarios,
       quantidadeComValores,
@@ -1288,10 +1288,10 @@ const ArhFolhaPagamento = () => {
                           </Box>
                           <Box>
                             <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
-                              Descontos
+                              Extra
                             </Text>
-                            <Text strong style={{ fontSize: "14px", color: "#ff4d4f" }}>
-                              {currency(resumoDetalhado.totalDescontos)}
+                            <Text strong style={{ fontSize: "14px", color: "#52c41a" }}>
+                              {currency(resumoDetalhado.totalExtras)}
                             </Text>
                           </Box>
                           <Box>

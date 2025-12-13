@@ -9,7 +9,7 @@ interface CalculoParametros {
   horasExtras?: number;
   valorHoraExtra?: number;
   ajudaCusto?: number;
-  descontosExtras?: number;
+  extras?: number;
   adiantamento?: number;
 }
 
@@ -31,7 +31,7 @@ export class FolhaCalculoService {
       horasExtras = 0,
       valorHoraExtra = 0,
       ajudaCusto = 0,
-      descontosExtras = 0,
+      extras = 0,
       adiantamento = 0,
     } = params;
 
@@ -43,7 +43,7 @@ export class FolhaCalculoService {
         : salarioBaseReferencia / 2; // Mensalistas recebem metade do salário (quinzenal)
 
     const valorHorasExtras = horasExtras * valorHoraExtra;
-    const valorBruto = Math.max(valorBase + ajudaCusto + valorHorasExtras - descontosExtras, 0);
+    const valorBruto = Math.max(valorBase + ajudaCusto + valorHorasExtras + extras, 0);
     const valorLiquido = Math.max(valorBruto - adiantamento, 0);
 
     return {

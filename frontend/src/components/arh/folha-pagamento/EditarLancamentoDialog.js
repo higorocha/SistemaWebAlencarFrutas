@@ -15,7 +15,7 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
     horasExtras: undefined,
     valorHoraExtra: undefined,
     ajudaCusto: undefined,
-    descontosExtras: undefined,
+    extras: undefined,
     adiantamento: undefined,
   });
   const [erros, setErros] = useState({});
@@ -28,7 +28,7 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
       data.horasExtras ||
       data.valorHoraExtra ||
       data.ajudaCusto ||
-      data.descontosExtras ||
+      data.extras ||
       data.adiantamento
     );
   };
@@ -50,7 +50,7 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
         horasExtras: Number(lancamento.horasExtras || 0),
         valorHoraExtra: Number(lancamento.valorHoraExtra || 0),
         ajudaCusto: Number(lancamento.ajudaCusto || 0),
-        descontosExtras: Number(lancamento.descontosExtras || 0),
+        extras: Number(lancamento.extras || 0),
         adiantamento: Number(lancamento.adiantamento || 0),
       });
       setErros({});
@@ -84,7 +84,7 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
       horasExtras: undefined,
       valorHoraExtra: undefined,
       ajudaCusto: undefined,
-      descontosExtras: undefined,
+      extras: undefined,
       adiantamento: undefined,
     });
     setErros({});

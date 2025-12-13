@@ -809,7 +809,7 @@ model FuncionarioPagamento {
   horasExtras           Decimal?                   @db.Decimal(10, 2)
   valorHoraExtra        Decimal?                   @db.Decimal(10, 2)
   ajudaCusto            Decimal?                   @default(0) @db.Decimal(12, 2)
-  descontosExtras       Decimal?                   @default(0) @db.Decimal(12, 2)
+  extras                Decimal?                   @default(0) @db.Decimal(12, 2)
   adiantamento          Decimal?                   @default(0) @db.Decimal(12, 2)
   valorBruto            Decimal                    @default(0) @db.Decimal(12, 2)
   valorLiquido          Decimal                    @default(0) @db.Decimal(12, 2)

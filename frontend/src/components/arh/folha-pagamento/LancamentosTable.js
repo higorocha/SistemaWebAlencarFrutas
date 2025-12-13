@@ -80,7 +80,7 @@ const LancamentosTable = React.memo(
         horasExtras: Number(record.horasExtras || 0),
         valorHoraExtra: Number(record.valorHoraExtra || 0),
         ajudaCusto: Number(record.ajudaCusto || 0),
-        descontosExtras: Number(record.descontosExtras || 0),
+        extras: Number(record.extras || 0),
         adiantamento: Number(record.adiantamento || 0),
       });
     };
@@ -107,7 +107,7 @@ const LancamentosTable = React.memo(
           horasExtras: editingValues.horasExtras || 0,
           valorHoraExtra: editingValues.valorHoraExtra || 0,
           ajudaCusto: editingValues.ajudaCusto || 0,
-          descontosExtras: editingValues.descontosExtras || 0,
+          extras: editingValues.extras || 0,
           adiantamento: editingValues.adiantamento || 0,
         };
 
@@ -144,7 +144,7 @@ const LancamentosTable = React.memo(
       const horasExtras = valores.horasExtras || 0;
       const valorHoraExtra = valores.valorHoraExtra || 0;
       const ajudaCusto = valores.ajudaCusto || 0;
-      const descontosExtras = valores.descontosExtras || 0;
+      const extras = valores.extras || 0;
       const adiantamento = valores.adiantamento || 0;
 
       // Mensalistas recebem salário / 2 (quinzenal)
@@ -155,7 +155,7 @@ const LancamentosTable = React.memo(
           : salarioBaseReferencia / 2; // Mensalistas recebem metade do salário (quinzenal)
 
       const valorHorasExtras = horasExtras * valorHoraExtra;
-      const valorBruto = Math.max(valorBase + ajudaCusto + valorHorasExtras - descontosExtras, 0);
+      const valorBruto = Math.max(valorBase + ajudaCusto + valorHorasExtras + extras, 0);
       const valorLiquido = Math.max(valorBruto - adiantamento, 0);
 
       return { valorBruto, valorLiquido };
@@ -188,10 +188,15 @@ const LancamentosTable = React.memo(
           
           return (
             <div>
-              <Text strong style={{ color: "#059669", fontSize: "14px" }}>
+              <Text strong style={{ color: "#059669", fontSize: "14px", display: "block" }}>
                 {record.funcionario?.nome ? capitalizeName(record.funcionario.nome) : "—"}
               </Text>
-              <div style={{ fontSize: 12, color: "#666666" }}>
+              {record.funcionario?.apelido && (
+                <Text style={{ color: "#999999", fontSize: "12px", fontWeight: "400", display: "block", marginTop: "2px" }}>
+                  {capitalizeName(record.funcionario.apelido)}
+                </Text>
+              )}
+              <div style={{ fontSize: 12, color: "#666666", marginTop: "2px" }}>
                 {tipoContrato}
                 {cargoOuFuncao && (
                   <span style={{ marginLeft: "6px", color: "#8c8c8c" }}>
@@ -401,9 +406,9 @@ const LancamentosTable = React.memo(
         },
       },
       {
-        title: "Descontos",
-        dataIndex: "descontosExtras",
-        key: "descontosExtras",
+        title: "Extra",
+        dataIndex: "extras",
+        key: "extras",
         width: 110,
         align: "right",
         render: (value, record) => {
@@ -412,8 +417,8 @@ const LancamentosTable = React.memo(
             return (
               <div style={{ display: "flex", alignItems: "stretch" }}>
                 <MonetaryInput
-                  value={editingValues.descontosExtras}
-                  onChange={(val) => handleFieldChange("descontosExtras", val ? parseFloat(val) : 0)}
+                  value={editingValues.extras}
+                  onChange={(val) => handleFieldChange("extras", val ? parseFloat(val) : 0)}
                   onPressEnter={handleSaveEdit}
                   onPressEsc={handleCancelEdit}
                   size="small"
@@ -551,7 +556,7 @@ const LancamentosTable = React.memo(
                     <br />
                     <strong>Cálculo:</strong>
                     <br />
-                    Valor Base + Ajuda de Custo + Horas Extras - Descontos Extras
+                    Valor Base + Ajuda de Custo + Horas Extras + Extra
                     <br />
                     <br />
                     <strong>Onde:</strong>

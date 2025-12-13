@@ -1211,8 +1211,8 @@ export class PdfController {
       const ajudaCustoFormatado = lancamento.ajudaCusto
         ? formatCurrencyBR(Number(lancamento.ajudaCusto))
         : null;
-      const descontosExtrasFormatado = lancamento.descontosExtras
-        ? formatCurrencyBR(Number(lancamento.descontosExtras))
+      const extrasFormatado = lancamento.extras
+        ? formatCurrencyBR(Number(lancamento.extras))
         : null;
       const adiantamentoFormatado = lancamento.adiantamento
         ? formatCurrencyBR(Number(lancamento.adiantamento))
@@ -1251,7 +1251,7 @@ export class PdfController {
         valorHoraExtraFormatado,
         valorHorasExtrasTotal,
         ajudaCustoFormatado,
-        descontosExtrasFormatado,
+        extrasFormatado,
         adiantamentoFormatado,
         valorBrutoFormatado,
         valorLiquidoFormatado,
@@ -1273,7 +1273,7 @@ export class PdfController {
         totalHorasExtras: 0,
         totalValorHorasExtras: 0,
         totalAjudaCusto: 0,
-        totalDescontos: 0,
+        totalExtras: 0,
         totalAdiantamento: 0,
         quantidadeFuncionarios: 0,
         quantidadeComValores: 0,
@@ -1289,7 +1289,7 @@ export class PdfController {
       return sum + (horas * valorHora);
     }, 0);
     const totalAjudaCusto = lancamentos.reduce((sum, l) => sum + Number(l.ajudaCusto || 0), 0);
-    const totalDescontos = lancamentos.reduce((sum, l) => sum + Number(l.descontosExtras || 0), 0);
+    const totalExtras = lancamentos.reduce((sum, l) => sum + Number(l.extras || 0), 0);
     const totalAdiantamento = lancamentos.reduce((sum, l) => sum + Number(l.adiantamento || 0), 0);
     const quantidadeFuncionarios = lancamentos.length;
     const quantidadeComValores = lancamentos.filter(l => {
@@ -1312,7 +1312,7 @@ export class PdfController {
       totalHorasExtras,
       totalValorHorasExtras,
       totalAjudaCusto,
-      totalDescontos,
+      totalExtras,
       totalAdiantamento,
       quantidadeFuncionarios,
       quantidadeComValores,
@@ -1322,7 +1322,7 @@ export class PdfController {
       totalHorasExtrasFormatado: `${formatNumber(totalHorasExtras)}h`,
       totalValorHorasExtrasFormatado: formatCurrencyBR(totalValorHorasExtras),
       totalAjudaCustoFormatado: formatCurrencyBR(totalAjudaCusto),
-      totalDescontosFormatado: formatCurrencyBR(totalDescontos),
+      totalExtrasFormatado: formatCurrencyBR(totalExtras),
       totalAdiantamentoFormatado: formatCurrencyBR(totalAdiantamento),
     };
   }
