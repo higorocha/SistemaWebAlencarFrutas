@@ -295,16 +295,11 @@ const FuncionariosTable = React.memo(
       },
     ];
 
-    // Paginação interna dos dados exibidos
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const paginatedData = funcionarios.slice(startIndex, endIndex);
-
     return (
       <>
         <ResponsiveTable
           columns={columns}
-          dataSource={paginatedData}
+          dataSource={funcionarios}
           rowKey="id"
           loading={loading}
           pagination={false}
