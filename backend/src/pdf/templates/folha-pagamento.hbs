@@ -497,7 +497,9 @@
                 <td>
                   <div style="font-weight: 600; color: #1f2937;">{{funcionario.nome}}</div>
                   {{#if funcionario.cpf}}
-                  <div style="font-size: 8px; color: #6b7280;">{{funcionario.cpf}}</div>
+                  <div style="font-size: 8px; color: #6b7280;">
+                    {{#if funcionario.apelido}}{{funcionario.apelido}} • {{/if}}{{funcionario.cpf}}
+                  </div>
                   {{/if}}
                 </td>
                 <td>

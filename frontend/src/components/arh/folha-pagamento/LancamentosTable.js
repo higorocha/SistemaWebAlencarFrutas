@@ -449,7 +449,7 @@ const LancamentosTable = React.memo(
             );
           }
           return (
-            <Text style={{ color: "#ff4d4f", fontSize: "12px" }}>
+            <Text style={{ color: "#52c41a", fontSize: "12px" }}>
               {value > 0 ? currency(value) : "—"}
             </Text>
           );

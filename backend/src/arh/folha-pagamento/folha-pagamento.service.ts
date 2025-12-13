@@ -217,6 +217,7 @@ export class FolhaPagamentoService {
         funcionario: {
           select: {
             nome: true,
+            apelido: true,
             cpf: true,
             tipoContrato: true,
             gerente: {

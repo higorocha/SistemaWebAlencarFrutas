@@ -1237,6 +1237,7 @@ export class PdfController {
         itemNumero: index + 1,
         funcionario: {
           nome: capitalizeName(funcionario?.nome || ''),
+          apelido: funcionario?.apelido ? capitalizeName(funcionario.apelido) : null,
           cpf: funcionario?.cpf ? formatCPF(funcionario.cpf) : null,
         },
         cargoFuncao: capitalizeName(cargoFuncao),
