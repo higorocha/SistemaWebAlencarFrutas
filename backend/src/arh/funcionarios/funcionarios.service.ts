@@ -25,8 +25,13 @@ export class FuncionariosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: ListFuncionarioQueryDto) {
+    // Quando page e limit não forem informados, retornar TODOS os registros
+    const shouldPaginate = Boolean(query.page && query.limit);
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
+    const skip = shouldPaginate ? (Number(page) - 1) * Number(limit) : undefined;
+    const take = shouldPaginate ? Number(limit) : undefined;
+
     const where: Prisma.FuncionarioWhereInput = {};
 
     if (query.status) {
@@ -57,8 +62,9 @@ export class FuncionariosService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.funcionario.findMany({
         where,
-        skip: (page - 1) * limit,
-        take: limit,
+        // Aplicar paginação apenas quando requisitada
+        skip,
+        take,
         orderBy: { nome: 'asc' },
         include: {
           cargo: true,
@@ -79,9 +85,9 @@ export class FuncionariosService {
       data,
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit) || 1,
+        page: shouldPaginate ? Number(page) : 1,
+        limit: shouldPaginate ? Number(limit) : data.length,
+        totalPages: shouldPaginate ? Math.ceil(total / limit) || 1 : 1,
       },
     };
   }

@@ -67,8 +67,9 @@ const ArhFuncionarios = () => {
       setLoading(true);
 
       // Buscar todos os registros de funcionários, cargos, funções e gerentes
+      // Não enviar parâmetros de paginação para receber todos os dados
       const [funcRes, cargoRes, funcaoRes, gerentesRes] = await Promise.all([
-        axiosInstance.get("/api/arh/funcionarios", { params: { limit: 100 } }),
+        axiosInstance.get("/api/arh/funcionarios"),
         axiosInstance.get("/api/arh/cargos/ativos"),
         axiosInstance.get("/api/arh/funcoes/ativas"),
         axiosInstance.get("/api/arh/funcionarios/gerentes"),
