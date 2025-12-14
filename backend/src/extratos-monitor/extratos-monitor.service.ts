@@ -18,12 +18,11 @@ export class ExtratosMonitorService implements OnModuleInit {
   private readonly HORA_INICIO = 7; // 7h da manhã
   private readonly HORA_FIM = 22; // 22h (10h da noite)
   private lancamentosNotificados = new Set<number>(); // Rastrear lançamentos já notificados hoje
-  private execucoesAgendadas = new Map<number, NodeJS.Timeout[]>(); // Rastrear timeouts agendados por conta
   private estaExecutando = false; // Flag para garantir execução sequencial
-  private filaExecucao: Array<{ contaId: number; timestamp: number }> = []; // Fila de execuções pendentes
   private processandoFila = false; // Flag para indicar se a fila está sendo processada
   private ultimasExecucoes = new Map<number, number>(); // Rastrear última execução de cada conta (timestamp)
   private inicializacaoEmAndamento = false; // Flag para evitar múltiplas inicializações simultâneas
+  private readonly INTERVALO_PADRAO_SEGUNDOS = 3600; // Intervalo padrão: 1 hora (3600 segundos)
 
   constructor(
     private readonly prisma: PrismaService,
@@ -36,33 +35,47 @@ export class ExtratosMonitorService implements OnModuleInit {
 
   /**
    * Inicializa o monitoramento quando o módulo é carregado
-   * CRÍTICO: Isso garante que o job inicie mesmo se o servidor reiniciar depois das 7h
+   * CORRIGIDO: Agora verifica se já passou tempo suficiente desde o início do dia
+   * para evitar execuções imediatas desnecessárias quando o backend reinicia
+   * 
+   * Lógica:
+   * - Se reiniciar durante o horário (7h-22h), verifica se já passou pelo menos 1 hora desde as 7h
+   * - Se sim, inicia o monitoramento normalmente (executa imediatamente e inicia o loop)
+   * - Se não, apenas inicia o loop sem executar imediatamente (aguarda o próximo intervalo)
    */
   async onModuleInit() {
     // Aguardar um pouco para garantir que o Prisma está conectado
     await new Promise(resolve => setTimeout(resolve, 5000));
     
     const horaAtual = new Date().getHours();
+    const minutoAtual = new Date().getMinutes();
     const dataHora = this.formatarTimestamp(Date.now());
     
-    // Usar console.log para garantir que os logs apareçam (logger do NestJS pode estar suprimido)
-    console.log(`═══════════════════════════════════════════════════════════════`);
-    console.log(`🔧 [JOB EXTRATOS] INICIALIZAÇÃO DO MÓDULO`);
-    console.log(`📅 Data/Hora: ${dataHora}`);
-    console.log(`⏰ Hora atual: ${horaAtual}h`);
-    
-    // Se estiver dentro do horário permitido (7h-22h), iniciar monitoramento imediatamente
     if (horaAtual >= this.HORA_INICIO && horaAtual < this.HORA_FIM) {
-      console.log(`✅ [JOB EXTRATOS] Dentro do horário permitido. Iniciando monitoramento...`);
-      // Iniciar monitoramento sem aguardar o cron das 7h
-      await this.iniciarMonitoramentoDiario();
-    } else {
-      console.log(`⏳ [JOB EXTRATOS] Fora do horário permitido. Aguardando cron job das 7h.`);
-      console.log(`   • Horário permitido: ${this.HORA_INICIO}h - ${this.HORA_FIM}h`);
-      console.log(`   • Próxima execução automática: Amanhã às 7h`);
+      // Calcular minutos desde o início do dia de trabalho (7h)
+      const minutosDesdeInicio = (horaAtual - this.HORA_INICIO) * 60 + minutoAtual;
+      const horasDesdeInicio = minutosDesdeInicio / 60;
+      
+      // Buscar contas para verificar intervalo configurado
+      const contasMonitoradas = await this.buscarContasMonitoradas();
+      
+      if (contasMonitoradas.length === 0) {
+        return;
+      }
+      
+      // Verificar intervalo mínimo configurado (usar o menor intervalo entre as contas)
+      const intervalos = contasMonitoradas.map(c => c.intervalo || this.INTERVALO_PADRAO_SEGUNDOS);
+      const intervaloMinimoSegundos = Math.min(...intervalos);
+      const intervaloMinimoHoras = intervaloMinimoSegundos / 3600;
+      
+      // Se já passou pelo menos 1 intervalo desde o início do dia, executar imediatamente
+      // Caso contrário, apenas iniciar o loop sem executar (aguardará o próximo intervalo)
+      if (horasDesdeInicio >= intervaloMinimoHoras) {
+        await this.iniciarMonitoramentoDiario();
+      } else {
+        await this.iniciarMonitoramentoDiarioSemExecucaoImediata();
+      }
     }
-    
-    console.log(`═══════════════════════════════════════════════════════════════`);
   }
 
   /**
@@ -84,10 +97,7 @@ export class ExtratosMonitorService implements OnModuleInit {
   /**
    * Cron job que executa todos os dias às 7:00 da manhã
    * Inicia o processo de monitoramento para todas as contas configuradas
-   * Intervalo configurável por conta (padrão: 5 minutos para teste) até às 22h
-   * 
-   * NOTA: Este método também pode ser chamado por onModuleInit se o servidor
-   * reiniciar durante o horário de funcionamento (7h-22h)
+   * Intervalo configurável por conta (padrão: 1 hora = 3600s) até às 22h
    */
   @Cron('0 7 * * *', {
     name: 'extratos-monitor-inicio',
@@ -104,68 +114,104 @@ export class ExtratosMonitorService implements OnModuleInit {
     const timestampInicio = Date.now();
     const dataHoraInicio = this.formatarTimestamp(timestampInicio);
     
-    // Usar console.log para garantir visibilidade dos logs críticos
-    console.log(`═══════════════════════════════════════════════════════════════`);
-    console.log(`🚀 [JOB EXTRATOS] INICIANDO MONITORAMENTO AUTOMÁTICO`);
-    console.log(`📅 Data/Hora: ${dataHoraInicio}`);
-    console.log(`⏰ Horário de funcionamento: 7h - 22h (horário de Brasília)`);
-    console.log(`═══════════════════════════════════════════════════════════════`);
+    console.log(`[JOB EXTRATOS] Iniciando monitoramento automático às ${dataHoraInicio}`);
     
     try {
       // Parar processamento da fila anterior se estiver rodando
       if (this.processandoFila) {
-        this.logger.log(`🛑 [JOB EXTRATOS] Parando processamento anterior...`);
         this.processandoFila = false;
-        // Aguardar um pouco para garantir que o loop anterior parou
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
       
       // Limpar rastreamento do dia anterior
       this.lancamentosNotificados.clear();
-      // Limpar rastreamento de últimas execuções
       this.ultimasExecucoes.clear();
       
       // Buscar todas as contas com monitoramento ativo
       const contasMonitoradas = await this.buscarContasMonitoradas();
       
       if (contasMonitoradas.length === 0) {
-        console.warn(`⚠️  [JOB EXTRATOS] Nenhuma conta configurada para monitoramento`);
+        console.log(`[JOB EXTRATOS] Nenhuma conta configurada para monitoramento`);
         return;
       }
 
-      console.log(`📊 [JOB EXTRATOS] ${contasMonitoradas.length} conta(s) encontrada(s) para monitoramento`);
-      
-      // Mostrar informações de cada conta
-      for (const conta of contasMonitoradas) {
-        const intervaloSegundos = conta.intervalo || 300; // Default: 5 minutos para teste
-        const intervaloMinutos = Math.floor(intervaloSegundos / 60);
-        console.log(`   • Conta ID ${conta.id} (${conta.agencia}/${conta.contaCorrente}): Intervalo = ${intervaloMinutos} minuto(s)`);
-      }
-      
       // Inicializar rastreamento de últimas execuções
       const agora = Date.now();
       for (const conta of contasMonitoradas) {
         this.ultimasExecucoes.set(conta.id, agora);
       }
       
-      console.log(`🔄 [JOB EXTRATOS] Executando primeira busca para todas as contas...`);
-      
       // Executar primeira busca sequencialmente para cada conta
       for (const conta of contasMonitoradas) {
         await this.executarBuscaExtratos(conta.id);
       }
       
-      console.log(`✅ [JOB EXTRATOS] Primeira busca concluída. Iniciando processamento recorrente...`);
-      
       // Iniciar processo de fila para execuções recorrentes
-      // Não usar await aqui para não bloquear, mas o método agora trata erros internamente
       this.iniciarProcessamentoFila(contasMonitoradas).catch((error) => {
-        console.error(`❌ [JOB EXTRATOS] Erro ao iniciar processamento da fila:`, error);
+        console.error(`[JOB EXTRATOS] Erro ao iniciar processamento da fila:`, error);
       });
       
-      const timestampFim = Date.now();
-      const duracao = ((timestampFim - timestampInicio) / 1000).toFixed(2);
-      console.log(`⏱️  [JOB EXTRATOS] Inicialização concluída em ${duracao}s`);
+    } catch (error) {
+      this.logger.error(`❌ [JOB EXTRATOS] Erro ao inicializar monitoramento:`, error);
+      this.logger.error(`   Stack: ${error.stack || 'N/A'}`);
+    } finally {
+      this.inicializacaoEmAndamento = false;
+    }
+  }
+
+  /**
+   * Inicia o monitoramento diário SEM executar a primeira busca imediatamente
+   * Usado quando o backend reinicia durante o horário de funcionamento mas ainda não passou
+   * tempo suficiente desde o início do dia para justificar uma execução imediata
+   * 
+   * O loop de processamento será iniciado e aguardará o próximo intervalo natural
+   */
+  private async iniciarMonitoramentoDiarioSemExecucaoImediata(): Promise<void> {
+    // Evitar múltiplas inicializações simultâneas
+    if (this.inicializacaoEmAndamento) {
+      this.logger.warn(`⚠️  [JOB EXTRATOS] Inicialização já em andamento. Ignorando chamada duplicada.`);
+      return;
+    }
+    
+    this.inicializacaoEmAndamento = true;
+    const timestampInicio = Date.now();
+    const dataHoraInicio = this.formatarTimestamp(timestampInicio);
+    
+    console.log(`[JOB EXTRATOS] Iniciando monitoramento (sem execução imediata) às ${dataHoraInicio}`);
+    
+    try {
+      // Parar processamento da fila anterior se estiver rodando
+      if (this.processandoFila) {
+        this.processandoFila = false;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      // Limpar rastreamento do dia anterior
+      this.lancamentosNotificados.clear();
+      
+      // Buscar todas as contas com monitoramento ativo
+      const contasMonitoradas = await this.buscarContasMonitoradas();
+      
+      if (contasMonitoradas.length === 0) {
+        console.log(`[JOB EXTRATOS] Nenhuma conta configurada para monitoramento`);
+        return;
+      }
+
+      // Inicializar rastreamento de últimas execuções com timestamp do início do dia (7h)
+      // Isso fará com que o loop aguarde o próximo intervalo natural
+      const agora = new Date();
+      const inicioDoDia = new Date(agora);
+      inicioDoDia.setHours(this.HORA_INICIO, 0, 0, 0); // 7h:00:00
+      const timestampInicioDoDia = inicioDoDia.getTime();
+      
+      for (const conta of contasMonitoradas) {
+        this.ultimasExecucoes.set(conta.id, timestampInicioDoDia);
+      }
+      
+      // Iniciar processo de fila para execuções recorrentes (sem executar imediatamente)
+      this.iniciarProcessamentoFila(contasMonitoradas).catch((error) => {
+        console.error(`[JOB EXTRATOS] Erro ao iniciar processamento da fila:`, error);
+      });
       
     } catch (error) {
       this.logger.error(`❌ [JOB EXTRATOS] Erro ao inicializar monitoramento:`, error);
@@ -231,20 +277,16 @@ export class ExtratosMonitorService implements OnModuleInit {
     }
     
     this.processandoFila = true;
-    this.logger.log(`🔄 [JOB EXTRATOS] Iniciando processamento recorrente da fila...`);
     
     // Executar em background mas com tratamento de erro
     this.processarFilaExecucoes(contas).catch((error) => {
-      this.logger.error(`❌ [JOB EXTRATOS] Erro crítico no processamento da fila:`, error);
-      this.logger.error(`   Stack: ${error.stack || 'N/A'}`);
-      this.logger.log(`🔄 [JOB EXTRATOS] Tentando reiniciar processamento da fila em 30 segundos...`);
+      this.logger.error(`[JOB EXTRATOS] Erro crítico no processamento da fila:`, error);
       
       // Tentar reiniciar após 30 segundos
       setTimeout(() => {
         if (!this.processandoFila) {
-          this.logger.log(`🔄 [JOB EXTRATOS] Reiniciando processamento da fila após erro...`);
           this.iniciarProcessamentoFila(contas).catch((err) => {
-            this.logger.error(`❌ [JOB EXTRATOS] Erro ao reiniciar processamento:`, err);
+            this.logger.error(`[JOB EXTRATOS] Erro ao reiniciar processamento:`, err);
           });
         }
       }, 30000);
@@ -260,28 +302,23 @@ export class ExtratosMonitorService implements OnModuleInit {
    */
   private async processarFilaExecucoes(contas: any[]): Promise<void> {
     let iteracao = 0;
-    const MAX_ITERACOES_SEM_LOG = 100; // Log a cada 100 iterações se não houver execuções
     let iteracoesSemExecucao = 0;
     
-    console.log(`🔄 [JOB EXTRATOS] Loop de processamento iniciado. Monitorando ${contas.length} conta(s)...`);
+    // Loop de processamento iniciado (sem log - logs apenas nas execuções)
     
     while (this.processandoFila) {
       iteracao++;
       iteracoesSemExecucao++;
       const timestampVerificacao = Date.now();
       
-      // Log periódico para garantir que o loop está rodando
-      if (iteracao % 50 === 0) {
-        const dataHora = this.formatarTimestamp(timestampVerificacao);
-        console.log(`🔄 [JOB EXTRATOS] Loop ativo - Iteração #${iteracao} às ${dataHora} (${iteracoesSemExecucao} iterações sem execução)`);
-      }
+      // Log periódico removido - logs apenas nas execuções
       
       try {
         // Verificar se ainda está dentro do horário permitido
         const horaAtual = new Date().getHours();
         if (horaAtual >= this.HORA_FIM) {
           const dataHora = this.formatarTimestamp(timestampVerificacao);
-          console.log(`⏰ [JOB EXTRATOS] Horário limite atingido (22h). Encerrando para hoje às ${dataHora}`);
+          console.log(`[JOB EXTRATOS] Encerrando monitoramento às ${dataHora} (horário limite: ${this.HORA_FIM}h)`);
           this.processandoFila = false;
           break;
         }
@@ -314,15 +351,13 @@ export class ExtratosMonitorService implements OnModuleInit {
           }
           
           const ultimaExecucao = this.ultimasExecucoes.get(conta.id) || agora;
-          const intervaloSegundos = contaAtualizada.intervalo || 300; // Default: 5 minutos para teste
+          const intervaloSegundos = contaAtualizada.intervalo || this.INTERVALO_PADRAO_SEGUNDOS;
           const intervaloMs = intervaloSegundos * 1000;
           const proximaExecucao = ultimaExecucao + intervaloMs;
           const tempoEsperado = proximaExecucao - agora;
           
           // Se já passou o tempo do intervalo, adicionar à fila
           if (agora >= proximaExecucao) {
-            const tempoAtraso = ((agora - proximaExecucao) / 1000).toFixed(1);
-            console.log(`⏰ [JOB EXTRATOS] Conta ${conta.id} está ${tempoAtraso}s atrasada. Adicionando à fila de execução.`);
             contasParaExecutar.push({
               conta: contaAtualizada,
               proximaExecucao,
@@ -337,13 +372,10 @@ export class ExtratosMonitorService implements OnModuleInit {
         // Executar sequencialmente todas as contas que precisam executar
         if (contasParaExecutar.length > 0) {
           iteracoesSemExecucao = 0; // Resetar contador
-          console.log(`🔄 [JOB EXTRATOS] Iteração #${iteracao}: ${contasParaExecutar.length} conta(s) aguardando execução`);
         }
         
         for (const { conta } of contasParaExecutar) {
           await this.executarBuscaExtratos(conta.id);
-          // Atualizar última execução
-          this.ultimasExecucoes.set(conta.id, Date.now());
         }
         
         // Se não há contas para executar, calcular quanto tempo aguardar
@@ -374,7 +406,7 @@ export class ExtratosMonitorService implements OnModuleInit {
             }
             
             const ultimaExecucao = this.ultimasExecucoes.get(conta.id) || agora;
-            const intervaloSegundos = contaAtualizada.intervalo || 300; // Default: 5 minutos para teste
+            const intervaloSegundos = contaAtualizada.intervalo || this.INTERVALO_PADRAO_SEGUNDOS;
             const intervaloMs = intervaloSegundos * 1000;
             const proximaExecucao = ultimaExecucao + intervaloMs;
             
@@ -389,18 +421,7 @@ export class ExtratosMonitorService implements OnModuleInit {
             }
           }
           
-          // Log das próximas execuções (a cada 10 iterações para não poluir muito)
-          if (iteracao % 10 === 0 && proximasExecucoes.length > 0) {
-            const tempoAteProxima = Math.floor((proximaExecucaoGeral - agora) / 1000);
-            const dataHoraProxima = this.formatarTimestamp(proximaExecucaoGeral);
-            console.log(`⏳ [JOB EXTRATOS] Iteração #${iteracao}: Próxima execução em ${tempoAteProxima}s (${dataHoraProxima})`);
-            
-            for (const prox of proximasExecucoes) {
-              const tempoAte = Math.floor((prox.proximaExecucao - agora) / 1000);
-              const intervaloMin = Math.floor(prox.intervalo / 60);
-              console.log(`   • Conta ${prox.contaId}: Intervalo ${intervaloMin}min, próxima execução em ${tempoAte}s`);
-            }
-          }
+          // Logs de próximas execuções removidos - informações já aparecem no log de cada execução
           
           // Aguardar até a próxima execução ou 30 segundos (verificar novamente)
           const tempoAguardar = Math.min(proximaExecucaoGeral - agora, 30000);
@@ -429,9 +450,7 @@ export class ExtratosMonitorService implements OnModuleInit {
     }
     
     const dataHora = this.formatarTimestamp(Date.now());
-    console.log(`🛑 [JOB EXTRATOS] Processamento da fila encerrado às ${dataHora}`);
-    console.log(`   • Total de iterações executadas: ${iteracao}`);
-    console.log(`   • Motivo: processandoFila = ${this.processandoFila}`);
+    console.log(`[JOB EXTRATOS] Processamento encerrado às ${dataHora}`);
   }
 
 
@@ -450,9 +469,7 @@ export class ExtratosMonitorService implements OnModuleInit {
       tempoEspera += 1000;
     }
     
-    if (tempoEspera > 0) {
-      this.logger.log(`⏳ [JOB EXTRATOS] Conta ${contaId}: Aguardou ${(tempoEspera / 1000).toFixed(1)}s por execução anterior`);
-    }
+    // Aguardar silenciosamente se necessário (sem log)
     
     this.estaExecutando = true;
     
@@ -460,7 +477,6 @@ export class ExtratosMonitorService implements OnModuleInit {
       // Verificar se ainda está dentro do horário permitido
       const horaAtual = new Date().getHours();
       if (horaAtual >= this.HORA_FIM) {
-        this.logger.warn(`⚠️  [JOB EXTRATOS] Conta ${contaId}: Fora do horário permitido (${horaAtual}h >= ${this.HORA_FIM}h)`);
         return;
       }
       
@@ -470,7 +486,6 @@ export class ExtratosMonitorService implements OnModuleInit {
       });
       
       if (!conta || !conta.monitorar) {
-        this.logger.warn(`⚠️  [JOB EXTRATOS] Conta ${contaId}: Não encontrada ou monitoramento desativado`);
         return;
       }
       
@@ -483,22 +498,10 @@ export class ExtratosMonitorService implements OnModuleInit {
       });
       
       if (!credencialExtrato) {
-        this.logger.warn(`⚠️  [JOB EXTRATOS] Conta ${contaId}: Credenciais de extrato não encontradas`);
         return;
       }
       
-      const intervaloSegundos = conta.intervalo || 300; // Default: 5 minutos para teste
-      const intervaloMinutos = Math.floor(intervaloSegundos / 60);
-      const ultimaExecucao = this.ultimasExecucoes.get(contaId);
-      const tempoDesdeUltima = ultimaExecucao ? ((timestampInicio - ultimaExecucao) / 1000).toFixed(0) : 'N/A';
-      
-      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-      console.log(`🔄 [JOB EXTRATOS] EXECUTANDO BUSCA DE EXTRATOS`);
-      console.log(`   📅 Data/Hora: ${dataHoraInicio}`);
-      console.log(`   🏦 Conta: ID ${contaId} (${conta.agencia}/${conta.contaCorrente})`);
-      console.log(`   ⏱️  Intervalo configurado: ${intervaloMinutos} minuto(s) (${intervaloSegundos}s)`);
-      console.log(`   ⏰ Tempo desde última execução: ${tempoDesdeUltima}s`);
-      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      const intervaloSegundos = conta.intervalo || this.INTERVALO_PADRAO_SEGUNDOS;
       
       // Obter data do dia atual no formato DDMMYYYY
       const hoje = new Date();
@@ -511,41 +514,23 @@ export class ExtratosMonitorService implements OnModuleInit {
         dataFim: dataFormatada,
       });
       
+      // Atualizar última execução e calcular próxima execução
       const timestampFim = Date.now();
-      const duracao = ((timestampFim - timestampInicio) / 1000).toFixed(2);
-      const dataHoraFim = this.formatarTimestamp(timestampFim);
-      
-      // Log detalhado do resultado
-      console.log(`✅ [JOB EXTRATOS] BUSCA CONCLUÍDA`);
-      console.log(`   📅 Data/Hora fim: ${dataHoraFim}`);
-      console.log(`   ⏱️  Duração: ${duracao}s`);
-      console.log(`   📊 Resultado:`);
-      console.log(`      • Novos lançamentos salvos: ${resultado.totalSalvos}`);
-      console.log(`      • Lançamentos duplicados: ${resultado.totalDuplicados}`);
-      console.log(`      • Total processado: ${resultado.totalSalvos + resultado.totalDuplicados}`);
+      this.ultimasExecucoes.set(contaId, timestampFim);
+      const proximaExecucaoTimestamp = timestampFim + (intervaloSegundos * 1000);
+      const proximaExecucaoHora = this.formatarTimestamp(proximaExecucaoTimestamp);
       
       // Criar notificações se houver novos lançamentos
       if (resultado.totalSalvos > 0) {
-        console.log(`   🔔 Criando notificações para ${resultado.totalSalvos} novo(s) lançamento(s)...`);
         await this.criarNotificacoesParaNovosLancamentos(contaId, resultado.totalSalvos);
-      } else {
-        console.log(`   ℹ️  Nenhum novo lançamento encontrado`);
       }
       
-      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      // Log simplificado: apenas relatório essencial
+      console.log(`[JOB EXTRATOS] Conta ${conta.agencia}/${conta.contaCorrente} | Execução: ${dataHoraInicio} | Próxima: ${proximaExecucaoHora} | Lançamentos: ${resultado.totalSalvos} novos, ${resultado.totalDuplicados} duplicados`);
       
     } catch (error) {
-      const timestampFim = Date.now();
-      const duracao = ((timestampFim - timestampInicio) / 1000).toFixed(2);
-      const dataHoraFim = this.formatarTimestamp(timestampFim);
-      
-      this.logger.error(`❌ [JOB EXTRATOS] ERRO NA EXECUÇÃO`);
-      this.logger.error(`   📅 Data/Hora: ${dataHoraFim}`);
-      this.logger.error(`   🏦 Conta: ID ${contaId}`);
-      this.logger.error(`   ⏱️  Duração até erro: ${duracao}s`);
-      this.logger.error(`   💥 Erro: ${error.message || error}`);
-      this.logger.error(`   📋 Stack: ${error.stack || 'N/A'}`);
-      this.logger.error(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      const dataHoraErro = this.formatarTimestamp(Date.now());
+      this.logger.error(`[JOB EXTRATOS] ERRO | Conta ${contaId} | ${dataHoraErro} | ${error.message || error}`);
     } finally {
       this.estaExecutando = false;
     }
@@ -618,7 +603,7 @@ export class ExtratosMonitorService implements OnModuleInit {
         return;
       }
       
-      this.logger.log(`[JOB EXTRATOS] Criando notificações para ${lancamentosNovos.length} novo(s) pagamento(s)`);
+      // Criar notificações silenciosamente (sem log)
       
       // Buscar todos os usuários elegíveis (mesma lógica das notificações de pedidos)
       const usuariosElegiveis = await this.prisma.usuario.findMany({
@@ -744,9 +729,7 @@ export class ExtratosMonitorService implements OnModuleInit {
       // Filtrar notificações nulas (erros)
       const notificacoesCriadas = notificacoes.filter(n => n !== null);
       
-      this.logger.log(
-        `[JOB EXTRATOS] ${notificacoesCriadas.length} notificação(ões) criada(s): ${nomeCliente} - ${valorFormatado}`
-      );
+      // Notificações criadas silenciosamente (sem log)
       
     } catch (error) {
       this.logger.error('[JOB EXTRATOS] Erro ao criar notificações:', error.message || error);
@@ -873,16 +856,17 @@ export class ExtratosMonitorService implements OnModuleInit {
   /**
    * Método para obter status do monitoramento
    */
-  getMonitoringStatus(): {
+  async getMonitoringStatus(): Promise<{
     isActive: boolean;
     nextExecution: string;
     contasMonitoradas: number;
     lancamentosNotificadosHoje: number;
-  } {
+  }> {
+    const contasMonitoradas = await this.buscarContasMonitoradas();
     return {
-      isActive: true,
+      isActive: this.processandoFila,
       nextExecution: 'Todos os dias às 07:00 (horário de Brasília)',
-      contasMonitoradas: this.execucoesAgendadas.size,
+      contasMonitoradas: contasMonitoradas.length,
       lancamentosNotificadosHoje: this.lancamentosNotificados.size,
     };
   }

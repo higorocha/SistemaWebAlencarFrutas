@@ -158,22 +158,13 @@ export class ExtratosService {
     let contaCorrente: any = null;
     
     try {
-      console.log(`🔍 [CONSULTAR-EXTRATOS-BRUTOS] Iniciando consulta:`, {
-        dataInicio,
-        dataFim,
-        contaCorrenteId: contaCorrenteId || 'não informado (usará primeira conta)'
-      });
+      // Log removido - informações já aparecem no log do job de extratos
 
       // PRIMEIRO: Buscar conta corrente
       if (contaCorrenteId) {
         try {
           contaCorrente = await this.contaCorrenteService.findOne(contaCorrenteId);
-          console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Conta corrente encontrada:`, {
-            id: contaCorrente.id,
-            agencia: contaCorrente.agencia,
-            conta: contaCorrente.contaCorrente,
-            banco: contaCorrente.bancoCodigo
-          });
+          // Log removido - informações já aparecem no log do job de extratos
         } catch (error) {
           console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Erro ao buscar conta corrente ${contaCorrenteId}:`, {
             error: error.message,
@@ -188,12 +179,7 @@ export class ExtratosService {
           throw new NotFoundException('Conta Corrente não cadastrada. Favor cadastrar uma conta corrente.');
         }
         contaCorrente = contasCorrente[0];
-        console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Usando primeira conta corrente disponível:`, {
-          id: contaCorrente.id,
-          agencia: contaCorrente.agencia,
-          conta: contaCorrente.contaCorrente,
-          banco: contaCorrente.bancoCodigo
-        });
+        // Log removido - informações já aparecem no log do job de extratos
       }
 
       // SEGUNDO: Buscar credencial ESPECÍFICA para a conta corrente encontrada
@@ -221,18 +207,13 @@ export class ExtratosService {
         );
       }
       
-      console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Credencial encontrada para conta ${contaCorrente.id}:`, {
-        credencialId: credencialExtrato.id,
-        contaCorrenteIdCredencial: credencialExtrato.contaCorrenteId,
-        agencia: contaCorrente.agencia,
-        conta: contaCorrente.contaCorrente
-      });
+      // Log removido - informações já aparecem no log do job de extratos
 
       // Obter token de acesso usando a credencial específica
       let token: string;
       try {
         token = await this.obterTokenDeAcesso(credencialExtrato);
-        console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Token obtido com sucesso para credencial ${credencialExtrato.id}`);
+      // Log removido - informações já aparecem no log do job de extratos
       } catch (error) {
         console.error(`❌ [CONSULTAR-EXTRATOS-BRUTOS] Erro ao obter token:`, {
           error: error.message,
@@ -252,18 +233,12 @@ export class ExtratosService {
       let paginaAtual = 1;
       let hasMorePages = true;
 
-      console.log(`🔍 [CONSULTAR-EXTRATOS-BRUTOS] Iniciando requisições à API BB:`, {
-        agencia,
-        conta,
-        dataInicio,
-        dataFim,
-        url: `/conta-corrente/agencia/${agencia}/conta/${conta}`
-      });
+      // Log removido - informações já aparecem no log do job de extratos
 
       // Loop de paginação
       while (hasMorePages) {
         try {
-          console.log(`📄 [CONSULTAR-EXTRATOS-BRUTOS] Buscando página ${paginaAtual}...`);
+          // Log removido - informações já aparecem no log do job de extratos
           
           const response = await apiClient.get(
             `/conta-corrente/agencia/${agencia}/conta/${conta}`,
@@ -282,15 +257,11 @@ export class ExtratosService {
 
           const data = response.data as any;
 
-          console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Página ${paginaAtual} retornada:`, {
-            totalLancamentosNestaPagina: data?.listaLancamento?.length || 0,
-            numeroPaginaProximo: data?.numeroPaginaProximo || 0,
-            status: response.status
-          });
+          // Log removido - informações já aparecem no log do job de extratos
 
           // Verificar se há lançamentos nesta página
           if (!data || !data.listaLancamento || data.listaLancamento.length === 0) {
-            console.log(`ℹ️ [CONSULTAR-EXTRATOS-BRUTOS] Nenhum lançamento na página ${paginaAtual}, finalizando busca`);
+            // Log removido - informações já aparecem no log do job de extratos
             hasMorePages = false;
             break;
           }
@@ -322,7 +293,7 @@ export class ExtratosService {
         }
       }
 
-      console.log(`✅ [CONSULTAR-EXTRATOS-BRUTOS] Consulta concluída: ${extratos.length} extratos encontrados`);
+      // Log removido - informações já aparecem no log do job de extratos
       return extratos;
 
     } catch (error) {

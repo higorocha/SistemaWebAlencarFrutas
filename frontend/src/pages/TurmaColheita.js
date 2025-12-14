@@ -616,6 +616,9 @@ const TurmaColheita = () => {
           gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
           gap: 2,
           alignItems: "start",
+          width: "100%",
+          maxWidth: "100%",
+          overflow: "hidden",
         }}
       >
         {/* Coluna 1: Listagem de Turmas */}
@@ -732,6 +735,9 @@ const TurmaColheita = () => {
               display: "flex",
               flexDirection: "column",
               mt: 0,
+              width: "100%",
+              maxWidth: "100%",
+              overflow: "hidden",
             }}
           >
             <Typography.Title
@@ -762,9 +768,11 @@ const TurmaColheita = () => {
               gap: 1,
               flexWrap: "wrap",
               alignItems: "flex-start",
-              width: "100%"
+              width: "100%",
+              maxWidth: "100%",
+              overflow: "hidden"
             }}>
-              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 180px" }, minWidth: 0 }}>
+              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 180px" }, minWidth: 0, maxWidth: "100%" }}>
                 <Text style={{
                   display: "block",
                   marginBottom: 8,
@@ -787,7 +795,7 @@ const TurmaColheita = () => {
                     const descricao = cultura?.descricao || '';
                     return descricao.toLowerCase().includes(input.toLowerCase());
                   }}
-                  style={{ width: "100%" }}
+                  style={{ width: "100%", maxWidth: "100%" }}
                   size={isMobile ? "small" : "middle"}
                 >
                   {culturas.map((cultura) => (
@@ -798,7 +806,7 @@ const TurmaColheita = () => {
                 </Select>
               </Box>
 
-              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 240px" }, minWidth: 0 }}>
+              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 240px" }, minWidth: 0, maxWidth: "100%" }}>
                 <Text style={{
                   display: "block",
                   marginBottom: 8,
@@ -815,12 +823,12 @@ const TurmaColheita = () => {
                   }}
                   placeholder={["Início", "Fim"]}
                   format="DD/MM/YYYY"
-                  style={{ width: "100%" }}
+                  style={{ width: "100%", maxWidth: "100%" }}
                   size={isMobile ? "small" : "middle"}
                 />
               </Box>
 
-              <Box sx={{ flex: { xs: "1 1 100%", sm: "1 1 auto" }, minWidth: 0 }}>
+              <Box sx={{ flex: { xs: "1 1 100%", sm: "1 1 auto" }, minWidth: 0, maxWidth: "100%" }}>
                 <Text style={{
                   display: "block",
                   marginBottom: 8,
@@ -839,12 +847,13 @@ const TurmaColheita = () => {
                   size={isMobile ? "small" : "middle"}
                   style={{
                     width: "100%",
+                    maxWidth: "100%",
                     fontSize: isMobile ? '0.875rem' : '1rem'
                   }}
                 />
               </Box>
 
-              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" }, minWidth: 0 }}>
+              <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" }, minWidth: 0, maxWidth: "100%" }}>
                 <Text style={{ display: "block", marginBottom: 8 }}>&nbsp;</Text>
                 <SecondaryButton
                   icon={<FilterOutlined />}
@@ -868,30 +877,40 @@ const TurmaColheita = () => {
             </Box>
 
             {/* Conteúdo: Estatísticas ou Listagem */}
-            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
+            <Box sx={{ 
+              flex: 1, 
+              display: "flex", 
+              flexDirection: "column", 
+              overflow: "hidden",
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0
+            }}>
               {temFiltrosAplicados ? (
                 // Mostrar listagem quando há filtros
                 <>
                   {/* Botão Voltar - aparece acima da tabela quando há filtros aplicados */}
-                  <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-start" }}>
+                  <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-start", width: "100%", maxWidth: "100%" }}>
                     <BackButton
                       onClick={turmaSelecionada ? handleVoltarEstatisticasTurma : handleVoltarEstatisticasGerais}
                       title={turmaSelecionada ? "Voltar para estatísticas da turma" : "Voltar para estatísticas gerais"}
                     />
                   </Box>
-                  <Suspense fallback={<LoadingFallback />}>
-                    <ColheitasConsolidadasTable
-                      dados={colheitasConsolidadas}
-                      loading={loadingConsolidadas}
-                      totalGeralQuantidade={totalGeralQuantidade}
-                      totalGeralValor={totalGeralValor}
-                      totalGeralUnidadeMedida={totalGeralUnidadeMedida}
-                    />
-                  </Suspense>
+                  <Box sx={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+                    <Suspense fallback={<LoadingFallback />}>
+                      <ColheitasConsolidadasTable
+                        dados={colheitasConsolidadas}
+                        loading={loadingConsolidadas}
+                        totalGeralQuantidade={totalGeralQuantidade}
+                        totalGeralValor={totalGeralValor}
+                        totalGeralUnidadeMedida={totalGeralUnidadeMedida}
+                      />
+                    </Suspense>
+                  </Box>
 
                   {/* Paginação */}
                   {totalConsolidadas > 0 && (
-                    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1, width: "100%", maxWidth: "100%", overflow: "hidden" }}>
                       <Pagination
                         current={currentPageConsolidadas}
                         pageSize={pageSizeConsolidadas}
@@ -918,14 +937,16 @@ const TurmaColheita = () => {
                 </>
               ) : (
                 // Mostrar estatísticas quando não há filtros
-                <Suspense fallback={<LoadingFallback />}>
-                  <EstatisticasGeraisColheitas
-                    dados={turmaSelecionada ? estatisticasTurmaSelecionada : estatisticasGerais}
-                    loading={turmaSelecionada ? loadingEstatisticasTurma : loadingEstatisticas}
-                    onCulturaClick={handleCulturaCardClick}
-                    turmaSelecionada={!!turmaSelecionada}
-                  />
-                </Suspense>
+                <Box sx={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <EstatisticasGeraisColheitas
+                      dados={turmaSelecionada ? estatisticasTurmaSelecionada : estatisticasGerais}
+                      loading={turmaSelecionada ? loadingEstatisticasTurma : loadingEstatisticas}
+                      onCulturaClick={handleCulturaCardClick}
+                      turmaSelecionada={!!turmaSelecionada}
+                    />
+                  </Suspense>
+                </Box>
               )}
             </Box>
           </Box>

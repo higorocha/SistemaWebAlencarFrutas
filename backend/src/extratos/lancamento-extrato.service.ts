@@ -711,8 +711,7 @@ export class LancamentoExtratoService {
     // Formatar data para exibição (antes de processar)
     const dataInicioExibicao = `${dto.dataInicio.slice(0, 2)}/${dto.dataInicio.slice(2, 4)}/${dto.dataInicio.slice(4)}`;
     const dataFimExibicao = `${dto.dataFim.slice(0, 2)}/${dto.dataFim.slice(2, 4)}/${dto.dataFim.slice(4)}`;
-    const nomesClientes = clientes.map(c => c.nome || `ID ${c.id}`).join(', ');
-    console.log(`📅 Buscando extratos para ${clientes.length} cliente(s): ${nomesClientes}, período ${dataInicioExibicao} a ${dataFimExibicao}`);
+    // Log removido - informações já aparecem no log do job de extratos
 
     // Validar e buscar conta corrente
     const contaCorrente = await this.contaCorrenteService.findOne(dto.contaCorrenteId);
@@ -779,14 +778,7 @@ export class LancamentoExtratoService {
       throw error; // Re-throw para o controller tratar
     }
 
-    if (extratosBrutos && extratosBrutos.length > 0) {
-      console.log('📋 [API RESPONSE] JSON completo dos extratos retornados (clientes específicos):');
-      try {
-        console.log(JSON.stringify(extratosBrutos, null, 2));
-      } catch (error) {
-        console.warn('⚠️ Não foi possível serializar extratosBrutos para JSON:', error);
-      }
-    }
+    // Log de JSON completo removido - não é necessário para monitoramento
 
     // Preparar mapa de CPF/CNPJ normalizados para cada cliente
     // Estrutura: { cpfCnpjNormalizado: { clienteId, tamanhoEsperado } }
@@ -935,7 +927,7 @@ export class LancamentoExtratoService {
     const clientesComLancamentos = clientes.filter(c => clientesComLancamentosSalvos.has(c.id));
     const clientePrincipal = clientesComLancamentos[0] ?? clientes[0];
 
-    console.log(`✅ Busca concluída: ${totalSalvos} salvos, ${totalDuplicados} duplicados, ${clientesComLancamentos.length} clientes únicos com lançamentos`);
+    // Log removido - informações já aparecem no log do job de extratos
 
     return {
       totalEncontrados: extratosBrutos.length,
@@ -1002,11 +994,7 @@ export class LancamentoExtratoService {
       );
     }
 
-    const dataInicioExibicao = `${dto.dataInicio.slice(0, 2)}/${dto.dataInicio.slice(2, 4)}/${dto.dataInicio.slice(4)}`;
-    const dataFimExibicao = `${dto.dataFim.slice(0, 2)}/${dto.dataFim.slice(2, 4)}/${dto.dataFim.slice(4)}`;
-    console.log(
-      `📅 Buscando extratos para TODOS os ${clientes.length} clientes com CPF/CNPJ, período ${dataInicioExibicao} a ${dataFimExibicao}`
-    );
+    // Log removido - informações já aparecem no log do job de extratos
 
     const contaCorrente = await this.contaCorrenteService.findOne(dto.contaCorrenteId);
 
@@ -1027,16 +1015,7 @@ export class LancamentoExtratoService {
     const dataInicioFormatada = formatDateForAPI(dto.dataInicio);
     const dataFimFormatada = formatDateForAPI(dto.dataFim);
 
-    console.log(`🔍 [BUSCAR-TODOS-CLIENTES] Iniciando busca na API BB para todos os clientes:`, {
-      contaCorrenteId: dto.contaCorrenteId,
-      agencia: contaCorrente.agencia,
-      conta: contaCorrente.contaCorrente,
-      dataInicio: dto.dataInicio,
-      dataInicioFormatada,
-      dataFim: dto.dataFim,
-      dataFimFormatada,
-      totalClientes: clientes.length,
-    });
+    // Log removido - informações já aparecem no log do job de extratos
 
     let extratosBrutos: any[] = [];
     try {
@@ -1045,7 +1024,7 @@ export class LancamentoExtratoService {
         dataFimFormatada,
         dto.contaCorrenteId
       );
-      console.log(`✅ [BUSCAR-TODOS-CLIENTES] API retornou ${extratosBrutos.length} extratos brutos`);
+      // Log removido - informações já aparecem no log do job de extratos
     } catch (error) {
       console.error(`❌ [BUSCAR-TODOS-CLIENTES] Erro ao consultar extratos brutos na API BB:`, {
         error: error.message,
@@ -1061,14 +1040,7 @@ export class LancamentoExtratoService {
       throw error;
     }
 
-    if (extratosBrutos && extratosBrutos.length > 0) {
-      console.log('📋 [API RESPONSE] JSON completo dos extratos retornados (todos os clientes):');
-      try {
-        console.log(JSON.stringify(extratosBrutos, null, 2));
-      } catch (error) {
-        console.warn('⚠️ Não foi possível serializar extratosBrutos para JSON:', error);
-      }
-    }
+    // Log de JSON completo removido - não é necessário para monitoramento
 
     const mapaCpfCnpjClientes: Map<string, { clienteId: number; tamanhoEsperado: number }> = new Map();
 
@@ -1208,9 +1180,7 @@ export class LancamentoExtratoService {
     const clientesComLancamentos = clientes.filter(c => clientesComLancamentosSalvos.has(c.id));
     const clientePrincipal = clientesComLancamentos[0] ?? clientes[0] ?? null;
 
-    console.log(
-      `✅ Busca concluída para todos os clientes: ${totalSalvos} salvos, ${totalDuplicados} duplicados, ${clientesComLancamentos.length} clientes com lançamentos, ${totalSalvosSemCliente} sem cliente identificado`
-    );
+    // Log removido - informações já aparecem no log do job de extratos
 
     return {
       totalEncontrados: extratosBrutos.length,

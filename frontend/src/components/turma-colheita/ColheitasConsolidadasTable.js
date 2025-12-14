@@ -91,33 +91,35 @@ const ColheitasConsolidadasTable = ({
   const dataSource = dados || [];
 
   return (
-    <>
-      <ResponsiveTable
-        columns={columns}
-        dataSource={dataSource}
-        loading={loading}
-        pagination={false}
-        rowKey={(record) => record.turmaId || Math.random()}
-        minWidthMobile={1200}
-        showScrollHint={true}
-        locale={{
-          emptyText: (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <Text type="secondary">
-                  {loading ? "Carregando dados..." : "Nenhum dado encontrado para os filtros selecionados"}
-                </Text>
-              }
-            />
-          ),
-        }}
-        onRow={(record) => ({
-          onClick: () => {
-            // Pode adicionar ação de clique na linha se necessário
-          },
-        })}
-      />
+    <Box sx={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+      <Box sx={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+        <ResponsiveTable
+          columns={columns}
+          dataSource={dataSource}
+          loading={loading}
+          pagination={false}
+          rowKey={(record) => record.turmaId || Math.random()}
+          minWidthMobile={1200}
+          showScrollHint={true}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <Text type="secondary">
+                    {loading ? "Carregando dados..." : "Nenhum dado encontrado para os filtros selecionados"}
+                  </Text>
+                }
+              />
+            ),
+          }}
+          onRow={(record) => ({
+            onClick: () => {
+              // Pode adicionar ação de clique na linha se necessário
+            },
+          })}
+        />
+      </Box>
       
       {/* Totalizador fora da tabela */}
       {dataSource.length > 0 && (
@@ -133,6 +135,9 @@ const ColheitasConsolidadasTable = ({
             alignItems: "center",
             flexWrap: "wrap",
             gap: 2,
+            width: "100%",
+            maxWidth: "100%",
+            overflow: "hidden",
           }}
         >
           <Text strong style={{ fontSize: "16px", color: "#059669" }}>
@@ -159,7 +164,7 @@ const ColheitasConsolidadasTable = ({
           </Box>
         </Box>
       )}
-    </>
+    </Box>
   );
 };
 

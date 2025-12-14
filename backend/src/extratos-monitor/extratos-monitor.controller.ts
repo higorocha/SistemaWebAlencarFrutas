@@ -59,7 +59,7 @@ export class ExtratosMonitorController {
       },
     },
   })
-  getStatus() {
+  async getStatus() {
     return this.extratosMonitorService.getMonitoringStatus();
   }
 }

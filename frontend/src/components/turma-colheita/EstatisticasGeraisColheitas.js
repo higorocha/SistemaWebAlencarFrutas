@@ -79,7 +79,7 @@ const EstatisticasGeraisColheitas = ({ dados, loading = false, onCulturaClick, t
 
 
   return (
-    <div>
+    <Box sx={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
       {/* Cards de Estatísticas */}
       {turmaSelecionada ? (
         // Quando turma está selecionada: 6 cards em uma única linha
@@ -404,7 +404,7 @@ const EstatisticasGeraisColheitas = ({ dados, loading = false, onCulturaClick, t
           </Box>
         </Card>
       )}
-    </div>
+    </Box>
   );
 };
 

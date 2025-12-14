@@ -16,7 +16,9 @@ import LotePagamentosDetalhesModal from "../components/pagamentos/LotePagamentos
 import ConsultaOnlineModal from "../components/pagamentos/ConsultaOnlineModal";
 import ConsultaItemIndividualModal from "../components/pagamentos/ConsultaItemIndividualModal";
 import SecaoLotesPagamentos from "../components/pagamentos/SecaoLotesPagamentos";
+import SecaoLotesPagamentosAgrupado from "../components/pagamentos/SecaoLotesPagamentosAgrupado";
 import { useLocation } from "react-router-dom";
+import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -27,10 +29,15 @@ const Pagamentos = () => {
   const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [loadingFolha, setLoadingFolha] = useState(false);
+  const [loadingEstatisticasTurma, setLoadingEstatisticasTurma] = useState(false);
+  const [loadingEstatisticasFolha, setLoadingEstatisticasFolha] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true); // Loading inicial da página
   const [lotesTurmaColheita, setLotesTurmaColheita] = useState([]);
   const [lotesFolhaPagamento, setLotesFolhaPagamento] = useState([]);
   const [paginacaoTurmaColheita, setPaginacaoTurmaColheita] = useState({ page: 1, limit: 10, total: 0 });
   const [paginacaoFolhaPagamento, setPaginacaoFolhaPagamento] = useState({ page: 1, limit: 10, total: 0 });
+  const [estatisticasTurmaColheita, setEstatisticasTurmaColheita] = useState(null);
+  const [estatisticasFolhaPagamento, setEstatisticasFolhaPagamento] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedFilters, setAppliedFilters] = useState([]); // Filtros aplicados via sugestão
   const [searchTermAplicado, setSearchTermAplicado] = useState(""); // Termo de busca aplicado (após Enter ou seleção)
@@ -54,7 +61,7 @@ const Pagamentos = () => {
     return state.loteNumeroRequisicao || null;
   });
 
-  const fetchLotesTurmaColheita = useCallback(async (dataInicio = null, dataFim = null, page = 1, limit = 10, tipoData = 'criacao', contaId = null) => {
+  const fetchLotesTurmaColheita = useCallback(async (dataInicio = null, dataFim = null, page = 1, limit = 10, tipoData = 'criacao', contaId = null, isInitialLoad = false) => {
     try {
       setLoading(true);
 
@@ -65,12 +72,23 @@ const Pagamentos = () => {
       if (contaId) params.append("contaCorrenteId", contaId.toString());
       params.append("page", page.toString());
       params.append("limit", limit.toString());
+      params.append("agrupadoPorDia", "true"); // Sempre usar agrupamento por dia para turma de colheita
 
       const url = `/api/pagamentos/lotes-turma-colheita?${params.toString()}`;
 
       const response = await axiosInstance.get(url);
       const { data, total, page: currentPage, limit: currentLimit } = response.data || {};
-      setLotesTurmaColheita(data || []);
+      
+      // Se veio agrupado por dia, precisa "achatar" os lotes de todos os dias
+      // Mas manter a estrutura de dias para o componente agrupado
+      if (Array.isArray(data) && data.length > 0 && data[0].diaKey) {
+        // Dados já vêm agrupados por dia
+        setLotesTurmaColheita(data || []);
+      } else {
+        // Fallback: dados não agrupados (compatibilidade)
+        setLotesTurmaColheita(data || []);
+      }
+      
       setPaginacaoTurmaColheita({ page: currentPage || page, limit: currentLimit || limit, total: total || 0 });
     } catch (error) {
       console.error("Erro ao buscar lotes de pagamentos de turma de colheita:", error);
@@ -80,10 +98,13 @@ const Pagamentos = () => {
       showNotification("error", "Erro", message);
     } finally {
       setLoading(false);
+      if (isInitialLoad) {
+        setCompletedInitialLoads(prev => prev + 1);
+      }
     }
   }, []);
 
-  const fetchLotesFolhaPagamento = useCallback(async (dataInicio = null, dataFim = null, page = 1, limit = 10, tipoData = 'criacao', contaId = null) => {
+  const fetchLotesFolhaPagamento = useCallback(async (dataInicio = null, dataFim = null, page = 1, limit = 10, tipoData = 'criacao', contaId = null, isInitialLoad = false) => {
     try {
       setLoadingFolha(true);
 
@@ -109,6 +130,61 @@ const Pagamentos = () => {
       showNotification("error", "Erro", message);
     } finally {
       setLoadingFolha(false);
+      if (isInitialLoad) {
+        setCompletedInitialLoads(prev => prev + 1);
+      }
+    }
+  }, []);
+
+  // Buscar estatísticas agregadas de turma de colheita
+  const fetchEstatisticasTurmaColheita = useCallback(async (dataInicio = null, dataFim = null, tipoData = 'criacao', contaId = null, isInitialLoad = false) => {
+    try {
+      setLoadingEstatisticasTurma(true);
+
+      const params = new URLSearchParams();
+      if (dataInicio) params.append("dataInicio", dataInicio);
+      if (dataFim) params.append("dataFim", dataFim);
+      if (tipoData) params.append("tipoData", tipoData);
+      if (contaId) params.append("contaCorrenteId", contaId.toString());
+
+      const url = `/api/pagamentos/estatisticas-turma-colheita?${params.toString()}`;
+
+      const response = await axiosInstance.get(url);
+      setEstatisticasTurmaColheita(response.data || null);
+    } catch (error) {
+      console.error("Erro ao buscar estatísticas de turma de colheita:", error);
+      // Não mostrar notificação de erro para não poluir a tela, apenas log
+    } finally {
+      setLoadingEstatisticasTurma(false);
+      if (isInitialLoad) {
+        setCompletedInitialLoads(prev => prev + 1);
+      }
+    }
+  }, []);
+
+  // Buscar estatísticas agregadas de folha de pagamento
+  const fetchEstatisticasFolhaPagamento = useCallback(async (dataInicio = null, dataFim = null, tipoData = 'criacao', contaId = null, isInitialLoad = false) => {
+    try {
+      setLoadingEstatisticasFolha(true);
+
+      const params = new URLSearchParams();
+      if (dataInicio) params.append("dataInicio", dataInicio);
+      if (dataFim) params.append("dataFim", dataFim);
+      if (tipoData) params.append("tipoData", tipoData);
+      if (contaId) params.append("contaCorrenteId", contaId.toString());
+
+      const url = `/api/pagamentos/estatisticas-folha-pagamento?${params.toString()}`;
+
+      const response = await axiosInstance.get(url);
+      setEstatisticasFolhaPagamento(response.data || null);
+    } catch (error) {
+      console.error("Erro ao buscar estatísticas de folha de pagamento:", error);
+      // Não mostrar notificação de erro para não poluir a tela, apenas log
+    } finally {
+      setLoadingEstatisticasFolha(false);
+      if (isInitialLoad) {
+        setCompletedInitialLoads(prev => prev + 1);
+      }
     }
   }, []);
 
@@ -162,6 +238,27 @@ const Pagamentos = () => {
     setSearchTermAplicado(""); // Limpar termo aplicado
   }, []);
 
+  // Estado para rastrear se é o primeiro carregamento
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [completedInitialLoads, setCompletedInitialLoads] = useState(0);
+
+  // Resetar contador quando iniciar novo carregamento inicial
+  useEffect(() => {
+    if (isFirstLoad) {
+      setInitialLoading(true);
+      setCompletedInitialLoads(0);
+    }
+  }, [isFirstLoad]);
+
+  // Verificar se todas as chamadas iniciais terminaram
+  useEffect(() => {
+    if (isFirstLoad && completedInitialLoads >= 4) {
+      setInitialLoading(false);
+      setIsFirstLoad(false);
+      setCompletedInitialLoads(0);
+    }
+  }, [isFirstLoad, completedInitialLoads]);
+
   useEffect(() => {
     // Se tiver range selecionado, enviar datas normalizadas (início/fim do dia)
     let inicio = null;
@@ -176,9 +273,15 @@ const Pagamentos = () => {
         : null;
     }
     
-    fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType, contaCorrenteId);
-    fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType, contaCorrenteId);
-  }, [fetchLotesTurmaColheita, fetchLotesFolhaPagamento, dateRange, dateFilterType, contaCorrenteId, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit]);
+    // Determinar se é o primeiro carregamento
+    const isInitialLoad = isFirstLoad;
+    
+    // Buscar dados paginados e estatísticas em paralelo
+    fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType, contaCorrenteId, isInitialLoad);
+    fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType, contaCorrenteId, isInitialLoad);
+    fetchEstatisticasTurmaColheita(inicio, fim, dateFilterType, contaCorrenteId, isInitialLoad);
+    fetchEstatisticasFolhaPagamento(inicio, fim, dateFilterType, contaCorrenteId, isInitialLoad);
+  }, [fetchLotesTurmaColheita, fetchLotesFolhaPagamento, fetchEstatisticasTurmaColheita, fetchEstatisticasFolhaPagamento, dateRange, dateFilterType, contaCorrenteId, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, isFirstLoad]);
 
   // Após lotes carregados, se vier um numeroRequisicao da navegação (ex: clique na notificação),
   // localizar o lote correspondente e abrir o modal de detalhes automaticamente.
@@ -223,7 +326,7 @@ const Pagamentos = () => {
       showNotification("success", "Sucesso", "Pagamento liberado com sucesso!");
       setModalDetalhesOpen(false);
       setLoteSelecionado(null);
-      // Recarregar lotes
+      // Recarregar lotes e estatísticas
       let inicio = null;
       let fim = null;
       if (dateRange && dateRange.length === 2) {
@@ -236,6 +339,8 @@ const Pagamentos = () => {
       }
       fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType, contaCorrenteId);
       fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType, contaCorrenteId);
+      fetchEstatisticasTurmaColheita(inicio, fim, dateFilterType, contaCorrenteId);
+      fetchEstatisticasFolhaPagamento(inicio, fim, dateFilterType, contaCorrenteId);
     } catch (error) {
       console.error("Erro ao liberar pagamento:", error);
       const message =
@@ -305,7 +410,7 @@ const Pagamentos = () => {
       setModalCancelamentoOpen(false);
       setLoteSelecionado(null);
       
-      // Recarregar lotes
+      // Recarregar lotes e estatísticas
       let inicio = null;
       let fim = null;
       if (dateRange && dateRange.length === 2) {
@@ -318,6 +423,8 @@ const Pagamentos = () => {
       }
       fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType, contaCorrenteId);
       fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType, contaCorrenteId);
+      fetchEstatisticasTurmaColheita(inicio, fim, dateFilterType, contaCorrenteId);
+      fetchEstatisticasFolhaPagamento(inicio, fim, dateFilterType, contaCorrenteId);
     } catch (error) {
       console.error("Erro ao cancelar item:", error);
       const message =
@@ -567,163 +674,34 @@ const Pagamentos = () => {
     }
   }, [lotesFiltradosOrdenadosTurmaColheita.length, lotesFiltradosOrdenadosFolhaPagamento.length, appliedFilters.length]);
 
-  // Calcular estatísticas para Turma de Colheita
-  const estatisticasTurmaColheita = useMemo(() => {
-    const lotes = lotesFiltradosOrdenadosTurmaColheita;
-    
-    const totalLotes = lotes.length;
-    const totalItens = lotes.reduce((acc, lote) => acc + (lote.quantidadeItens || 0), 0);
-    const totalColheitas = lotes.reduce((acc, lote) => acc + (lote.quantidadeColheitas || 0), 0);
-    const totalPedidos = lotes.reduce((acc, lote) => acc + (lote.quantidadePedidos || 0), 0);
-    
-    const lotesLiberados = lotes.filter(lote => lote.dataLiberacao).length;
-    const lotesRejeitados = lotes.filter(lote => 
-      lote.status === 'REJEITADO' || lote.estadoRequisicaoAtual === 7
-    ).length;
-    const itensLiberados = lotes.reduce((acc, lote) => {
-      const itens = lote.itensPagamento || [];
-      const liberados = itens.filter(item => {
-        const estado = item.estadoPagamentoIndividual || item.status;
-        return estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado';
-      }).length;
-      return acc + liberados;
-    }, 0);
-    const itensRejeitados = lotes.reduce((acc, lote) => {
-      const itens = lote.itensPagamento || [];
-      const rejeitados = itens.filter(item => {
-        const status = item.status;
-        return status === 'REJEITADO';
-      }).length;
-      return acc + rejeitados;
-    }, 0);
-    
-    // Calcular valores liberados vs pendentes
-    // IMPORTANTE: Filtrar apenas lotes com colheitas vinculadas (origemTipo === 'TURMA_COLHEITA' e valorTotalColheitas > 0)
-    // Isso exclui lotes de teste sem colheitas vinculadas
-    
-    // Filtrar lotes com colheitas vinculadas
-    const lotesComColheitas = lotes.filter(lote => 
-      lote.origemTipo === 'TURMA_COLHEITA' && 
-      Number(lote.valorTotalColheitas || 0) > 0
-    );
-    
-    // Valor Total Colheitas: soma dos valores das colheitas vinculadas
-    const valorTotalColheitas = lotesComColheitas.reduce((acc, lote) => 
-      acc + Number(lote.valorTotalColheitas || 0), 0
-    );
-    
-    // Valor Liberado: soma dos valores dos itens que já foram pagos (apenas de lotes com colheitas)
-    const valorTotalLiberado = lotesComColheitas.reduce((acc, lote) => {
-      const itens = lote.itensPagamento || [];
-      const valorItensPagos = itens.reduce((sum, item) => {
-        const estado = item.estadoPagamentoIndividual || item.status;
-        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
-          return sum + Number(item.valorEnviado || 0);
-        }
-        return sum;
-      }, 0);
-      return acc + valorItensPagos;
-    }, 0);
-    
-    // Valor Pendente: diferença entre valor total das colheitas e valor já pago
-    // Para colheitas, sempre deve bater: valorTotalColheitas = valorTotalLiberado + valorTotalPendente
-    const valorTotalPendente = valorTotalColheitas - valorTotalLiberado;
-    
-    return {
-      totalLotes,
-      totalItens,
-      totalColheitas,
-      totalPedidos,
-      lotesLiberados,
-      lotesRejeitados,
-      itensLiberados,
-      itensRejeitados,
-      valorTotalLiberado,
-      valorTotalPendente,
-      valorTotalColheitas,
-    };
-  }, [lotesFiltradosOrdenadosTurmaColheita]);
+  // Estatísticas agora vêm do backend (totais reais, não apenas da página)
+  // Se ainda não carregaram, usar valores padrão para evitar erros
+  const estatisticasTurmaColheitaFinal = estatisticasTurmaColheita || {
+    totalLotes: 0,
+    totalItens: 0,
+    totalColheitas: 0,
+    totalPedidos: 0,
+    lotesLiberados: 0,
+    lotesRejeitados: 0,
+    itensLiberados: 0,
+    itensRejeitados: 0,
+    valorTotalLiberado: 0,
+    valorTotalPendente: 0,
+    valorTotalColheitas: 0,
+  };
 
-  // Calcular estatísticas para Folha de Pagamento
-  const estatisticasFolhaPagamento = useMemo(() => {
-    const lotes = lotesFiltradosOrdenadosFolhaPagamento;
-    
-    const totalLotes = lotes.length;
-    const totalItens = lotes.reduce((acc, lote) => acc + (lote.quantidadeItens || 0), 0);
-    const totalFuncionarios = lotes.reduce((acc, lote) => acc + (lote.quantidadeFuncionarios || 0), 0);
-    
-    const lotesLiberados = lotes.filter(lote => lote.dataLiberacao).length;
-    const lotesRejeitados = lotes.filter(lote => 
-      lote.status === 'REJEITADO' || lote.estadoRequisicaoAtual === 7
-    ).length;
-    const itensLiberados = lotes.reduce((acc, lote) => {
-      const itens = lote.itensPagamento || [];
-      const liberados = itens.filter(item => {
-        const estado = item.estadoPagamentoIndividual || item.status;
-        return estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado';
-      }).length;
-      return acc + liberados;
-    }, 0);
-    const itensRejeitados = lotes.reduce((acc, lote) => {
-      const itens = lote.itensPagamento || [];
-      const rejeitados = itens.filter(item => {
-        const status = item.status;
-        return status === 'REJEITADO';
-      }).length;
-      return acc + rejeitados;
-    }, 0);
-    
-    // Calcular valores liberados vs pendentes
-    // Valor Liberado: soma dos valores dos itens que já foram pagos
-    const valorTotalLiberado = lotes.reduce((acc, lote) => {
-      const itens = lote.itensPagamento || [];
-      const valorItensPagos = itens.reduce((sum, item) => {
-        const estado = item.estadoPagamentoIndividual || item.status;
-        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
-          return sum + Number(item.valorEnviado || 0);
-        }
-        return sum;
-      }, 0);
-      return acc + valorItensPagos;
-    }, 0);
-    
-    // Valor Pendente: soma dos valores enviados ao BB que ainda não foram pagos
-    // Usar valorTotalEnviado (valor real enviado ao BB)
-    const valorTotalPendente = lotes.reduce((acc, lote) => {
-      // Para funcionários, usar valorTotalFuncionarios ou valorTotalEnviado
-      const valorTotalLote = Number(lote.valorTotalFuncionarios || lote.valorTotalEnviado || 0);
-      const itens = lote.itensPagamento || [];
-      const valorItensPagos = itens.reduce((sum, item) => {
-        const estado = item.estadoPagamentoIndividual || item.status;
-        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
-          return sum + Number(item.valorEnviado || 0);
-        }
-        return sum;
-      }, 0);
-      
-      if (itens.length === 0) {
-        // Se não tem itens, todo o valor enviado está pendente
-        return acc + valorTotalLote;
-      }
-      // Valor pendente = valor total enviado - valor pago
-      return acc + Math.max(0, valorTotalLote - valorItensPagos);
-    }, 0);
-    
-    const valorTotalFuncionarios = lotes.reduce((acc, lote) => acc + Number(lote.valorTotalFuncionarios || 0), 0);
-    
-    return {
-      totalLotes,
-      totalItens,
-      totalFuncionarios,
-      lotesLiberados,
-      lotesRejeitados,
-      itensLiberados,
-      itensRejeitados,
-      valorTotalLiberado,
-      valorTotalPendente,
-      valorTotalFuncionarios,
-    };
-  }, [lotesFiltradosOrdenadosFolhaPagamento]);
+  const estatisticasFolhaPagamentoFinal = estatisticasFolhaPagamento || {
+    totalLotes: 0,
+    totalItens: 0,
+    totalFuncionarios: 0,
+    lotesLiberados: 0,
+    lotesRejeitados: 0,
+    itensLiberados: 0,
+    itensRejeitados: 0,
+    valorTotalLiberado: 0,
+    valorTotalPendente: 0,
+    valorTotalFuncionarios: 0,
+  };
 
   const handleLiberarLote = useCallback(
     async (record) => {
@@ -1433,14 +1411,14 @@ const Pagamentos = () => {
         )}
       </Box>
 
-      {/* Seção: Turmas de Colheita */}
+      {/* Seção: Turmas de Colheita (com agrupamento por dia) */}
       {(tipoOrigem === "TODOS" || tipoOrigem === "TURMA_COLHEITA") && lotesFiltradosOrdenadosTurmaColheita.length > 0 && (
-        <SecaoLotesPagamentos
+        <SecaoLotesPagamentosAgrupado
           titulo="Lotes de Pagamentos - Turmas de Colheita"
           icone={<DollarOutlined style={{ color: "#ffffff", fontSize: "18px" }} />}
           lotes={lotesFiltradosOrdenadosTurmaColheita}
-          loading={loading}
-          estatisticas={estatisticasTurmaColheita}
+          loading={loading || loadingEstatisticasTurma}
+          estatisticas={estatisticasTurmaColheitaFinal}
           paginacao={paginacaoTurmaColheita}
           onPageChange={handlePageChangeTurmaColheita}
           activeKey={activeKeys.includes("turma-colheita")}
@@ -1457,6 +1435,10 @@ const Pagamentos = () => {
             setItemSelecionado(itemData);
             setModalConsultaItemIndividualOpen(true);
           }}
+          dataInicio={dateRange && dateRange.length === 2 && dateRange[0] ? moment(dateRange[0]).startOf("day").toISOString() : null}
+          dataFim={dateRange && dateRange.length === 2 && dateRange[1] ? moment(dateRange[1]).endOf("day").toISOString() : null}
+          tipoData={dateFilterType}
+          contaCorrenteId={contaCorrenteId}
         />
       )}
 
@@ -1473,8 +1455,8 @@ const Pagamentos = () => {
           titulo="Lotes de Pagamentos - Folha de Pagamento"
           icone={<DollarOutlined style={{ color: "#ffffff", fontSize: "18px" }} />}
           lotes={lotesFiltradosOrdenadosFolhaPagamento}
-          loading={loadingFolha}
-          estatisticas={estatisticasFolhaPagamento}
+          loading={loadingFolha || loadingEstatisticasFolha}
+          estatisticas={estatisticasFolhaPagamentoFinal}
           paginacao={paginacaoFolhaPagamento}
           onPageChange={handlePageChangeFolhaPagamento}
           activeKey={activeKeys.includes("folha-pagamento")}
@@ -1591,6 +1573,13 @@ const Pagamentos = () => {
         }}
         identificadorPagamento={itemSelecionado?.identificadorPagamento}
         contaCorrenteId={itemSelecionado?.contaCorrenteId}
+      />
+
+      {/* CentralizedLoader para carregamento inicial */}
+      <CentralizedLoader
+        visible={initialLoading}
+        message="Carregando pagamentos..."
+        subMessage="Aguarde enquanto buscamos os dados dos lotes de pagamento"
       />
     </Box>
   );

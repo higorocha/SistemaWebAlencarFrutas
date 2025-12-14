@@ -1629,6 +1629,839 @@ export class PagamentosService {
   }
 
   /**
+   * Método auxiliar para construir o filtro WHERE reutilizável para lotes de turma de colheita
+   */
+  private construirWhereTurmaColheita(
+    dataInicio?: string,
+    dataFim?: string,
+    tipoData?: string,
+    contaCorrenteId?: number,
+  ): Prisma.PagamentoApiLoteWhereInput {
+    const where: Prisma.PagamentoApiLoteWhereInput = {
+      tipoPagamentoApi: 'PIX',
+      itensPagamento: {
+        some: {
+          colheitas: {
+            some: {},
+          },
+          funcionarioPagamentoId: null,
+        },
+      },
+    };
+
+    if (contaCorrenteId) {
+      where.contaCorrenteId = contaCorrenteId;
+    }
+
+    if (dataInicio || dataFim) {
+      const tipoDataFiltro = tipoData === 'liberacao' ? 'liberacao' : 'criacao';
+      
+      if (tipoDataFiltro === 'liberacao') {
+        where.dataLiberacao = {};
+        if (dataInicio) {
+          where.dataLiberacao.gte = new Date(dataInicio);
+        }
+        if (dataFim) {
+          where.dataLiberacao.lte = new Date(dataFim);
+        }
+      } else {
+        where.createdAt = {};
+        if (dataInicio) {
+          where.createdAt.gte = new Date(dataInicio);
+        }
+        if (dataFim) {
+          where.createdAt.lte = new Date(dataFim);
+        }
+      }
+    }
+
+    return where;
+  }
+
+  /**
+   * Método auxiliar para construir o filtro WHERE reutilizável para lotes de folha de pagamento
+   */
+  private construirWhereFolhaPagamento(
+    dataInicio?: string,
+    dataFim?: string,
+    tipoData?: string,
+    contaCorrenteId?: number,
+  ): Prisma.PagamentoApiLoteWhereInput {
+    const where: Prisma.PagamentoApiLoteWhereInput = {
+      tipoPagamentoApi: 'PIX',
+      itensPagamento: {
+        some: {
+          funcionarioPagamentoId: {
+            not: null,
+          },
+        },
+      },
+    };
+
+    if (contaCorrenteId) {
+      where.contaCorrenteId = contaCorrenteId;
+    }
+
+    if (dataInicio || dataFim) {
+      const tipoDataFiltro = tipoData === 'liberacao' ? 'liberacao' : 'criacao';
+      
+      if (tipoDataFiltro === 'liberacao') {
+        where.dataLiberacao = {};
+        if (dataInicio) {
+          where.dataLiberacao.gte = new Date(dataInicio);
+        }
+        if (dataFim) {
+          where.dataLiberacao.lte = new Date(dataFim);
+        }
+      } else {
+        where.createdAt = {};
+        if (dataInicio) {
+          where.createdAt.gte = new Date(dataInicio);
+        }
+        if (dataFim) {
+          where.createdAt.lte = new Date(dataFim);
+        }
+      }
+    }
+
+    return where;
+  }
+
+  /**
+   * Calcula estatísticas agregadas para lotes de turma de colheita
+   * Usa agregações do Prisma para eficiência (não traz todos os dados)
+   */
+  async getEstatisticasTurmaColheita(
+    dataInicio?: string,
+    dataFim?: string,
+    tipoData?: string,
+    contaCorrenteId?: number,
+  ): Promise<{
+    totalLotes: number;
+    totalItens: number;
+    totalColheitas: number;
+    totalPedidos: number;
+    lotesLiberados: number;
+    lotesRejeitados: number;
+    itensLiberados: number;
+    itensRejeitados: number;
+    valorTotalLiberado: number;
+    valorTotalPendente: number;
+    valorTotalColheitas: number;
+  }> {
+    const where = this.construirWhereTurmaColheita(dataInicio, dataFim, tipoData, contaCorrenteId);
+
+    // Buscar todos os lotes que atendem aos filtros (apenas IDs e campos necessários)
+    const lotes = await this.prisma.pagamentoApiLote.findMany({
+      where,
+      select: {
+        id: true,
+        dataLiberacao: true,
+        status: true,
+        estadoRequisicaoAtual: true,
+        itensPagamento: {
+          select: {
+            id: true,
+            valorEnviado: true,
+            status: true,
+            estadoPagamentoIndividual: true,
+            colheitas: {
+              select: {
+                valorColheita: true,
+                turmaColheitaCusto: {
+                  select: {
+                    pedidoId: true,
+                    frutaId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Calcular estatísticas agregadas
+    const totalLotes = lotes.length;
+    
+    // Total de itens
+    const totalItens = lotes.reduce((acc, lote) => acc + lote.itensPagamento.length, 0);
+
+    // Total de colheitas e pedidos únicos
+    const todasColheitas = lotes.flatMap(lote =>
+      lote.itensPagamento.flatMap(item =>
+        item.colheitas.map(rel => rel.turmaColheitaCusto)
+      )
+    );
+    const totalColheitas = todasColheitas.length;
+    const totalPedidos = new Set(todasColheitas.map(c => c.pedidoId)).size;
+
+    // Lotes liberados e rejeitados
+    const lotesLiberados = lotes.filter(lote => lote.dataLiberacao).length;
+    const lotesRejeitados = lotes.filter(lote =>
+      lote.status === 'REJEITADO' || lote.estadoRequisicaoAtual === 7
+    ).length;
+
+    // Itens liberados e rejeitados
+    let itensLiberados = 0;
+    let itensRejeitados = 0;
+    let valorTotalLiberado = 0;
+    let valorTotalColheitas = 0;
+
+    lotes.forEach(lote => {
+      lote.itensPagamento.forEach(item => {
+        const estado = item.estadoPagamentoIndividual || item.status;
+        
+        // Itens liberados
+        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+          itensLiberados++;
+          valorTotalLiberado += Number(item.valorEnviado || 0);
+        }
+        
+        // Itens rejeitados
+        if (item.status === 'REJEITADO') {
+          itensRejeitados++;
+        }
+
+        // Valor total das colheitas vinculadas
+        item.colheitas.forEach(rel => {
+          valorTotalColheitas += Number(rel.valorColheita || 0);
+        });
+      });
+    });
+
+    // Filtrar apenas lotes com colheitas vinculadas para cálculos de valores
+    const lotesComColheitas = lotes.filter(lote => {
+      const temColheitas = lote.itensPagamento.some(item => item.colheitas.length > 0);
+      return temColheitas;
+    });
+
+    // Recalcular valorTotalColheitas apenas para lotes com colheitas
+    valorTotalColheitas = 0;
+    lotesComColheitas.forEach(lote => {
+      lote.itensPagamento.forEach(item => {
+        item.colheitas.forEach(rel => {
+          valorTotalColheitas += Number(rel.valorColheita || 0);
+        });
+      });
+    });
+
+    // Recalcular valorTotalLiberado apenas para lotes com colheitas
+    valorTotalLiberado = 0;
+    lotesComColheitas.forEach(lote => {
+      lote.itensPagamento.forEach(item => {
+        const estado = item.estadoPagamentoIndividual || item.status;
+        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+          valorTotalLiberado += Number(item.valorEnviado || 0);
+        }
+      });
+    });
+
+    const valorTotalPendente = valorTotalColheitas - valorTotalLiberado;
+
+    return {
+      totalLotes,
+      totalItens,
+      totalColheitas,
+      totalPedidos,
+      lotesLiberados,
+      lotesRejeitados,
+      itensLiberados,
+      itensRejeitados,
+      valorTotalLiberado,
+      valorTotalPendente,
+      valorTotalColheitas,
+    };
+  }
+
+  /**
+   * Retorna estatísticas agrupadas por dia para lotes de turma de colheita
+   * Retorna totais completos de cada dia (não apenas da página)
+   */
+  async getEstatisticasPorDiaTurmaColheita(
+    dataInicio?: string,
+    dataFim?: string,
+    tipoData?: string,
+    contaCorrenteId?: number,
+  ): Promise<Array<{
+    dia: string; // YYYY-MM-DD
+    diaLabel: string; // DD/MM/YYYY
+    totalLotes: number;
+    totalItens: number;
+    totalColheitas: number;
+    valorTotal: number;
+    valorPendente: number;
+    valorProcessado: number;
+  }>> {
+    const where = this.construirWhereTurmaColheita(dataInicio, dataFim, tipoData, contaCorrenteId);
+
+    // Buscar todos os lotes que atendem aos filtros (apenas campos necessários)
+    const lotes = await this.prisma.pagamentoApiLote.findMany({
+      where,
+      select: {
+        id: true,
+        createdAt: true,
+        itensPagamento: {
+          select: {
+            id: true,
+            valorEnviado: true,
+            status: true,
+            estadoPagamentoIndividual: true,
+            colheitas: {
+              select: {
+                valorColheita: true,
+                turmaColheitaCusto: {
+                  select: {
+                    pedidoId: true,
+                    frutaId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Agrupar por dia
+    const gruposPorDia = new Map<string, {
+      dia: string;
+      diaLabel: string;
+      lotes: any[];
+      totalLotes: number;
+      totalItens: number;
+      totalColheitas: number;
+      valorTotal: number;
+      valorPendente: number;
+      valorProcessado: number;
+    }>();
+
+    lotes.forEach((lote) => {
+      // Normalizar data para o início do dia
+      const dataCriacao = new Date(lote.createdAt);
+      dataCriacao.setHours(0, 0, 0, 0);
+      const diaKey = dataCriacao.toISOString().split('T')[0]; // YYYY-MM-DD
+      const diaLabel = `${String(dataCriacao.getDate()).padStart(2, '0')}/${String(dataCriacao.getMonth() + 1).padStart(2, '0')}/${dataCriacao.getFullYear()}`;
+
+      if (!gruposPorDia.has(diaKey)) {
+        gruposPorDia.set(diaKey, {
+          dia: diaKey,
+          diaLabel,
+          lotes: [],
+          totalLotes: 0,
+          totalItens: 0,
+          totalColheitas: 0,
+          valorTotal: 0,
+          valorPendente: 0,
+          valorProcessado: 0,
+        });
+      }
+
+      const grupo = gruposPorDia.get(diaKey);
+      if (grupo) {
+        grupo.lotes.push(lote);
+      }
+    });
+
+    // Calcular estatísticas para cada dia
+      gruposPorDia.forEach((grupo) => {
+        if (!grupo) return;
+        grupo.totalLotes = grupo.lotes.length;
+
+      grupo.lotes.forEach((lote) => {
+        // Total de itens
+        grupo.totalItens += lote.itensPagamento.length;
+
+        // Calcular valores
+        lote.itensPagamento.forEach((item) => {
+          const estado = item.estadoPagamentoIndividual || item.status;
+          const valorItem = Number(item.valorEnviado || 0);
+
+          // Valor processado: itens com estado PAGO, PROCESSADO, Debitado
+          if (
+            estado === 'PAGO' ||
+            estado === 'Pago' ||
+            estado === 'PROCESSADO' ||
+            estado === 'Debitado'
+          ) {
+            grupo.valorProcessado += valorItem;
+          }
+
+          // Valor total: soma dos valores das colheitas vinculadas
+          item.colheitas.forEach((rel) => {
+            grupo.valorTotal += Number(rel.valorColheita || 0);
+            grupo.totalColheitas += 1;
+          });
+        });
+      });
+
+      // Valor pendente = valor total - valor processado
+      grupo.valorPendente = grupo.valorTotal - grupo.valorProcessado;
+    });
+
+    // Converter para array e ordenar por data (mais recente primeiro)
+    return Array.from(gruposPorDia.values()).sort((a, b) => {
+      return new Date(b.dia).getTime() - new Date(a.dia).getTime();
+    });
+  }
+
+  /**
+   * Lista lotes de turma de colheita agrupados por dia com paginação por dia
+   * Retorna dias paginados, cada dia contém seus lotes completos
+   */
+  async listarLotesTurmaColheitaAgrupadosPorDia(
+    dataInicio?: string,
+    dataFim?: string,
+    page?: number,
+    limit?: number,
+    tipoData?: string,
+    contaCorrenteId?: number,
+  ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    const where = this.construirWhereTurmaColheita(dataInicio, dataFim, tipoData, contaCorrenteId);
+
+    // Buscar TODOS os lotes (sem paginação de lotes, pois vamos paginar por dia)
+    const todosLotes = await this.prisma.pagamentoApiLote.findMany({
+      where,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        contaCorrente: true,
+        usuarioCriacao: {
+          select: {
+            id: true,
+            nome: true,
+            email: true,
+          },
+        },
+        usuarioLiberacao: {
+          select: {
+            id: true,
+            nome: true,
+            email: true,
+          },
+        },
+        itensPagamento: {
+          include: {
+            usuarioCancelamento: {
+              select: {
+                id: true,
+                nome: true,
+                email: true,
+              },
+            },
+            colheitas: {
+              include: {
+                turmaColheitaCusto: {
+                  include: {
+                    turmaColheita: {
+                      select: {
+                        id: true,
+                        nomeColhedor: true,
+                        chavePix: true,
+                        responsavelChavePix: true,
+                        tipoChavePix: true,
+                        modalidadeChave: true,
+                      },
+                    },
+                    pedido: {
+                      select: {
+                        numeroPedido: true,
+                        cliente: {
+                          select: {
+                            nome: true,
+                            razaoSocial: true,
+                          },
+                        },
+                      },
+                    },
+                    fruta: {
+                      select: {
+                        nome: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Agrupar por dia
+    const gruposPorDia = new Map<string, any[]>();
+
+    todosLotes.forEach((lote) => {
+      const dataCriacao = new Date(lote.createdAt);
+      dataCriacao.setHours(0, 0, 0, 0);
+      const diaKey = dataCriacao.toISOString().split('T')[0];
+
+      if (!gruposPorDia.has(diaKey)) {
+        gruposPorDia.set(diaKey, []);
+      }
+
+      const grupoDia = gruposPorDia.get(diaKey);
+      if (grupoDia) {
+        grupoDia.push(lote);
+      }
+    });
+
+    // Converter para array e ordenar por data (mais recente primeiro)
+    const diasOrdenados = Array.from(gruposPorDia.entries())
+      .map(([diaKey, lotes]) => ({
+        diaKey,
+        lotes,
+        dataCriacao: new Date(diaKey),
+      }))
+      .sort((a, b) => b.dataCriacao.getTime() - a.dataCriacao.getTime());
+
+    // Paginação por dia
+    const pageNumber = page ? Number(page) : 1;
+    const limitNumber = limit ? Number(limit) : 10;
+    const skip = (pageNumber - 1) * limitNumber;
+    const diasPaginados = diasOrdenados.slice(skip, skip + limitNumber);
+
+    // Mapear lotes do mesmo formato do método original
+    const diasMapeados = diasPaginados.map(({ diaKey, lotes }) => {
+      const todasColheitas = lotes.flatMap((lote) =>
+        lote.itensPagamento.flatMap((item) =>
+          item.colheitas.map((rel) => rel.turmaColheitaCusto),
+        ),
+      );
+
+      const quantidadeColheitas = todasColheitas.length;
+      const quantidadePedidos = new Set(
+        todasColheitas.map((c) => c.pedidoId),
+      ).size;
+      const quantidadeFrutas = new Set(
+        todasColheitas.map((c) => c.frutaId),
+      ).size;
+
+      const valorTotalColheitas = todasColheitas.reduce(
+        (acc, c) => acc + (c.valorColheita || 0),
+        0,
+      );
+
+      // Data de pagamento agendada
+      const primeiroItem = lotes[0]?.itensPagamento?.[0];
+      let dataPagamentoAgendada: Date | null = null;
+      
+      if (primeiroItem?.dataPagamentoEnviada) {
+        const dataStr = primeiroItem.dataPagamentoEnviada.toString().trim();
+        
+        if (dataStr.length === 8) {
+          const dia = parseInt(dataStr.substring(0, 2), 10);
+          const mes = parseInt(dataStr.substring(2, 4), 10) - 1;
+          const ano = parseInt(dataStr.substring(4, 8), 10);
+          
+          if (!isNaN(dia) && !isNaN(mes) && !isNaN(ano) && dia >= 1 && dia <= 31 && mes >= 0 && mes <= 11) {
+            dataPagamentoAgendada = new Date(ano, mes, dia);
+          }
+        } else if (dataStr.length === 7) {
+          const dia = parseInt(dataStr.substring(0, 1), 10);
+          const mes = parseInt(dataStr.substring(1, 3), 10) - 1;
+          const ano = parseInt(dataStr.substring(3, 7), 10);
+          
+          if (!isNaN(dia) && !isNaN(mes) && !isNaN(ano) && dia >= 1 && dia <= 31 && mes >= 0 && mes <= 11) {
+            dataPagamentoAgendada = new Date(ano, mes, dia);
+          }
+        }
+      }
+
+      const origemTipo = todasColheitas.length > 0 ? 'TURMA_COLHEITA' : 'DESCONHECIDO';
+      const origemNome = todasColheitas[0]?.turmaColheita?.nomeColhedor || null;
+
+      // Mapear lotes do dia
+      const lotesMapeados = lotes.map((lote) => {
+        const loteColheitas = lote.itensPagamento.flatMap((item) =>
+          item.colheitas.map((rel) => rel.turmaColheitaCusto),
+        );
+
+        return {
+          id: lote.id,
+          numeroRequisicao: lote.numeroRequisicao,
+          tipoPagamentoApi: lote.tipoPagamentoApi,
+          tipoPagamento: lote.tipoPagamento,
+          status: lote.status,
+          estadoRequisicao: lote.estadoRequisicao,
+          estadoRequisicaoAtual: lote.estadoRequisicaoAtual,
+          processadoComSucesso: lote.processadoComSucesso,
+          dataCriacao: lote.createdAt,
+          dataAtualizacao: lote.updatedAt,
+          contaCorrente: {
+            id: lote.contaCorrente.id,
+            bancoCodigo: lote.contaCorrente.bancoCodigo,
+            agencia: lote.contaCorrente.agencia,
+            contaCorrente: lote.contaCorrente.contaCorrente,
+          },
+          quantidadeItens: lote.itensPagamento.length,
+          quantidadeColheitas: loteColheitas.length,
+          quantidadePedidos: new Set(loteColheitas.map((c) => c.pedidoId)).size,
+          valorTotalEnviado: lote.valorTotalEnviado,
+          valorTotalValidado: lote.valorTotalValido,
+          valorTotalColheitas: loteColheitas.reduce((acc, c) => acc + (c.valorColheita || 0), 0),
+          dataPagamentoAgendada: primeiroItem?.dataPagamentoEnviada ? (() => {
+            const dataStr = primeiroItem.dataPagamentoEnviada.toString().trim();
+            if (dataStr.length === 8) {
+              const dia = parseInt(dataStr.substring(0, 2), 10);
+              const mes = parseInt(dataStr.substring(2, 4), 10) - 1;
+              const ano = parseInt(dataStr.substring(4, 8), 10);
+              if (!isNaN(dia) && !isNaN(mes) && !isNaN(ano) && dia >= 1 && dia <= 31 && mes >= 0 && mes <= 11) {
+                return new Date(ano, mes, dia);
+              }
+            } else if (dataStr.length === 7) {
+              const dia = parseInt(dataStr.substring(0, 1), 10);
+              const mes = parseInt(dataStr.substring(1, 3), 10) - 1;
+              const ano = parseInt(dataStr.substring(3, 7), 10);
+              if (!isNaN(dia) && !isNaN(mes) && !isNaN(ano) && dia >= 1 && dia <= 31 && mes >= 0 && mes <= 11) {
+                return new Date(ano, mes, dia);
+              }
+            }
+            return null;
+          })() : null,
+          origemTipo,
+          origemNome,
+          usuarioCriacao: lote.usuarioCriacao ? {
+            id: lote.usuarioCriacao.id,
+            nome: lote.usuarioCriacao.nome,
+            email: lote.usuarioCriacao.email,
+          } : null,
+          usuarioLiberacao: lote.usuarioLiberacao ? {
+            id: lote.usuarioLiberacao.id,
+            nome: lote.usuarioLiberacao.nome,
+            email: lote.usuarioLiberacao.email,
+          } : null,
+          dataLiberacao: lote.dataLiberacao,
+          itensPagamento: lote.itensPagamento.map(item => ({
+            id: item.id,
+            codigoPagamento: item.codigoPagamento,
+            codigoIdentificadorPagamento: item.codigoIdentificadorPagamento,
+            identificadorPagamento: item.identificadorPagamento,
+            valorEnviado: item.valorEnviado,
+            status: item.status,
+            estadoPagamentoIndividual: item.estadoPagamentoIndividual,
+            processadoComSucesso: item.processadoComSucesso,
+            chavePixEnviada: item.chavePixEnviada,
+            tipoChavePixEnviado: item.tipoChavePixEnviado,
+            responsavelChavePixEnviado: item.responsavelChavePixEnviado,
+            usuarioCancelamento: item.usuarioCancelamento ? {
+              id: item.usuarioCancelamento.id,
+              nome: item.usuarioCancelamento.nome,
+              email: item.usuarioCancelamento.email,
+            } : null,
+            dataCancelamento: item.dataCancelamento,
+            colheitas: item.colheitas.map(rel => ({
+              id: rel.turmaColheitaCusto.id,
+              turmaColheitaId: rel.turmaColheitaCusto.turmaColheitaId,
+              pedidoId: rel.turmaColheitaCusto.pedidoId,
+              pedidoNumero: rel.turmaColheitaCusto.pedido?.numeroPedido,
+              cliente: rel.turmaColheitaCusto.pedido?.cliente?.razaoSocial || rel.turmaColheitaCusto.pedido?.cliente?.nome || null,
+              frutaId: rel.turmaColheitaCusto.frutaId,
+              frutaNome: rel.turmaColheitaCusto.fruta?.nome,
+              quantidadeColhida: rel.turmaColheitaCusto.quantidadeColhida,
+              unidadeMedida: rel.turmaColheitaCusto.unidadeMedida,
+              valorColheita: rel.valorColheita,
+              dataColheita: rel.turmaColheitaCusto.dataColheita,
+              pagamentoEfetuado: rel.turmaColheitaCusto.pagamentoEfetuado,
+              statusPagamento: rel.turmaColheitaCusto.statusPagamento,
+              formaPagamento: rel.turmaColheitaCusto.formaPagamento,
+              dataPagamento: rel.turmaColheitaCusto.dataPagamento,
+            })),
+          })),
+          turmaResumo: todasColheitas.length > 0 ? {
+            turmaId: todasColheitas[0].turmaColheitaId,
+            nomeColhedor: todasColheitas[0].turmaColheita?.nomeColhedor || null,
+            chavePix: todasColheitas[0].turmaColheita?.chavePix || null,
+            responsavelChavePix: todasColheitas[0].turmaColheita?.responsavelChavePix || null,
+          } : null,
+        };
+      });
+
+      // Calcular valor processado e pendente para o dia
+      let valorProcessado = 0;
+      lotes.forEach((lote) => {
+        lote.itensPagamento.forEach((item) => {
+          const estado = item.estadoPagamentoIndividual || item.status;
+          const valorItem = Number(item.valorEnviado || 0);
+
+          // Valor processado: itens com estado PAGO, PROCESSADO, Debitado
+          if (
+            estado === 'PAGO' ||
+            estado === 'Pago' ||
+            estado === 'PROCESSADO' ||
+            estado === 'Debitado'
+          ) {
+            valorProcessado += valorItem;
+          }
+        });
+      });
+
+      const valorPendente = valorTotalColheitas - valorProcessado;
+
+      return {
+        diaKey,
+        diaLabel: `${String(new Date(diaKey).getDate()).padStart(2, '0')}/${String(new Date(diaKey).getMonth() + 1).padStart(2, '0')}/${new Date(diaKey).getFullYear()}`,
+        dataCriacao: new Date(diaKey),
+        lotes: lotesMapeados,
+        // Estatísticas do dia (calculadas aqui, mas podem ser sobrescritas pelo endpoint de estatísticas)
+        totalLotes: lotes.length,
+        totalItens: lotes.reduce((acc, lote) => acc + lote.itensPagamento.length, 0),
+        totalColheitas: quantidadeColheitas,
+        valorTotal: valorTotalColheitas,
+        valorPendente,
+        valorProcessado,
+      };
+    });
+
+    return {
+      data: diasMapeados,
+      total: diasOrdenados.length,
+      page: pageNumber,
+      limit: limitNumber,
+    };
+  }
+
+  /**
+   * Calcula estatísticas agregadas para lotes de folha de pagamento
+   * Usa agregações do Prisma para eficiência (não traz todos os dados)
+   */
+  async getEstatisticasFolhaPagamento(
+    dataInicio?: string,
+    dataFim?: string,
+    tipoData?: string,
+    contaCorrenteId?: number,
+  ): Promise<{
+    totalLotes: number;
+    totalItens: number;
+    totalFuncionarios: number;
+    lotesLiberados: number;
+    lotesRejeitados: number;
+    itensLiberados: number;
+    itensRejeitados: number;
+    valorTotalLiberado: number;
+    valorTotalPendente: number;
+    valorTotalFuncionarios: number;
+  }> {
+    const where = this.construirWhereFolhaPagamento(dataInicio, dataFim, tipoData, contaCorrenteId);
+
+    // Buscar todos os lotes que atendem aos filtros (apenas campos necessários)
+    const lotes = await this.prisma.pagamentoApiLote.findMany({
+      where,
+      select: {
+        id: true,
+        dataLiberacao: true,
+        status: true,
+        estadoRequisicaoAtual: true,
+        valorTotalEnviado: true,
+        itensPagamento: {
+          where: {
+            funcionarioPagamentoId: {
+              not: null,
+            },
+          },
+          select: {
+            id: true,
+            valorEnviado: true,
+            status: true,
+            estadoPagamentoIndividual: true,
+            funcionarioPagamento: {
+              select: {
+                id: true,
+                funcionarioId: true,
+                valorLiquido: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Calcular estatísticas agregadas
+    const totalLotes = lotes.length;
+    
+    // Total de itens
+    const totalItens = lotes.reduce((acc, lote) => acc + lote.itensPagamento.length, 0);
+
+    // Total de funcionários únicos
+    const funcionariosIds = new Set(
+      lotes.flatMap(lote =>
+        lote.itensPagamento
+          .map(item => item.funcionarioPagamento?.funcionarioId)
+          .filter((id): id is number => id !== null && id !== undefined)
+      )
+    );
+    const totalFuncionarios = funcionariosIds.size;
+
+    // Lotes liberados e rejeitados
+    const lotesLiberados = lotes.filter(lote => lote.dataLiberacao).length;
+    const lotesRejeitados = lotes.filter(lote =>
+      lote.status === 'REJEITADO' || lote.estadoRequisicaoAtual === 7
+    ).length;
+
+    // Itens liberados e rejeitados
+    let itensLiberados = 0;
+    let itensRejeitados = 0;
+    let valorTotalLiberado = 0;
+    let valorTotalFuncionarios = 0;
+
+    lotes.forEach(lote => {
+      lote.itensPagamento.forEach(item => {
+        const estado = item.estadoPagamentoIndividual || item.status;
+        
+        // Itens liberados
+        if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+          itensLiberados++;
+          valorTotalLiberado += Number(item.valorEnviado || 0);
+        }
+        
+        // Itens rejeitados
+        if (item.status === 'REJEITADO') {
+          itensRejeitados++;
+        }
+
+        // Valor total dos funcionários
+        if (item.funcionarioPagamento?.valorLiquido) {
+          valorTotalFuncionarios += Number(item.funcionarioPagamento.valorLiquido);
+        }
+      });
+    });
+
+    // Valor pendente: soma dos valores enviados ao BB que ainda não foram pagos
+    let valorTotalPendente = 0;
+    lotes.forEach(lote => {
+      const valorTotalLote = Number(lote.valorTotalEnviado || 0);
+      const itens = lote.itensPagamento;
+      
+      if (itens.length === 0) {
+        valorTotalPendente += valorTotalLote;
+      } else {
+        const valorItensPagos = itens.reduce((sum, item) => {
+          const estado = item.estadoPagamentoIndividual || item.status;
+          if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+            return sum + Number(item.valorEnviado || 0);
+          }
+          return sum;
+        }, 0);
+        valorTotalPendente += Math.max(0, valorTotalLote - valorItensPagos);
+      }
+    });
+
+    return {
+      totalLotes,
+      totalItens,
+      totalFuncionarios,
+      lotesLiberados,
+      lotesRejeitados,
+      itensLiberados,
+      itensRejeitados,
+      valorTotalLiberado,
+      valorTotalPendente,
+      valorTotalFuncionarios,
+    };
+  }
+
+  /**
    * Solicita transferência PIX
    * @param dto Dados da transferência PIX (contém contaCorrenteId para buscar credenciais)
    * @param usuarioId ID do usuário que está criando o pagamento

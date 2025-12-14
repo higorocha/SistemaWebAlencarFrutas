@@ -319,8 +319,15 @@ export class PagamentosController {
     @Query('contaCorrenteId') contaCorrenteId?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('agrupadoPorDia') agrupadoPorDia?: string,
   ) {
     const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    const agrupado = agrupadoPorDia === 'true';
+    
+    if (agrupado) {
+      return this.pagamentosService.listarLotesTurmaColheitaAgrupadosPorDia(dataInicio, dataFim, page, limit, tipoData, contaId);
+    }
+    
     return this.pagamentosService.listarLotesTurmaColheita(dataInicio, dataFim, page, limit, tipoData, contaId);
   }
 
@@ -392,6 +399,188 @@ export class PagamentosController {
   ) {
     const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
     return this.pagamentosService.listarLotesFolhaPagamento(dataInicio, dataFim, page, limit, tipoData, contaId);
+  }
+
+  /**
+   * Retorna estatísticas agregadas para lotes de turma de colheita
+   * Aplica os mesmos filtros dos endpoints de listagem, mas retorna apenas totais (sem paginação)
+   */
+  @Get('estatisticas-turma-colheita')
+  @ApiOperation({ summary: 'Obter estatísticas agregadas de lotes de pagamentos de turmas de colheita' })
+  @ApiQuery({
+    name: 'dataInicio',
+    required: false,
+    description: 'Data inicial (ISO) para filtrar por data de criação ou liberação do lote',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'dataFim',
+    required: false,
+    description: 'Data final (ISO) para filtrar por data de criação ou liberação do lote',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'tipoData',
+    required: false,
+    description: 'Tipo de data para filtrar: "criacao" (padrão) ou "liberacao"',
+    enum: ['criacao', 'liberacao'],
+    type: String,
+  })
+  @ApiQuery({
+    name: 'contaCorrenteId',
+    required: false,
+    description: 'ID da conta corrente para filtrar os lotes',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Estatísticas agregadas de lotes de pagamentos de turmas de colheita',
+    schema: {
+      type: 'object',
+      properties: {
+        totalLotes: { type: 'number' },
+        totalItens: { type: 'number' },
+        totalColheitas: { type: 'number' },
+        totalPedidos: { type: 'number' },
+        lotesLiberados: { type: 'number' },
+        lotesRejeitados: { type: 'number' },
+        itensLiberados: { type: 'number' },
+        itensRejeitados: { type: 'number' },
+        valorTotalLiberado: { type: 'number' },
+        valorTotalPendente: { type: 'number' },
+        valorTotalColheitas: { type: 'number' },
+      },
+    },
+  })
+  async getEstatisticasTurmaColheita(
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: string,
+    @Query('contaCorrenteId') contaCorrenteId?: string,
+  ) {
+    const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    return this.pagamentosService.getEstatisticasTurmaColheita(dataInicio, dataFim, tipoData, contaId);
+  }
+
+  /**
+   * Retorna estatísticas agrupadas por dia para lotes de turma de colheita
+   * Retorna totais completos de cada dia (não apenas da página)
+   */
+  @Get('estatisticas-por-dia-turma-colheita')
+  @ApiOperation({ summary: 'Obter estatísticas agrupadas por dia de lotes de pagamentos de turmas de colheita' })
+  @ApiQuery({
+    name: 'dataInicio',
+    required: false,
+    description: 'Data inicial (ISO) para filtrar por data de criação ou liberação do lote',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'dataFim',
+    required: false,
+    description: 'Data final (ISO) para filtrar por data de criação ou liberação do lote',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'tipoData',
+    required: false,
+    description: 'Tipo de data para filtrar: "criacao" (padrão) ou "liberacao"',
+    enum: ['criacao', 'liberacao'],
+    type: String,
+  })
+  @ApiQuery({
+    name: 'contaCorrenteId',
+    required: false,
+    description: 'ID da conta corrente para filtrar os lotes',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Estatísticas agrupadas por dia de lotes de pagamentos de turmas de colheita',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          dia: { type: 'string', example: '2024-12-15' },
+          diaLabel: { type: 'string', example: '15/12/2024' },
+          totalLotes: { type: 'number' },
+          totalItens: { type: 'number' },
+          totalColheitas: { type: 'number' },
+          valorTotal: { type: 'number' },
+          valorPendente: { type: 'number' },
+          valorProcessado: { type: 'number' },
+        },
+      },
+    },
+  })
+  async getEstatisticasPorDiaTurmaColheita(
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: string,
+    @Query('contaCorrenteId') contaCorrenteId?: string,
+  ) {
+    const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    return this.pagamentosService.getEstatisticasPorDiaTurmaColheita(dataInicio, dataFim, tipoData, contaId);
+  }
+
+  /**
+   * Retorna estatísticas agregadas para lotes de folha de pagamento
+   * Aplica os mesmos filtros dos endpoints de listagem, mas retorna apenas totais (sem paginação)
+   */
+  @Get('estatisticas-folha-pagamento')
+  @ApiOperation({ summary: 'Obter estatísticas agregadas de lotes de pagamentos de folhas de pagamento' })
+  @ApiQuery({
+    name: 'dataInicio',
+    required: false,
+    description: 'Data inicial (ISO) para filtrar por data de criação ou liberação do lote',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'dataFim',
+    required: false,
+    description: 'Data final (ISO) para filtrar por data de criação ou liberação do lote',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'tipoData',
+    required: false,
+    description: 'Tipo de data para filtrar: "criacao" (padrão) ou "liberacao"',
+    enum: ['criacao', 'liberacao'],
+    type: String,
+  })
+  @ApiQuery({
+    name: 'contaCorrenteId',
+    required: false,
+    description: 'ID da conta corrente para filtrar os lotes',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Estatísticas agregadas de lotes de pagamentos de folhas de pagamento',
+    schema: {
+      type: 'object',
+      properties: {
+        totalLotes: { type: 'number' },
+        totalItens: { type: 'number' },
+        totalFuncionarios: { type: 'number' },
+        lotesLiberados: { type: 'number' },
+        lotesRejeitados: { type: 'number' },
+        itensLiberados: { type: 'number' },
+        itensRejeitados: { type: 'number' },
+        valorTotalLiberado: { type: 'number' },
+        valorTotalPendente: { type: 'number' },
+        valorTotalFuncionarios: { type: 'number' },
+      },
+    },
+  })
+  async getEstatisticasFolhaPagamento(
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: string,
+    @Query('contaCorrenteId') contaCorrenteId?: string,
+  ) {
+    const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    return this.pagamentosService.getEstatisticasFolhaPagamento(dataInicio, dataFim, tipoData, contaId);
   }
 
   /**
