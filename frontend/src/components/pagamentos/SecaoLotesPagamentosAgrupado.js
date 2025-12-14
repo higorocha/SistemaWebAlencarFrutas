@@ -17,6 +17,7 @@ import {
   Tooltip,
   Collapse,
   Divider,
+  Spin,
 } from "antd";
 import {
   DollarOutlined,
@@ -65,10 +66,35 @@ const SecaoLotesPagamentosAgrupado = ({
   const [expandedDays, setExpandedDays] = useState([]);
   const [estatisticasPorDia, setEstatisticasPorDia] = useState([]);
   const [loadingEstatisticasPorDia, setLoadingEstatisticasPorDia] = useState(false);
+  // Estado para controlar paginação de lotes por dia
+  const [paginacaoLotesPorDia, setPaginacaoLotesPorDia] = useState({});
+
+  // Verificar se os dados já vêm agrupados por dia do backend
+  const dadosJaAgrupados = useMemo(() => {
+    return Array.isArray(lotes) && lotes.length > 0 && lotes[0]?.diaKey;
+  }, [lotes]);
 
   // Buscar estatísticas por dia do backend (totais completos, não apenas da página)
+  // Fazer apenas uma vez quando expande pela primeira vez ou quando filtros mudam
   useEffect(() => {
     const fetchEstatisticasPorDia = async () => {
+      // Se já temos estatísticas e os dados já vêm agrupados do backend, 
+      // podemos usar os dados locais como fallback imediato
+      if (dadosJaAgrupados && lotes.length > 0) {
+        // Usar dados locais enquanto carrega (sem mostrar loading)
+        const statsLocais = lotes.map((dia) => ({
+          dia: dia.diaKey,
+          diaLabel: dia.diaLabel,
+          totalLotes: dia.totalLotes,
+          totalItens: dia.totalItens,
+          totalColheitas: dia.totalColheitas,
+          valorTotal: dia.valorTotal,
+          valorPendente: dia.valorPendente,
+          valorProcessado: dia.valorProcessado,
+        }));
+        setEstatisticasPorDia(statsLocais);
+      }
+
       try {
         setLoadingEstatisticasPorDia(true);
 
@@ -81,11 +107,11 @@ const SecaoLotesPagamentosAgrupado = ({
         const url = `/api/pagamentos/estatisticas-por-dia-turma-colheita?${params.toString()}`;
 
         const response = await axiosInstance.get(url);
+        // Atualizar com dados do backend (mais precisos, incluem todos os dias)
         setEstatisticasPorDia(response.data || []);
       } catch (error) {
         console.error("Erro ao buscar estatísticas por dia:", error);
-        // Em caso de erro, usar cálculo local como fallback
-        setEstatisticasPorDia([]);
+        // Em caso de erro, manter os dados locais se existirem
       } finally {
         setLoadingEstatisticasPorDia(false);
       }
@@ -93,13 +119,11 @@ const SecaoLotesPagamentosAgrupado = ({
 
     if (isExpanded) {
       fetchEstatisticasPorDia();
+    } else {
+      // Limpar estatísticas quando colapsa para economizar memória
+      setEstatisticasPorDia([]);
     }
-  }, [isExpanded, dataInicio, dataFim, tipoData, contaCorrenteId]);
-
-  // Verificar se os dados já vêm agrupados por dia do backend
-  const dadosJaAgrupados = useMemo(() => {
-    return Array.isArray(lotes) && lotes.length > 0 && lotes[0]?.diaKey;
-  }, [lotes]);
+  }, [isExpanded, dataInicio, dataFim, tipoData, contaCorrenteId, dadosJaAgrupados, lotes]);
 
   // Agrupar lotes por dia (dataCriacao) - apenas se não vierem agrupados do backend
   const lotesAgrupadosPorDia = useMemo(() => {
@@ -512,8 +536,11 @@ const SecaoLotesPagamentosAgrupado = ({
         <>
           <div style={{ marginTop: 16, borderTop: "1px solid #e8e8e8", paddingTop: 16 }}>
             {loading || loadingEstatisticasPorDia ? (
-              <div style={{ textAlign: "center", padding: "40px" }}>
-                <Text type="secondary">Carregando...</Text>
+              <div style={{ textAlign: "center", padding: "60px 20px" }}>
+                <Spin size="large" />
+                <div style={{ marginTop: "16px" }}>
+                  <Text type="secondary">Carregando dados...</Text>
+                </div>
               </div>
             ) : diasPaginados.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px" }}>
@@ -642,16 +669,54 @@ const SecaoLotesPagamentosAgrupado = ({
                       </Row>
 
                       {/* Tabela de Lotes do Dia (expandível) */}
-                      {isDayExpanded && (
-                        <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e8e8e8" }}>
-                          <ResponsiveTable
-                            columns={columns}
-                            dataSource={grupoDia.lotes}
-                            loading={false}
-                            rowKey={rowKey}
-                            minWidthMobile={1400}
-                            showScrollHint={true}
-                            pagination={false}
+                      {isDayExpanded && (() => {
+                        // Paginação para os lotes deste dia
+                        const pageLotes = paginacaoLotesPorDia[grupoDia.diaKey]?.page || 1;
+                        const limitLotes = paginacaoLotesPorDia[grupoDia.diaKey]?.limit || 10;
+                        const totalLotes = grupoDia.lotes.length;
+                        const startLotes = (pageLotes - 1) * limitLotes;
+                        const endLotes = startLotes + limitLotes;
+                        const lotesPaginados = grupoDia.lotes.slice(startLotes, endLotes);
+
+                        return (
+                          <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e8e8e8" }}>
+                            <ResponsiveTable
+                              columns={columns}
+                              dataSource={lotesPaginados}
+                              loading={false}
+                              rowKey={rowKey}
+                              minWidthMobile={1400}
+                              showScrollHint={true}
+                              pagination={{
+                                current: pageLotes,
+                                pageSize: limitLotes,
+                                total: totalLotes,
+                                onChange: (page, pageSize) => {
+                                  setPaginacaoLotesPorDia((prev) => ({
+                                    ...prev,
+                                    [grupoDia.diaKey]: {
+                                      page,
+                                      limit: pageSize || limitLotes,
+                                    },
+                                  }));
+                                },
+                                onShowSizeChange: (current, size) => {
+                                  setPaginacaoLotesPorDia((prev) => ({
+                                    ...prev,
+                                    [grupoDia.diaKey]: {
+                                      page: 1,
+                                      limit: size,
+                                    },
+                                  }));
+                                },
+                                showSizeChanger: !isMobile,
+                                showTotal: (total, range) =>
+                                  isMobile
+                                    ? `${range[0]}-${range[1]}/${total}`
+                                    : `${range[0]}-${range[1]} de ${total} lotes`,
+                                pageSizeOptions: ["10", "20", "50", "100"],
+                                size: isMobile ? "small" : "default",
+                              }}
                             expandable={{
                               expandIcon: ({ expanded, onExpand, record }) => {
                                 const itens = record.itensPagamento || [];
@@ -872,7 +937,8 @@ const SecaoLotesPagamentosAgrupado = ({
                             }}
                           />
                         </div>
-                      )}
+                        );
+                      })()}
                     </Card>
                   );
                 })}

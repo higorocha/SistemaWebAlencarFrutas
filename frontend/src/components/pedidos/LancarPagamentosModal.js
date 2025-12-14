@@ -294,6 +294,12 @@ const LancarPagamentosModal = ({
       dataIndex: 'numeroPedido',
       key: 'numeroPedido',
       width: 140,
+      sorter: (a, b) => {
+        // Ordenação numérica do número do pedido
+        const numA = parseInt(a.numeroPedido) || 0;
+        const numB = parseInt(b.numeroPedido) || 0;
+        return numA - numB;
+      },
       render: (text) => <Text strong style={{ color: '#1890ff' }}>{text}</Text>
     },
     {
@@ -301,6 +307,12 @@ const LancarPagamentosModal = ({
       dataIndex: 'dataPedido',
       key: 'dataPedido',
       width: 90,
+      sorter: (a, b) => {
+        // Ordenação por data
+        const dateA = moment(a.dataPedido);
+        const dateB = moment(b.dataPedido);
+        return dateA.valueOf() - dateB.valueOf();
+      },
       render: (date) => (
         <Text style={{ fontSize: isMobile ? '13px' : '14px' }}>
           {moment(date).format('DD/MM/YY')}
@@ -345,6 +357,12 @@ const LancarPagamentosModal = ({
       dataIndex: 'valorFinal',
       key: 'valorFinal',
       width: 110,
+      sorter: (a, b) => {
+        // Ordenação numérica do valor total
+        const valorA = parseFloat(a.valorFinal) || 0;
+        const valorB = parseFloat(b.valorFinal) || 0;
+        return valorA - valorB;
+      },
       render: (valor) => (
         <Text strong style={{ color: '#333', fontSize: isMobile ? '13px' : '14px' }}>
           {formatarValorMonetario(valor || 0)}
@@ -356,6 +374,12 @@ const LancarPagamentosModal = ({
       dataIndex: 'valorRecebido',
       key: 'valorRecebido',
       width: 110,
+      sorter: (a, b) => {
+        // Ordenação numérica do valor já recebido
+        const valorA = parseFloat(a.valorRecebido) || 0;
+        const valorB = parseFloat(b.valorRecebido) || 0;
+        return valorA - valorB;
+      },
       render: (valor) => (
         <Text style={{ color: '#52c41a', fontSize: isMobile ? '13px' : '14px' }}>
           {formatarValorMonetario(valor || 0)}
