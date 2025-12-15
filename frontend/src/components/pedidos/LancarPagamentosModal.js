@@ -19,7 +19,8 @@ import {
   Alert,
   Popover,
   Tooltip,
-  ConfigProvider
+  ConfigProvider,
+  Spin
 } from "antd";
 import {
   SaveOutlined,
@@ -693,7 +694,19 @@ const LancarPagamentosModal = ({
                 body: { padding: isMobile ? "12px" : "16px" }
               }}
             >
-              {pedidos.length === 0 ? (
+              {loadingPedidos ? (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  minHeight: '200px',
+                  padding: isMobile ? '40px 20px' : '60px 40px'
+                }}>
+                  <Spin size="large" tip="Carregando pedidos...">
+                    <div style={{ minHeight: '100px' }} />
+                  </Spin>
+                </div>
+              ) : pedidos.length === 0 ? (
                 <Empty
                   description="Este cliente não possui pedidos pendentes de pagamento"
                   style={{ padding: isMobile ? '12px 0' : '20px 0' }}
@@ -709,7 +722,7 @@ const LancarPagamentosModal = ({
                     columns={columns}
                     dataSource={pedidos}
                     rowKey="id"
-                    loading={loadingPedidos}
+                    loading={false}
                     minWidthMobile={1200}
                   />
                 </div>

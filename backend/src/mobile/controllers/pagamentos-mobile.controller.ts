@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Get,
   HttpStatus,
   Post,
+  Query,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -81,6 +83,142 @@ export class PagamentosMobileController {
   ): Promise<any> {
     const usuarioId = req.user?.id;
     return this.pagamentosService.cancelarPagamentos(dto, usuarioId);
+  }
+
+  /**
+   * Obter resumo de pagamentos (pendentes, liberados e rejeitados) para mobile
+   */
+  @Get('resumo')
+  @ApiOperation({
+    summary: 'Obter resumo de pagamentos (pendentes, liberados e rejeitados)',
+    description:
+      'Retorna contagem e valores totais de lotes pendentes, liberados e rejeitados para a tela de resumo do app mobile',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Resumo de pagamentos obtido com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        pendentes: {
+          type: 'object',
+          properties: {
+            totalLotes: { type: 'number' },
+            valorTotal: { type: 'number' },
+          },
+        },
+        liberados: {
+          type: 'object',
+          properties: {
+            totalLotes: { type: 'number' },
+            valorTotal: { type: 'number' },
+          },
+        },
+        rejeitados: {
+          type: 'object',
+          properties: {
+            totalLotes: { type: 'number' },
+            valorTotal: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  async getResumoPagamentos(
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: string,
+    @Query('contaCorrenteId') contaCorrenteId?: string,
+  ) {
+    const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    return this.pagamentosService.getResumoPagamentosMobile(
+      dataInicio,
+      dataFim,
+      tipoData,
+      contaId,
+    );
+  }
+
+  /**
+   * Listar lotes de pagamentos de turmas de colheita (mobile)
+   */
+  @Get('lotes-turma-colheita')
+  @ApiOperation({
+    summary: 'Listar lotes de pagamentos de turmas de colheita (mobile)',
+    description:
+      'Lista lotes de pagamentos vinculados a turmas de colheita, seguindo o padrão do módulo mobile',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de lotes de pagamentos de turmas de colheita',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array' },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+      },
+    },
+  })
+  async listarLotesTurmaColheitaMobile(
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: string,
+    @Query('contaCorrenteId') contaCorrenteId?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    return this.pagamentosService.listarLotesTurmaColheita(
+      dataInicio,
+      dataFim,
+      page,
+      limit,
+      tipoData,
+      contaId,
+    );
+  }
+
+  /**
+   * Listar lotes de pagamentos de folhas de pagamento (mobile)
+   */
+  @Get('lotes-folha-pagamento')
+  @ApiOperation({
+    summary: 'Listar lotes de pagamentos de folhas de pagamento (mobile)',
+    description:
+      'Lista lotes de pagamentos vinculados a folhas de pagamento, seguindo o padrão do módulo mobile',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lista de lotes de pagamentos de folhas de pagamento',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array' },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+      },
+    },
+  })
+  async listarLotesFolhaPagamentoMobile(
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
+    @Query('tipoData') tipoData?: string,
+    @Query('contaCorrenteId') contaCorrenteId?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    const contaId = contaCorrenteId ? parseInt(contaCorrenteId, 10) : undefined;
+    return this.pagamentosService.listarLotesFolhaPagamento(
+      dataInicio,
+      dataFim,
+      page,
+      limit,
+      tipoData,
+      contaId,
+    );
   }
 }
 

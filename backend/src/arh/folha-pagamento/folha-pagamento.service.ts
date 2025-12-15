@@ -371,7 +371,8 @@ export class FolhaPagamentoService {
         where: { id: lancamentoId },
         data: {
           diasTrabalhados: dto.diasTrabalhados ?? undefined,
-          faltas: dto.faltas ?? undefined,
+          faltas:
+            dto.faltas !== undefined ? new Prisma.Decimal(dto.faltas) : undefined,
           horasExtras:
             dto.horasExtras !== undefined ? new Prisma.Decimal(dto.horasExtras) : undefined,
           valorHoraExtra:
@@ -1360,7 +1361,7 @@ export class FolhaPagamentoService {
       salarioBaseReferencia: new Prisma.Decimal(salarioBase),
       valorDiariaAplicada: new Prisma.Decimal(valorDiaria),
       diasTrabalhados: 0,
-      faltas: 0,
+      faltas: new Prisma.Decimal(0),
       ajudaCusto: new Prisma.Decimal(0),
       extras: new Prisma.Decimal(0),
       adiantamento: new Prisma.Decimal(0),

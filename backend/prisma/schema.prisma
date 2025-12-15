@@ -805,7 +805,7 @@ model FuncionarioPagamento {
   salarioBaseReferencia Decimal?                   @db.Decimal(12, 2)
   valorDiariaAplicada   Decimal?                   @db.Decimal(12, 2)
   diasTrabalhados       Int                        @default(0)
-  faltas                Int                        @default(0)
+  faltas                Decimal?                   @default(0) @db.Decimal(10, 2)
   horasExtras           Decimal?                   @db.Decimal(10, 2)
   valorHoraExtra        Decimal?                   @db.Decimal(10, 2)
   ajudaCusto            Decimal?                   @default(0) @db.Decimal(12, 2)
@@ -1088,6 +1088,7 @@ model PagamentoApiLote {
   ultimaAtualizacaoWebhook DateTime? // Última atualização recebida via webhook
   estadoRequisicaoAtual    Int? // Estado atual (pode mudar após consulta/webhook)
   payloadRespostaAtual     Json? // Resposta mais recente (após consulta/webhook)
+  excluido                  Boolean  @default(false) // Marcação de exclusão (soft delete) - apenas visual e estatísticas
 
   // Auditoria
   observacoes       String?

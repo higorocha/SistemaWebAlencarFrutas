@@ -917,15 +917,16 @@ const ArhFolhaPagamento = () => {
             <span>Gerentes ({lancamentosAgrupados.gerentes.length})</span>
           </span>
         ),
-        children: (
-          <LancamentosTable
-            lancamentos={lancamentosAgrupados.gerentes}
-            loading={lancamentosLoading}
-            onEditLancamento={handleEditLancamento}
-            onEditPagamento={handleEditPagamento}
-            onRemoveFuncionario={removerFuncionario}
-          />
-        ),
+          children: (
+            <LancamentosTable
+              lancamentos={lancamentosAgrupados.gerentes}
+              loading={lancamentosLoading}
+              onEditLancamento={handleEditLancamento}
+              onEditPagamento={handleEditPagamento}
+              onRemoveFuncionario={removerFuncionario}
+              folhaStatus={selectedFolha?.status}
+            />
+          ),
       });
     }
 
@@ -939,15 +940,16 @@ const ArhFolhaPagamento = () => {
             <span>Sem Gerente ({lancamentosAgrupados.semGerente.length})</span>
           </span>
         ),
-        children: (
-          <LancamentosTable
-            lancamentos={lancamentosAgrupados.semGerente}
-            loading={lancamentosLoading}
-            onEditLancamento={handleEditLancamento}
-            onEditPagamento={handleEditPagamento}
-            onRemoveFuncionario={removerFuncionario}
-          />
-        ),
+          children: (
+            <LancamentosTable
+              lancamentos={lancamentosAgrupados.semGerente}
+              loading={lancamentosLoading}
+              onEditLancamento={handleEditLancamento}
+              onEditPagamento={handleEditPagamento}
+              onRemoveFuncionario={removerFuncionario}
+              folhaStatus={selectedFolha?.status}
+            />
+          ),
       });
     }
 
@@ -980,6 +982,7 @@ const ArhFolhaPagamento = () => {
               onEditLancamento={handleEditLancamento}
               onEditPagamento={handleEditPagamento}
               onRemoveFuncionario={removerFuncionario}
+              folhaStatus={selectedFolha?.status}
             />
           ),
         });
@@ -996,15 +999,16 @@ const ArhFolhaPagamento = () => {
             <span>Todos ({lancamentos.length})</span>
           </span>
         ),
-        children: (
-          <LancamentosTable
-            lancamentos={lancamentos}
-            loading={lancamentosLoading}
-            onEditLancamento={handleEditLancamento}
-            onEditPagamento={handleEditPagamento}
-            onRemoveFuncionario={removerFuncionario}
-          />
-        ),
+          children: (
+            <LancamentosTable
+              lancamentos={lancamentos}
+              loading={lancamentosLoading}
+              onEditLancamento={handleEditLancamento}
+              onEditPagamento={handleEditPagamento}
+              onRemoveFuncionario={removerFuncionario}
+              folhaStatus={selectedFolha?.status}
+            />
+          ),
       });
     }
 
@@ -1016,6 +1020,7 @@ const ArhFolhaPagamento = () => {
     handleEditLancamento,
     handleEditPagamento,
     removerFuncionario,
+    selectedFolha?.status,
   ]);
 
   // Ajustar aba ativa quando os lançamentos mudarem
@@ -1763,6 +1768,7 @@ const ArhFolhaPagamento = () => {
               onEditLancamento={handleEditLancamento}
               onEditPagamento={handleEditPagamento}
               onRemoveFuncionario={removerFuncionario}
+              folhaStatus={selectedFolha?.status}
             />
           )}
         </Suspense>

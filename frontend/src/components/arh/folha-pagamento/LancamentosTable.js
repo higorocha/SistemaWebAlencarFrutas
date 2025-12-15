@@ -8,6 +8,7 @@ import ResponsiveTable from "../../common/ResponsiveTable";
 import { capitalizeName } from "../../../utils/formatters";
 import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
 import MonetaryInput from "../../common/inputs/MonetaryInput";
+import HourInput from "../../common/inputs/HourInput";
 
 const { Text } = Typography;
 
@@ -18,7 +19,7 @@ const currency = (value) =>
   }).format(Number(value || 0));
 
 const LancamentosTable = React.memo(
-  ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario }) => {
+  ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario, folhaStatus }) => {
     const [confirmModal, setConfirmModal] = React.useState({ open: false, record: null });
     const [editingId, setEditingId] = React.useState(null);
     const [editingValues, setEditingValues] = React.useState({});
@@ -26,6 +27,8 @@ const LancamentosTable = React.memo(
 
     // Função para criar o menu de ações
     const getMenuContent = (record) => {
+      const isRascunho = folhaStatus === "RASCUNHO";
+      
       const menuItems = [
         {
           key: "edit",
@@ -52,13 +55,19 @@ const LancamentosTable = React.memo(
         },
         {
           key: "delete",
+          disabled: !isRascunho,
           label: (
-            <Space>
-              <DeleteOutlined style={{ color: "#ff4d4f" }} />
-              <span style={{ color: "#333" }}>Remover da Folha</span>
-            </Space>
+            <Tooltip
+              title={!isRascunho ? "A folha precisa estar em edição (status Rascunho) para permitir a remoção do funcionário" : undefined}
+              placement="left"
+            >
+              <Space>
+                <DeleteOutlined style={{ color: isRascunho ? "#ff4d4f" : "#d9d9d9" }} />
+                <span style={{ color: isRascunho ? "#333" : "#bfbfbf" }}>Remover da Folha</span>
+              </Space>
+            </Tooltip>
           ),
-          onClick: () => setConfirmModal({ open: true, record }),
+          onClick: isRascunho ? () => setConfirmModal({ open: true, record }) : undefined,
         },
       ];
 
@@ -248,25 +257,20 @@ const LancamentosTable = React.memo(
           const isEditing = editingId === record.id;
           if (isEditing) {
             return (
-              <InputNumber
-                min={0}
+              <HourInput
                 value={editingValues.faltas}
-                onChange={(val) => handleFieldChange("faltas", val)}
+                onChange={(val) => handleFieldChange("faltas", val ? parseFloat(val) : 0)}
                 onPressEnter={handleSaveEdit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    handleCancelEdit();
-                  }
-                }}
+                onPressEsc={handleCancelEdit}
                 size="small"
                 style={{ width: "100%" }}
+                placeholder="0,00"
               />
             );
           }
           return (
-            <Text style={{ color: value > 0 ? "#ff4d4f" : "#333333", fontSize: "12px" }}>
-              {value || 0}
+            <Text style={{ color: Number(value || 0) > 0 ? "#ff4d4f" : "#333333", fontSize: "12px" }}>
+              {Number(value || 0).toFixed(2)}
             </Text>
           );
         },
@@ -281,26 +285,20 @@ const LancamentosTable = React.memo(
           const isEditing = editingId === record.id;
           if (isEditing) {
             return (
-              <InputNumber
-                min={0}
-                precision={1}
+              <HourInput
                 value={editingValues.horasExtras}
-                onChange={(val) => handleFieldChange("horasExtras", val)}
+                onChange={(val) => handleFieldChange("horasExtras", val ? parseFloat(val) : 0)}
                 onPressEnter={handleSaveEdit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    handleCancelEdit();
-                  }
-                }}
+                onPressEsc={handleCancelEdit}
                 size="small"
                 style={{ width: "100%" }}
+                placeholder="0,00"
               />
             );
           }
           return (
             <Text style={{ color: "#333333", fontSize: "12px" }}>
-              {Number(value || 0).toFixed(1)}h
+              {Number(value || 0).toFixed(2)}h
             </Text>
           );
         },
@@ -811,6 +809,7 @@ LancamentosTable.propTypes = {
   onEditLancamento: PropTypes.func.isRequired,
   onEditPagamento: PropTypes.func.isRequired,
   onRemoveFuncionario: PropTypes.func.isRequired,
+  folhaStatus: PropTypes.string,
 };
 
 export default LancamentosTable;

@@ -186,30 +186,66 @@ const SecaoLotesPagamentosAgrupado = ({
       // Buscar estatísticas do backend para este dia
       const statsBackend = estatisticasPorDia.find((stat) => stat.dia === grupo.diaKey);
 
+      // Calcular valor dos lotes excluídos/rejeitados (não considerar nos totais)
+      const valorExcluidosRejeitados = grupo.lotes.reduce((acc, lote) => {
+        // Verificação robusta para excluido
+        const estaExcluido = lote.excluido === true || 
+                             lote.excluido === "true" || 
+                             lote.excluido === 1 || 
+                             lote.excluido === "1";
+        // Verificar se está rejeitado (estado BB 7)
+        const estadoRequisicao = lote.estadoRequisicaoAtual || lote.estadoRequisicao;
+        const estaRejeitado = estadoRequisicao === 7;
+        
+        if (estaExcluido || estaRejeitado) {
+          return acc + Number(lote.valorTotalColheitas || lote.valorTotalEnviado || 0);
+        }
+        return acc;
+      }, 0);
+
       // Se os dados já vêm do backend com estatísticas, usar diretamente
       if (dadosJaAgrupados && grupo.totalLotes !== undefined) {
+        const valorTotalAjustado = (statsBackend?.valorTotal ?? grupo.valorTotal) - valorExcluidosRejeitados;
+        const valorPendenteAjustado = Math.max(0, (statsBackend?.valorPendente ?? grupo.valorPendente) - valorExcluidosRejeitados);
+        
         return {
           ...grupo,
           // Priorizar estatísticas do endpoint de estatísticas por dia (mais precisas)
           totalLotes: statsBackend?.totalLotes ?? grupo.totalLotes,
           totalItens: statsBackend?.totalItens ?? grupo.totalItens,
           totalColheitas: statsBackend?.totalColheitas ?? grupo.totalColheitas,
-          valorTotal: statsBackend?.valorTotal ?? grupo.valorTotal,
-          valorPendente: statsBackend?.valorPendente ?? grupo.valorPendente,
+          valorTotal: valorTotalAjustado,
+          valorPendente: valorPendenteAjustado,
           valorProcessado: statsBackend?.valorProcessado ?? grupo.valorProcessado,
+          valorExcluidosRejeitados,
         };
       }
 
-      // Caso contrário, calcular localmente
+      // Caso contrário, calcular localmente (excluindo lotes excluídos/rejeitados)
+      const lotesNaoExcluidos = grupo.lotes.filter((lote) => {
+        const estaExcluido = lote.excluido === true || 
+                             lote.excluido === "true" || 
+                             lote.excluido === 1 || 
+                             lote.excluido === "1";
+        const estadoRequisicao = lote.estadoRequisicaoAtual || lote.estadoRequisicao;
+        const estaRejeitado = estadoRequisicao === 7;
+        return !(estaExcluido || estaRejeitado);
+      });
+
+      const valorTotalLocal = lotesNaoExcluidos.reduce((acc, lote) => 
+        acc + Number(lote.valorTotalColheitas || lote.valorTotalEnviado || 0), 0
+      );
+
       return {
         ...grupo,
         // Usar estatísticas do backend se disponíveis, senão calcular localmente
-        totalLotes: statsBackend?.totalLotes || grupo.lotes.length,
-        totalItens: statsBackend?.totalItens || grupo.lotes.reduce((acc, lote) => acc + (lote.quantidadeItens || lote.itensPagamento?.length || 0), 0),
-        totalColheitas: statsBackend?.totalColheitas || grupo.lotes.reduce((acc, lote) => acc + (lote.quantidadeColheitas || 0), 0),
-        valorTotal: statsBackend?.valorTotal || grupo.lotes.reduce((acc, lote) => acc + Number(lote.valorTotalColheitas || lote.valorTotalEnviado || 0), 0),
-        valorPendente: statsBackend?.valorPendente || 0,
+        totalLotes: statsBackend?.totalLotes || lotesNaoExcluidos.length,
+        totalItens: statsBackend?.totalItens || lotesNaoExcluidos.reduce((acc, lote) => acc + (lote.quantidadeItens || lote.itensPagamento?.length || 0), 0),
+        totalColheitas: statsBackend?.totalColheitas || lotesNaoExcluidos.reduce((acc, lote) => acc + (lote.quantidadeColheitas || 0), 0),
+        valorTotal: statsBackend?.valorTotal ? (statsBackend.valorTotal - valorExcluidosRejeitados) : valorTotalLocal,
+        valorPendente: statsBackend?.valorPendente ? Math.max(0, statsBackend.valorPendente - valorExcluidosRejeitados) : 0,
         valorProcessado: statsBackend?.valorProcessado || 0,
+        valorExcluidosRejeitados,
       };
     });
   }, [lotesAgrupadosPorDia, estatisticasPorDia, dadosJaAgrupados]);
@@ -614,7 +650,7 @@ const SecaoLotesPagamentosAgrupado = ({
 
                       {/* Resumo do Dia (sempre visível) */}
                       <Row gutter={[16, 16]} style={{ marginTop: "12px" }}>
-                        <Col xs={24} sm={12} md={6}>
+                        <Col xs={24} sm={12} md={8} lg={4} style={{ flex: "1 1 0", minWidth: "120px" }}>
                           <div style={{ textAlign: "center" }}>
                             <Text
                               type="secondary"
@@ -627,7 +663,7 @@ const SecaoLotesPagamentosAgrupado = ({
                             </Text>
                           </div>
                         </Col>
-                        <Col xs={24} sm={12} md={6}>
+                        <Col xs={24} sm={12} md={8} lg={4} style={{ flex: "1 1 0", minWidth: "120px" }}>
                           <div style={{ textAlign: "center" }}>
                             <Text
                               type="secondary"
@@ -636,11 +672,11 @@ const SecaoLotesPagamentosAgrupado = ({
                               Valor Total
                             </Text>
                             <Text strong style={{ fontSize: "16px", color: "#059669" }}>
-                              {formatCurrency(grupoDia.valorTotal)}
+                              R$ {formatCurrency(grupoDia.valorTotal)}
                             </Text>
                           </div>
                         </Col>
-                        <Col xs={24} sm={12} md={6}>
+                        <Col xs={24} sm={12} md={8} lg={4} style={{ flex: "1 1 0", minWidth: "120px" }}>
                           <div style={{ textAlign: "center" }}>
                             <Text
                               type="secondary"
@@ -649,11 +685,11 @@ const SecaoLotesPagamentosAgrupado = ({
                               Valor Pendente
                             </Text>
                             <Text strong style={{ fontSize: "16px", color: "#fa8c16" }}>
-                              {formatCurrency(grupoDia.valorPendente)}
+                              R$ {formatCurrency(grupoDia.valorPendente)}
                             </Text>
                           </div>
                         </Col>
-                        <Col xs={24} sm={12} md={6}>
+                        <Col xs={24} sm={12} md={8} lg={4} style={{ flex: "1 1 0", minWidth: "120px" }}>
                           <div style={{ textAlign: "center" }}>
                             <Text
                               type="secondary"
@@ -662,7 +698,20 @@ const SecaoLotesPagamentosAgrupado = ({
                               Valor Processado
                             </Text>
                             <Text strong style={{ fontSize: "16px", color: "#52c41a" }}>
-                              {formatCurrency(grupoDia.valorProcessado)}
+                              R$ {formatCurrency(grupoDia.valorProcessado)}
+                            </Text>
+                          </div>
+                        </Col>
+                        <Col xs={24} sm={12} md={8} lg={4} style={{ flex: "1 1 0", minWidth: "120px" }}>
+                          <div style={{ textAlign: "center" }}>
+                            <Text
+                              type="secondary"
+                              style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
+                            >
+                              Excluído/Rejeitado
+                            </Text>
+                            <Text strong style={{ fontSize: "16px", color: "#ff4d4f" }}>
+                              R$ {formatCurrency(grupoDia.valorExcluidosRejeitados || 0)}
                             </Text>
                           </div>
                         </Col>

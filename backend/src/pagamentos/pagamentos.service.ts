@@ -1228,6 +1228,7 @@ export class PagamentosService {
         estadoRequisicao: lote.estadoRequisicao,
         estadoRequisicaoAtual: lote.estadoRequisicaoAtual,
         processadoComSucesso: lote.processadoComSucesso,
+        excluido: lote.excluido,
         dataCriacao: lote.createdAt,
         dataAtualizacao: lote.updatedAt,
         contaCorrente: {
@@ -1518,6 +1519,7 @@ export class PagamentosService {
         estadoRequisicao: lote.estadoRequisicao,
         estadoRequisicaoAtual: lote.estadoRequisicaoAtual,
         processadoComSucesso: lote.processadoComSucesso,
+        excluido: lote.excluido,
         dataCriacao: lote.createdAt,
         dataAtualizacao: lote.updatedAt,
         contaCorrente: {
@@ -1749,7 +1751,10 @@ export class PagamentosService {
     valorTotalPendente: number;
     valorTotalColheitas: number;
   }> {
-    const where = this.construirWhereTurmaColheita(dataInicio, dataFim, tipoData, contaCorrenteId);
+    const where = {
+      ...this.construirWhereTurmaColheita(dataInicio, dataFim, tipoData, contaCorrenteId),
+      excluido: false, // Excluir lotes marcados como excluídos das estatísticas
+    };
 
     // Buscar todos os lotes que atendem aos filtros (apenas IDs e campos necessários)
     const lotes = await this.prisma.pagamentoApiLote.findMany({
@@ -1893,7 +1898,10 @@ export class PagamentosService {
     valorPendente: number;
     valorProcessado: number;
   }>> {
-    const where = this.construirWhereTurmaColheita(dataInicio, dataFim, tipoData, contaCorrenteId);
+    const where = {
+      ...this.construirWhereTurmaColheita(dataInicio, dataFim, tipoData, contaCorrenteId),
+      excluido: false, // Excluir lotes marcados como excluídos das estatísticas
+    };
 
     // Buscar todos os lotes que atendem aos filtros (apenas campos necessários)
     const lotes = await this.prisma.pagamentoApiLote.findMany({
@@ -2003,6 +2011,350 @@ export class PagamentosService {
     return Array.from(gruposPorDia.values()).sort((a, b) => {
       return new Date(b.dia).getTime() - new Date(a.dia).getTime();
     });
+  }
+
+  /**
+   * Retorna resumo de pagamentos para mobile (pendentes, liberados e rejeitados)
+   * Inclui tanto lotes de turma de colheita quanto folha de pagamento
+   * Otimizado para a tela de resumo do app mobile
+   */
+  async getResumoPagamentosMobile(
+    dataInicio?: string,
+    dataFim?: string,
+    tipoData?: string,
+    contaCorrenteId?: number,
+  ): Promise<{
+    pendentes: {
+      totalLotes: number;
+      valorTotal: number;
+    };
+    liberados: {
+      totalLotes: number;
+      valorTotal: number;
+    };
+    rejeitados: {
+      totalLotes: number;
+      valorTotal: number;
+    };
+  }> {
+    console.log('[getResumoPagamentosMobile] Iniciando busca com filtros:', {
+      dataInicio,
+      dataFim,
+      tipoData,
+      contaCorrenteId,
+    });
+
+    // Buscar lotes de turma de colheita
+    const whereTurmaColheita = {
+      ...this.construirWhereTurmaColheita(dataInicio, dataFim, tipoData, contaCorrenteId),
+      excluido: false, // Excluir lotes marcados como excluídos das estatísticas
+    };
+    console.log('[getResumoPagamentosMobile] Where turma colheita:', JSON.stringify(whereTurmaColheita, null, 2));
+    
+    const lotesTurmaColheita = await this.prisma.pagamentoApiLote.findMany({
+      where: whereTurmaColheita,
+      select: {
+        id: true,
+        dataLiberacao: true,
+        estadoRequisicaoAtual: true,
+        status: true,
+        valorTotalEnviado: true,
+        itensPagamento: {
+          select: {
+            id: true,
+            valorEnviado: true,
+            status: true,
+            estadoPagamentoIndividual: true,
+            funcionarioPagamentoId: true,
+            colheitas: {
+              select: {
+                valorColheita: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log('[getResumoPagamentosMobile] Lotes turma colheita encontrados:', lotesTurmaColheita.length);
+    console.log('[getResumoPagamentosMobile] Estados turma colheita:', lotesTurmaColheita.map(l => ({
+      id: l.id,
+      estadoRequisicao: l.estadoRequisicaoAtual,
+      status: l.status,
+      dataLiberacao: l.dataLiberacao,
+      qtdItens: l.itensPagamento.length,
+    })));
+
+    // Buscar lotes de folha de pagamento
+    const whereFolhaPagamento = {
+      ...this.construirWhereFolhaPagamento(dataInicio, dataFim, tipoData, contaCorrenteId),
+      excluido: false, // Excluir lotes marcados como excluídos das estatísticas
+    };
+    console.log('[getResumoPagamentosMobile] Where folha pagamento:', JSON.stringify(whereFolhaPagamento, null, 2));
+    
+    const lotesFolhaPagamento = await this.prisma.pagamentoApiLote.findMany({
+      where: whereFolhaPagamento,
+      select: {
+        id: true,
+        dataLiberacao: true,
+        estadoRequisicaoAtual: true,
+        status: true,
+        valorTotalEnviado: true,
+        itensPagamento: {
+          select: {
+            id: true,
+            valorEnviado: true,
+            status: true,
+            estadoPagamentoIndividual: true,
+            funcionarioPagamentoId: true,
+            funcionarioPagamento: {
+              select: {
+                id: true,
+                funcionarioId: true,
+                valorLiquido: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log('[getResumoPagamentosMobile] Lotes folha pagamento encontrados:', lotesFolhaPagamento.length);
+    console.log('[getResumoPagamentosMobile] Estados folha pagamento:', lotesFolhaPagamento.map(l => ({
+      id: l.id,
+      estadoRequisicao: l.estadoRequisicaoAtual,
+      status: l.status,
+      dataLiberacao: l.dataLiberacao,
+      qtdItens: l.itensPagamento.length,
+    })));
+
+    // Unificar todos os lotes
+    const todosLotes = [...lotesTurmaColheita, ...lotesFolhaPagamento];
+    console.log('[getResumoPagamentosMobile] Total de lotes unificados:', todosLotes.length);
+
+    // Separar lotes em pendentes, liberados e rejeitados
+    const lotesPendentes: typeof todosLotes = [];
+    const lotesLiberados: typeof todosLotes = [];
+    const lotesRejeitados: typeof todosLotes = [];
+
+    todosLotes.forEach((lote) => {
+      const estadoRequisicao = lote.estadoRequisicaoAtual;
+      const temDataLiberacao = !!lote.dataLiberacao;
+      const status = lote.status;
+
+      console.log('[getResumoPagamentosMobile] Analisando lote:', {
+        id: lote.id,
+        estadoRequisicao,
+        status,
+        dataLiberacao: temDataLiberacao,
+        qtdItens: lote.itensPagamento.length,
+        itensDetalhes: lote.itensPagamento.map((item: any) => ({
+          id: item.id,
+          valorEnviado: item.valorEnviado,
+          temColheitas: item.colheitas?.length || 0,
+          temFuncionario: !!item.funcionarioPagamentoId,
+          valorLiquido: item.funcionarioPagamento?.valorLiquido,
+        })),
+      });
+
+      // Lógica de identificação de rejeitados (mesma do getEstatisticasTurmaColheita)
+      const estaRejeitado = status === 'REJEITADO' || estadoRequisicao === 7;
+
+      // Lógica de identificação de liberados (mesma do frontend mobile)
+      const estaLiberado =
+        estadoRequisicao === 9 || estadoRequisicao === 10 || temDataLiberacao;
+
+      // Lógica de identificação de pendentes
+      // IMPORTANTE: Seguir exatamente a lógica do frontend web:
+      // - estadoRequisicao === 1 (dados consistentes, aguardando liberação)
+      // - estadoRequisicao === 4 (aguardando liberação - pendente de ação pelo Conveniado)
+      // - estadoRequisicao === 8 (processando - pode voltar para 4 e ser liberado)
+      // - NÃO está liberado (estadoRequisicao !== 9) e NÃO está processado (estadoRequisicao !== 6)
+      // - NÃO foi liberado anteriormente (!dataLiberacao)
+      // - NÃO está rejeitado (estadoRequisicao !== 7)
+      let estaPendente = false;
+      if (estadoRequisicao !== null && estadoRequisicao !== undefined) {
+        // Verificar primeiro se não é 9 nem 6 nem 7 (antes de verificar se é 1, 4 ou 8)
+        if (estadoRequisicao !== 9 && estadoRequisicao !== 6 && estadoRequisicao !== 7) {
+          // Estados pendentes: 1 (dados consistentes), 4 (pendente ação), 8 (processando)
+          const podeLiberar = estadoRequisicao === 1 || estadoRequisicao === 4 || estadoRequisicao === 8;
+          estaPendente = podeLiberar && !temDataLiberacao;
+        }
+      }
+
+      console.log('[getResumoPagamentosMobile] Classificação do lote:', {
+        id: lote.id,
+        estaRejeitado,
+        estaPendente,
+        estaLiberado,
+      });
+
+      if (estaRejeitado) {
+        lotesRejeitados.push(lote);
+      } else if (estaPendente) {
+        lotesPendentes.push(lote);
+      } else if (estaLiberado) {
+        lotesLiberados.push(lote);
+      }
+    });
+
+    console.log('[getResumoPagamentosMobile] Classificação dos lotes:', {
+      pendentes: lotesPendentes.length,
+      liberados: lotesLiberados.length,
+      rejeitados: lotesRejeitados.length,
+      detalhesPendentes: lotesPendentes.map(l => ({
+        id: l.id,
+        estadoRequisicao: l.estadoRequisicaoAtual,
+        status: l.status,
+        dataLiberacao: l.dataLiberacao,
+      })),
+    });
+
+    // Calcular valores totais para pendentes
+    // Para turma de colheita: usar valor das colheitas
+    // Para folha de pagamento: usar valor líquido dos funcionários ou valorTotalEnviado do lote
+    let valorTotalPendentes = 0;
+    lotesPendentes.forEach((lote: any) => {
+      // Verificar se é folha de pagamento: precisa ter pelo menos um item com funcionarioPagamentoId não nulo
+      // E não ter colheitas (ou ter mais itens com funcionário do que com colheitas)
+      const temFuncionario = lote.itensPagamento.some((item: any) => item.funcionarioPagamentoId !== null && item.funcionarioPagamentoId !== undefined);
+      const temColheitas = lote.itensPagamento.some((item: any) => item.colheitas && item.colheitas.length > 0);
+      const isFolhaPagamento = temFuncionario && !temColheitas;
+      
+      if (isFolhaPagamento) {
+        // Folha de pagamento: usar valor líquido dos funcionários, ou valorTotalEnviado se não tiver funcionários
+        let valorLoteFolha = 0;
+        lote.itensPagamento.forEach((item: any) => {
+          if (item.funcionarioPagamento?.valorLiquido) {
+            valorLoteFolha += Number(item.funcionarioPagamento.valorLiquido || 0);
+          }
+        });
+        // Se não encontrou valor líquido, usar valorTotalEnviado do lote
+        if (valorLoteFolha === 0 && lote.valorTotalEnviado) {
+          valorLoteFolha = Number(lote.valorTotalEnviado || 0);
+        }
+        valorTotalPendentes += valorLoteFolha;
+      } else {
+        // Turma de colheita: usar valor das colheitas
+        lote.itensPagamento.forEach((item: any) => {
+          item.colheitas?.forEach((colheita: any) => {
+            valorTotalPendentes += Number(colheita.valorColheita || 0);
+          });
+        });
+      }
+    });
+
+    // Calcular valores totais para liberados
+    // Para turma de colheita: usar valor enviado dos itens pagos
+    // Para folha de pagamento: usar valor enviado dos itens pagos ou valorTotalEnviado do lote
+    let valorTotalLiberados = 0;
+    lotesLiberados.forEach((lote: any) => {
+      const isFolhaPagamento = lote.itensPagamento.some((item: any) => item.funcionarioPagamentoId !== null);
+      
+      if (isFolhaPagamento) {
+        // Folha de pagamento: somar valor enviado dos itens pagos, ou usar valorTotalEnviado do lote
+        let valorLoteFolha = 0;
+        lote.itensPagamento.forEach((item: any) => {
+          const estado = item.estadoPagamentoIndividual || item.status || 'PENDENTE';
+          if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+            valorLoteFolha += Number(item.valorEnviado || 0);
+          }
+        });
+        // Se não encontrou itens pagos, usar valorTotalEnviado do lote
+        if (valorLoteFolha === 0 && lote.valorTotalEnviado) {
+          valorLoteFolha = Number(lote.valorTotalEnviado || 0);
+        }
+        valorTotalLiberados += valorLoteFolha;
+      } else {
+        // Turma de colheita: somar apenas valor enviado dos itens pagos
+        lote.itensPagamento.forEach((item: any) => {
+          const estado = item.estadoPagamentoIndividual || item.status || 'PENDENTE';
+          if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
+            valorTotalLiberados += Number(item.valorEnviado || 0);
+          }
+        });
+      }
+    });
+
+    // Calcular valores totais para rejeitados
+    let valorTotalRejeitados = 0;
+    lotesRejeitados.forEach((lote: any) => {
+      console.log('[getResumoPagamentosMobile] Calculando valor para lote rejeitado:', {
+        id: lote.id,
+        qtdItens: lote.itensPagamento.length,
+        itens: lote.itensPagamento.map((item: any) => ({
+          id: item.id,
+          valorEnviado: item.valorEnviado,
+          colheitas: item.colheitas?.length || 0,
+          funcionarioPagamentoId: item.funcionarioPagamentoId,
+          funcionarioPagamento: item.funcionarioPagamento,
+        })),
+      });
+
+      // Verificar se é folha de pagamento: precisa ter pelo menos um item com funcionarioPagamentoId não nulo
+      // E não ter colheitas (ou ter mais itens com funcionário do que com colheitas)
+      const temFuncionario = lote.itensPagamento.some((item: any) => item.funcionarioPagamentoId !== null && item.funcionarioPagamentoId !== undefined);
+      const temColheitas = lote.itensPagamento.some((item: any) => item.colheitas && item.colheitas.length > 0);
+      
+      // Se tem funcionário E não tem colheitas, é folha de pagamento
+      // Se tem colheitas, é turma de colheita (mesmo que também tenha funcionário)
+      const isFolhaPagamento = temFuncionario && !temColheitas;
+      
+      console.log('[getResumoPagamentosMobile] Tipo identificado:', {
+        temFuncionario,
+        temColheitas,
+        isFolhaPagamento,
+      });
+      
+      if (isFolhaPagamento) {
+        // Folha de pagamento: usar valor líquido dos funcionários, ou valorTotalEnviado se não tiver funcionários
+        let valorLoteFolha = 0;
+        lote.itensPagamento.forEach((item: any) => {
+          if (item.funcionarioPagamento?.valorLiquido) {
+            valorLoteFolha += Number(item.funcionarioPagamento.valorLiquido || 0);
+          }
+        });
+        // Se não encontrou valor líquido, usar valorTotalEnviado do lote
+        if (valorLoteFolha === 0 && lote.valorTotalEnviado) {
+          valorLoteFolha = Number(lote.valorTotalEnviado || 0);
+        }
+        console.log('[getResumoPagamentosMobile] Valor calculado para folha:', valorLoteFolha);
+        valorTotalRejeitados += valorLoteFolha;
+      } else {
+        // Turma de colheita: usar valor das colheitas
+        let valorLoteColheita = 0;
+        lote.itensPagamento.forEach((item: any) => {
+          if (item.colheitas && item.colheitas.length > 0) {
+            item.colheitas.forEach((colheita: any) => {
+              const valor = Number(colheita.valorColheita || 0);
+              valorLoteColheita += valor;
+              console.log('[getResumoPagamentosMobile] Adicionando valor colheita:', valor);
+            });
+          }
+        });
+        console.log('[getResumoPagamentosMobile] Valor calculado para colheita:', valorLoteColheita);
+        valorTotalRejeitados += valorLoteColheita;
+      }
+    });
+
+    const resultado = {
+      pendentes: {
+        totalLotes: lotesPendentes.length,
+        valorTotal: valorTotalPendentes,
+      },
+      liberados: {
+        totalLotes: lotesLiberados.length,
+        valorTotal: valorTotalLiberados,
+      },
+      rejeitados: {
+        totalLotes: lotesRejeitados.length,
+        valorTotal: valorTotalRejeitados,
+      },
+    };
+
+    console.log('[getResumoPagamentosMobile] Resultado final:', JSON.stringify(resultado, null, 2));
+
+    return resultado;
   }
 
   /**
@@ -2187,6 +2539,7 @@ export class PagamentosService {
           estadoRequisicao: lote.estadoRequisicao,
           estadoRequisicaoAtual: lote.estadoRequisicaoAtual,
           processadoComSucesso: lote.processadoComSucesso,
+          excluido: lote.excluido,
           dataCriacao: lote.createdAt,
           dataAtualizacao: lote.updatedAt,
           contaCorrente: {
@@ -2343,7 +2696,10 @@ export class PagamentosService {
     valorTotalPendente: number;
     valorTotalFuncionarios: number;
   }> {
-    const where = this.construirWhereFolhaPagamento(dataInicio, dataFim, tipoData, contaCorrenteId);
+    const where = {
+      ...this.construirWhereFolhaPagamento(dataInicio, dataFim, tipoData, contaCorrenteId),
+      excluido: false, // Excluir lotes marcados como excluídos das estatísticas
+    };
 
     // Buscar todos os lotes que atendem aos filtros (apenas campos necessários)
     const lotes = await this.prisma.pagamentoApiLote.findMany({
@@ -5607,6 +5963,46 @@ export class PagamentosService {
         return a.value.localeCompare(b.value);
       })
       .slice(0, 10);
+  }
+
+  /**
+   * Marca um lote como excluído (soft delete)
+   * Apenas permite exclusão quando o estado BB for 7 (Rejeitado)
+   * @param id ID do lote
+   * @param excluido Valor booleano para marcar como excluído
+   */
+  async marcarLoteExcluido(id: number, excluido: boolean): Promise<any> {
+    // Buscar o lote
+    const lote = await this.prisma.pagamentoApiLote.findUnique({
+      where: { id },
+    });
+
+    if (!lote) {
+      throw new NotFoundException(`Lote com ID ${id} não encontrado`);
+    }
+
+    // Validar que o estado é 7 (Rejeitado) antes de permitir exclusão
+    const estadoAtual = lote.estadoRequisicaoAtual || lote.estadoRequisicao;
+    if (excluido && estadoAtual !== 7) {
+      throw new BadRequestException(
+        `Apenas lotes com estado BB 7 (Rejeitado) podem ser marcados como excluídos. Estado atual: ${estadoAtual}`,
+      );
+    }
+
+    // Atualizar o campo excluido
+    const loteAtualizado = await this.prisma.pagamentoApiLote.update({
+      where: { id },
+      data: { excluido },
+    });
+
+    return {
+      id: loteAtualizado.id,
+      numeroRequisicao: loteAtualizado.numeroRequisicao,
+      excluido: loteAtualizado.excluido,
+      message: excluido 
+        ? 'Lote marcado como excluído com sucesso' 
+        : 'Lote desmarcado como excluído com sucesso',
+    };
   }
 }
 

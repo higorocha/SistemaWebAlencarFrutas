@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, HttpStatus, UseGuards, ParseIntPipe, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, HttpStatus, UseGuards, ParseIntPipe, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { PagamentosService } from './pagamentos.service';
 import {
@@ -11,6 +11,7 @@ import {
   LiberarPagamentosDto,
   CancelarPagamentosDto,
 } from './dto/pagamentos.dto';
+import { MarcarLoteExcluidoDto } from './dto/marcar-lote-excluido.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissoesGuard } from '../auth/guards/permissoes.guard';
 import { Niveis } from '../auth/decorators/niveis.decorator';
@@ -626,6 +627,35 @@ export class PagamentosController {
       throw new BadRequestException('Termo de busca deve ter pelo menos 2 caracteres');
     }
     return this.pagamentosService.buscaInteligente(term);
+  }
+
+  /**
+   * Marca um lote como excluído (soft delete)
+   */
+  @Patch('lotes/:id/excluir')
+  @ApiOperation({ summary: 'Marcar lote de pagamento como excluído' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do lote de pagamento',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lote marcado como excluído com sucesso',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Lote não pode ser excluído (estado não é 7 - Rejeitado)',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Lote não encontrado',
+  })
+  async marcarLoteExcluido(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: MarcarLoteExcluidoDto,
+  ) {
+    return this.pagamentosService.marcarLoteExcluido(id, dto.excluido);
   }
 
   /**

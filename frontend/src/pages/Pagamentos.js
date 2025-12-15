@@ -1,7 +1,7 @@
 // src/pages/Pagamentos.js
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, Tag, Space, Typography, Tooltip, Select, DatePicker, Button, Modal, Popconfirm, Dropdown, Divider, Segmented } from "antd";
-import { DollarOutlined, BankOutlined, ClockCircleOutlined, CheckCircleOutlined, FilterOutlined, CloseCircleOutlined, UnlockOutlined, StopOutlined, EyeOutlined, MoreOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { DollarOutlined, BankOutlined, ClockCircleOutlined, CheckCircleOutlined, FilterOutlined, CloseCircleOutlined, UnlockOutlined, StopOutlined, EyeOutlined, MoreOutlined, InfoCircleOutlined, DeleteOutlined } from "@ant-design/icons";
 import { SecondaryButton } from "components/common/buttons";
 import axiosInstance from "../api/axiosConfig";
 import ResponsiveTable from "../components/common/ResponsiveTable";
@@ -349,6 +349,38 @@ const Pagamentos = () => {
       showNotification("error", "Erro", message);
     } finally {
       setLiberandoLoteId(null);
+    }
+  };
+
+  // Função para marcar lote como excluído
+  const handleMarcarExcluido = async (loteId) => {
+    try {
+      await axiosInstance.patch(`/api/pagamentos/lotes/${loteId}/excluir`, {
+        excluido: true,
+      });
+      showNotification("success", "Sucesso", "Lote marcado como excluído com sucesso!");
+      
+      // Recarregar lista e estatísticas
+      let inicio = null;
+      let fim = null;
+      if (dateRange && dateRange.length === 2) {
+        inicio = dateRange[0]
+          ? moment(dateRange[0]).startOf("day").toISOString()
+          : null;
+        fim = dateRange[1]
+          ? moment(dateRange[1]).endOf("day").toISOString()
+          : null;
+      }
+      fetchLotesTurmaColheita(inicio, fim, paginacaoTurmaColheita.page, paginacaoTurmaColheita.limit, dateFilterType, contaCorrenteId);
+      fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType, contaCorrenteId);
+      fetchEstatisticasTurmaColheita(inicio, fim, dateFilterType, contaCorrenteId);
+      fetchEstatisticasFolhaPagamento(inicio, fim, dateFilterType, contaCorrenteId);
+    } catch (error) {
+      console.error("Erro ao marcar lote como excluído:", error);
+      const message =
+        error.response?.data?.message ||
+        "Erro ao marcar lote como excluído. Verifique os logs para mais detalhes.";
+      showNotification("error", "Erro", message);
     }
   };
 
@@ -881,6 +913,37 @@ const Pagamentos = () => {
       key: "estadoRequisicao",
       width: 140,
       render: (_, record) => {
+        // Se o lote estiver excluído, mostrar "Excluído"
+        // Verificação robusta para excluido (pode vir como boolean, string, número ou undefined)
+        const estaExcluido = record.excluido === true || 
+                             record.excluido === "true" || 
+                             record.excluido === 1 || 
+                             record.excluido === "1";
+        if (estaExcluido) {
+          return (
+            <Tooltip 
+              title={
+                <div style={{ maxWidth: 300 }}>
+                  <div style={{ marginBottom: 8, fontWeight: 600 }}>Lote Excluído</div>
+                  <div style={{ fontSize: "12px", lineHeight: 1.6 }}>
+                    Este lote foi marcado como excluído pelo usuário e não é mais considerado nos cálculos e estatísticas do sistema.
+                    <br />
+                    <br />
+                    <strong>Importante:</strong> O registro continua existindo no banco de dados e sendo exibido aqui para referência, mas não influencia nos totais de lotes, valores ou quantidades calculadas.
+                    <br />
+                    <br />
+                    <strong>Banco do Brasil:</strong> Não é possível excluir lotes que já foram enviados ao BB. O lote permanece registrado no sistema bancário para fins de auditoria e rastreamento.
+                  </div>
+                </div>
+              }
+            >
+              <Tag color="default" style={{ backgroundColor: "#8c8c8c", color: "#ffffff" }}>
+                Excluído
+              </Tag>
+            </Tooltip>
+          );
+        }
+
         // Usar estadoRequisicaoAtual se disponível, senão estadoRequisicao
         const estadoRequisicao = record.estadoRequisicaoAtual || record.estadoRequisicao;
         const mapeamento = mapearEstadoRequisicao(estadoRequisicao);
@@ -1009,6 +1072,34 @@ const Pagamentos = () => {
               setModalConsultaOnlineOpen(true);
             },
           });
+
+          // Opção: Marcar como Excluído (apenas se estado = 7 e não estiver excluído)
+          // Verificar se o record atual (da função render) tem o campo excluido
+          const estadoRequisicaoMenu = record.estadoRequisicaoAtual || record.estadoRequisicao;
+          // Verificação robusta para excluido (pode vir como boolean, string, número ou undefined)
+          const estaExcluido = record.excluido === true || 
+                               record.excluido === "true" || 
+                               record.excluido === 1 || 
+                               record.excluido === "1";
+          const podeExcluir = estadoRequisicaoMenu === 7 && !estaExcluido;
+          
+          if (podeExcluir) {
+            menuItems.push({
+              type: "divider",
+            });
+            menuItems.push({
+              key: "marcar-excluido",
+              label: (
+                <Space>
+                  <DeleteOutlined style={{ color: "#ff4d4f" }} />
+                  <span style={{ color: "#333" }}>Marcar como Excluído</span>
+                </Space>
+              ),
+              onClick: () => {
+                handleMarcarExcluido(record.id);
+              },
+            });
+          }
 
           // Consulta de item individual será feita ao expandir o lote
 
