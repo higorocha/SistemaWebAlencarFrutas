@@ -816,6 +816,7 @@ const ArhFolhaPagamento = () => {
         quantidadeComValores: 0,
         quantidadePendentes: 0,
         quantidadePagos: 0,
+        todosPagos: false,
       };
     }
 
@@ -850,6 +851,9 @@ const ArhFolhaPagamento = () => {
     const quantidadePendentes = lancamentos.filter(l => l.statusPagamento === "PENDENTE").length;
     const quantidadePagos = lancamentos.filter(l => l.statusPagamento === "PAGO").length;
     const quantidadeRejeitados = lancamentos.filter(l => l.statusPagamento === "REJEITADO").length;
+    
+    // Verificar se todos os funcionários estão pagos (todos têm status PAGO)
+    const todosPagos = quantidadeFuncionarios > 0 && quantidadePagos === quantidadeFuncionarios;
 
     return {
       totalHorasExtras,
@@ -862,6 +866,7 @@ const ArhFolhaPagamento = () => {
       quantidadePendentes,
       quantidadePagos,
       quantidadeRejeitados,
+      todosPagos,
     };
   }, [lancamentos]);
 
@@ -1226,7 +1231,18 @@ const ArhFolhaPagamento = () => {
                 icon="mdi:chart-box"
                 style={{ marginRight: 8, color: "#059669", fontSize: 24, verticalAlign: "middle" }}
               />
-              {selectedFolha ? `Resumo ${competenciaLabel(selectedFolha)}${formatarDataPeriodo(selectedFolha)}` : "Resumo"}
+              {selectedFolha ? (
+                <>
+                  Resumo {competenciaLabel(selectedFolha)}{formatarDataPeriodo(selectedFolha)}
+                  {resumoDetalhado.todosPagos && (
+                    <span style={{ marginLeft: 8, color: "#52c41a", fontSize: "20px", fontWeight: "bold" }}>
+                      ✓
+                    </span>
+                  )}
+                </>
+              ) : (
+                "Resumo"
+              )}
             </Title>
             <Divider style={{ margin: "0 0 20px 0", borderColor: "#e8e8e8" }} />
 

@@ -72,6 +72,44 @@ export const formatDateBR = (date: Date | string): string => {
 };
 
 /**
+ * Formata uma data extraindo diretamente da string, sem usar Date para evitar problemas de timezone
+ * Evita completamente problemas de timezone ao extrair apenas os componentes da data
+ * @param dataString Data no formato "YYYY-MM-DD" ou "YYYY-MM-DD HH:mm:ss" ou ISO
+ * @returns Data formatada como "DD/MM/YYYY"
+ */
+export const formatDateBRSemTimezone = (dataString: string | Date | null | undefined): string => {
+  if (!dataString) return 'N/A';
+  
+  try {
+    // Se for um objeto Date, converter para string ISO primeiro
+    let dateStr: string;
+    if (dataString instanceof Date) {
+      // Usar UTC para evitar problemas de timezone
+      const year = dataString.getUTCFullYear();
+      const month = String(dataString.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(dataString.getUTCDate()).padStart(2, '0');
+      dateStr = `${year}-${month}-${day}`;
+    } else {
+      dateStr = String(dataString);
+    }
+    
+    // Extrair diretamente da string usando regex para evitar qualquer conversão de timezone
+    // Funciona com formatos: "2025-11-22", "2025-11-22 00:00:00", "2025-11-22T00:00:00.000Z"
+    const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const [, ano, mes, dia] = match;
+      return `${dia}/${mes}/${ano}`;
+    }
+    
+    // Se não conseguir extrair, retorna o valor original ou "N/A"
+    return 'N/A';
+  } catch (error) {
+    console.error('Erro ao formatar data:', error);
+    return 'N/A';
+  }
+};
+
+/**
  * Formata um CPF para o padrão XXX.XXX.XXX-XX
  * @param cpf CPF com apenas números
  * @returns CPF formatado

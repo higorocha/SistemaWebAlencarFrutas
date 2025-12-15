@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   formatCurrencyBR,
   formatDateBR,
+  formatDateBRSemTimezone,
   formatNumber,
   formatCPF,
   formatCNPJ,
@@ -812,8 +813,9 @@ export class PdfController {
     const statusFormatado = statusMap[folha.status] || folha.status;
 
     // Formatar datas
-    const dataInicialFormatada = formatDateBR(folha.dataInicial);
-    const dataFinalFormatada = formatDateBR(folha.dataFinal);
+    // Usar formatDateBRSemTimezone para dataInicial e dataFinal para evitar problemas de timezone
+    const dataInicialFormatada = formatDateBRSemTimezone(folha.dataInicial);
+    const dataFinalFormatada = formatDateBRSemTimezone(folha.dataFinal);
     const dataPagamentoFormatada = folha.dataPagamento ? formatDateBR(folha.dataPagamento) : null;
     const dataGeracaoFormatada = formatDateBR(new Date());
 
@@ -1024,9 +1026,9 @@ export class PdfController {
         largurasBordas.push(2); // Borda normal
       }
       
-      // Formatar datas
-      const dataInicialFormatada = formatDateBR(folha.dataInicial);
-      const dataFinalFormatada = formatDateBR(folha.dataFinal);
+      // Formatar datas - usar formatDateBRSemTimezone para evitar problemas de timezone
+      const dataInicialFormatada = formatDateBRSemTimezone(folha.dataInicial);
+      const dataFinalFormatada = formatDateBRSemTimezone(folha.dataFinal);
       const referencia = folha.referencia || '-';
       
       // Criar legenda com todas as informações (marcar folha atual)
@@ -1233,12 +1235,17 @@ export class PdfController {
       };
       const statusPagamentoFormatado = statusPagamentoMap[lancamento.statusPagamento] || lancamento.statusPagamento;
 
+      // Formatar chave PIX para exibição (substituindo CPF)
+      const chavePixFormatada = funcionario?.chavePix 
+        ? `PIX: ${funcionario.chavePix}` 
+        : null;
+
       return {
         itemNumero: index + 1,
         funcionario: {
           nome: capitalizeName(funcionario?.nome || ''),
           apelido: funcionario?.apelido ? capitalizeName(funcionario.apelido) : null,
-          cpf: funcionario?.cpf ? formatCPF(funcionario.cpf) : null,
+          cpf: chavePixFormatada, // Agora exibe chave PIX ao invés de CPF
         },
         cargoFuncao: capitalizeName(cargoFuncao),
         tipoContrato,

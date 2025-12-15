@@ -32,23 +32,35 @@ const LancamentosTable = React.memo(
       const menuItems = [
         {
           key: "edit",
+          disabled: !isRascunho,
           label: (
-            <Space>
-              <CalculatorOutlined style={{ color: "#fa8c16" }} />
-              <span style={{ color: "#333" }}>Calcular Lançamento</span>
-            </Space>
+            <Tooltip
+              title={!isRascunho ? "A folha precisa estar em edição (status Rascunho) para permitir calcular o lançamento" : undefined}
+              placement="left"
+            >
+              <Space>
+                <CalculatorOutlined style={{ color: isRascunho ? "#fa8c16" : "#d9d9d9" }} />
+                <span style={{ color: isRascunho ? "#333" : "#bfbfbf" }}>Calcular Lançamento</span>
+              </Space>
+            </Tooltip>
           ),
-          onClick: () => onEditLancamento(record),
+          onClick: isRascunho ? () => onEditLancamento(record) : undefined,
         },
         {
           key: "payment",
+          disabled: !isRascunho,
           label: (
-            <Space>
-              <DollarOutlined style={{ color: "#059669" }} />
-              <span style={{ color: "#333" }}>Atualizar Pagamento</span>
-            </Space>
+            <Tooltip
+              title={!isRascunho ? "A folha precisa estar em edição (status Rascunho) para permitir atualizar o pagamento" : undefined}
+              placement="left"
+            >
+              <Space>
+                <DollarOutlined style={{ color: isRascunho ? "#059669" : "#d9d9d9" }} />
+                <span style={{ color: isRascunho ? "#333" : "#bfbfbf" }}>Atualizar Pagamento</span>
+              </Space>
+            </Tooltip>
           ),
-          onClick: () => onEditPagamento(record),
+          onClick: isRascunho ? () => onEditPagamento(record) : undefined,
         },
         {
           type: "divider",
@@ -726,12 +738,19 @@ const LancamentosTable = React.memo(
                 </>
               ) : (
                 <>
-                  <Tooltip title="Editar Lançamento">
+                  <Tooltip 
+                    title={
+                      folhaStatus === "RASCUNHO" 
+                        ? "Editar Lançamento" 
+                        : "A folha precisa estar em edição (status Rascunho) para permitir editar o lançamento"
+                    }
+                  >
                     <Button
                       type="text"
                       size="small"
-                      icon={<EditOutlined style={{ color: "#fa8c16", fontSize: "16px" }} />}
+                      icon={<EditOutlined style={{ color: folhaStatus === "RASCUNHO" ? "#fa8c16" : "#d9d9d9", fontSize: "16px" }} />}
                       onClick={() => handleStartEdit(record)}
+                      disabled={folhaStatus !== "RASCUNHO"}
                       style={{
                         border: "none",
                         boxShadow: "none",

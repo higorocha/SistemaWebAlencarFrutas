@@ -219,6 +219,7 @@ export class FolhaPagamentoService {
             nome: true,
             apelido: true,
             cpf: true,
+            chavePix: true,
             tipoContrato: true,
             gerente: {
               select: {
