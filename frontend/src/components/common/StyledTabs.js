@@ -12,48 +12,7 @@ const StyledTabs = styled(Tabs)`
     transition: all 0.2s ease !important;
     border-radius: 8px 8px 0 0 !important;
     border-bottom: 2px solid transparent !important;
-  }
 
-  .ant-tabs-tab:first-child {
-    .ant-tabs-tab-btn {
-      color: #059669 !important;
-    }
-
-    &:hover {
-      border-bottom-color: #059669 !important;
-    }
-
-    &.ant-tabs-tab-active {
-      border-color: #e8e8e8 !important;
-      border-bottom-color: #fff !important;
-
-      .ant-tabs-tab-btn {
-        font-weight: 600 !important;
-      }
-    }
-  }
-
-  .ant-tabs-tab:nth-child(2) {
-    .ant-tabs-tab-btn {
-      color: #059669 !important;
-    }
-
-    &:hover {
-      border-bottom-color: #059669 !important;
-    }
-
-    &.ant-tabs-tab-active {
-      border-color: #e8e8e8 !important;
-      border-bottom-color: #fff !important;
-
-      .ant-tabs-tab-btn {
-        font-weight: 600 !important;
-        color: #059669 !important;
-      }
-    }
-  }
-
-  .ant-tabs-tab:nth-child(3) {
     .ant-tabs-tab-btn {
       color: #059669 !important;
     }
