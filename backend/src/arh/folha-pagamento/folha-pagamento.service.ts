@@ -1338,6 +1338,14 @@ export class FolhaPagamentoService {
     const valorDiaria =
       Number(funcionario.valorDiariaCustomizada ?? 0) ||
       Number(funcionario.funcao?.valorDiariaBase ?? 0);
+    
+    // Usar ajudaCusto do funcionário se existir, caso contrário usar 0
+    const ajudaCustoFuncionario = funcionario.ajudaCusto 
+      ? Number(funcionario.ajudaCusto) 
+      : 0;
+    
+    // Usar pixTerceiro do funcionário, padrão false se não existir
+    const pixTerceiroFuncionario = funcionario.pixTerceiro ?? false;
 
     const calculo = this.calculoService.calcularValores({
       tipoContrato: funcionario.tipoContrato,
@@ -1346,7 +1354,7 @@ export class FolhaPagamentoService {
       diasTrabalhados: 0,
       horasExtras: 0,
       valorHoraExtra: 0,
-      ajudaCusto: 0,
+      ajudaCusto: ajudaCustoFuncionario,
       extras: 0,
       adiantamento: 0,
     });
@@ -1363,11 +1371,12 @@ export class FolhaPagamentoService {
       valorDiariaAplicada: new Prisma.Decimal(valorDiaria),
       diasTrabalhados: 0,
       faltas: new Prisma.Decimal(0),
-      ajudaCusto: new Prisma.Decimal(0),
+      ajudaCusto: new Prisma.Decimal(ajudaCustoFuncionario),
       extras: new Prisma.Decimal(0),
       adiantamento: new Prisma.Decimal(0),
       valorBruto: new Prisma.Decimal(calculo.valorBruto),
       valorLiquido: new Prisma.Decimal(calculo.valorLiquido),
+      pixTerceiro: pixTerceiroFuncionario,
       meioPagamento: MeioPagamentoFuncionario.PIX,
       statusPagamento: StatusFuncionarioPagamento.PENDENTE,
       pagamentoEfetuado: false,
@@ -1579,6 +1588,9 @@ export class FolhaPagamentoService {
           adiantamento: this.toNumber(lancamento.adiantamento),
         });
 
+        // Obter pixTerceiro atual do funcionário
+        const pixTerceiroAtual = funcionario.pixTerceiro ?? false;
+
         // Atualizar lançamento
         await tx.funcionarioPagamento.update({
           where: { id: lancamento.id },
@@ -1590,6 +1602,8 @@ export class FolhaPagamentoService {
             // Atualizar também os nomes de referência caso tenham mudado
             referenciaNomeCargo: funcionario.cargo?.nome ?? null,
             referenciaNomeFuncao: funcionario.funcao?.nome ?? null,
+            // Atualizar pixTerceiro com o valor atual do funcionário
+            pixTerceiro: pixTerceiroAtual,
           },
         });
       }

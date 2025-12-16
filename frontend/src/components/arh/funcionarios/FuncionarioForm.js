@@ -12,6 +12,7 @@ import {
 } from "@ant-design/icons";
 import { IMaskInput } from "react-imask";
 import { capitalizeName } from "../../../utils/formatters";
+import MonetaryInput from "../../common/inputs/MonetaryInput";
 
 // Lista de estados brasileiros
 const ESTADOS_BRASILEIROS = [
@@ -727,6 +728,46 @@ const FuncionarioForm = ({
                     handleChange("responsavelChavePix", e.target.value)
                   }
                   size="large"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label={
+                  <Space>
+                    <DollarOutlined style={{ color: "#059669" }} />
+                    <Text strong>Ajuda de Custo (R$)</Text>
+                  </Space>
+                }
+                help="Valor em reais para ajuda de custo na folha de pagamento"
+              >
+                <MonetaryInput
+                  value={funcionarioAtual.ajudaCusto}
+                  onChange={(value) => handleChange("ajudaCusto", value ? parseFloat(value) : undefined)}
+                  placeholder="0,00"
+                  size="large"
+                  addonAfter="R$"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label={
+                  <Space>
+                    <DollarOutlined style={{ color: "#059669" }} />
+                    <Text strong>PIX de Terceiro</Text>
+                  </Space>
+                }
+                help="Marque se a chave PIX pertence a um terceiro"
+              >
+                <Switch
+                  checked={funcionarioAtual.pixTerceiro || false}
+                  onChange={(checked) => handleChange("pixTerceiro", checked)}
+                  checkedChildren="Sim"
+                  unCheckedChildren="Não"
                 />
               </Form.Item>
             </Col>

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEmail,
   IsEnum,
@@ -152,6 +153,17 @@ export class CreateFuncionarioDto {
   @IsString()
   @MaxLength(180)
   responsavelChavePix?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  ajudaCusto?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  pixTerceiro?: boolean;
 
   @IsOptional()
   @IsObject()

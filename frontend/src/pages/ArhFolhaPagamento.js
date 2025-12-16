@@ -1728,9 +1728,22 @@ const ArhFolhaPagamento = () => {
                     </PDFButton>
                     <PDFButton
                       onClick={gerarRecibos}
-                      disabled={!selectedFolha}
+                      disabled={
+                        !selectedFolha ||
+                        selectedFolha.status === "RASCUNHO" ||
+                        selectedFolha.status === "PENDENTE_LIBERACAO" ||
+                        selectedFolha.status === "CANCELADA"
+                      }
                       size={isMobile ? "small" : "large"}
-                      tooltip="Gerar recibos em PDF"
+                      tooltip={
+                        !selectedFolha ||
+                        selectedFolha.status === "RASCUNHO" ||
+                        selectedFolha.status === "PENDENTE_LIBERACAO"
+                          ? "A folha precisa estar liberada para gerar recibos"
+                          : selectedFolha.status === "CANCELADA"
+                          ? "Não é possível gerar recibos de uma folha cancelada"
+                          : "Gerar recibos em PDF"
+                      }
                       style={{
                         height: isMobile ? "32px" : "40px",
                         padding: isMobile ? "0 12px" : "0 16px",

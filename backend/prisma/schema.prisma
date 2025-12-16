@@ -742,6 +742,8 @@ model Funcionario {
   modalidadeChave        String?                 @db.VarChar(50) // Nome: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"
   chavePix               String?                 @db.VarChar(200)
   responsavelChavePix    String?                 @db.VarChar(180)
+  ajudaCusto             Decimal?                @default(0) @db.Decimal(12, 2)
+  pixTerceiro            Boolean                 @default(false)
   status                 StatusFuncionario       @default(ATIVO)
   dataAdmissao           DateTime?
   dataDemissao           DateTime?
@@ -813,6 +815,7 @@ model FuncionarioPagamento {
   adiantamento          Decimal?                   @default(0) @db.Decimal(12, 2)
   valorBruto            Decimal                    @default(0) @db.Decimal(12, 2)
   valorLiquido          Decimal                    @default(0) @db.Decimal(12, 2)
+  pixTerceiro           Boolean                    @default(false)
   meioPagamento         MeioPagamentoFuncionario   @default(PIX)
   pagamentoEfetuado     Boolean                    @default(false)
   dataPagamento         DateTime?

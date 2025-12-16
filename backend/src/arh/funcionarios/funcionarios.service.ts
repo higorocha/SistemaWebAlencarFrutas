@@ -376,6 +376,14 @@ export class FuncionariosService {
       data.responsavelChavePix = dto.responsavelChavePix;
     }
 
+    if (dto.ajudaCusto !== undefined) {
+      data.ajudaCusto = new Prisma.Decimal(dto.ajudaCusto);
+    }
+
+    if (dto.pixTerceiro !== undefined) {
+      data.pixTerceiro = dto.pixTerceiro;
+    }
+
     if (dto.endereco !== undefined) {
       data.endereco = dto.endereco
         ? (dto.endereco as Prisma.InputJsonValue)

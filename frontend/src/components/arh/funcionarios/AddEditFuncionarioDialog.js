@@ -40,6 +40,8 @@ const AddEditFuncionarioDialog = ({
     modalidadeChave: "",
     chavePix: "",
     responsavelChavePix: "",
+    ajudaCusto: undefined,
+    pixTerceiro: false,
   });
   const [editando, setEditando] = useState(false);
   const [erros, setErros] = useState({});
@@ -88,6 +90,8 @@ const AddEditFuncionarioDialog = ({
         modalidadeChave: funcionario.modalidadeChave || "",
         chavePix: funcionario.chavePix || "",
         responsavelChavePix: funcionario.responsavelChavePix || "",
+        ajudaCusto: funcionario.ajudaCusto ?? undefined,
+        pixTerceiro: funcionario.pixTerceiro ?? false,
       });
       setEditando(true);
     } else if (open) {
@@ -113,6 +117,8 @@ const AddEditFuncionarioDialog = ({
         tipoChavePix: undefined,
         chavePix: "",
         responsavelChavePix: "",
+        ajudaCusto: undefined,
+        pixTerceiro: false,
       });
       setEditando(false);
     }
@@ -213,6 +219,8 @@ const AddEditFuncionarioDialog = ({
       tipoChavePix: undefined,
       chavePix: "",
       responsavelChavePix: "",
+      ajudaCusto: undefined,
+      pixTerceiro: false,
     });
     setErros({});
     handleConfirmClose();
