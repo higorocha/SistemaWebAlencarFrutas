@@ -19,7 +19,7 @@ const currency = (value) =>
   }).format(Number(value || 0));
 
 const LancamentosTable = React.memo(
-  ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario, folhaStatus }) => {
+  ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario, folhaStatus, isProgramador = false }) => {
     const [confirmModal, setConfirmModal] = React.useState({ open: false, record: null });
     const [editingId, setEditingId] = React.useState(null);
     const [editingValues, setEditingValues] = React.useState({});
@@ -27,7 +27,8 @@ const LancamentosTable = React.memo(
 
     // Função para criar o menu de ações
     const getMenuContent = (record) => {
-      const isRascunho = folhaStatus === "RASCUNHO";
+      // Programador ignora restrições de status
+      const isRascunho = isProgramador || folhaStatus === "RASCUNHO";
       
       const menuItems = [
         {
@@ -740,7 +741,7 @@ const LancamentosTable = React.memo(
                 <>
                   <Tooltip 
                     title={
-                      folhaStatus === "RASCUNHO" 
+                      (isProgramador || folhaStatus === "RASCUNHO")
                         ? "Editar Lançamento" 
                         : "A folha precisa estar em edição (status Rascunho) para permitir editar o lançamento"
                     }
@@ -748,9 +749,9 @@ const LancamentosTable = React.memo(
                     <Button
                       type="text"
                       size="small"
-                      icon={<EditOutlined style={{ color: folhaStatus === "RASCUNHO" ? "#fa8c16" : "#d9d9d9", fontSize: "16px" }} />}
+                      icon={<EditOutlined style={{ color: (isProgramador || folhaStatus === "RASCUNHO") ? "#fa8c16" : "#d9d9d9", fontSize: "16px" }} />}
                       onClick={() => handleStartEdit(record)}
-                      disabled={folhaStatus !== "RASCUNHO"}
+                      disabled={!isProgramador && folhaStatus !== "RASCUNHO"}
                       style={{
                         border: "none",
                         boxShadow: "none",
@@ -829,6 +830,7 @@ LancamentosTable.propTypes = {
   onEditPagamento: PropTypes.func.isRequired,
   onRemoveFuncionario: PropTypes.func.isRequired,
   folhaStatus: PropTypes.string,
+  isProgramador: PropTypes.bool,
 };
 
 export default LancamentosTable;

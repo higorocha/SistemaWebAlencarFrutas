@@ -131,6 +131,7 @@ const ArhFolhaPagamento = () => {
 
   const isGerenteCultura = user?.nivel === "GERENTE_CULTURA";
   const isAdmin = user?.nivel === "ADMINISTRADOR";
+  const isProgramador = user?.nivel === "PROGRAMADOR";
 
   const carregarFolhas = useCallback(async () => {
     try {
@@ -930,6 +931,7 @@ const ArhFolhaPagamento = () => {
               onEditPagamento={handleEditPagamento}
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
+              isProgramador={isProgramador}
             />
           ),
       });
@@ -953,6 +955,7 @@ const ArhFolhaPagamento = () => {
               onEditPagamento={handleEditPagamento}
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
+              isProgramador={isProgramador}
             />
           ),
       });
@@ -988,6 +991,7 @@ const ArhFolhaPagamento = () => {
               onEditPagamento={handleEditPagamento}
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
+              isProgramador={isProgramador}
             />
           ),
         });
@@ -1012,6 +1016,7 @@ const ArhFolhaPagamento = () => {
               onEditPagamento={handleEditPagamento}
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
+              isProgramador={isProgramador}
             />
           ),
       });
@@ -1026,6 +1031,7 @@ const ArhFolhaPagamento = () => {
     handleEditPagamento,
     removerFuncionario,
     selectedFolha?.status,
+    isProgramador,
   ]);
 
   // Ajustar aba ativa quando os lançamentos mudarem
@@ -1691,7 +1697,12 @@ const ArhFolhaPagamento = () => {
                       <span>
                         <PrimaryButton
                           icon={<ReloadOutlined />}
-                          disabled={!selectedFolha || selectedFolha.status === "FECHADA" || selectedFolha.status === "CANCELADA"}
+                          disabled={
+                            !selectedFolha || 
+                            selectedFolha.status === "FECHADA" || 
+                            selectedFolha.status === "CANCELADA" ||
+                            (!isProgramador && selectedFolha.status !== "RASCUNHO")
+                          }
                           onClick={() => setReprocessarModalOpen(true)}
                           style={{
                             backgroundColor: "#1890ff",
