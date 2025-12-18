@@ -672,7 +672,7 @@ const PrecificacaoTab = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={4}>
+              <Col xs={24} md={5}>
                 <Form.Item
                   label={
                     <Space>
@@ -682,7 +682,7 @@ const PrecificacaoTab = ({
                   }
                 >
                   <MonetaryInput
-                    placeholder="Ex: 1.250,50"
+                    placeholder="1,9"
                     addonAfter="KG"
                     size="small"
                     value={pedidoAtual.indPesoMedio}
@@ -697,7 +697,7 @@ const PrecificacaoTab = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={4}>
+              <Col xs={24} md={5}>
                 <Form.Item
                   label={
                     <Space>
@@ -707,9 +707,10 @@ const PrecificacaoTab = ({
                   }
                 >
                   <MonetaryInput
-                    placeholder="Ex: 500,75"
+                    placeholder="450"
                     addonAfter="ML"
                     size="small"
+                    decimalScale={0}
                     value={pedidoAtual.indMediaMililitro}
                     onChange={(value) => {
                       setPedidoAtual(prev => ({

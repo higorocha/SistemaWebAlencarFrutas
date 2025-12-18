@@ -1109,7 +1109,7 @@ const PrecificacaoModal = ({
                 </Form.Item>
               </Col>
 
-              <Col xs={24} sm={12} md={4}>
+              <Col xs={24} sm={12} md={5}>
                 <Form.Item
                   label={
                     <Space>
@@ -1137,14 +1137,14 @@ const PrecificacaoModal = ({
                   ]}
                 >
                   <MonetaryInput
-                    placeholder="Ex: 1.250,50"
+                    placeholder="1,9"
                     addonAfter="KG"
                     size="small"
                   />
                 </Form.Item>
               </Col>
 
-              <Col xs={24} sm={12} md={4}>
+              <Col xs={24} sm={12} md={5}>
                 <Form.Item
                   label={
                     <Space>
@@ -1172,9 +1172,10 @@ const PrecificacaoModal = ({
                   ]}
                 >
                   <MonetaryInput
-                    placeholder="Ex: 500,75"
+                    placeholder="450"
                     addonAfter="ML"
                     size="small"
+                    decimalScale={0}
                   />
                 </Form.Item>
               </Col>

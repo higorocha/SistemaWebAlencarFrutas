@@ -769,6 +769,51 @@ const ArhFolhaPagamento = () => {
     showNotification("info", "Desenvolvimento", "Funcionalidade em desenvolvimento");
   };
 
+  const gerarReciboIndividual = useCallback(async (record) => {
+    if (!record || !record.id) {
+      showNotification("error", "Erro", "Dados do lançamento não encontrados.");
+      return;
+    }
+
+    try {
+      setCentralLoading(true);
+      setCentralMessage("Gerando recibo...");
+      
+      const response = await axiosInstance.get(
+        `/api/pdf/recibo-funcionario/${record.id}`,
+        {
+          responseType: 'blob',
+        }
+      );
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nome do arquivo: recibo-NomeFuncionario-12-2025.pdf
+      const nomeFuncionario = record.funcionario?.nome || 'funcionario';
+      const competencia = selectedFolha 
+        ? `${String(selectedFolha.competenciaMes).padStart(2, '0')}-${selectedFolha.competenciaAno}`
+        : 'recibo';
+      link.download = `recibo-${nomeFuncionario.replace(/\s+/g, '-')}-${competencia}.pdf`;
+      
+      link.click();
+      window.URL.revokeObjectURL(url);
+      
+      showNotification("success", "Sucesso", "Recibo gerado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar recibo:", error);
+      const message =
+        error.response?.data?.message ||
+        "Erro ao gerar o recibo.";
+      showNotification("error", "Erro", message);
+    } finally {
+      setCentralLoading(false);
+      setCentralMessage("");
+    }
+  }, [selectedFolha, showNotification]);
+
   const handleEditLancamento = useCallback((valuesOrRecord, record) => {
     // Se receber dois parâmetros, é edição inline (values, record)
     if (record) {
@@ -932,6 +977,7 @@ const ArhFolhaPagamento = () => {
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
               isProgramador={isProgramador}
+              onGerarRecibo={gerarReciboIndividual}
             />
           ),
       });
@@ -956,6 +1002,7 @@ const ArhFolhaPagamento = () => {
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
               isProgramador={isProgramador}
+              onGerarRecibo={gerarReciboIndividual}
             />
           ),
       });
@@ -992,6 +1039,7 @@ const ArhFolhaPagamento = () => {
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
               isProgramador={isProgramador}
+              onGerarRecibo={gerarReciboIndividual}
             />
           ),
         });
@@ -1017,6 +1065,7 @@ const ArhFolhaPagamento = () => {
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
               isProgramador={isProgramador}
+              onGerarRecibo={gerarReciboIndividual}
             />
           ),
       });
@@ -1809,6 +1858,7 @@ const ArhFolhaPagamento = () => {
               onEditPagamento={handleEditPagamento}
               onRemoveFuncionario={removerFuncionario}
               folhaStatus={selectedFolha?.status}
+              onGerarRecibo={gerarReciboIndividual}
             />
           )}
         </Suspense>

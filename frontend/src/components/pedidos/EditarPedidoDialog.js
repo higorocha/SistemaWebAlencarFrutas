@@ -886,8 +886,9 @@ const EditarPedidoDialog = ({
           // Campos específicos para clientes indústria
           indDataEntrada: pedidoAtual.indDataEntrada ? moment(pedidoAtual.indDataEntrada).format('YYYY-MM-DD') : undefined,
           indDataDescarga: pedidoAtual.indDataDescarga ? moment(pedidoAtual.indDataDescarga).format('YYYY-MM-DD') : undefined,
-          indPesoMedio: pedidoAtual.indPesoMedio || undefined,
-          indMediaMililitro: pedidoAtual.indMediaMililitro || undefined,
+          // ✅ CORREÇÃO: Converter valores de string para número antes de enviar ao backend
+          indPesoMedio: parseDecimalValue(pedidoAtual.indPesoMedio),
+          indMediaMililitro: parseDecimalValue(pedidoAtual.indMediaMililitro),
           indNumeroNf: pedidoAtual.indNumeroNf || undefined,
         };
 

@@ -816,6 +816,8 @@ model FuncionarioPagamento {
   valorBruto            Decimal                    @default(0) @db.Decimal(12, 2)
   valorLiquido          Decimal                    @default(0) @db.Decimal(12, 2)
   pixTerceiro           Boolean                    @default(false)
+  chavePixEnviada       String?                    @db.VarChar(200)
+  responsavelChavePixEnviado String?               @db.VarChar(180)
   meioPagamento         MeioPagamentoFuncionario   @default(PIX)
   pagamentoEfetuado     Boolean                    @default(false)
   dataPagamento         DateTime?

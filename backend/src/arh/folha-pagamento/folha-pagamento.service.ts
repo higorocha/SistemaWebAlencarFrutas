@@ -430,16 +430,50 @@ export class FolhaPagamentoService {
       payload.pagamentoEfetuado = false;
     }
 
+    // Preparar dados PIX baseado no meio de pagamento
+    let chavePixEnviada: string | null = null;
+    let responsavelChavePixEnviado: string | null = null;
+    let pixTerceiro: boolean = false;
+
+    // Se o meio de pagamento for PIX (manual), buscar dados do funcionário
+    if (payload.meioPagamento === MeioPagamentoFuncionario.PIX) {
+      // Buscar dados do funcionário
+      const funcionario = await this.prisma.funcionario.findUnique({
+        where: { id: lancamento.funcionarioId },
+        select: {
+          chavePix: true,
+          responsavelChavePix: true,
+          pixTerceiro: true,
+        },
+      });
+      
+      if (funcionario) {
+        chavePixEnviada = funcionario.chavePix || null;
+        responsavelChavePixEnviado = funcionario.responsavelChavePix || null;
+        pixTerceiro = funcionario.pixTerceiro ?? false;
+      }
+    }
+    // Se for ESPECIE, limpar os campos (null para strings, false para boolean) pois o pagamento não foi via PIX
+    // Se for PIX_API, não deveria acontecer neste método, mas manter valores padrão por segurança
+
     await this.prisma.$transaction(async (tx) => {
+      // Construir objeto data base
+      const dataUpdate: any = {
+        meioPagamento: payload.meioPagamento ?? undefined,
+        statusPagamento: payload.statusPagamento ?? undefined,
+        pagamentoEfetuado: payload.pagamentoEfetuado ?? undefined,
+        dataPagamento: payload.dataPagamento ?? undefined,
+        pagamentoApiItemId: payload.pagamentoApiItemId ?? undefined,
+      };
+
+      // Sempre atualizar os campos PIX (preencher se PIX, limpar se ESPECIE)
+      dataUpdate.chavePixEnviada = chavePixEnviada;
+      dataUpdate.responsavelChavePixEnviado = responsavelChavePixEnviado;
+      dataUpdate.pixTerceiro = pixTerceiro; // Boolean não nullable, usar false quando ESPECIE
+
       await tx.funcionarioPagamento.update({
         where: { id: lancamentoId },
-        data: {
-          meioPagamento: payload.meioPagamento ?? undefined,
-          statusPagamento: payload.statusPagamento ?? undefined,
-          pagamentoEfetuado: payload.pagamentoEfetuado ?? undefined,
-          dataPagamento: payload.dataPagamento ?? undefined,
-          pagamentoApiItemId: payload.pagamentoApiItemId ?? undefined,
-        },
+        data: dataUpdate,
       });
       await this.recalcularFolha(tx, folhaId);
     });
@@ -891,6 +925,15 @@ export class FolhaPagamentoService {
           const item = lote.itensPagamento[i];
 
           if (item) {
+            // Buscar lançamento completo para ter acesso a pixTerceiro e pagamentoEfetuado
+            const lancamentoCompleto = await tx.funcionarioPagamento.findUnique({
+              where: { id: lancamento.id },
+              select: {
+                pixTerceiro: true,
+                pagamentoEfetuado: true,
+              },
+            });
+
             // ✅ IMPORTANTE: Determinar status baseado no estado do item
             // - Item REJEITADO: funcionário REJEITADO
             // - Item BLOQUEADO (lote rejeitado): funcionário REPROCESSAR
@@ -908,6 +951,15 @@ export class FolhaPagamentoService {
               statusFuncionario = StatusFuncionarioPagamento.ENVIADO;
             }
             
+            // Atualizar os 3 campos PIX (registro histórico) apenas se não estiver pago
+            // Funcionários já pagos (pagamentoEfetuado === true) são excluídos do envio ao BB e não devem ter campos atualizados
+            const dadosPix = lancamentoCompleto?.pagamentoEfetuado === false ? {
+              pixTerceiro: lancamentoCompleto.pixTerceiro, // Atualizar também, mantendo valor existente
+              // Sempre preencher quando disponível no item (registro histórico)
+              chavePixEnviada: item.chavePixEnviada || null,
+              responsavelChavePixEnviado: item.responsavelChavePixEnviado || null,
+            } : {};
+            
             await tx.funcionarioPagamento.update({
               where: { id: lancamento.id },
               data: {
@@ -915,6 +967,7 @@ export class FolhaPagamentoService {
                 statusPagamento: statusFuncionario,
                 // ✅ Se rejeitado ou bloqueado, marcar pagamentoEfetuado como false
                 pagamentoEfetuado: (itemRejeitado || itemBloqueado) ? false : undefined,
+                ...dadosPix, // Incluir campos PIX apenas se não estiver pago
               },
             });
 
@@ -1346,6 +1399,10 @@ export class FolhaPagamentoService {
     
     // Usar pixTerceiro do funcionário, padrão false se não existir
     const pixTerceiroFuncionario = funcionario.pixTerceiro ?? false;
+    
+    // Sempre preencher quando disponível (registro histórico)
+    const chavePixEnviada = funcionario.chavePix || null;
+    const responsavelChavePixEnviado = funcionario.responsavelChavePix || null;
 
     const calculo = this.calculoService.calcularValores({
       tipoContrato: funcionario.tipoContrato,
@@ -1377,6 +1434,8 @@ export class FolhaPagamentoService {
       valorBruto: new Prisma.Decimal(calculo.valorBruto),
       valorLiquido: new Prisma.Decimal(calculo.valorLiquido),
       pixTerceiro: pixTerceiroFuncionario,
+      chavePixEnviada: chavePixEnviada,
+      responsavelChavePixEnviado: responsavelChavePixEnviado,
       meioPagamento: MeioPagamentoFuncionario.PIX,
       statusPagamento: StatusFuncionarioPagamento.PENDENTE,
       pagamentoEfetuado: false,
@@ -1565,6 +1624,11 @@ export class FolhaPagamentoService {
     await this.prisma.$transaction(async (tx) => {
       // Atualizar cada lançamento com os valores atuais
       for (const lancamento of lancamentos) {
+        // Excluir funcionários já pagos da atualização (preservar dados históricos do pagamento)
+        if (lancamento.pagamentoEfetuado === true) {
+          continue;
+        }
+
         const funcionario = lancamento.funcionario;
         
         // Obter valores atuais do cargo/função
@@ -1590,6 +1654,10 @@ export class FolhaPagamentoService {
 
         // Obter pixTerceiro atual do funcionário
         const pixTerceiroAtual = funcionario.pixTerceiro ?? false;
+        
+        // Sempre preencher quando disponível (registro histórico)
+        const chavePixEnviada = funcionario.chavePix || null;
+        const responsavelChavePixEnviado = funcionario.responsavelChavePix || null;
 
         // Atualizar lançamento
         await tx.funcionarioPagamento.update({
@@ -1604,6 +1672,9 @@ export class FolhaPagamentoService {
             referenciaNomeFuncao: funcionario.funcao?.nome ?? null,
             // Atualizar pixTerceiro com o valor atual do funcionário
             pixTerceiro: pixTerceiroAtual,
+            // Atualizar campos PIX (registro histórico)
+            chavePixEnviada: chavePixEnviada,
+            responsavelChavePixEnviado: responsavelChavePixEnviado,
           },
         });
       }

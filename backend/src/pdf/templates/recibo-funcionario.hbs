@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recibo de Pagamento</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      color: #333;
+      font-size: 10.8px;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.9);
+      transform-origin: top left;
+      width: 111.11%;
+    }
+    
+    .content-wrapper {
+      flex: 1;
+      padding-bottom: 63px;
+    }
+
+    .pdf-content {
+      padding: 0 9px 18px 9px;
+    }
+
+    /* Estilos do Cabeçalho Reutilizável - Layout Profissional */
+    .pdf-header {
+      background-color: #ffffff;
+      border-bottom: 3px solid #059669;
+      padding: 22px 20px 12px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      page-break-inside: avoid;
+    }
+
+    .header-top {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      margin-bottom: 10px;
+    }
+
+    .header-logo,
+    .header-center,
+    .header-qualificacao {
+      display: table-cell;
+      vertical-align: middle;
+    }
+
+    /* Logo à Esquerda */
+    .header-logo {
+      width: 180px;
+      padding-right: 15px;
+    }
+
+    .logo-img {
+      max-width: 180px;
+      max-height: 80px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+
+    .logo-placeholder {
+      width: 180px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f3f4f6;
+      border: 1px dashed #d1d5db;
+      border-radius: 4px;
+    }
+
+    .logo-text {
+      font-size: 14px;
+      color: #6b7280;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    /* Nome da Empresa no Centro */
+    .header-center {
+      text-align: center;
+      padding: 0 20px;
+      vertical-align: middle;
+    }
+
+    .header-center h1.empresa-nome {
+      font-size: 24px;
+      margin: 0 0 5px 0;
+      font-weight: bold;
+      color: #059669;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      line-height: 1.2;
+    }
+
+    .header-center p.empresa-razao-social {
+      font-size: 12px;
+      margin: 0;
+      color: #6b7280;
+      font-style: italic;
+      line-height: 1.3;
+    }
+
+    /* Qualificação da Empresa à Direita */
+    .header-qualificacao {
+      width: 220px;
+      text-align: right;
+      padding-left: 15px;
+      vertical-align: top;
+    }
+
+    .qualificacao-item {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .qualificacao-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .qualificacao-value {
+      font-size: 10px;
+      color: #6b7280;
+      font-weight: 600;
+      display: block;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+
+    /* Estilos do Recibo */
+    .recibo-container {
+      background-color: #ffffff;
+      padding: 20px;
+      page-break-after: always;
+    }
+
+    .recibo-container:last-child {
+      page-break-after: auto;
+    }
+
+    .recibo-titulo {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 25px;
+      color: #059669;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .declaracao-pagador {
+      text-align: justify;
+      margin-bottom: 20px;
+      line-height: 1.8;
+      font-size: 11px;
+      color: #374151;
+    }
+
+    .dados-prestador {
+      text-align: justify;
+      margin-bottom: 20px;
+      line-height: 1.8;
+      font-size: 11px;
+      color: #374151;
+    }
+
+    .descricao-servico {
+      margin: 25px 0;
+    }
+
+    .descricao-servico-titulo {
+      font-weight: 700;
+      font-size: 11px;
+      margin-bottom: 8px;
+      color: #059669;
+      text-transform: uppercase;
+    }
+
+    .descricao-servico-texto {
+      font-size: 11px;
+      color: #374151;
+    }
+
+    .metodo-pagamento {
+      text-align: justify;
+      margin: 25px 0;
+      line-height: 1.8;
+      font-size: 11px;
+      color: #374151;
+    }
+
+    .dados-bancarios {
+      margin: 25px 0;
+      padding: 15px;
+      background-color: #f9fafb;
+      border-left: 4px solid #059669;
+      border-radius: 4px;
+    }
+
+    .dados-bancarios-titulo {
+      font-weight: 700;
+      font-size: 11px;
+      margin-bottom: 10px;
+      color: #059669;
+      text-transform: uppercase;
+    }
+
+    .dados-bancarios-item {
+      font-size: 11px;
+      margin-bottom: 5px;
+      color: #374151;
+    }
+
+    .dados-bancarios-item strong {
+      font-weight: 600;
+    }
+
+    .dados-terceiro {
+      margin: 25px 0;
+      padding: 15px;
+      background-color: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      border-radius: 4px;
+    }
+
+    .dados-terceiro-titulo {
+      font-weight: 700;
+      font-size: 11px;
+      margin-bottom: 10px;
+      color: #92400e;
+      text-transform: uppercase;
+    }
+
+    .dados-terceiro-item {
+      font-size: 11px;
+      margin-bottom: 5px;
+      color: #78350f;
+    }
+
+    .confirmacao {
+      text-align: justify;
+      margin: 30px 0;
+      line-height: 1.8;
+      font-size: 11px;
+      color: #374151;
+    }
+
+    .valor-extenso {
+      font-weight: 700;
+      font-size: 12px;
+      color: #059669;
+    }
+
+    .assinatura-section {
+      margin-top: 50px;
+      text-align: center;
+    }
+
+    .assinatura-linha {
+      border-top: 1px solid #333;
+      width: 300px;
+      margin: 0 auto 10px;
+      padding-top: 5px;
+    }
+
+    .assinatura-nome {
+      font-size: 11px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 5px;
+    }
+
+    .assinatura-cpf {
+      font-size: 10px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  {{!-- Cabeçalho Reutilizável --}}
+  {{> header}}
+
+  {{#each recibos}}
+  <div class="content-wrapper">
+    <div class="pdf-content">
+      <div class="recibo-container">
+
+        {{!-- Título do Recibo --}}
+        <div class="recibo-titulo">
+          Referente ao mês de {{competenciaTexto}}
+        </div>
+
+        {{!-- Declaração do Pagador --}}
+        <div class="declaracao-pagador">
+          Eu, {{empresa.razao_social}}, produtor rural, inscrito no CNPJ nº {{empresa.cnpj}}, responsável pela empresa {{empresa.nome_fantasia}} com endereço {{empresa.endereco_completo}}, declaro, para os devidos fins, que efetuei o pagamento ao(à) prestador(a):
+        </div>
+
+        {{!-- Dados do Prestador --}}
+        <div class="dados-prestador">
+          {{funcionario.nome_completo}}, {{funcionario.cargo_funcao}}, inscrito no CPF nº {{funcionario.cpf_formatado}}{{#if funcionario.endereco_completo}} com endereço em {{funcionario.endereco_completo}}{{/if}}, referente aos serviços prestados descrito abaixo:
+        </div>
+
+        {{!-- Descrição do Serviço --}}
+        <div class="descricao-servico">
+          <div class="descricao-servico-titulo">DESCRIÇÃO DO SERVIÇO:</div>
+          <div class="descricao-servico-texto">{{descricao_servico}}</div>
+        </div>
+
+        {{!-- Método de Pagamento (Variável conforme cenário) --}}
+        <div class="metodo-pagamento">
+          {{#if (eq pixTerceiro true)}}
+            {{!-- PIX Terceiro --}}
+            O pagamento foi efetuado para {{terceiro.nome}}, via Pix em conta de terceiro, conforme orientação do prestador com os seguintes dados bancários descrito abaixo.
+          {{else if (eq meioPagamento 'ESPECIE')}}
+            {{!-- Pagamento em Espécie --}}
+            O pagamento foi efetuado para {{funcionario.nome_completo}} em espécie
+          {{else}}
+            {{!-- PIX Próprio --}}
+            O pagamento foi efetuado para {{funcionario.nome_completo}}, via Pix em sua conta, conforme orientação do prestador com os seguintes dados bancários descrito abaixo.
+          {{/if}}
+        </div>
+
+        {{!-- Dados Bancários (apenas quando PIX) --}}
+        {{#if dados_bancarios}}
+        <div class="dados-bancarios">
+          <div class="dados-bancarios-titulo">DADOS BANCÁRIOS</div>
+          <div class="dados-bancarios-item">
+            PIX {{dados_bancarios.chave_pix}}
+          </div>
+          <div class="dados-bancarios-item">
+            <strong>BENEFICIÁRIO:</strong> {{dados_bancarios.beneficiario}}
+          </div>
+        </div>
+        {{/if}}
+
+        {{!-- Dados do Terceiro (apenas quando pixTerceiro == true) --}}
+        {{#if (eq pixTerceiro true)}}
+        <div class="dados-terceiro">
+          <div class="dados-terceiro-titulo">DADOS DO TERCEIRO</div>
+          <div class="dados-terceiro-item">
+            <strong>Nome:</strong> {{terceiro.nome}}
+          </div>
+          {{#if terceiro.cpf}}
+          <div class="dados-terceiro-item">
+            <strong>CPF:</strong> {{terceiro.cpf_formatado}}
+          </div>
+          {{/if}}
+        </div>
+        {{/if}}
+
+        {{!-- Confirmação de Recebimento --}}
+        <div class="confirmacao">
+          Realizado na data do dia {{data_pagamento_formatada}}, estando o(a) prestador(a) plenamente ciente e de acordo com o recebimento de <span class="valor-extenso">{{valor_por_extenso}}</span> referente ao serviço prestado descrito acima. Este recibo é válido para comprovação do pagamento acima mencionado, não havendo pendências financeiras relativas ao período descrito.
+        </div>
+
+        {{!-- Assinatura --}}
+        <div class="assinatura-section">
+          <div class="assinatura-linha"></div>
+          <div class="assinatura-nome">{{funcionario.nome_completo}}</div>
+          <div class="assinatura-cpf">CPF {{funcionario.cpf_formatado}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{/each}}
+</body>
+</html>

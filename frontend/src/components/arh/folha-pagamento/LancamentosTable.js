@@ -9,6 +9,7 @@ import { capitalizeName } from "../../../utils/formatters";
 import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
 import MonetaryInput from "../../common/inputs/MonetaryInput";
 import HourInput from "../../common/inputs/HourInput";
+import PDFButton from "../../common/buttons/PDFButton";
 
 const { Text } = Typography;
 
@@ -19,7 +20,7 @@ const currency = (value) =>
   }).format(Number(value || 0));
 
 const LancamentosTable = React.memo(
-  ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario, folhaStatus, isProgramador = false }) => {
+  ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario, folhaStatus, isProgramador = false, onGerarRecibo }) => {
     const [confirmModal, setConfirmModal] = React.useState({ open: false, record: null });
     const [editingId, setEditingId] = React.useState(null);
     const [editingValues, setEditingValues] = React.useState({});
@@ -739,42 +740,54 @@ const LancamentosTable = React.memo(
                 </>
               ) : (
                 <>
-                  <Tooltip 
-                    title={
-                      (isProgramador || folhaStatus === "RASCUNHO")
-                        ? "Editar Lançamento" 
-                        : "A folha precisa estar em edição (status Rascunho) para permitir editar o lançamento"
-                    }
-                  >
-                    <Button
-                      type="text"
+                  {record.statusPagamento === 'PAGO' && onGerarRecibo ? (
+                    <PDFButton
+                      onClick={() => onGerarRecibo(record)}
                       size="small"
-                      icon={<EditOutlined style={{ color: (isProgramador || folhaStatus === "RASCUNHO") ? "#fa8c16" : "#d9d9d9", fontSize: "16px" }} />}
-                      onClick={() => handleStartEdit(record)}
-                      disabled={!isProgramador && folhaStatus !== "RASCUNHO"}
-                      style={{
-                        border: "none",
-                        boxShadow: "none",
-                        padding: "4px",
-                      }}
-                    />
-                  </Tooltip>
-                  <Dropdown
-                    menu={getMenuContent(record)}
-                    trigger={["click"]}
-                    placement="bottomRight"
-                  >
-                    <Button
-                      type="text"
-                      icon={<MoreOutlined />}
-                      size="small"
-                      style={{
-                        color: "#666666",
-                        border: "none",
-                        boxShadow: "none",
-                      }}
-                    />
-                  </Dropdown>
+                      tooltip="Gerar Recibo"
+                    >
+                      Recibo
+                    </PDFButton>
+                  ) : (
+                    <>
+                      <Tooltip 
+                        title={
+                          (isProgramador || folhaStatus === "RASCUNHO")
+                            ? "Editar Lançamento" 
+                            : "A folha precisa estar em edição (status Rascunho) para permitir editar o lançamento"
+                        }
+                      >
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<EditOutlined style={{ color: (isProgramador || folhaStatus === "RASCUNHO") ? "#fa8c16" : "#d9d9d9", fontSize: "16px" }} />}
+                          onClick={() => handleStartEdit(record)}
+                          disabled={!isProgramador && folhaStatus !== "RASCUNHO"}
+                          style={{
+                            border: "none",
+                            boxShadow: "none",
+                            padding: "4px",
+                          }}
+                        />
+                      </Tooltip>
+                      <Dropdown
+                        menu={getMenuContent(record)}
+                        trigger={["click"]}
+                        placement="bottomRight"
+                      >
+                        <Button
+                          type="text"
+                          icon={<MoreOutlined />}
+                          size="small"
+                          style={{
+                            color: "#666666",
+                            border: "none",
+                            boxShadow: "none",
+                          }}
+                        />
+                      </Dropdown>
+                    </>
+                  )}
                 </>
               )}
             </Space>
@@ -831,6 +844,7 @@ LancamentosTable.propTypes = {
   onRemoveFuncionario: PropTypes.func.isRequired,
   folhaStatus: PropTypes.string,
   isProgramador: PropTypes.bool,
+  onGerarRecibo: PropTypes.func,
 };
 
 export default LancamentosTable;

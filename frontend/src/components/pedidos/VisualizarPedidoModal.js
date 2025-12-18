@@ -2174,7 +2174,7 @@ const VisualizarPedidoModal = ({
                       <div style={{ flex: 1 }}>
                         <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>PESO MÉDIO</Text>
                         <Text style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b", display: "block", marginTop: "2px" }}>
-                          {pedido.indPesoMedio ? `${formatarValorMonetario(pedido.indPesoMedio)} KG` : '-'}
+                          {pedido.indPesoMedio ? `${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(pedido.indPesoMedio)} KG` : '-'}
                         </Text>
                       </div>
                     </div>
@@ -2196,7 +2196,7 @@ const VisualizarPedidoModal = ({
                       <div style={{ flex: 1 }}>
                         <Text style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", display: "block" }}>MÉDIA ML</Text>
                         <Text style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b", display: "block", marginTop: "2px" }}>
-                          {pedido.indMediaMililitro ? `${formatarValorMonetario(pedido.indMediaMililitro)} ML` : '-'}
+                          {pedido.indMediaMililitro ? `${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(pedido.indMediaMililitro)} ML` : '-'}
                         </Text>
                       </div>
                     </div>

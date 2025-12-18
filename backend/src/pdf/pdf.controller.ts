@@ -9,6 +9,7 @@ import { FolhaPagamentoService } from '../arh/folha-pagamento/folha-pagamento.se
 import { ContaCorrenteService } from '../conta-corrente/conta-corrente.service';
 import { ContaCorrenteResponseDto } from '../config/dto/conta-corrente.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   formatCurrencyBR,
   formatDateBR,
@@ -19,6 +20,7 @@ import {
   formatTelefone,
   capitalizeName,
   capitalizeNameShort,
+  numeroParaExtenso,
 } from '../utils/formatters';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -35,6 +37,7 @@ export class PdfController {
     private readonly clientesService: ClientesService,
     private readonly folhaPagamentoService: FolhaPagamentoService,
     private readonly contaCorrenteService: ContaCorrenteService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -1742,6 +1745,292 @@ export class PdfController {
       anoAtual: new Date().getFullYear(),
       titulo: 'Pedidos do Cliente',
       subtitulo: clienteFormatado.nome,
+    };
+  }
+
+  /**
+   * Gera PDF de recibo individual de funcionário
+   * @template recibo-funcionario.hbs
+   * @description Gera PDF de recibo de pagamento individual para um funcionário, suportando 3 cenários: PIX próprio, PIX terceiro e pagamento em espécie
+   * @endpoint GET /api/pdf/recibo-funcionario/:lancamentoId
+   * @usage LancamentosTable.js - botão PDF quando statusPagamento === PAGO
+   */
+  @Get('recibo-funcionario/:lancamentoId')
+  @ApiOperation({ summary: 'Gerar PDF de recibo individual de funcionário' })
+  @ApiParam({ name: 'lancamentoId', description: 'ID do lançamento (FuncionarioPagamento)' })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF gerado com sucesso',
+    content: {
+      'application/pdf': {},
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Lançamento não encontrado' })
+  @ApiResponse({ status: 400, description: 'Lançamento não está pago' })
+  async downloadReciboFuncionarioPdf(
+    @Param('lancamentoId') lancamentoId: string,
+    @Res() res: Response,
+  ) {
+    console.log('[PDF Controller] Iniciando geração de recibo para lançamento ID:', lancamentoId);
+
+    // 1. Buscar lançamento completo com relacionamentos
+    const lancamentoCompleto = await this.prisma.funcionarioPagamento.findUnique({
+      where: { id: +lancamentoId },
+      include: {
+        funcionario: {
+          select: {
+            nome: true,
+            apelido: true,
+            cpf: true,
+            chavePix: true,
+            tipoContrato: true,
+            logradouro: true,
+            numero: true,
+            complemento: true,
+            bairro: true,
+            cidade: true,
+            estado: true,
+            cep: true,
+          },
+        },
+        cargo: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        funcao: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        folha: {
+          select: {
+            id: true,
+            competenciaMes: true,
+            competenciaAno: true,
+            periodo: true,
+          },
+        },
+        pagamentoApiItem: {
+          select: {
+            id: true,
+            chavePixEnviada: true,
+            responsavelChavePixEnviado: true,
+          },
+        },
+      },
+    });
+
+    if (!lancamentoCompleto) {
+      throw new NotFoundException('Lançamento não encontrado.');
+    }
+
+    // Verificar se está pago
+    if (lancamentoCompleto.statusPagamento !== 'PAGO' && !lancamentoCompleto.pagamentoEfetuado) {
+      throw new BadRequestException('Apenas lançamentos com status PAGO podem gerar recibo.');
+    }
+
+    // 2. Buscar dados da empresa
+    const dadosEmpresa = await this.configService.findDadosEmpresa();
+
+    // 3. Carregar logo em base64
+    const logoBase64 = await this.carregarLogoBase64();
+
+    // 4. Preparar dados para o template
+    let dadosTemplate;
+    try {
+      dadosTemplate = this.prepararDadosTemplateRecibo(lancamentoCompleto, dadosEmpresa, logoBase64);
+    } catch (error) {
+      console.error('[PDF Controller] ❌ ERRO ao executar prepararDadosTemplateRecibo:', error);
+      throw error;
+    }
+
+    // 5. Gerar o PDF
+    const buffer = await this.pdfService.gerarPdf('recibo-funcionario', dadosTemplate);
+
+    // 6. Formatar nome do arquivo: recibo-NomeFuncionario-12-2025.pdf
+    const nomeFuncionario = capitalizeName(lancamentoCompleto.funcionario?.nome || 'funcionario');
+    const competenciaLabel = `${String(lancamentoCompleto.folha.competenciaMes).padStart(2, '0')}-${lancamentoCompleto.folha.competenciaAno}`;
+    const nomeArquivo = this.gerarNomeArquivo({
+      tipo: 'recibo',
+      identificador: `${nomeFuncionario}-${competenciaLabel}`,
+    });
+    console.log('[PDF Controller] Nome do arquivo final:', nomeArquivo);
+
+    // 7. Configurar Headers para download
+    const contentDisposition = `attachment; filename="${nomeArquivo}"; filename*=UTF-8''${encodeURIComponent(nomeArquivo)}`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': contentDisposition,
+      'Access-Control-Expose-Headers': 'Content-Disposition',
+      'Content-Length': buffer.length.toString(),
+    });
+
+    console.log('[PDF Controller] Recibo enviado com sucesso!');
+
+    // 8. Enviar o stream
+    res.end(buffer);
+  }
+
+  /**
+   * Prepara os dados do recibo de funcionário para o template Handlebars
+   * @template recibo-funcionario.hbs
+   * @description Formata dados do funcionário, determina cenário (PIX próprio, PIX terceiro, ESPECIE) e prepara dados bancários
+   */
+  private prepararDadosTemplateRecibo(
+    lancamento: any,
+    dadosEmpresa: any,
+    logoBase64: string | null,
+  ): any {
+    const funcionario = lancamento.funcionario;
+    const folha = lancamento.folha;
+    
+    // Formatar CPF do funcionário
+    const cpfFormatado = funcionario?.cpf ? formatCPF(funcionario.cpf) : '';
+    
+    // Determinar cargo/função para descrição do serviço
+    const cargoNome = lancamento.cargo?.nome || lancamento.referenciaNomeCargo;
+    const funcaoNome = lancamento.funcao?.nome || lancamento.referenciaNomeFuncao;
+    const descricaoServico = cargoNome || funcaoNome || 'Atividade Agrícola';
+    
+    // Formatar endereço do funcionário (se disponível)
+    let enderecoCompleto = '';
+    if (funcionario) {
+      const partesEndereco: string[] = [];
+      if (funcionario.logradouro) partesEndereco.push(funcionario.logradouro);
+      if (funcionario.numero) partesEndereco.push(funcionario.numero);
+      if (funcionario.complemento) partesEndereco.push(funcionario.complemento);
+      if (funcionario.bairro) partesEndereco.push(funcionario.bairro);
+      if (funcionario.cidade) partesEndereco.push(funcionario.cidade);
+      if (funcionario.estado) partesEndereco.push(funcionario.estado);
+      enderecoCompleto = partesEndereco.join(', ');
+    }
+    
+    // Formatar competência
+    const meses = [
+      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+    ];
+    const competenciaTexto = `${meses[folha.competenciaMes - 1]} de ${folha.competenciaAno}`;
+    
+    // Formatar data de pagamento
+    const dataPagamentoFormatada = lancamento.dataPagamento 
+      ? formatDateBR(lancamento.dataPagamento)
+      : formatDateBR(new Date());
+    
+    // Converter valor para extenso
+    // Prisma Decimal precisa ser convertido para número
+    const valorLiquido = lancamento.valorLiquido 
+      ? (typeof lancamento.valorLiquido === 'object' && 'toNumber' in lancamento.valorLiquido
+          ? lancamento.valorLiquido.toNumber()
+          : Number(lancamento.valorLiquido))
+      : 0;
+    console.log('[PDF Controller] Valor líquido para extenso:', valorLiquido, 'tipo:', typeof valorLiquido);
+    const valorPorExtenso = numeroParaExtenso(valorLiquido);
+    
+    // Determinar cenário e preparar dados
+    const pixTerceiro = lancamento.pixTerceiro === true;
+    const meioPagamento = lancamento.meioPagamento;
+    const isEspecie = meioPagamento === 'ESPECIE';
+    const isPix = meioPagamento === 'PIX' || meioPagamento === 'PIX_API';
+    
+    // Preparar dados bancários (quando PIX)
+    let dadosBancarios: any = null;
+    if (isPix) {
+      if (pixTerceiro) {
+        // PIX Terceiro: usar dados do terceiro
+        const chavePix = lancamento.chavePixEnviada || lancamento.pagamentoApiItem?.chavePixEnviada || '';
+        const beneficiario = lancamento.responsavelChavePixEnviado || lancamento.pagamentoApiItem?.responsavelChavePixEnviado || '';
+        dadosBancarios = {
+          chave_pix: chavePix,
+          beneficiario: beneficiario,
+        };
+      } else {
+        // PIX Próprio: usar dados do funcionário
+        const chavePix = funcionario?.chavePix || '';
+        const beneficiario = funcionario?.nome || '';
+        dadosBancarios = {
+          chave_pix: chavePix,
+          beneficiario: beneficiario,
+        };
+      }
+    }
+    
+    // Preparar dados do terceiro (apenas quando pixTerceiro == true)
+    let dadosTerceiro: any = null;
+    if (pixTerceiro) {
+      const nomeTerceiro = lancamento.responsavelChavePixEnviado || lancamento.pagamentoApiItem?.responsavelChavePixEnviado || '';
+      dadosTerceiro = {
+        nome: nomeTerceiro,
+        cpf: null, // CPF do terceiro não está disponível no lançamento
+        cpf_formatado: null,
+      };
+    }
+    
+    // Validar dados da empresa
+    if (!dadosEmpresa) {
+      throw new Error('Dados da empresa não encontrados. Configure os dados da empresa no sistema.');
+    }
+    
+    // Formatar endereço da empresa (conforme schema: logradouro, bairro, cidade, estado, cep)
+    const partesEnderecoEmpresa: string[] = [];
+    if (dadosEmpresa.logradouro) partesEnderecoEmpresa.push(dadosEmpresa.logradouro);
+    if (dadosEmpresa.bairro) partesEnderecoEmpresa.push(dadosEmpresa.bairro);
+    if (dadosEmpresa.cidade) partesEnderecoEmpresa.push(dadosEmpresa.cidade);
+    if (dadosEmpresa.estado) partesEnderecoEmpresa.push(dadosEmpresa.estado);
+    if (dadosEmpresa.cep) partesEnderecoEmpresa.push(`CEP ${dadosEmpresa.cep}`);
+    const enderecoEmpresaCompleto = partesEnderecoEmpresa.join(', ');
+    
+    // Formatar CNPJ da empresa antes de criar os recibos
+    const cnpjFormatado = dadosEmpresa.cnpj ? formatCNPJ(dadosEmpresa.cnpj) : '';
+    
+    // Preparar dados da empresa para o template
+    const dadosEmpresaTemplate = {
+      razao_social: dadosEmpresa.razao_social || '',
+      nome_fantasia: dadosEmpresa.nome_fantasia || '',
+      cnpj: cnpjFormatado,
+      proprietario: dadosEmpresa.proprietario || null,
+      telefone: dadosEmpresa.telefone || '',
+      logradouro: dadosEmpresa.logradouro || '',
+      bairro: dadosEmpresa.bairro || '',
+      cidade: dadosEmpresa.cidade || '',
+      estado: dadosEmpresa.estado || '',
+      cep: dadosEmpresa.cep || '',
+      endereco_completo: enderecoEmpresaCompleto,
+    };
+    
+    // Estrutura para suportar múltiplos recibos (futuro)
+    // Por enquanto, array com um único recibo
+    const recibos = [{
+      funcionario: {
+        nome_completo: capitalizeName(funcionario?.nome || ''),
+        cpf_formatado: cpfFormatado,
+        endereco_completo: enderecoCompleto,
+        cargo_funcao: descricaoServico,
+      },
+      competenciaTexto,
+      descricao_servico: descricaoServico,
+      pixTerceiro,
+      meioPagamento,
+      dados_bancarios: dadosBancarios,
+      terceiro: dadosTerceiro,
+      valor_por_extenso: valorPorExtenso,
+      data_pagamento_formatada: dataPagamentoFormatada,
+      // Incluir empresa dentro de cada recibo para facilitar acesso no template
+      empresa: dadosEmpresaTemplate,
+    }];
+    
+    // Log dos dados da empresa para debug
+    console.log('[PDF Controller] Dados da empresa para template:', dadosEmpresaTemplate);
+    
+    return {
+      recibos,
+      empresa: dadosEmpresaTemplate, // Também no nível raiz para compatibilidade
+      logoPath: logoBase64,
+      dataGeracaoFormatada: formatDateBR(new Date()),
     };
   }
 }

@@ -160,6 +160,54 @@ export const formatTelefone = (telefone: string): string => {
 };
 
 /**
+ * Converte um valor monetário para extenso em português brasileiro
+ * @param valor Valor monetário a ser convertido (ex: 6630.00)
+ * @returns Valor por extenso (ex: "seis mil seiscentos e trinta reais")
+ */
+export const numeroParaExtenso = (valor: number | string | any): string => {
+  try {
+    // Converter para número se necessário (pode vir como Decimal do Prisma)
+    let valorNumerico: number;
+    if (typeof valor === 'number') {
+      valorNumerico = valor;
+    } else if (typeof valor === 'string') {
+      valorNumerico = parseFloat(valor.replace(',', '.'));
+    } else if (valor && typeof valor === 'object' && 'toNumber' in valor) {
+      // Prisma Decimal
+      valorNumerico = valor.toNumber();
+    } else {
+      valorNumerico = Number(valor);
+    }
+    
+    if (isNaN(valorNumerico) || valorNumerico < 0) {
+      console.warn('Valor inválido para extenso:', valor, 'convertido para:', valorNumerico);
+      return 'zero reais';
+    }
+    
+    // Importar extenso dinamicamente para evitar problemas de importação
+    const extenso = require('extenso');
+    
+    // Converter para string com 2 casas decimais, usando VÍRGULA como separador decimal (formato brasileiro)
+    // A biblioteca extenso espera formato brasileiro: "5,66" ao invés de "5.66"
+    const valorFormatado = valorNumerico.toFixed(2).replace('.', ',');
+    
+    console.log('Convertendo para extenso:', valorFormatado);
+    
+    // Usar modo currency para obter formato monetário
+    const extensoFormatado = extenso(valorFormatado, {
+      mode: 'currency',
+      locale: 'br',
+    });
+    
+    // Capitalizar primeira letra
+    return extensoFormatado.charAt(0).toUpperCase() + extensoFormatado.slice(1);
+  } catch (error) {
+    console.error('Erro ao converter número para extenso:', error, 'valor recebido:', valor);
+    return 'valor inválido';
+  }
+};
+
+/**
  * Formata data para o formato ddmmaaaa usado pela API do Banco do Brasil
  * 
  * Conforme documentação da API de Pagamentos:
