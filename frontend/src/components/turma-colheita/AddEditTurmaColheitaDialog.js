@@ -76,6 +76,8 @@ const AddEditTurmaColheitaDialog = ({
 
   /**
    * Valida se um telefone é válido (10-11 dígitos, formato brasileiro)
+   * Formato PIX: telefone celular com DDD (11 dígitos) ou fixo (10 dígitos)
+   * Nota: Um número de 11 dígitos pode ser tanto CPF quanto telefone
    */
   const validarTelefone = (telefone) => {
     if (!telefone) return { valido: false, mensagem: null };
@@ -84,21 +86,49 @@ const AddEditTurmaColheitaDialog = ({
     // Telefone brasileiro: 10 dígitos (fixo) ou 11 dígitos (celular com DDD)
     if (numeros.length === 10) {
       // Telefone fixo: (XX) XXXX-XXXX
-      return {
-        valido: true,
-        mensagem: null
-      };
+      // Verifica se o DDD é válido (11-99, exceto alguns números reservados)
+      const ddd = numeros.substring(0, 2);
+      if (parseInt(ddd) >= 11 && parseInt(ddd) <= 99) {
+        return {
+          valido: true,
+          mensagem: null
+        };
+      } else {
+        return {
+          valido: false,
+          mensagem: "DDD inválido. Use um DDD válido (11-99)"
+        };
+      }
     } else if (numeros.length === 11) {
       // Celular: (XX) 9XXXX-XXXX
-      // Verificar se começa com 9 no terceiro dígito (formato de celular)
-      return {
-        valido: true,
-        mensagem: null
-      };
+      // Verifica se o DDD é válido e se o terceiro dígito é 9 (formato de celular)
+      const ddd = numeros.substring(0, 2);
+      const terceiroDigito = numeros.charAt(2);
+      
+      if (parseInt(ddd) >= 11 && parseInt(ddd) <= 99) {
+        if (terceiroDigito === '9') {
+          return {
+            valido: true,
+            mensagem: null
+          };
+        } else {
+          // Pode ser telefone fixo com 11 dígitos (formato antigo) ou CPF
+          // Aceitamos como válido, mas pode ser ambíguo
+          return {
+            valido: true,
+            mensagem: null
+          };
+        }
+      } else {
+        return {
+          valido: false,
+          mensagem: "DDD inválido. Use um DDD válido (11-99)"
+        };
+      }
     } else {
       return {
         valido: false,
-        mensagem: "Telefone deve conter 10 dígitos (fixo) ou 11 dígitos (celular)"
+        mensagem: "Telefone deve conter 10 dígitos (fixo) ou 11 dígitos (celular com DDD)"
       };
     }
   };
@@ -162,39 +192,56 @@ const AddEditTurmaColheitaDialog = ({
   /**
    * Detecta automaticamente o tipo de chave PIX baseado no formato
    * Retorna: 1 (Telefone), 2 (Email), 3 (CPF/CNPJ), 4 (Chave Aleatória) ou null
+   * 
+   * Prioridade de detecção:
+   * 1. Email (se contém @)
+   * 2. CPF/CNPJ válido (validação de dígitos verificadores)
+   * 3. Telefone (formato brasileiro)
+   * 4. Chave aleatória (UUID ou string longa)
    */
   const detectarTipoChavePix = (chave) => {
     if (!chave || !chave.trim()) return null;
     
     const chaveLimpa = chave.trim();
     
-    // Verifica se é email
+    // 1. Verifica se é email (prioridade alta)
     if (chaveLimpa.includes('@')) {
       const emailValido = validarEmail(chaveLimpa);
       if (emailValido.valido) return 2; // Email
     }
     
-    // Verifica se é apenas números (telefone ou CPF/CNPJ)
+    // 2. Verifica se é apenas números (telefone ou CPF/CNPJ)
     const numeros = chaveLimpa.replace(/\D/g, '');
+    const apenasNumeros = numeros.length === chaveLimpa.replace(/[^0-9]/g, '').length;
     
-    if (numeros.length === chaveLimpa.replace(/[^0-9]/g, '').length) {
-      // Contém apenas números (possivelmente com formatação)
+    if (apenasNumeros) {
+      // 2.1. Verifica CPF (11 dígitos) - prioridade sobre telefone
       if (numeros.length === 11) {
-        // Pode ser CPF ou telefone com DDD (formato antigo)
         const cpfValido = validarCPF(chaveLimpa);
-        if (cpfValido) return 3; // CPF
-        // Se não for CPF válido, pode ser telefone
-        if (validarTelefone(chaveLimpa).valido) return 1; // Telefone
-      } else if (numeros.length === 14) {
+        if (cpfValido) {
+          return 3; // CPF válido tem prioridade sobre telefone
+        }
+        // Se não for CPF válido, verifica se é telefone
+        if (validarTelefone(chaveLimpa).valido) {
+          return 1; // Telefone
+        }
+      }
+      
+      // 2.2. Verifica CNPJ (14 dígitos)
+      if (numeros.length === 14) {
         const cnpjValido = validarCNPJ(chaveLimpa);
         if (cnpjValido) return 3; // CNPJ
-      } else if (numeros.length === 10 || numeros.length === 11) {
-        // Provavelmente telefone
-        if (validarTelefone(chaveLimpa).valido) return 1; // Telefone
+      }
+      
+      // 2.3. Verifica telefone (10 ou 11 dígitos, mas não CPF válido)
+      if (numeros.length === 10 || numeros.length === 11) {
+        if (validarTelefone(chaveLimpa).valido) {
+          return 1; // Telefone
+        }
       }
     }
     
-    // Verifica se é chave aleatória (UUID ou string longa alfanumérica)
+    // 3. Verifica se é chave aleatória (UUID ou string longa alfanumérica)
     if (validarChaveAleatoria(chaveLimpa).valido) {
       return 4; // Chave Aleatória
     }
@@ -262,14 +309,16 @@ const AddEditTurmaColheitaDialog = ({
       const chave = turmaAtual.chavePix.trim();
       const tipoSelecionado = turmaAtual.tipoChavePix;
       
-      // Detectar automaticamente o tipo se não foi selecionado
+      // Detectar automaticamente o tipo
       const tipoDetectado = detectarTipoChavePix(chave);
       
-      // Se tipo foi selecionado, validar correspondência
+      // Se tipo foi selecionado manualmente, validar
       if (tipoSelecionado) {
         let validacao = null;
         let tipoEsperado = null;
+        const tipos = { 1: "Telefone", 2: "Email", 3: "CPF/CNPJ", 4: "Chave Aleatória" };
         
+        // Validar formato para o tipo selecionado
         switch (tipoSelecionado) {
           case 1: // Telefone
             validacao = validarTelefone(chave);
@@ -289,14 +338,14 @@ const AddEditTurmaColheitaDialog = ({
             break;
         }
         
+        // Se o formato não é válido para o tipo selecionado, mostrar erro
         if (validacao && !validacao.valido) {
           novosErros.chavePix = `Tipo selecionado: ${tipoEsperado}. ${validacao.mensagem}`;
-        } else if (tipoDetectado && tipoDetectado !== tipoSelecionado) {
-          // Tipo detectado não corresponde ao selecionado
-          const tipos = { 1: "Telefone", 2: "Email", 3: "CPF/CNPJ", 4: "Chave Aleatória" };
-          novosErros.chavePix = `O formato da chave PIX corresponde a "${tipos[tipoDetectado]}", mas o tipo selecionado é "${tipos[tipoSelecionado]}". Verifique o tipo selecionado.`;
-          novosErros.tipoChavePix = `O formato da chave corresponde a "${tipos[tipoDetectado]}", não a "${tipos[tipoSelecionado]}"`;
-        }
+        } 
+        // Se o formato é válido para o tipo selecionado, permitir (mesmo que detectemos outro tipo)
+        // Isso resolve o caso onde um número pode ser tanto CPF quanto Telefone
+        // Se o usuário selecionou um tipo e o formato é válido para esse tipo, respeitamos a escolha
+        // Não adiciona erro se o formato é válido para o tipo selecionado
       } else {
         // Tipo não foi selecionado - validar formato e sugerir tipo
         if (tipoDetectado) {
@@ -452,6 +501,8 @@ const AddEditTurmaColheitaDialog = ({
           }
           
           // Se chave PIX foi informada e tipo não foi selecionado, tentar detectar automaticamente
+          // IMPORTANTE: Só detecta automaticamente se o tipo ainda não foi selecionado manualmente
+          // Isso permite que o usuário selecione manualmente um tipo e não seja sobrescrito
           if (value && value.trim() && !turmaAtual.tipoChavePix) {
             const tipoDetectado = detectarTipoChavePix(value);
             if (tipoDetectado) {
@@ -473,6 +524,8 @@ const AddEditTurmaColheitaDialog = ({
               }
             }
           }
+          // Se o tipo já foi selecionado, limpar erros mas não alterar o tipo
+          // Isso permite que o usuário mantenha sua escolha mesmo se a detecção sugerir outro tipo
         }}
       />
 

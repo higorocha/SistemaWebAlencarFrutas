@@ -2165,21 +2165,33 @@ export class PagamentosService {
         estadoRequisicao === 9 || estadoRequisicao === 10 || temDataLiberacao;
 
       // Lógica de identificação de pendentes
-      // IMPORTANTE: Seguir exatamente a lógica do frontend web:
-      // - estadoRequisicao === 1 (dados consistentes, aguardando liberação)
-      // - estadoRequisicao === 4 (aguardando liberação - pendente de ação pelo Conveniado)
-      // - estadoRequisicao === 8 (processando - pode voltar para 4 e ser liberado)
-      // - NÃO está liberado (estadoRequisicao !== 9) e NÃO está processado (estadoRequisicao !== 6)
-      // - NÃO foi liberado anteriormente (!dataLiberacao)
-      // - NÃO está rejeitado (estadoRequisicao !== 7)
+      // IMPORTANTE: Seguir EXATAMENTE a lógica do frontend web (documentação linha 1629-1634):
+      // O botão "Liberar" aparece quando TODAS as condições abaixo são verdadeiras:
+      // 1. estadoRequisicao === 1 (dados consistentes, aguardando liberação) OU estadoRequisicao === 4 (pendente de ação pelo Conveniado)
+      // 2. estadoRequisicao !== 9 (não está liberado via API)
+      // 3. estadoRequisicao !== 6 (não está processado)
+      // 4. !dataLiberacao (não foi liberado anteriormente) - CRÍTICO para evitar liberar lotes já liberados
+      // 
+      // NOTA: Estado 8 (Preparando remessa não liberada) NÃO é liberável - está em processamento pelo BB
+      // 
+      // Lotes recém-criados: se estadoRequisicaoAtual é null mas status é 'PENDENTE' ou 'ENVIADO',
+      // também são considerados pendentes (aguardando resposta inicial do BB)
       let estaPendente = false;
       if (estadoRequisicao !== null && estadoRequisicao !== undefined) {
-        // Verificar primeiro se não é 9 nem 6 nem 7 (antes de verificar se é 1, 4 ou 8)
+        // Verificar se pode ser liberado: apenas estados 1 ou 4
+        // E não pode estar liberado (9), processado (6) ou rejeitado (7)
         if (estadoRequisicao !== 9 && estadoRequisicao !== 6 && estadoRequisicao !== 7) {
-          // Estados pendentes: 1 (dados consistentes), 4 (pendente ação), 8 (processando)
-          const podeLiberar = estadoRequisicao === 1 || estadoRequisicao === 4 || estadoRequisicao === 8;
+          // Estados liberáveis: APENAS 1 (dados consistentes) e 4 (pendente ação pelo Conveniado)
+          const podeLiberar = estadoRequisicao === 1 || estadoRequisicao === 4;
           estaPendente = podeLiberar && !temDataLiberacao;
         }
+      } else {
+        // Lotes recém-criados: se estadoRequisicaoAtual é null/undefined mas status indica pendência
+        // e não foi liberado nem rejeitado, considerar como pendente
+        // Isso cobre o caso de lotes que acabaram de ser criados e ainda não receberam resposta do BB
+        const statusUpper = (status || '').toString().toUpperCase();
+        const statusPendente = statusUpper === 'PENDENTE' || statusUpper === 'ENVIADO';
+        estaPendente = statusPendente && !temDataLiberacao && !estaRejeitado;
       }
 
       console.log('[getResumoPagamentosMobile] Classificação do lote:', {
