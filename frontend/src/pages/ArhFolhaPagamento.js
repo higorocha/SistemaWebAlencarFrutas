@@ -34,6 +34,7 @@ const AtualizarPagamentoDialog = lazy(() => import("../components/arh/folha-paga
 const FinalizarFolhaDialog = lazy(() => import("../components/arh/folha-pagamento/FinalizarFolhaDialog"));
 const AdicionarFuncionariosDialog = lazy(() => import("../components/arh/folha-pagamento/AdicionarFuncionariosDialog"));
 const ListarRejeitadosModal = lazy(() => import("../components/arh/folha-pagamento/ListarRejeitadosModal"));
+const FuncionariosSemChavePixModal = lazy(() => import("../components/arh/folha-pagamento/FuncionariosSemChavePixModal"));
 
 const { Title, Text } = Typography;
 
@@ -125,6 +126,18 @@ const ArhFolhaPagamento = () => {
   const [reprocessarModalOpen, setReprocessarModalOpen] = useState(false);
   const [reprocessarRejeitadosModalOpen, setReprocessarRejeitadosModalOpen] = useState(false);
   const [listarRejeitadosModalOpen, setListarRejeitadosModalOpen] = useState(false);
+  const [semChavePixModal, setSemChavePixModal] = useState({
+    open: false,
+    funcionarios: [],
+    meioPagamento: null,
+  });
+
+  const fecharSemChavePixModal = () =>
+    setSemChavePixModal({
+      open: false,
+      funcionarios: [],
+      meioPagamento: null,
+    });
   const [contasDisponiveis, setContasDisponiveis] = useState([]);
   const [contaCorrenteSelecionada, setContaCorrenteSelecionada] = useState(null);
   const [loadingContas, setLoadingContas] = useState(false);
@@ -511,10 +524,22 @@ const ArhFolhaPagamento = () => {
         }
       }
       
+      const funcionariosSemChavePix = error.response?.data?.funcionariosSemChavePix;
+      const bloqueioPorChavePix =
+        Array.isArray(funcionariosSemChavePix) && funcionariosSemChavePix.length > 0;
+
       showNotification("error", "Erro", message);
-      
-      // Reabrir modal em caso de erro
-      setFinalizarModal(true);
+
+      if (bloqueioPorChavePix) {
+        setSemChavePixModal({
+          open: true,
+          funcionarios: funcionariosSemChavePix,
+          meioPagamento: dadosFinalizacao.meioPagamento,
+        });
+      } else {
+        // Reabrir modal em caso de erro genérico
+        setFinalizarModal(true);
+      }
     } finally {
       setCentralLoading(false);
     }
@@ -858,6 +883,10 @@ const ArhFolhaPagamento = () => {
         totalAjudaCusto: 0,
         totalExtras: 0,
         totalAdiantamento: 0,
+        totalPix: 0,
+        totalEspecie: 0,
+        totalFaltas: 0,
+        mediaFaltas: 0,
         quantidadeFuncionarios: 0,
         quantidadeComValores: 0,
         quantidadePendentes: 0,
@@ -875,7 +904,26 @@ const ArhFolhaPagamento = () => {
     const totalAjudaCusto = lancamentos.reduce((sum, l) => sum + Number(l.ajudaCusto || 0), 0);
     const totalExtras = lancamentos.reduce((sum, l) => sum + Number(l.extras || 0), 0);
     const totalAdiantamento = lancamentos.reduce((sum, l) => sum + Number(l.adiantamento || 0), 0);
+    
+    // Calcular totais por meio de pagamento
+    const totalPix = lancamentos.reduce((sum, l) => {
+      const meioPagamento = l.meioPagamento || "";
+      const isPix = meioPagamento === "PIX" || meioPagamento === "PIX_API";
+      return sum + (isPix ? Number(l.valorLiquido || 0) : 0);
+    }, 0);
+    
+    const totalEspecie = lancamentos.reduce((sum, l) => {
+      const meioPagamento = l.meioPagamento || "";
+      const isEspecie = meioPagamento === "ESPECIE";
+      return sum + (isEspecie ? Number(l.valorLiquido || 0) : 0);
+    }, 0);
+    
+    // Calcular total de faltas e média
+    const totalFaltas = lancamentos.reduce((sum, l) => sum + Number(l.faltas || 0), 0);
+    
     const quantidadeFuncionarios = lancamentos.length;
+    const mediaFaltas = quantidadeFuncionarios > 0 ? totalFaltas / quantidadeFuncionarios : 0;
+    
     // Lógica: Mensalistas já têm salário inicial, então contam se tiverem valorBruto > 0
     // Diaristas só contam se tiverem diasTrabalhados preenchidos (e consequentemente valorBruto > 0)
     const quantidadeComValores = lancamentos.filter(l => {
@@ -907,6 +955,10 @@ const ArhFolhaPagamento = () => {
       totalAjudaCusto,
       totalExtras,
       totalAdiantamento,
+      totalPix,
+      totalEspecie,
+      totalFaltas,
+      mediaFaltas,
       quantidadeFuncionarios,
       quantidadeComValores,
       quantidadePendentes,
@@ -1379,6 +1431,25 @@ const ArhFolhaPagamento = () => {
                             </Text>
                           </Box>
                         </Box>
+                        <Divider style={{ margin: "12px 0", borderColor: "#cbd5e1" }} />
+                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Total em PIX
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#1890ff" }}>
+                              {currency(resumoDetalhado.totalPix)}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Total em Espécie
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#fa8c16" }}>
+                              {currency(resumoDetalhado.totalEspecie)}
+                            </Text>
+                          </Box>
+                        </Box>
                       </Box>
 
                       {/* Estatísticas */}
@@ -1417,6 +1488,22 @@ const ArhFolhaPagamento = () => {
                             </Text>
                             <Text strong style={{ fontSize: "14px", color: "#faad14" }}>
                               {resumoDetalhado.quantidadePendentes}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Total de Faltas
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#ef4444" }}>
+                              {resumoDetalhado.totalFaltas}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text style={{ fontSize: "12px", color: "#64748b", display: "block" }}>
+                              Média de Faltas
+                            </Text>
+                            <Text strong style={{ fontSize: "14px", color: "#f59e0b" }}>
+                              {resumoDetalhado.mediaFaltas.toFixed(1)}
                             </Text>
                           </Box>
                         </Box>
@@ -1911,6 +1998,16 @@ const ArhFolhaPagamento = () => {
           onClose={() => setFinalizarModal(false)}
           onSave={finalizarFolha}
           folha={selectedFolha}
+        />
+      </Suspense>
+
+      <Suspense fallback={<SuspenseFallback message="Carregando..." />}>
+        <FuncionariosSemChavePixModal
+          open={semChavePixModal.open}
+          onClose={fecharSemChavePixModal}
+          funcionarios={semChavePixModal.funcionarios}
+          meioPagamentoTentado={semChavePixModal.meioPagamento}
+          onRetryFinalizacao={() => setFinalizarModal(true)}
         />
       </Suspense>
 

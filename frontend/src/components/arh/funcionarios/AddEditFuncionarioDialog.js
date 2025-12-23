@@ -115,6 +115,7 @@ const AddEditFuncionarioDialog = ({
         funcaoId: undefined,
         gerenteId: undefined,
         tipoChavePix: undefined,
+        modalidadeChave: "",
         chavePix: "",
         responsavelChavePix: "",
         ajudaCusto: undefined,
@@ -157,23 +158,34 @@ const AddEditFuncionarioDialog = ({
       novosErros.funcaoId = "Função é obrigatória para diaristas";
     }
 
-    // Validação para Tipo da Chave PIX
-    if (!funcionarioAtual.tipoChavePix) {
-      novosErros.tipoChavePix = "Tipo da Chave PIX é obrigatório";
-    }
+    const tipoPixPreenchido = Boolean(funcionarioAtual.tipoChavePix);
+    const chavePixPreenchida = Boolean(funcionarioAtual.chavePix?.trim());
+    const responsavelPixPreenchido = Boolean(funcionarioAtual.responsavelChavePix?.trim());
+    const algumCampoPixPreenchido =
+      tipoPixPreenchido || chavePixPreenchida || responsavelPixPreenchido;
 
-    // Validação para Chave PIX
-    if (!funcionarioAtual.chavePix?.trim()) {
-      novosErros.chavePix = "Chave PIX é obrigatória";
-    }
-
-    // Validação para Responsável Chave PIX
-    if (!funcionarioAtual.responsavelChavePix?.trim()) {
-      novosErros.responsavelChavePix = "Responsável pela Chave PIX é obrigatório";
+    if (algumCampoPixPreenchido) {
+      if (!tipoPixPreenchido) {
+        novosErros.tipoChavePix = "Informe o tipo da chave PIX.";
+      }
+      if (!chavePixPreenchida) {
+        novosErros.chavePix = "Informe o valor da chave PIX.";
+      }
+      if (!responsavelPixPreenchido) {
+        novosErros.responsavelChavePix = "Informe o responsável pela chave PIX.";
+      }
     }
 
     setErros(novosErros);
     return Object.keys(novosErros).length === 0;
+  };
+
+  const normalizarCampoPix = (valor) => {
+    if (valor === undefined || valor === null) {
+      return null;
+    }
+    const texto = String(valor).trim();
+    return texto.length > 0 ? texto : null;
   };
 
   const handleSalvarFuncionario = async () => {
@@ -182,12 +194,24 @@ const AddEditFuncionarioDialog = ({
     }
 
     // Preparar payload
+    const tipoChavePixNormalizado = funcionarioAtual.tipoChavePix ?? null;
     const payload = {
       ...funcionarioAtual,
       cargoId: funcionarioAtual.cargoId || undefined,
       funcaoId: funcionarioAtual.funcaoId || undefined,
       gerenteId: funcionarioAtual.gerenteId || undefined,
+      tipoChavePix: tipoChavePixNormalizado,
     };
+
+    if (tipoChavePixNormalizado) {
+      payload.modalidadeChave = normalizarCampoPix(funcionarioAtual.modalidadeChave);
+      payload.chavePix = normalizarCampoPix(funcionarioAtual.chavePix);
+      payload.responsavelChavePix = normalizarCampoPix(funcionarioAtual.responsavelChavePix);
+    } else {
+      payload.modalidadeChave = null;
+      payload.chavePix = null;
+      payload.responsavelChavePix = null;
+    }
 
     // Chamar onSave e deixar o componente pai controlar o fechamento
     await onSave(payload);

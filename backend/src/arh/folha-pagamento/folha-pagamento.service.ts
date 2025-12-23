@@ -507,6 +507,21 @@ export class FolhaPagamentoService {
       }
     }
 
+    if (dto.meioPagamento !== MeioPagamentoFuncionario.ESPECIE) {
+      const funcionariosSemChavePix = await this.listarFuncionariosSemChavePixPendentes(
+        id,
+      );
+
+      if (funcionariosSemChavePix.length > 0) {
+        throw new BadRequestException({
+          message:
+            'Não é possível finalizar a folha porque existem funcionários sem chave PIX cadastrada.',
+          code: 'FUNCIONARIOS_SEM_CHAVE_PIX',
+          funcionariosSemChavePix,
+        });
+      }
+    }
+
     await this.prisma.$transaction(async (tx) => {
       // Atualizar todos os lançamentos não pagos com o meio de pagamento e data
       await tx.funcionarioPagamento.updateMany({
@@ -536,6 +551,80 @@ export class FolhaPagamentoService {
     });
 
     return this.detalhesFolha(id);
+  }
+
+  private async listarFuncionariosSemChavePixPendentes(folhaId: number) {
+    const pendentes = await this.prisma.funcionarioPagamento.findMany({
+      where: {
+        folhaId,
+        pagamentoEfetuado: false,
+        NOT: {
+          statusPagamento: StatusFuncionarioPagamento.PAGO,
+        },
+      },
+      select: {
+        id: true,
+        funcionarioId: true,
+        statusPagamento: true,
+        funcionario: {
+          select: {
+            id: true,
+            nome: true,
+            cpf: true,
+            tipoContrato: true,
+            chavePix: true,
+            gerente: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+          },
+        },
+        cargo: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        funcao: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+    });
+
+    return pendentes
+      .filter((item) => {
+        const chave =
+          item.funcionario?.chavePix && typeof item.funcionario.chavePix === 'string'
+            ? item.funcionario.chavePix.trim()
+            : '';
+        return !chave;
+      })
+      .map((item) => ({
+        funcionarioPagamentoId: item.id,
+        funcionarioId: item.funcionarioId,
+        statusPagamento: item.statusPagamento,
+        funcionario: item.funcionario
+          ? {
+              id: item.funcionario.id,
+              nome: item.funcionario.nome,
+              cpf: item.funcionario.cpf,
+              tipoContrato: item.funcionario.tipoContrato,
+              gerente: item.funcionario.gerente
+                ? {
+                    id: item.funcionario.gerente.id,
+                    nome: item.funcionario.gerente.nome,
+                  }
+                : null,
+            }
+          : null,
+        cargo: item.cargo ?? null,
+        funcao: item.funcao ?? null,
+      }));
   }
 
   async reabrirFolha(id: number, _usuarioId: number) {

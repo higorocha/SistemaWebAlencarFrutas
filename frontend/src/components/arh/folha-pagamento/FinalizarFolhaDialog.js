@@ -1,7 +1,7 @@
 // src/components/arh/folha-pagamento/FinalizarFolhaDialog.js
 
 import React, { useState, useEffect } from "react";
-import { Modal, Button } from "antd";
+import { Modal, Button, Alert } from "antd";
 import PropTypes from "prop-types";
 import { SaveOutlined, CloseOutlined, LockOutlined, WarningOutlined, ReloadOutlined } from "@ant-design/icons";
 import FinalizarFolhaForm from "./FinalizarFolhaForm";
@@ -159,6 +159,17 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessament
         centered
         destroyOnClose
       >
+        {finalizacaoAtual.meioPagamento &&
+          finalizacaoAtual.meioPagamento !== "ESPECIE" && (
+            <Alert
+              type="info"
+              showIcon
+              message="Chaves PIX atualizadas diretamente do cadastro"
+              description="Para finalizar usando PIX, todos os funcionários com lançamentos pendentes precisam ter chave PIX cadastrada. Caso contrário, utilize pagamento em espécie ou atualize o cadastro antes de continuar."
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
         <FinalizarFolhaForm
           finalizacaoAtual={finalizacaoAtual}
           setFinalizacaoAtual={setFinalizacaoAtual}

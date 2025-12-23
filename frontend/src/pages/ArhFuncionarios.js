@@ -193,10 +193,22 @@ const ArhFuncionarios = () => {
       // Preservar o ID do funcionário antes de fechar o modal
       const funcionarioId = funcionarioEditando?.id;
 
-      // Limpar campos vazios (strings vazias) antes de enviar
+      // Limpar campos vazios (strings vazias) antes de enviar,
+      // preservando null explicitamente nos campos de PIX para forçar limpeza no backend
+      const camposPix = new Set([
+        "tipoChavePix",
+        "modalidadeChave",
+        "chavePix",
+        "responsavelChavePix",
+      ]);
       const cleanedData = { ...funcionarioData };
       Object.keys(cleanedData).forEach((key) => {
-        if (cleanedData[key] === "" || cleanedData[key] === null) {
+        const value = cleanedData[key];
+        if (value === "") {
+          cleanedData[key] = undefined;
+          return;
+        }
+        if (value === null && !camposPix.has(key)) {
           cleanedData[key] = undefined;
         }
       });

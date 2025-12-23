@@ -115,13 +115,29 @@ const FuncionarioForm = ({
 
   // Handler especial para tipoChavePix que também atualiza modalidadeChave
   const handleTipoChavePixChange = (value) => {
-    setFuncionarioAtual(prev => ({
+    if (value === undefined || value === null) {
+      setFuncionarioAtual((prev) => ({
+        ...prev,
+        tipoChavePix: undefined,
+        modalidadeChave: "",
+        chavePix: "",
+        responsavelChavePix: "",
+      }));
+      setErros((prev) => ({
+        ...prev,
+        tipoChavePix: undefined,
+        chavePix: undefined,
+        responsavelChavePix: undefined,
+      }));
+      return;
+    }
+
+    setFuncionarioAtual((prev) => ({
       ...prev,
       tipoChavePix: value,
-      modalidadeChave: value ? TIPOS_CHAVE_PIX[value] : undefined
+      modalidadeChave: TIPOS_CHAVE_PIX[value],
     }));
 
-    // Limpar erro do campo quando alterado
     if (erros.tipoChavePix) {
       setErros((prev) => ({
         ...prev,
@@ -671,12 +687,12 @@ const FuncionarioForm = ({
                 }
                 validateStatus={erros.tipoChavePix ? "error" : ""}
                 help={erros.tipoChavePix}
-                required
               >
                 <Select
                   placeholder="Selecione o tipo"
                   value={funcionarioAtual.tipoChavePix}
                   onChange={handleTipoChavePixChange}
+                  allowClear
                   size="large"
                 >
                   <Select.Option value={1}>{TIPOS_CHAVE_PIX[1]}</Select.Option>
@@ -696,7 +712,6 @@ const FuncionarioForm = ({
                 }
                 validateStatus={erros.chavePix ? "error" : ""}
                 help={erros.chavePix}
-                required
               >
                 <Input
                   placeholder="CPF, e-mail, telefone ou chave aleatória"
@@ -719,7 +734,6 @@ const FuncionarioForm = ({
                 }
                 validateStatus={erros.responsavelChavePix ? "error" : ""}
                 help={erros.responsavelChavePix}
-                required
               >
                 <Input
                   placeholder="Nome do responsável pela chave PIX"
