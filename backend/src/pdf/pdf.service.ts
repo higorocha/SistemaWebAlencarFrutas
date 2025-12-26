@@ -136,6 +136,7 @@ export class PdfService {
           '--disable-gpu',
           '--disable-software-rasterizer',
           '--disable-extensions',
+          '--font-render-hinting=none', // Melhor suporte a fontes customizadas
         ],
         timeout: 30000,
       };
@@ -190,6 +191,12 @@ export class PdfService {
 
       // 3. Renderizar o HTML
       this.logger.debug('Renderizando HTML...');
+      
+      // Configurar encoding UTF-8 explicitamente
+      await page.setExtraHTTPHeaders({
+        'Content-Type': 'text/html; charset=utf-8'
+      });
+      
       await page.setContent(htmlContent, {
         waitUntil: 'load',
         timeout: 30000 
