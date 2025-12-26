@@ -238,7 +238,16 @@ export class ExtratosService {
       // Loop de paginação
       while (hasMorePages) {
         try {
-          // Log removido - informações já aparecem no log do job de extratos
+          // Log da requisição sendo enviada para a API do BB
+          console.log(`📤 [BB-API-REQUEST] Enviando requisição para API de Extratos - Página ${paginaAtual}:`, {
+            url: `/conta-corrente/agencia/${agencia}/conta/${conta}`,
+            params: {
+              dataInicioSolicitacao: dataInicio,
+              dataFimSolicitacao: dataFim,
+              numeroPaginaSolicitacao: paginaAtual,
+              quantidadeRegistroPaginaSolicitacao: 200,
+            }
+          });
           
           const response = await apiClient.get(
             `/conta-corrente/agencia/${agencia}/conta/${conta}`,
@@ -253,6 +262,11 @@ export class ExtratosService {
                 Authorization: `Bearer ${token}`,
               },
             }
+          );
+
+          // Log do JSON recebido da API do BB
+          console.log(`📥 [BB-API-RESPONSE] JSON recebido da API de Extratos (Página ${paginaAtual}):`, 
+            JSON.stringify(response.data, null, 2)
           );
 
           const data = response.data as any;

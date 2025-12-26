@@ -900,6 +900,7 @@ export class LancamentoExtratoService {
 
     let totalSalvos = 0;
     let totalDuplicados = 0;
+    let totalVinculosClienteAtualizados = 0;
     let totalErros = 0;
     let totalSalvosComCliente = 0;
     const clientesComLancamentosSalvos = new Set<number>();
@@ -915,6 +916,10 @@ export class LancamentoExtratoService {
 
       if (resultado === 'salvo') {
         totalSalvos++;
+        totalSalvosComCliente++;
+        clientesComLancamentosSalvos.add(item.clienteId);
+      } else if (resultado === 'atualizado') {
+        totalVinculosClienteAtualizados++;
         totalSalvosComCliente++;
         clientesComLancamentosSalvos.add(item.clienteId);
       } else if (resultado === 'duplicado') {
@@ -934,6 +939,7 @@ export class LancamentoExtratoService {
       totalFiltrados: extratosElegiveis.length,
       totalSalvos,
       totalDuplicados,
+      totalVinculosClienteAtualizados: totalVinculosClienteAtualizados > 0 ? totalVinculosClienteAtualizados : undefined,
       totalComClienteIdentificado: extratosElegiveis.length,
       totalSemClienteIdentificado: 0,
       totalSalvosComClienteIdentificado: totalSalvosComCliente,
@@ -1140,6 +1146,7 @@ export class LancamentoExtratoService {
 
     let totalSalvos = 0;
     let totalDuplicados = 0;
+    let totalVinculosClienteAtualizados = 0;
     let totalErros = 0;
     let totalComCliente = 0;
     let totalSemCliente = 0;
@@ -1170,6 +1177,13 @@ export class LancamentoExtratoService {
         } else {
           totalSalvosSemCliente++;
         }
+      } else if (resultado === 'atualizado') {
+        totalVinculosClienteAtualizados++;
+        // Atualização só acontece quando temos clienteId identificado
+        if (item.clienteId !== null) {
+          totalSalvosComCliente++;
+          clientesComLancamentosSalvos.add(item.clienteId);
+        }
       } else if (resultado === 'duplicado') {
         totalDuplicados++;
       } else {
@@ -1187,6 +1201,7 @@ export class LancamentoExtratoService {
       totalFiltrados: extratosElegiveis.length,
       totalSalvos,
       totalDuplicados,
+      totalVinculosClienteAtualizados: totalVinculosClienteAtualizados > 0 ? totalVinculosClienteAtualizados : undefined,
       totalComClienteIdentificado: totalComCliente,
       totalSemClienteIdentificado: totalSemCliente,
       totalSalvosComClienteIdentificado: totalSalvosComCliente,
@@ -1223,7 +1238,7 @@ export class LancamentoExtratoService {
     contaCorrente: { id: number; agencia: string; contaCorrente: string };
     contaCorrenteId: number;
     cpfCnpjIdentificado?: string;
-  }): Promise<'salvo' | 'duplicado' | 'erro'> {
+  }): Promise<'salvo' | 'duplicado' | 'atualizado' | 'erro'> {
     const { extrato, clienteId, contaCorrente, contaCorrenteId, cpfCnpjIdentificado } = params;
 
     try {
@@ -1353,6 +1368,58 @@ export class LancamentoExtratoService {
       } catch (error: any) {
         // Erro P2002 = violação de constraint única (duplicado)
         if (error?.code === 'P2002') {
+          // ✅ Se já existe, mas está sem cliente vinculado e agora conseguimos identificar,
+          // atualizamos SOMENTE o vínculo do cliente (sem criar novo lançamento).
+          try {
+            const existente = await this.prisma.lancamentoExtrato.findUnique({
+              where: {
+                numeroDocumento_dataLancamentoRaw_numeroLote: {
+                  numeroDocumento,
+                  dataLancamentoRaw: dataLancamentoBigInt,
+                  numeroLote: numeroLoteBigInt,
+                },
+              },
+              select: {
+                id: true,
+                clienteId: true,
+                observacoesProcessamento: true,
+              },
+            });
+
+            const podeAtualizarCliente =
+              Boolean(existente) &&
+              (existente!.clienteId === null || existente!.clienteId === undefined) &&
+              clienteId !== null &&
+              clienteId !== undefined;
+
+            if (podeAtualizarCliente) {
+              const observacaoNova =
+                'Cliente vinculado automaticamente em reprocessamento (lançamento já existia como duplicado, mas estava sem cliente).';
+              const observacoesProcessamento = existente!.observacoesProcessamento
+                ? `${existente!.observacoesProcessamento}\n${observacaoNova}`
+                : observacaoNova;
+
+              await this.prisma.lancamentoExtrato.update({
+                where: { id: existente!.id },
+                data: {
+                  clienteId,
+                  observacoesProcessamento,
+                },
+              });
+
+              return 'atualizado';
+            }
+          } catch (updateError) {
+            // Se falhar a tentativa de atualização, caímos no comportamento padrão de duplicado
+            console.warn('⚠️ Não foi possível atualizar vínculo de cliente para lançamento duplicado.', {
+              numeroDocumento,
+              dataLancamentoRaw: String(dataLancamentoBigInt),
+              numeroLote: String(numeroLoteBigInt),
+              clienteId,
+              error: (updateError as Error)?.message,
+            });
+          }
+
           return 'duplicado';
         }
         // Re-throw outros erros para serem tratados no catch externo

@@ -526,6 +526,12 @@ export class BuscarProcessarExtratosResponseDto {
   @ApiPropertyOptional({ description: 'Total de lançamentos que apresentaram erro durante o salvamento' })
   totalErros?: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Total de vínculos de cliente atualizados em lançamentos já existentes (duplicados que estavam sem cliente e foram identificados no reprocessamento)',
+  })
+  totalVinculosClienteAtualizados?: number;
+
   @ApiProperty({ description: 'Período consultado' })
   periodo: {
     inicio: string;

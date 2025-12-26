@@ -393,10 +393,21 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       });
 
       const totalSalvos = response.data.totalSalvos || 0;
+      const totalVinculosClienteAtualizados = response.data.totalVinculosClienteAtualizados || 0;
+
+      const mensagem = (() => {
+        if (totalSalvos > 0 && totalVinculosClienteAtualizados > 0) {
+          return `${totalSalvos} ${totalSalvos === 1 ? 'novo lançamento' : 'novos lançamentos'} e ${totalVinculosClienteAtualizados} ${totalVinculosClienteAtualizados === 1 ? 'vínculo de cliente atualizado' : 'vínculos de cliente atualizados'}`;
+        }
+        if (totalVinculosClienteAtualizados > 0) {
+          return `${totalVinculosClienteAtualizados} ${totalVinculosClienteAtualizados === 1 ? 'vínculo de cliente atualizado' : 'vínculos de cliente atualizados'}`;
+        }
+        return `${totalSalvos} ${totalSalvos === 1 ? 'novo lançamento encontrado' : 'novos lançamentos encontrados'}`;
+      })();
       showNotification(
         'success',
         'Busca Concluída',
-        `${totalSalvos} ${totalSalvos === 1 ? 'novo lançamento encontrado' : 'novos lançamentos encontrados'}`
+        mensagem
       );
 
       // Recarregar pagamentos após buscar
