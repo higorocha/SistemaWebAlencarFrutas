@@ -170,8 +170,10 @@ export class PdfService {
       // Aguardar renderização completa (incluindo gráficos Chart.js se houver)
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Se houver gráfico, aguardar um pouco mais para garantir renderização
-      const hasChart = htmlContent.includes('graficoHistorico');
+      // Se houver gráfico (Chart.js), aguardar um pouco mais para garantir renderização
+      const hasChart =
+        htmlContent.includes('graficoHistorico') ||
+        htmlContent.includes('graficoSemanal');
       if (hasChart) {
         await new Promise(resolve => setTimeout(resolve, 1500));
       }

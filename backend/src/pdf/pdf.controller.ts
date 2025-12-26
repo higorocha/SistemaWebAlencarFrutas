@@ -1466,6 +1466,587 @@ export class PdfController {
   }
 
   /**
+   * Gera PDF global de colheitas de um fornecedor (respeitando filtros opcionais do modal)
+   * @template fornecedor-colheitas.hbs
+   * @endpoint POST /api/pdf/fornecedor-colheitas/:fornecedorId
+   * @usage EstatisticasFornecedorModal.js - botão "Gerar PDF"
+   */
+  @Post('fornecedor-colheitas/:fornecedorId')
+  @ApiOperation({ summary: 'Gerar PDF de colheitas do fornecedor' })
+  @ApiParam({ name: 'fornecedorId', description: 'ID do fornecedor' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        aplicarFiltros: { type: 'boolean', description: 'Se true, aplica filtros do modal no PDF (gráfico e listagens)' },
+        filtroBusca: { type: 'string', description: 'Busca por pedido, fruta, área ou quantidade (opcional)' },
+        dataInicio: { type: 'string', description: 'Data início (YYYY-MM-DD) (opcional)' },
+        dataFim: { type: 'string', description: 'Data fim (YYYY-MM-DD) (opcional)' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF gerado com sucesso',
+    content: { 'application/pdf': {} },
+  })
+  async downloadFornecedorColheitasPdf(
+    @Param('fornecedorId') fornecedorId: string,
+    @Body()
+    body: {
+      aplicarFiltros?: boolean;
+      filtroBusca?: string;
+      dataInicio?: string;
+      dataFim?: string;
+    },
+    @Res() res: Response,
+  ) {
+    const fornecedorIdNum = Number(fornecedorId);
+    if (!Number.isFinite(fornecedorIdNum)) {
+      throw new BadRequestException('fornecedorId inválido');
+    }
+
+    // 1) Buscar fornecedor
+    const fornecedor = await this.prisma.fornecedor.findUnique({
+      where: { id: fornecedorIdNum },
+      select: { id: true, nome: true },
+    });
+    if (!fornecedor) {
+      throw new NotFoundException('Fornecedor não encontrado');
+    }
+
+    // 2) Buscar áreas e colheitas (por relação frutas_pedidos_areas)
+    const areas = await this.prisma.areaFornecedor.findMany({
+      where: { fornecedorId: fornecedorIdNum },
+      select: {
+        id: true,
+        nome: true,
+        quantidadeHa: true,
+        frutasPedidosAreas: {
+          where: { areaFornecedorId: { not: null } },
+          select: {
+            id: true,
+            quantidadeColhidaUnidade1: true,
+            quantidadeColhidaUnidade2: true,
+            frutaPedido: {
+              select: {
+                id: true,
+                frutaId: true,
+                quantidadePrevista: true,
+                quantidadeReal: true,
+                quantidadeReal2: true,
+                quantidadePrecificada: true,
+                unidadeMedida1: true,
+                unidadeMedida2: true,
+                unidadePrecificada: true,
+                // ✅ Valor de venda (precificação do pedido)
+                valorUnitario: true,
+                valorTotal: true,
+                fruta: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    cultura: { select: { id: true, descricao: true } },
+                  },
+                },
+                pedido: {
+                  select: {
+                    id: true,
+                    numeroPedido: true,
+                    dataColheita: true,
+                    status: true,
+                  },
+                },
+                areas: {
+                  select: {
+                    id: true,
+                    quantidadeColhidaUnidade1: true,
+                    quantidadeColhidaUnidade2: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 3) Buscar pagamentos do fornecedor (compra) para mapear com colheitas
+    const pagamentos = await this.prisma.fornecedorPagamento.findMany({
+      where: { fornecedorId: fornecedorIdNum },
+      select: {
+        id: true,
+        frutaPedidoAreaId: true,
+        status: true,
+        quantidade: true,
+        unidadeMedida: true,
+        valorUnitario: true,
+        valorTotal: true,
+        dataColheita: true,
+        dataPagamento: true,
+      },
+    });
+    const pagamentoPorRelacao = new Map<number, typeof pagamentos[0]>();
+    pagamentos.forEach((p) => {
+      pagamentoPorRelacao.set(p.frutaPedidoAreaId, p);
+    });
+
+    // Helpers de data (ainda usados para formatação nas tabelas)
+    const normalizarDia = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+    
+    // Helpers de semana - COMENTADOS (não mais necessários sem o gráfico)
+    /*
+    const getMondayWeekStart = (d: Date) => {
+      const dia = normalizarDia(d);
+      const day = dia.getDay(); // 0=dom,1=seg,...6=sab
+      const diff = (day + 6) % 7; // seg=0 ... dom=6
+      const monday = new Date(dia);
+      monday.setDate(monday.getDate() - diff);
+      return monday;
+    };
+    const weekKey = (monday: Date) => monday.toISOString().slice(0, 10);
+    const weekLabel = (monday: Date) => {
+      const domingo = new Date(monday);
+      domingo.setDate(domingo.getDate() + 6);
+      const fmt = (x: Date) => {
+        const dd = String(x.getDate()).padStart(2, '0');
+        const mm = String(x.getMonth() + 1).padStart(2, '0');
+        return `${dd}/${mm}`;
+      };
+      return `${fmt(monday)}–${fmt(domingo)}`;
+    };
+    */
+
+    // Helpers de formatação
+    const formatarNumeroPedido = (numeroPedido: string): string => {
+      if (!numeroPedido) return '';
+      const partes = numeroPedido.split('-');
+      return partes.length > 0 ? partes[partes.length - 1] : numeroPedido;
+    };
+
+    // 4) Montar lista de colheitas (base)
+    type ColheitaPdf = {
+      id: number; // relação frutas_pedidos_areas
+      pedidoId: number;
+      pedido: string;
+      frutaPedidoId: number;
+      frutaId: number;
+      fruta: string;
+      cultura: string;
+      areaId: number;
+      areaNome: string;
+      areaHa: number | null;
+      dataColheita: Date | null;
+      quantidade: number;
+      unidade: string;
+      // compra (fornecedor)
+      pagamentoId: number | null;
+      statusCompra: string | null;
+      valorUnitarioCompra: number | null;
+      valorTotalCompra: number | null;
+      // venda (pedido)
+      valorUnitarioVenda: number | null;
+      valorTotalVendaProporcional: number | null;
+      temVenda: boolean;
+    };
+
+    const colheitasBase: ColheitaPdf[] = [];
+
+    areas.forEach((area) => {
+      area.frutasPedidosAreas.forEach((relacao) => {
+        const fp = relacao.frutaPedido;
+        if (!fp?.pedido || !fp.fruta) return;
+
+        const quantidadeArea =
+          relacao.quantidadeColhidaUnidade1 ??
+          relacao.quantidadeColhidaUnidade2 ??
+          fp.quantidadeReal ??
+          fp.quantidadePrecificada ??
+          fp.quantidadePrevista ??
+          0;
+
+        const somaAreasRelacionadas = (fp.areas || []).reduce((acc, a) => {
+          const q = a.quantidadeColhidaUnidade1 ?? a.quantidadeColhidaUnidade2 ?? 0;
+          return acc + q;
+        }, 0);
+
+        const quantidadeReferencia =
+          (fp.quantidadeReal ??
+            fp.quantidadePrecificada ??
+            fp.quantidadePrevista ??
+            somaAreasRelacionadas) || 0;
+
+        const pagamento = pagamentoPorRelacao.get(relacao.id);
+        const temPagamento = !!pagamento?.id;
+
+        const vendaTotalFruta = typeof fp.valorTotal === 'number' ? fp.valorTotal : 0;
+        const vendaUnit = typeof fp.valorUnitario === 'number' ? fp.valorUnitario : 0;
+        const temVenda = vendaTotalFruta > 0 && vendaUnit > 0;
+        let vendaProporcional: number | null = null;
+        if (temVenda && quantidadeReferencia > 0) {
+          vendaProporcional = (vendaTotalFruta * (Number(quantidadeArea) || 0)) / quantidadeReferencia;
+        }
+
+        const dataColheita = fp.pedido.dataColheita
+          ? new Date(fp.pedido.dataColheita)
+          : pagamento?.dataColheita
+            ? new Date(pagamento.dataColheita)
+            : null;
+
+        colheitasBase.push({
+          id: relacao.id,
+          pedidoId: fp.pedido.id,
+          pedido: formatarNumeroPedido(fp.pedido.numeroPedido), // ✅ Formatado (ex: "0017" ao invés de "PED-2025-0017")
+          frutaPedidoId: fp.id,
+          frutaId: fp.fruta.id,
+          fruta: capitalizeName(fp.fruta.nome || 'Fruta'),
+          cultura: capitalizeName(fp.fruta.cultura?.descricao || 'Cultura'),
+          areaId: area.id,
+          areaNome: capitalizeName(area.nome || 'Área'),
+          areaHa: typeof area.quantidadeHa === 'number' ? area.quantidadeHa : null,
+          dataColheita,
+          quantidade: Number(quantidadeArea) || 0,
+          unidade: (pagamento?.unidadeMedida || fp.unidadeMedida1 || 'UN').toString(),
+          pagamentoId: temPagamento ? pagamento!.id : null,
+          statusCompra: temPagamento ? String(pagamento!.status) : null,
+          valorUnitarioCompra: temPagamento ? Number(pagamento!.valorUnitario) : null,
+          valorTotalCompra: temPagamento ? Number(pagamento!.valorTotal) : null,
+          valorUnitarioVenda: temVenda ? vendaUnit : null,
+          valorTotalVendaProporcional: vendaProporcional !== null ? Number(vendaProporcional) : null,
+          temVenda,
+        });
+      });
+    });
+
+    if (colheitasBase.length === 0) {
+      throw new BadRequestException('Nenhuma colheita encontrada para este fornecedor');
+    }
+
+    // 5) Aplicar filtros (opcional)
+    const aplicarFiltros = body?.aplicarFiltros === true;
+    const termo = (body?.filtroBusca || '').trim().toLowerCase();
+    const inicio = body?.dataInicio ? new Date(`${body.dataInicio}T00:00:00`) : null;
+    const fim = body?.dataFim ? new Date(`${body.dataFim}T23:59:59`) : null;
+
+    let colheitas = [...colheitasBase];
+    if (aplicarFiltros) {
+      if (termo) {
+        colheitas = colheitas.filter((c) => {
+          const pedido = (c.pedido || '').toLowerCase();
+          const fruta = (c.fruta || '').toLowerCase();
+          const areaNome = (c.areaNome || '').toLowerCase();
+          const qtd = String(c.quantidade || 0).toLowerCase();
+          return (
+            pedido.includes(termo) ||
+            fruta.includes(termo) ||
+            areaNome.includes(termo) ||
+            qtd.includes(termo)
+          );
+        });
+      }
+
+      if (inicio && fim) {
+        colheitas = colheitas.filter((c) => {
+          if (!c.dataColheita) return false;
+          const d = new Date(c.dataColheita);
+          return d >= inicio && d <= fim;
+        });
+      }
+    }
+
+    if (colheitas.length === 0) {
+      throw new BadRequestException('Nenhuma colheita encontrada com os filtros aplicados');
+    }
+
+    // 6) Áreas do cabeçalho (somente as presentes nas colheitas do PDF)
+    const areasMap = new Map<number, { id: number; nome: string; ha: number | null }>();
+    colheitas.forEach((c) => {
+      if (!areasMap.has(c.areaId)) {
+        areasMap.set(c.areaId, { id: c.areaId, nome: c.areaNome, ha: c.areaHa ?? null });
+      }
+    });
+    const areasNoPdf = Array.from(areasMap.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+
+    // 7) Semanas para gráfico - REMOVIDO (gráfico não é mais necessário no PDF)
+    // const weekBuckets = new Map<string, { label: string; itens: ColheitaPdf[] }>();
+    // ... código comentado ...
+
+    // 8) Dados do gráfico - REMOVIDO
+    // const graficoSemanal = null;
+
+    // 9) Resumo por cultura/fruta
+    type ResumoLinha = {
+      cultura: string;
+      fruta: string;
+      quantidadesPorUnidade: Array<{ unidade: string; quantidade: string }>; // ✅ string (formatado)
+      quantidadesPorUnidadePrecificada: Array<{ unidade: string; quantidade: string }>; // ✅ string (formatado)
+      quantidadesPorUnidadeNaoPrecificada: Array<{ unidade: string; quantidade: string }>; // ✅ string (formatado)
+      totalColheitas: number;
+      colheitasPrecificadas: number;
+      colheitasNaoPrecificadas: number;
+      valorUnitarioMedioCompra: string;
+      compraPago: string;
+      compraPrecificado: string;
+      vendaTotal: string;
+      temFaltaVenda: boolean;
+      observacaoVenda?: string | null;
+    };
+
+    // Log para debug
+    console.log('[PDF Fornecedor] Total de colheitas:', colheitas.length);
+    console.log('[PDF Fornecedor] Amostra de dados (primeiras 3 colheitas):', 
+      colheitas.slice(0, 3).map(c => ({
+        pedido: c.pedido,
+        fruta: c.fruta,
+        quantidade: c.quantidade,
+        unidade: c.unidade,
+        pagamentoId: c.pagamentoId,
+        statusCompra: c.statusCompra,
+        valorUnitarioCompra: c.valorUnitarioCompra,
+        valorTotalCompra: c.valorTotalCompra,
+        valorTotalVendaProporcional: c.valorTotalVendaProporcional,
+        temVenda: c.temVenda,
+      }))
+    );
+
+    const grupoResumo = new Map<string, any>();
+    colheitas.forEach((c) => {
+      const key = `${c.cultura}||${c.fruta}`;
+      if (!grupoResumo.has(key)) {
+        grupoResumo.set(key, {
+          cultura: c.cultura,
+          fruta: c.fruta,
+          qtdPorUnidade: new Map<string, number>(),
+          qtdPorUnidadePrecificada: new Map<string, number>(),
+          qtdPorUnidadeNaoPrecificada: new Map<string, number>(),
+          compraPago: 0,
+          compraPrecificado: 0,
+          somaVuCompra: 0,
+          qtdVuCompra: 0,
+          vendaTotal: 0,
+          compraComVendaFaltando: 0,
+          compraComPagamento: 0,
+          compraSemPagamento: 0,
+        });
+      }
+      const g = grupoResumo.get(key);
+      g.qtdPorUnidade.set(c.unidade, (g.qtdPorUnidade.get(c.unidade) || 0) + (Number(c.quantidade) || 0));
+
+      // Compra
+      if (c.pagamentoId) {
+        g.compraComPagamento += 1;
+        g.qtdPorUnidadePrecificada.set(c.unidade, (g.qtdPorUnidadePrecificada.get(c.unidade) || 0) + (Number(c.quantidade) || 0));
+        if (c.statusCompra === 'PAGO') g.compraPago += Number(c.valorTotalCompra || 0);
+        if (c.statusCompra === 'PENDENTE' || c.statusCompra === 'PROCESSANDO') g.compraPrecificado += Number(c.valorTotalCompra || 0);
+        if (typeof c.valorUnitarioCompra === 'number' && Number.isFinite(c.valorUnitarioCompra) && c.valorUnitarioCompra > 0) {
+          g.somaVuCompra += c.valorUnitarioCompra;
+          g.qtdVuCompra += 1;
+        }
+        // Só conta como "faltando venda" se a compra está precificada mas o pedido/fruta não tem valor de venda
+        if (!c.temVenda) g.compraComVendaFaltando += 1;
+      } else {
+        g.compraSemPagamento += 1;
+        g.qtdPorUnidadeNaoPrecificada.set(c.unidade, (g.qtdPorUnidadeNaoPrecificada.get(c.unidade) || 0) + (Number(c.quantidade) || 0));
+      }
+
+      // Venda
+      if (typeof c.valorTotalVendaProporcional === 'number' && Number.isFinite(c.valorTotalVendaProporcional) && c.valorTotalVendaProporcional > 0) {
+        g.vendaTotal += c.valorTotalVendaProporcional;
+      }
+    });
+
+    const resumoLinhas: ResumoLinha[] = Array.from(grupoResumo.values())
+      .sort((a, b) => (a.cultura + a.fruta).localeCompare(b.cultura + b.fruta))
+      .map((g) => {
+        // Aplicar formatação de milhar nas quantidades
+        const qtds = Array.from(g.qtdPorUnidade.entries())
+          .map(([unidade, quantidade]) => ({ 
+            unidade, 
+            quantidade: formatNumber(quantidade) // ✅ Formatação de milhar aplicada
+          }))
+          .sort((a, b) => a.unidade.localeCompare(b.unidade));
+
+        const qtdsPrecificadas = Array.from(g.qtdPorUnidadePrecificada.entries())
+          .map(([unidade, quantidade]) => ({ 
+            unidade, 
+            quantidade: formatNumber(quantidade) // ✅ Formatação de milhar aplicada
+          }))
+          .sort((a, b) => a.unidade.localeCompare(b.unidade));
+
+        const qtdsNaoPrecificadas = Array.from(g.qtdPorUnidadeNaoPrecificada.entries())
+          .map(([unidade, quantidade]) => ({ 
+            unidade, 
+            quantidade: formatNumber(quantidade) // ✅ Formatação de milhar aplicada
+          }))
+          .sort((a, b) => a.unidade.localeCompare(b.unidade));
+
+        const vuMedio =
+          g.qtdVuCompra > 0 ? g.somaVuCompra / g.qtdVuCompra : null;
+
+        const temFaltaVenda = g.compraComVendaFaltando > 0;
+        // Mensagem mais clara: só aparece quando há compra precificada mas venda não precificada
+        const obs = temFaltaVenda
+          ? `${g.compraComVendaFaltando} colheita(s) precificada(s) para compra, mas o pedido/fruta correspondente ainda não foi precificado para venda ao cliente.`
+          : null;
+
+        console.log(`[PDF Fornecedor] Resumo ${g.cultura} - ${g.fruta}:`, {
+          compraComPagamento: g.compraComPagamento,
+          compraSemPagamento: g.compraSemPagamento,
+          compraComVendaFaltando: g.compraComVendaFaltando,
+          vendaTotal: g.vendaTotal,
+          temFaltaVenda,
+        });
+
+        return {
+          cultura: g.cultura,
+          fruta: g.fruta,
+          quantidadesPorUnidade: qtds,
+          quantidadesPorUnidadePrecificada: qtdsPrecificadas,
+          quantidadesPorUnidadeNaoPrecificada: qtdsNaoPrecificadas,
+          totalColheitas: g.compraComPagamento + g.compraSemPagamento,
+          colheitasPrecificadas: g.compraComPagamento,
+          colheitasNaoPrecificadas: g.compraSemPagamento,
+          valorUnitarioMedioCompra: vuMedio !== null ? formatCurrencyBR(vuMedio) : '-',
+          compraPago: formatCurrencyBR(g.compraPago || 0),
+          compraPrecificado: formatCurrencyBR(g.compraPrecificado || 0),
+          vendaTotal: g.vendaTotal > 0 ? formatCurrencyBR(g.vendaTotal) : '-',
+          temFaltaVenda,
+          observacaoVenda: obs,
+        };
+      });
+
+    console.log('[PDF Fornecedor] Resumo por fruta concluído. Total de linhas:', resumoLinhas.length);
+
+    // 10) Calcular período das colheitas e estatísticas gerais
+    const datasColheitas = colheitas
+      .map(c => c.dataColheita)
+      .filter(d => d !== null && d !== undefined)
+      .sort((a, b) => new Date(a!).getTime() - new Date(b!).getTime());
+
+    const periodo = datasColheitas.length > 0 ? {
+      dataInicio: formatDateBRSemTimezone(datasColheitas[0]!),
+      dataFim: formatDateBRSemTimezone(datasColheitas[datasColheitas.length - 1]!),
+    } : null;
+
+    const culturasUnicas = new Set(colheitas.map(c => c.cultura));
+    const frutasUnicas = new Set(colheitas.map(c => c.fruta));
+
+    const estatisticasGerais = {
+      totalColheitas: colheitas.length,
+      totalCulturas: culturasUnicas.size,
+      totalFrutas: frutasUnicas.size,
+      totalAreas: areasNoPdf.length,
+    };
+
+    console.log('[PDF Fornecedor] Período:', periodo);
+    console.log('[PDF Fornecedor] Estatísticas gerais:', estatisticasGerais);
+
+    // 11) Tabelas (precificadas vs não precificadas)
+    const precificadas = colheitas.filter((c) => !!c.pagamentoId);
+    const naoPrecificadas = colheitas.filter((c) => !c.pagamentoId);
+
+    const agruparPorFruta = (lista: ColheitaPdf[]) => {
+      const map = new Map<string, {
+        cultura: string;
+        fruta: string;
+        linhas: any[];
+        totaisPorUnidade: Map<string, number>;
+      }>();
+      lista.forEach((c) => {
+        const k = `${c.cultura}||${c.fruta}`;
+        if (!map.has(k)) {
+          map.set(k, {
+            cultura: c.cultura,
+            fruta: c.fruta,
+            linhas: [],
+            totaisPorUnidade: new Map<string, number>(),
+          });
+        }
+        const g = map.get(k)!;
+        g.linhas.push({
+          pedido: c.pedido,
+          area: c.areaNome,
+          dataColheita: c.dataColheita ? formatDateBRSemTimezone(c.dataColheita) : '-',
+          quantidade: formatNumber(c.quantidade || 0),
+          unidade: c.unidade,
+          valorUnitarioCompra: c.valorUnitarioCompra && c.valorUnitarioCompra > 0 ? formatCurrencyBR(c.valorUnitarioCompra) : '-',
+          valorTotalCompra: c.valorTotalCompra && c.valorTotalCompra > 0 ? formatCurrencyBR(c.valorTotalCompra) : '-',
+          statusCompra: c.statusCompra || '-',
+          valorVenda: c.valorTotalVendaProporcional && c.valorTotalVendaProporcional > 0 ? formatCurrencyBR(c.valorTotalVendaProporcional) : '-',
+        });
+        g.totaisPorUnidade.set(c.unidade, (g.totaisPorUnidade.get(c.unidade) || 0) + (Number(c.quantidade) || 0));
+      });
+      return Array.from(map.values())
+        .sort((a, b) => (a.cultura + a.fruta).localeCompare(b.cultura + b.fruta))
+        .map((g) => ({
+          cultura: g.cultura,
+          fruta: g.fruta,
+          linhas: g.linhas,
+          totaisPorUnidade: Array.from(g.totaisPorUnidade.entries()).map(([unidade, quantidade]) => ({
+            unidade,
+            quantidade: formatNumber(quantidade),
+          })),
+        }));
+    };
+
+    const gruposPrecificadas = agruparPorFruta(precificadas);
+    const gruposNaoPrecificadas = agruparPorFruta(naoPrecificadas);
+
+    // 12) Dados empresa + logo
+    const dadosEmpresa = await this.configService.findDadosEmpresa();
+    const logoBase64 = await this.carregarLogoBase64();
+
+    // 13) Dados para template
+    const dadosTemplate = {
+      empresa: dadosEmpresa,
+      logoPath: logoBase64,
+      dataGeracaoFormatada: new Date().toLocaleDateString('pt-BR'),
+      tituloDocumento: 'Relatório de Colheitas do Fornecedor',
+      fornecedor: {
+        id: fornecedor.id,
+        nome: capitalizeName(fornecedor.nome || 'Fornecedor'),
+      },
+      aplicarFiltros,
+      filtros: aplicarFiltros
+        ? {
+            busca: body?.filtroBusca?.trim() || null,
+            dataInicio: body?.dataInicio || null,
+            dataFim: body?.dataFim || null,
+          }
+        : null,
+      areas: areasNoPdf,
+      periodo, // ✅ Período das colheitas
+      estatisticasGerais, // ✅ Estatísticas gerais
+      // grafico: removido - não é mais necessário no PDF
+      resumo: resumoLinhas,
+      tabelas: {
+        precificadas: gruposPrecificadas,
+        naoPrecificadas: gruposNaoPrecificadas,
+      },
+    };
+
+    // 14) Gerar PDF
+    const buffer = await this.pdfService.gerarPdf('fornecedor-colheitas', dadosTemplate);
+
+    // 15) Nome do arquivo
+    const nomeFornecedorArquivo = capitalizeNameShort(fornecedor.nome || 'fornecedor');
+    const nomeArquivo = this.gerarNomeArquivo({
+      tipo: 'fornecedor-colheitas',
+      identificador: String(fornecedorIdNum),
+      cliente: nomeFornecedorArquivo,
+    });
+
+    const contentDisposition = `attachment; filename="${nomeArquivo}"; filename*=UTF-8''${encodeURIComponent(nomeArquivo)}`;
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': contentDisposition,
+      'Access-Control-Expose-Headers': 'Content-Disposition',
+      'Content-Length': buffer.length.toString(),
+    });
+    res.end(buffer);
+  }
+
+  /**
    * Prepara os dados dos pedidos do cliente para o template Handlebars
    * @template pedidos-cliente.hbs
    * @description Formata dados do cliente, pedidos, frutas e quantidades para renderização no PDF

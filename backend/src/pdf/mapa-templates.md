@@ -22,6 +22,7 @@ Documentação simples dos templates de PDF disponíveis no sistema.
 | `prepararDadosTemplateFolha()` | `folha-pagamento.hbs` | Auxiliar |
 | `downloadPedidosClientePdf()` | `pedidos-cliente.hbs` | `POST /api/pdf/pedidos-cliente/:clienteId` |
 | `prepararDadosTemplatePedidosCliente()` | `pedidos-cliente.hbs` | Auxiliar |
+| `downloadFornecedorColheitasPdf()` | `fornecedor-colheitas.hbs` | `POST /api/pdf/fornecedor-colheitas/:fornecedorId` |
 
 ---
 
@@ -212,6 +213,38 @@ O template exibe:
 - **NF Indústria:** `indNumeroNf` (nota fiscal da indústria) - apenas se o cliente for indústria (`cliente.industria === true`) e houver valor
 
 ---
+
+## fornecedor-colheitas.hbs
+
+### O que é?
+Template de **relatório global de colheitas do fornecedor**, com:
+- Cabeçalho interno com fornecedor e áreas presentes no PDF (nome + ha)
+- Gráfico semanal (segunda→domingo) com **últimas 6 semanas**
+- Resumo por cultura/fruta (quantidades, compra paga vs precificada, venda)
+- Duas listagens: colheitas **precificadas (compra)** e **não precificadas (compra)**, agrupadas por fruta
+
+### De onde vem a chamada?
+- **Frontend:** `EstatisticasFornecedorModal.js` - botão **Gerar PDF**
+- **Endpoint:** `POST /api/pdf/fornecedor-colheitas/:fornecedorId`
+
+### Endpoint
+```
+POST /api/pdf/fornecedor-colheitas/:fornecedorId
+```
+
+### Body (opcional)
+```json
+{
+  "aplicarFiltros": true,
+  "filtroBusca": "banana",
+  "dataInicio": "2025-12-01",
+  "dataFim": "2025-12-20"
+}
+```
+
+### Observações
+- O gráfico é limitado a **6 semanas** por espaço; sem filtros ele mostra as últimas 6 do conjunto completo e informa o total de semanas.
+- As áreas exibidas no cabeçalho são apenas as **presentes nas colheitas incluídas no PDF** (respeita filtros).
 
 ## folha-pagamento.hbs
 

@@ -644,7 +644,7 @@ const VisualizarPedidoModal = ({
                 fontSize: isMobile ? "0.75rem" : undefined,
               }}
             >
-              Exportar PDF
+              Gerar PDF
             </PDFButton>
             <Button 
               onClick={onClose} 

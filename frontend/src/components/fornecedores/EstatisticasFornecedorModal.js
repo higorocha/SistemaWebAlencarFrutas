@@ -100,6 +100,7 @@ const EstatisticasFornecedorModal = ({
   // ✅ Mantemos o código do gráfico, mas deixamos oculto por enquanto (para testes)
   const mostrarGrafico = false;
   const [loading, setLoading] = useState(false);
+  const [loadingPDF, setLoadingPDF] = useState(false); // ✅ Estado para loading do PDF
   const [estatisticas, setEstatisticas] = useState(null);
   const [intervaloMeses, setIntervaloMeses] = useState(6);
   const [dadosGrafico, setDadosGrafico] = useState(null);
@@ -140,9 +141,83 @@ const EstatisticasFornecedorModal = ({
     }
   };
 
-  // Função para lidar com geração de PDF (em desenvolvimento)
-  const handleGerarPDF = () => {
-    showNotification('info', 'Em Desenvolvimento', 'A funcionalidade de gerar PDF ainda está em desenvolvimento.');
+  // Função para lidar com geração de PDF
+  const handleGerarPDF = async () => {
+    if (!fornecedorId) {
+      showNotification('error', 'Erro', 'Fornecedor inválido para gerar PDF.');
+      return;
+    }
+
+    try {
+      setLoadingPDF(true); // ✅ Inicia loading
+      
+      const aplicarFiltros = !!filtrosAtivos;
+      const payload = {
+        aplicarFiltros,
+        filtroBusca: filtroBusca || '',
+        dataInicio:
+          aplicarFiltros &&
+          filtroDataColheita &&
+          filtroDataColheita.length === 2 &&
+          filtroDataColheita[0]
+            ? filtroDataColheita[0].format('YYYY-MM-DD')
+            : undefined,
+        dataFim:
+          aplicarFiltros &&
+          filtroDataColheita &&
+          filtroDataColheita.length === 2 &&
+          filtroDataColheita[1]
+            ? filtroDataColheita[1].format('YYYY-MM-DD')
+            : undefined,
+      };
+
+      const response = await axiosInstance.post(
+        `/api/pdf/fornecedor-colheitas/${fornecedorId}`,
+        payload,
+        { responseType: 'blob' }
+      );
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+
+      // Tentar pegar nome do arquivo via Content-Disposition
+      const contentDisposition =
+        response.headers?.['content-disposition'] ||
+        response.headers?.['Content-Disposition'];
+
+      let fileName = '';
+      if (contentDisposition && typeof contentDisposition === 'string') {
+        const match = contentDisposition.match(/filename\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i);
+        const raw = match?.[1] || match?.[2];
+        if (raw) {
+          try {
+            fileName = decodeURIComponent(raw);
+          } catch (e) {
+            fileName = raw;
+          }
+        }
+      }
+
+      if (!fileName) {
+        const nome = (fornecedorNome || 'fornecedor').toString().replace(/[\\/:*?"<>|]+/g, '-');
+        fileName = `colheitas-fornecedor-${nome}.pdf`;
+      }
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      showNotification('success', 'PDF Gerado', 'O PDF foi gerado e o download iniciado.');
+    } catch (error) {
+      console.error('Erro ao gerar PDF do fornecedor:', error);
+      showNotification('error', 'Erro', 'Não foi possível gerar o PDF. Tente novamente.');
+    } finally {
+      setLoadingPDF(false); // ✅ Finaliza loading
+    }
   };
 
   const processarDadosGrafico = () => {
@@ -677,6 +752,8 @@ const EstatisticasFornecedorModal = ({
           }}>
             <PDFButton
               onClick={handleGerarPDF}
+              loading={loadingPDF}
+              disabled={loadingPDF || !fornecedorId}
               size={isMobile ? "small" : "large"}
               tooltip="Gerar PDF"
               style={{
@@ -755,6 +832,8 @@ const EstatisticasFornecedorModal = ({
           }}>
             <PDFButton
               onClick={handleGerarPDF}
+              loading={loadingPDF}
+              disabled={loadingPDF || !fornecedorId}
               size={isMobile ? "small" : "large"}
               tooltip="Gerar PDF"
               style={{
@@ -979,6 +1058,8 @@ const EstatisticasFornecedorModal = ({
         }}>
           <PDFButton
             onClick={handleGerarPDF}
+              loading={loadingPDF}
+              disabled={loadingPDF || !fornecedorId}
             size={isMobile ? "small" : "large"}
             tooltip="Gerar PDF"
             style={{
@@ -1475,15 +1556,27 @@ const EstatisticasFornecedorModal = ({
                       backgroundColor: "#f0fdf4",
                       border: "1px solid #bbf7d0",
                       borderRadius: "8px",
-                      padding: isMobile ? "12px" : "16px",
+                      padding: isMobile ? "10px" : "12px",
                       minHeight: "75px",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center"
                     }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                        <AppleOutlined style={{ fontSize: "18px", color: "#16a34a" }} />
-                        <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: "8px",
+                        position: "relative"
+                      }}>
+                        <AppleOutlined style={{ fontSize: "18px", color: "#16a34a", position: "absolute", left: 0 }} />
+                        <Text style={{ 
+                          fontSize: "11px", 
+                          color: "#64748b", 
+                          fontWeight: "600", 
+                          display: "block",
+                          width: "100%",
+                          textAlign: "center"
+                        }}>
                           QTD POR UNIDADE
                         </Text>
                       </div>
@@ -1492,17 +1585,19 @@ const EstatisticasFornecedorModal = ({
                           display: "flex",
                           flexWrap: "wrap",
                           gap: "6px",
-                          alignItems: "center"
+                          alignItems: "center",
+                          justifyContent: "center"
                         }}>
                           {Object.entries(estatisticasTabelaFiltradas.quantidadesPorUnidade || {}).map(([unidade, qtd], index) => (
                             <React.Fragment key={unidade}>
                               <div style={{ 
                                 display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center"
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: "4px"
                               }}>
                                 <Text style={{ 
-                                  fontSize: isMobile ? "16px" : "18px", 
+                                  fontSize: isMobile ? "14px" : "16px", 
                                   fontWeight: "700", 
                                   color: "#059669",
                                   display: "block",
@@ -1511,10 +1606,10 @@ const EstatisticasFornecedorModal = ({
                                   {Number(qtd || 0).toLocaleString("pt-BR")}
                                 </Text>
                                 <Text style={{ 
-                                  fontSize: "10px", 
+                                  fontSize: isMobile ? "11px" : "12px", 
                                   color: "#64748b", 
                                   display: "block",
-                                  marginTop: "2px"
+                                  fontWeight: "600"
                                 }}>
                                   {unidade}
                                 </Text>
@@ -1532,7 +1627,7 @@ const EstatisticasFornecedorModal = ({
                           ))}
                         </div>
                       ) : (
-                        <Text style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>
+                        <Text style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic", textAlign: "center" }}>
                           Nenhuma quantidade
                         </Text>
                       )}
@@ -1546,17 +1641,30 @@ const EstatisticasFornecedorModal = ({
                       border: "1px solid #bbf7d0",
                       borderRadius: "8px",
                       padding: isMobile ? "10px" : "12px",
-                      textAlign: "center",
                       minHeight: "75px",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center"
                     }}>
-                      <DollarOutlined style={{ fontSize: "20px", color: "#16a34a", marginBottom: "6px" }} />
-                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        VALOR TOTAL
-                      </Text>
-                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#059669", display: "block" }}>
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: "8px",
+                        position: "relative"
+                      }}>
+                        <DollarOutlined style={{ fontSize: "18px", color: "#16a34a", position: "absolute", left: 0 }} />
+                        <Text style={{ 
+                          fontSize: "11px", 
+                          color: "#64748b", 
+                          fontWeight: "600", 
+                          display: "block",
+                          width: "100%",
+                          textAlign: "center"
+                        }}>
+                          VALOR TOTAL
+                        </Text>
+                      </div>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#059669", display: "block", textAlign: "center" }}>
                         R$ {formatCurrency(totalGeralFiltrado.valor || 0)}
                       </Text>
                     </div>
@@ -1569,17 +1677,30 @@ const EstatisticasFornecedorModal = ({
                       border: "2px solid #52c41a",
                       borderRadius: "8px",
                       padding: isMobile ? "10px" : "12px",
-                      textAlign: "center",
                       minHeight: "75px",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center"
                     }}>
-                      <CheckCircleOutlined style={{ fontSize: "20px", color: "#52c41a", marginBottom: "6px" }} />
-                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        VALOR PAGO
-                      </Text>
-                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#52c41a", display: "block" }}>
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: "8px",
+                        position: "relative"
+                      }}>
+                        <CheckCircleOutlined style={{ fontSize: "18px", color: "#52c41a", position: "absolute", left: 0 }} />
+                        <Text style={{ 
+                          fontSize: "11px", 
+                          color: "#64748b", 
+                          fontWeight: "600", 
+                          display: "block",
+                          width: "100%",
+                          textAlign: "center"
+                        }}>
+                          VALOR PAGO
+                        </Text>
+                      </div>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#52c41a", display: "block", textAlign: "center" }}>
                         R$ {formatCurrency(totalGeralFiltrado.valorPago || 0)}
                       </Text>
                     </div>
@@ -1592,17 +1713,30 @@ const EstatisticasFornecedorModal = ({
                       border: "2px solid #faad14",
                       borderRadius: "8px",
                       padding: isMobile ? "10px" : "12px",
-                      textAlign: "center",
                       minHeight: "75px",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center"
                     }}>
-                      <ClockCircleOutlined style={{ fontSize: "20px", color: "#faad14", marginBottom: "6px" }} />
-                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        VALOR PRECIFICADO
-                      </Text>
-                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#faad14", display: "block" }}>
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: "8px",
+                        position: "relative"
+                      }}>
+                        <ClockCircleOutlined style={{ fontSize: "18px", color: "#faad14", position: "absolute", left: 0 }} />
+                        <Text style={{ 
+                          fontSize: "11px", 
+                          color: "#64748b", 
+                          fontWeight: "600", 
+                          display: "block",
+                          width: "100%",
+                          textAlign: "center"
+                        }}>
+                          VALOR PRECIFICADO
+                        </Text>
+                      </div>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#faad14", display: "block", textAlign: "center" }}>
                         R$ {formatCurrency(totalGeralFiltrado.valorPrecificado || 0)}
                       </Text>
                     </div>
@@ -1615,15 +1749,29 @@ const EstatisticasFornecedorModal = ({
                       border: "2px solid #f59e0b",
                       borderRadius: "8px",
                       padding: isMobile ? "10px" : "12px",
-                      textAlign: "center",
                       minHeight: "75px",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center",
                       position: "relative"
                     }}>
-                      <div style={{ marginBottom: "6px", display: "flex", justifyContent: "center", alignItems: "center", gap: "4px" }}>
-                        <DollarOutlined style={{ fontSize: "20px", color: "#f59e0b" }} />
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: "8px",
+                        position: "relative"
+                      }}>
+                        <DollarOutlined style={{ fontSize: "18px", color: "#f59e0b", position: "absolute", left: 0 }} />
+                        <Text style={{ 
+                          fontSize: "11px", 
+                          color: "#64748b", 
+                          fontWeight: "600", 
+                          display: "block",
+                          width: "100%",
+                          textAlign: "center"
+                        }}>
+                          VALOR UNIT. MÉDIO
+                        </Text>
                         <Tooltip
                           title={
                             estatisticasTabelaFiltradas.qtdComValorUnitario > 0
@@ -1632,13 +1780,10 @@ const EstatisticasFornecedorModal = ({
                           }
                           placement="top"
                         >
-                          <InfoCircleOutlined style={{ fontSize: "14px", color: "#f59e0b", cursor: "pointer" }} />
+                          <InfoCircleOutlined style={{ fontSize: "14px", color: "#f59e0b", cursor: "pointer", position: "absolute", right: 0 }} />
                         </Tooltip>
                       </div>
-                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        VALOR UNIT. MÉDIO
-                      </Text>
-                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#d97706", display: "block" }}>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#d97706", display: "block", textAlign: "center" }}>
                         {typeof estatisticasTabelaFiltradas.valorUnitarioMedio === "number" &&
                          Number.isFinite(estatisticasTabelaFiltradas.valorUnitarioMedio)
                           ? `R$ ${formatCurrency(estatisticasTabelaFiltradas.valorUnitarioMedio)}`
@@ -1654,22 +1799,90 @@ const EstatisticasFornecedorModal = ({
                       border: "1px solid #e5e7eb",
                       borderRadius: "8px",
                       padding: isMobile ? "10px" : "12px",
-                      textAlign: "center",
                       minHeight: "75px",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center"
                     }}>
-                      <AppleOutlined style={{ fontSize: "20px", color: "#8c8c8c", marginBottom: "6px" }} />
-                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        NÃO PRECIFICADA
-                      </Text>
-                      <Text style={{ fontSize: isMobile ? "16px" : "18px", fontWeight: "700", color: "#8c8c8c", display: "block" }}>
-                        {(totalGeralFiltrado.quantidadeNaoPrecificada || 0).toLocaleString('pt-BR')}
-                      </Text>
-                      <Text style={{ fontSize: "10px", color: "#64748b", display: "block", marginTop: "2px" }}>
-                        unidades
-                      </Text>
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: "8px",
+                        position: "relative"
+                      }}>
+                        <AppleOutlined style={{ fontSize: "18px", color: "#8c8c8c", position: "absolute", left: 0 }} />
+                        <Text style={{ 
+                          fontSize: "11px", 
+                          color: "#64748b", 
+                          fontWeight: "600", 
+                          display: "block",
+                          width: "100%",
+                          textAlign: "center"
+                        }}>
+                          NÃO PRECIFICADA
+                        </Text>
+                      </div>
+                      {(() => {
+                        // Agrupar quantidades não precificadas por unidade
+                        const quantidadesNaoPrecificadasPorUnidade = {};
+                        Object.entries(totaisPorUnidadeFiltrado || {}).forEach(([unidade, total]) => {
+                          if (total.quantidadeNaoPrecificada > 0) {
+                            quantidadesNaoPrecificadasPorUnidade[unidade] = total.quantidadeNaoPrecificada;
+                          }
+                        });
+
+                        return Object.keys(quantidadesNaoPrecificadasPorUnidade).length > 0 ? (
+                          <div style={{ 
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "6px",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}>
+                            {Object.entries(quantidadesNaoPrecificadasPorUnidade).map(([unidade, qtd], index) => (
+                              <React.Fragment key={unidade}>
+                                <div style={{ 
+                                  display: "flex",
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: "4px"
+                                }}>
+                                  <Text style={{ 
+                                    fontSize: isMobile ? "14px" : "16px", 
+                                    fontWeight: "700", 
+                                    color: "#8c8c8c",
+                                    display: "block",
+                                    lineHeight: "1"
+                                  }}>
+                                    {Number(qtd || 0).toLocaleString("pt-BR")}
+                                  </Text>
+                                  <Text style={{ 
+                                    fontSize: isMobile ? "11px" : "12px", 
+                                    color: "#64748b", 
+                                    display: "block",
+                                    fontWeight: "600"
+                                  }}>
+                                    {unidade}
+                                  </Text>
+                                </div>
+                                {index < Object.entries(quantidadesNaoPrecificadasPorUnidade).length - 1 && (
+                                  <div style={{
+                                    width: "4px",
+                                    height: "4px",
+                                    backgroundColor: "#94a3b8",
+                                    borderRadius: "50%",
+                                    flexShrink: 0
+                                  }} />
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        ) : (
+                          <Text style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic", textAlign: "center" }}>
+                            Nenhuma quantidade
+                          </Text>
+                        );
+                      })()}
                     </div>
                   </Col>
 
@@ -1680,17 +1893,30 @@ const EstatisticasFornecedorModal = ({
                       border: "2px solid #0ea5e9",
                       borderRadius: "8px",
                       padding: isMobile ? "10px" : "12px",
-                      textAlign: "center",
                       minHeight: "75px",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center"
                     }}>
-                      <ShoppingCartOutlined style={{ fontSize: "20px", color: "#0ea5e9", marginBottom: "6px" }} />
-                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        PEDIDOS / FRUTAS
-                      </Text>
-                      <Text style={{ fontSize: isMobile ? "16px" : "18px", fontWeight: "700", color: "#0ea5e9", display: "block" }}>
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: "8px",
+                        position: "relative"
+                      }}>
+                        <ShoppingCartOutlined style={{ fontSize: "18px", color: "#0ea5e9", position: "absolute", left: 0 }} />
+                        <Text style={{ 
+                          fontSize: "11px", 
+                          color: "#64748b", 
+                          fontWeight: "600", 
+                          display: "block",
+                          width: "100%",
+                          textAlign: "center"
+                        }}>
+                          PEDIDOS / FRUTAS
+                        </Text>
+                      </div>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#0ea5e9", display: "block", textAlign: "center" }}>
                         {totalGeralFiltrado.totalPedidos}
                       </Text>
                     </div>
@@ -1703,17 +1929,30 @@ const EstatisticasFornecedorModal = ({
                       border: "2px solid #0ea5e9",
                       borderRadius: "8px",
                       padding: isMobile ? "10px" : "12px",
-                      textAlign: "center",
                       minHeight: "75px",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center"
                     }}>
-                      <HeatMapOutlined style={{ fontSize: "20px", color: "#0ea5e9", marginBottom: "6px" }} />
-                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
-                        COLHEITAS
-                      </Text>
-                      <Text style={{ fontSize: isMobile ? "18px" : "20px", fontWeight: "700", color: "#0ea5e9", display: "block" }}>
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: "8px",
+                        position: "relative"
+                      }}>
+                        <HeatMapOutlined style={{ fontSize: "18px", color: "#0ea5e9", position: "absolute", left: 0 }} />
+                        <Text style={{ 
+                          fontSize: "11px", 
+                          color: "#64748b", 
+                          fontWeight: "600", 
+                          display: "block",
+                          width: "100%",
+                          textAlign: "center"
+                        }}>
+                          COLHEITAS
+                        </Text>
+                      </div>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#0ea5e9", display: "block", textAlign: "center" }}>
                         {estatisticasTabelaFiltradas.quantidadeColheitas || 0}
                       </Text>
                     </div>
