@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import puppeteer, { Browser, Page } from 'puppeteer';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as hbs from 'handlebars';
 import * as path from 'path';
 import { execSync } from 'child_process';
@@ -64,6 +65,40 @@ export class PdfService {
     let page: Page | null = null;
 
     try {
+      // #region agent log
+      const agentLog = (payload: any) => {
+        try {
+          // Preferência: POST para o ingest server
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          fetch('http://127.0.0.1:7242/ingest/ca500332-3460-463e-ab4a-2b4ce91f4bf5', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }).catch(() => {});
+        } catch {}
+
+        // Fallback: grava em arquivo local (para garantir evidência no ambiente)
+        try {
+          const logDir = path.join(process.cwd(), '.cursor');
+          const logFile = path.join(logDir, 'debug.log');
+          if (!fsSync.existsSync(logDir)) fsSync.mkdirSync(logDir, { recursive: true });
+          fsSync.appendFileSync(logFile, `${JSON.stringify(payload)}\n`);
+        } catch {}
+
+        // Espelho em arquivo "não protegido" (facilita limpar entre runs)
+        try {
+          const tmpDir = path.join(process.cwd(), 'tmp');
+          const tmpFile = path.join(tmpDir, 'pdf-pagination.ndjson');
+          if (!fsSync.existsSync(tmpDir)) fsSync.mkdirSync(tmpDir, { recursive: true });
+          fsSync.appendFileSync(tmpFile, `${JSON.stringify(payload)}\n`);
+        } catch {}
+      };
+      // #endregion agent log
+
+      // #region agent log
+      agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H0',location:'pdf.service.ts:gerarPdf:entry',message:'Entrou em gerarPdf',data:{templateName,hasEmpresa:!!data?.empresa,keysTop:Object.keys(data||{}).slice(0,20)},timestamp:Date.now()});
+      // #endregion agent log
+
       // 0. Extrair dados da empresa para o footer do Puppeteer
       const empresa = data.empresa || {};
       const razaoSocial = empresa.razao_social || empresa.nome_fantasia || 'Alencar Frutas';
@@ -84,6 +119,10 @@ export class PdfService {
       
       // Injeta os dados no HTML
       const htmlContent = compiledTemplate(data);
+
+      // #region agent log
+      agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'pdf.service.ts:gerarPdf:html',message:'HTML compilado',data:{templateName,htmlLen:htmlContent?.length||0,hasResumo:htmlContent?.includes('Resumo Estatístico por Cultura e Fruta')||false,hasPrecificadasTitle:htmlContent?.includes('Colheitas Precificadas')||false,hasNaoPrecificadasTitle:htmlContent?.includes('Colheitas Não Precificadas')||false},timestamp:Date.now()});
+      // #endregion agent log
 
       // 2. Iniciar o Browser (Puppeteer) - Configuração para desenvolvimento e produção
       this.logger.debug('Iniciando Puppeteer...');
@@ -156,6 +195,11 @@ export class PdfService {
         timeout: 30000 
       });
 
+      // Emular CSS de print para análise de paginação
+      try {
+        await page.emulateMediaType('print');
+      } catch {}
+
       // Adicionar CSS para forçar renderização de cores no PDF
       await page.addStyleTag({
         content: `
@@ -166,6 +210,62 @@ export class PdfService {
           }
         `
       });
+
+      // #region agent log
+      if (templateName === 'fornecedor-colheitas') {
+        const layout = await page.evaluate(() => {
+          const A4H = 1122; // aprox px @96dpi (diagnóstico)
+          const pickTitle = (el: Element | null) => (el?.textContent || '').replace(/\s+/g, ' ').trim();
+          const cards = Array.from(document.querySelectorAll('.card')) as HTMLElement[];
+          const issues: any[] = [];
+          const summaries = cards.slice(0, 80).map((card) => {
+            const header = card.querySelector('.card-header') as HTMLElement | null;
+            const titleEl = header?.querySelector('.card-title') as HTMLElement | null;
+            const body = card.querySelector('.card-body') as HTMLElement | null;
+            const title = pickTitle(titleEl) || pickTitle(header);
+            const hr = header?.getBoundingClientRect();
+            const br = body?.getBoundingClientRect();
+            const headerTop = hr ? hr.top + window.scrollY : null;
+            const bodyTop = br ? br.top + window.scrollY : null;
+            const headerPage = headerTop === null ? null : Math.floor(headerTop / A4H);
+            const bodyPage = bodyTop === null ? null : Math.floor(bodyTop / A4H);
+            const headerOffset = headerTop === null ? null : Math.round(headerTop - (headerPage! * A4H));
+            const bodyOffset = bodyTop === null ? null : Math.round(bodyTop - (bodyPage! * A4H));
+
+            // header "sozinho" no topo (offset pequeno) e body em outra página => espaço em branco grande
+            if (headerPage !== null && bodyPage !== null && headerPage !== bodyPage && headerOffset !== null && headerOffset < 220) {
+              issues.push({
+                title,
+                headerPage,
+                bodyPage,
+                headerOffset,
+                bodyOffset,
+                headerHeight: hr ? Math.round(hr.height) : null,
+              });
+            }
+            return { title, headerPage, bodyPage, headerOffset, bodyOffset };
+          });
+
+          const css = {
+            card: window.getComputedStyle(document.querySelector('.card') as Element | null)?.breakInside || null,
+            cardBody: window.getComputedStyle(document.querySelector('.card-body') as Element | null)?.breakInside || null,
+            cardHeader: window.getComputedStyle(document.querySelector('.card-header') as Element | null)?.breakAfter || null,
+          };
+
+          return {
+            A4H,
+            viewport: { w: window.innerWidth, h: window.innerHeight },
+            scrollH: document.documentElement.scrollHeight,
+            cardsCount: cards.length,
+            css,
+            issues: issues.slice(0, 30),
+            sample: summaries.slice(0, 20),
+          };
+        });
+
+        agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'pdf.service.ts:gerarPdf:layout',message:'Diagnóstico layout (print emulado)',data:layout,timestamp:Date.now()});
+      }
+      // #endregion agent log
 
       // Aguardar renderização completa (incluindo gráficos Chart.js se houver)
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -215,6 +315,13 @@ export class PdfService {
         },
         timeout: 30000,
       });
+
+      // #region agent log
+      try {
+        const pageCount = (Buffer.from(pdfBuffer).toString('binary').match(/\/Type\s*\/Page\b/g) || []).length;
+        agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'pdf.service.ts:gerarPdf:pdf',message:'PDF gerado (contagem aprox. de páginas)',data:{templateName,bytes:(pdfBuffer as any)?.length||null,pageCount},timestamp:Date.now()});
+      } catch {}
+      // #endregion agent log
 
       this.logger.log(`PDF gerado com sucesso: ${templateName} (${pdfBuffer.length} bytes)`);
 

@@ -32,10 +32,41 @@
       margin-bottom: 6px;
     }
 
-    /* Evitar quebra DENTRO dos cards, mas permitir quebra ENTRE cards */
-    .card-fornecedor,
-    .card > .card-body {
-      page-break-inside: avoid;
+    /*
+      Regras de paginação (Chromium/Puppeteer):
+      - Evitar "título órfão" (header em uma página e conteúdo só na próxima)
+      - Permitir que o conteúdo (especialmente tabelas) quebre de forma natural
+    */
+    @media print {
+      .card-fornecedor {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      /* Não deixar o header ficar sozinho no fim da página */
+      .card-header {
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+
+      /* Manter o primeiro bloco do body junto com o header quando possível */
+      .card-header + .card-body {
+        break-before: avoid;
+        page-break-before: avoid;
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+
+      /* Permitir quebra natural em conteúdos longos */
+      .card-body {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+
+      /* Tabelas: repetir cabeçalho e permitir quebra por linhas */
+      thead { display: table-header-group; }
+      tfoot { display: table-footer-group; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
     }
 
     .card-header {

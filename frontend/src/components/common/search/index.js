@@ -3,3 +3,4 @@
 
 export { default as SearchInput } from './SearchInput';
 export { default as SearchInputInteligente } from './SearchInputInteligente'; 
+export { default as SearchInputLocalChips } from './SearchInputLocalChips';

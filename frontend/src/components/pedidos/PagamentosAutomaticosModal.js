@@ -1,6 +1,6 @@
 ﻿// src/components/pedidos/PagamentosAutomaticosModal.js
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Modal, Table, Space, Typography, Tag, Button, Row, Col, Card, Statistic, Empty, Spin, DatePicker, Select, Divider, Tooltip } from "antd";
 import {
   DollarOutlined,
@@ -20,8 +20,8 @@ import {
 import PropTypes from "prop-types";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
-import SearchInputInteligente from "../common/search/SearchInputInteligente";
-import { formatCurrency, capitalizeName, formatarDataBR } from "../../utils/formatters";
+import SearchInputLocalChips from "../common/search/SearchInputLocalChips";
+import { formatCurrency, capitalizeName, formatarDataBR, formatarCPF, formatarCNPJ } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import ResponsiveTable from "../common/ResponsiveTable";
 import VincularPagamentoManualModal from "../clientes/VincularPagamentoManualModal";
@@ -44,6 +44,18 @@ const STATUS_VINCULACAO = [
 
 const STATUS_PEDIDOS_FINALIZADOS = ["PAGAMENTO_REALIZADO", "PEDIDO_FINALIZADO"];
 
+const normalizeText = (text) => {
+  if (!text) return "";
+  return text
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+};
+
+const onlyDigits = (value) => (value ? value.toString().replace(/\D/g, "") : "");
+
 const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
@@ -55,9 +67,10 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   const [dateRange, setDateRange] = useState(null);
   const [contaCorrenteFilter, setContaCorrenteFilter] = useState(null);
   
-  // Estados para filtro de cliente (agora suporta múltiplos clientes)
-  const [clientesFiltros, setClientesFiltros] = useState([]); // Array de objetos {id, nome, cpf, cnpj}
-  const [clientesFiltrosAplicados, setClientesFiltrosAplicados] = useState([]); // Array de sugestões para exibição
+  // ✅ Busca local com chips (sem chamadas extras)
+  const [buscaValue, setBuscaValue] = useState("");
+  // filtrosBusca: [{ type: 'cliente', clienteId, label }, { type: 'origem', origemKey, label }]
+  const [filtrosBusca, setFiltrosBusca] = useState([]);
 
   // Estados para busca na API
   const [contasDisponiveis, setContasDisponiveis] = useState([]);
@@ -153,6 +166,160 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     }
   }, []);
 
+  // Index local de clientes (id -> dados) derivado dos lançamentos já carregados
+  const clientesById = useMemo(() => {
+    const map = new Map();
+    if (!Array.isArray(pagamentos)) return map;
+    pagamentos.forEach((p) => {
+      const c = p?.cliente;
+      if (c?.id) {
+        if (!map.has(c.id)) {
+          map.set(c.id, {
+            id: c.id,
+            nome: c.nome || "",
+            cpf: c.cpf || "",
+            cnpj: c.cnpj || "",
+          });
+        }
+      }
+    });
+    return map;
+  }, [pagamentos]);
+
+  const clienteSuggestionItems = useMemo(() => {
+    const items = Array.from(clientesById.values()).map((c) => {
+      const cpfDigits = onlyDigits(c.cpf);
+      const cnpjDigits = onlyDigits(c.cnpj);
+      const documentoLabel = cnpjDigits
+        ? `CNPJ: ${formatarCNPJ(cnpjDigits)}`
+        : cpfDigits
+          ? `CPF: ${formatarCPF(cpfDigits)}`
+          : "";
+
+      return {
+        key: `cliente-${c.id}`,
+        type: "cliente",
+        value: capitalizeName(c.nome || "Cliente"),
+        icon: "👤",
+        description: documentoLabel || "Sem CPF/CNPJ",
+        metadata: {
+          clienteId: c.id,
+          cpf: cpfDigits,
+          cnpj: cnpjDigits,
+          nome: c.nome || "",
+        },
+        searchText: `${c.nome || ""} ${cpfDigits} ${cnpjDigits}`,
+      };
+    });
+
+    items.sort((a, b) => (a.value || "").localeCompare(b.value || "", "pt-BR"));
+    return items;
+  }, [clientesById]);
+
+  const origemSuggestionItems = useMemo(() => {
+    if (!Array.isArray(pagamentos)) return [];
+    const map = new Map(); // origemKey -> { label, count }
+
+    pagamentos.forEach((p) => {
+      const origem = (p?.nomeContrapartida || "").toString().trim();
+      if (!origem) return;
+      const origemKey = normalizeText(origem);
+      if (!origemKey) return;
+
+      if (!map.has(origemKey)) {
+        map.set(origemKey, { origemKey, label: origem, count: 1 });
+      } else {
+        const current = map.get(origemKey);
+        current.count += 1;
+      }
+    });
+
+    const items = Array.from(map.values()).map((o) => ({
+      key: `origem-${o.origemKey}`,
+      type: "origem",
+      value: capitalizeName(o.label),
+      icon: "🏢",
+      description: `${o.count} lançamento${o.count > 1 ? "s" : ""}`,
+      metadata: { origemKey: o.origemKey, origem: o.label, count: o.count },
+      searchText: o.label,
+    }));
+
+    // Mais frequentes primeiro
+    items.sort((a, b) => (b.metadata?.count || 0) - (a.metadata?.count || 0));
+    return items;
+  }, [pagamentos]);
+
+  const handleSelectClienteLocal = useCallback((item) => {
+    const clienteId = item?.metadata?.clienteId;
+    if (!clienteId) return;
+
+    setFiltrosBusca((prev) => {
+      const exists = prev.some((f) => f.type === "cliente" && f.clienteId === clienteId);
+      if (exists) {
+        showNotification("info", "Cliente já selecionado", "Este cliente já está nos filtros.");
+        return prev;
+      }
+      const novo = {
+        type: "cliente",
+        clienteId,
+        label: item?.value || "Cliente",
+      };
+      return [...prev, novo];
+    });
+
+    setBuscaValue("");
+  }, []);
+
+  const handleSelectOrigemLocal = useCallback((item) => {
+    const origemKey = item?.metadata?.origemKey || normalizeText(item?.value);
+    const label = item?.value || item?.metadata?.origem || "";
+    if (!origemKey || !label) return;
+
+    setFiltrosBusca((prev) => {
+      const exists = prev.some((f) => f.type === "origem" && f.origemKey === origemKey);
+      if (exists) {
+        showNotification("info", "Origem já selecionada", "Esta origem já está nos filtros.");
+        return prev;
+      }
+      const novo = {
+        type: "origem",
+        origemKey,
+        label,
+      };
+      return [...prev, novo];
+    });
+
+    setBuscaValue("");
+  }, []);
+
+  const buscaSuggestionItems = useMemo(() => {
+    // Unificar sugestões: cliente + origem (mesmo input)
+    const clientes = Array.isArray(clienteSuggestionItems) ? clienteSuggestionItems : [];
+    const origens = Array.isArray(origemSuggestionItems) ? origemSuggestionItems : [];
+
+    const clientesComDescricao = clientes.map((c) => ({
+      ...c,
+      description: c?.description ? `Cliente • ${c.description}` : "Cliente",
+    }));
+
+    const origensComDescricao = origens.map((o) => ({
+      ...o,
+      description: o?.description ? `Origem • ${o.description}` : "Origem",
+    }));
+
+    return [...clientesComDescricao, ...origensComDescricao];
+  }, [clienteSuggestionItems, origemSuggestionItems]);
+
+  const handleSelectBuscaLocal = useCallback((item) => {
+    if (!item?.type) return;
+    if (item.type === "cliente") return handleSelectClienteLocal(item);
+    if (item.type === "origem") return handleSelectOrigemLocal(item);
+  }, [handleSelectClienteLocal, handleSelectOrigemLocal]);
+
+  const handleRemoverFiltroBusca = useCallback((index) => {
+    setFiltrosBusca((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   // Calcular estatísticas dos pagamentos
   const calcularEstatisticas = (pagamentos) => {
     if (!Array.isArray(pagamentos) || pagamentos.length === 0) {
@@ -201,28 +368,30 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     
     let pagamentosFiltrados = [...pagamentos];
 
-    // Aplicar filtro de cliente (suporta múltiplos clientes - OR lógico)
-    if (clientesFiltros.length > 0) {
-      const clientesIds = clientesFiltros.map(c => c.id);
-      pagamentosFiltrados = pagamentosFiltrados.filter(p => {
-        // Verificar se o pagamento pertence a QUALQUER um dos clientes selecionados
-        let clienteIdPagamento = null;
-        
-        // Verificar se o pagamento tem cliente associado diretamente
-        if (p.clienteId) {
-          clienteIdPagamento = p.clienteId;
-        } else if (p.cliente?.id) {
-          clienteIdPagamento = p.cliente.id;
-        } else if (p.pedido?.clienteId) {
-          clienteIdPagamento = p.pedido.clienteId;
-        }
-        
-        // Se encontrou um clienteId, verificar se está na lista de clientes filtrados
-        if (clienteIdPagamento) {
-          return clientesIds.includes(clienteIdPagamento);
-        }
-        
-        return false;
+    const clientesSelecionados = filtrosBusca.filter((f) => f.type === "cliente").map((f) => f.clienteId);
+    const origensSelecionadas = filtrosBusca.filter((f) => f.type === "origem").map((f) => f.origemKey);
+
+    // Aplicar filtro de cliente (OR lógico entre clientes)
+    if (clientesSelecionados.length > 0) {
+      const clientesSet = new Set(clientesSelecionados);
+      pagamentosFiltrados = pagamentosFiltrados.filter((p) => {
+        const clienteIdPagamento =
+          p?.clienteId ||
+          p?.cliente?.id ||
+          p?.pedido?.clienteId ||
+          null;
+        if (!clienteIdPagamento) return false;
+        return clientesSet.has(clienteIdPagamento);
+      });
+    }
+
+    // Aplicar filtro de origem (OR lógico entre origens)
+    if (origensSelecionadas.length > 0) {
+      const origensSet = new Set(origensSelecionadas);
+      pagamentosFiltrados = pagamentosFiltrados.filter((p) => {
+        const origemKey = normalizeText((p?.nomeContrapartida || "").toString().trim());
+        if (!origemKey) return false;
+        return origensSet.has(origemKey);
       });
     }
 
@@ -263,7 +432,7 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     }
 
     setPagamentosFiltrados(pagamentosFiltrados);
-  }, [pagamentos, clientesFiltros, categoriaFilter, vinculadoFilter, contaCorrenteFilter, dateRange]);
+  }, [pagamentos, filtrosBusca, categoriaFilter, vinculadoFilter, contaCorrenteFilter, dateRange]);
 
   // Carregar contas disponíveis
   const fetchContasDisponiveis = useCallback(async () => {
@@ -397,53 +566,7 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     }
   }, [rangeBuscaAPI, contaSelecionada, fetchPagamentos]);
 
-  // Handler para seleção de cliente via SearchInputInteligente (adiciona à lista, não substitui)
-  const handleClienteSelect = useCallback((suggestion) => {
-    if (suggestion.type === 'cliente' && suggestion.metadata?.id) {
-      const clienteId = suggestion.metadata.id;
-      
-      // Verificar se o cliente já está na lista
-      const clienteJaExiste = clientesFiltros.some(c => c.id === clienteId);
-      
-      if (!clienteJaExiste) {
-        const novoCliente = {
-          id: clienteId,
-          nome: suggestion.value,
-          cpf: suggestion.metadata.cpf,
-          cnpj: suggestion.metadata.cnpj,
-        };
-        
-        // Adicionar à lista de clientes
-        setClientesFiltros(prev => [...prev, novoCliente]);
-        
-        // Adicionar à lista de sugestões para exibição
-        setClientesFiltrosAplicados(prev => [...prev, {
-          ...suggestion,
-          displayValue: capitalizeName(suggestion.value),
-        }]);
-        
-        // Recarregar pagamentos com todos os clientes selecionados
-        // Como a API aceita apenas um clienteId, vamos buscar todos e filtrar no frontend
-        // ou buscar sem filtro e filtrar aqui
-        fetchPagamentos(); // Buscar todos, o filtro será aplicado no frontend
-      } else {
-        showNotification('info', 'Cliente já selecionado', 'Este cliente já está na lista de filtros');
-      }
-    }
-  }, [clientesFiltros, fetchPagamentos]);
-
-  // Handler para remover um cliente específico da lista
-  const handleRemoverFiltroCliente = useCallback((index) => {
-    setClientesFiltros(prev => {
-      const novoArray = prev.filter((_, i) => i !== index);
-      // Se não houver mais clientes, recarregar todos os pagamentos
-      if (novoArray.length === 0) {
-        fetchPagamentos();
-      }
-      return novoArray;
-    });
-    setClientesFiltrosAplicados(prev => prev.filter((_, i) => i !== index));
-  }, [fetchPagamentos]);
+  // ✅ Busca/seleção de cliente/origem agora é local (sem SearchInputInteligente)
 
   // Função para buscar pedido atualizado do banco
   const buscarPedidoAtualizado = async (pedidoId) => {
@@ -550,10 +673,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     if (lancamento.cliente) {
       clienteDoLancamento = lancamento.cliente;
     } else if (lancamento.clienteId) {
-      const clienteFiltrado = clientesFiltros.find(c => c.id === lancamento.clienteId);
-      if (clienteFiltrado) {
-        clienteDoLancamento = clienteFiltrado;
-      }
+      const clienteLocal = clientesById.get(lancamento.clienteId);
+      if (clienteLocal) clienteDoLancamento = clienteLocal;
     } else if (lancamento.pedido?.cliente) {
       clienteDoLancamento = lancamento.pedido.cliente;
     }
@@ -696,8 +817,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       setVinculadoFilter("");
       setDateRange(null);
       setContaCorrenteFilter(null);
-      setClientesFiltros([]);
-      setClientesFiltrosAplicados([]);
+      setBuscaValue("");
+      setFiltrosBusca([]);
       setPagamentos([]);
       setPagamentosFiltrados([]);
       setEstatisticas({
@@ -856,9 +977,9 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       render: (nome) => (
         <Text 
           style={{ fontSize: "0.75rem", color: "#333" }}
-          ellipsis={{ tooltip: nome || "-" }}
+          ellipsis={{ tooltip: nome ? capitalizeName(nome) : "-" }}
         >
-          {nome || "-"}
+          {nome ? capitalizeName(nome) : "-"}
         </Text>
       ),
       width: "11%",
@@ -1158,37 +1279,42 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
         }}
       >
         {/* Filtros Locais */}
-        {/* Primeira linha: Cliente */}
+        {/* Primeira linha: Busca (Cliente/Origem) */}
         <Row gutter={[isMobile ? 8 : 16, isMobile ? 18 : 16]}>
           <Col xs={24}>
             <Text strong style={{ display: "block", marginBottom: 8, fontSize: isMobile ? "0.75rem" : "0.875rem" }}>
               <UserOutlined style={{ marginRight: 4 }} />
-              Cliente:
+              Buscar (Cliente / Origem):
             </Text>
-            <SearchInputInteligente
-              placeholder="Buscar cliente..."
-              value=""
-              onChange={() => {}}
-              onSuggestionSelect={handleClienteSelect}
+            <SearchInputLocalChips
+              placeholder="Digite nome, CPF/CNPJ ou origem..."
+              value={buscaValue}
+              onChange={setBuscaValue}
+              onSelect={handleSelectBuscaLocal}
+              items={buscaSuggestionItems}
+              minChars={2}
+              maxSuggestions={10}
               size={isMobile ? "middle" : "large"}
-              style={{ width: "100%", marginBottom: 0 }}
-              allowedTypes={['cliente']}
+              style={{ width: "100%" }}
+              inputStyle={{ marginBottom: 0 }}
             />
-            {/* Chips de filtros aplicados */}
-            {clientesFiltrosAplicados.length > 0 && (
-              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {clientesFiltrosAplicados.map((filtro, index) => (
+
+            {/* Chips de filtros aplicados (unificados) */}
+            {Array.isArray(filtrosBusca) && filtrosBusca.length > 0 && (
+              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {filtrosBusca.map((filtro, index) => (
                   <Tag
-                    key={`${filtro.type}-${filtro.value}-${index}`}
-                    color="blue"
+                    key={`${filtro.type}-${filtro.type === "cliente" ? filtro.clienteId : filtro.origemKey}-${index}`}
+                    color={filtro.type === "cliente" ? "green" : "purple"}
                     closable
-                    onClose={() => handleRemoverFiltroCliente(index)}
+                    onClose={() => handleRemoverFiltroBusca(index)}
                     style={{
                       fontSize: "0.75rem",
-                      padding: "2px 8px"
+                      padding: "2px 8px",
                     }}
                   >
-                    {filtro.displayValue || filtro.value}
+                    {filtro.type === "cliente" ? "👤 " : "🏢 "}
+                    {filtro.label}
                   </Tag>
                 ))}
               </div>
@@ -1398,10 +1524,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
         if (lancamentoParaVincular.cliente) {
           clienteParaModal = lancamentoParaVincular.cliente;
         } else if (lancamentoParaVincular.clienteId) {
-          const clienteFiltrado = clientesFiltros.find(c => c.id === lancamentoParaVincular.clienteId);
-          if (clienteFiltrado) {
-            clienteParaModal = clienteFiltrado;
-          }
+          const clienteLocal = clientesById.get(lancamentoParaVincular.clienteId);
+          if (clienteLocal) clienteParaModal = clienteLocal;
         } else if (lancamentoParaVincular.pedido?.cliente) {
           clienteParaModal = lancamentoParaVincular.pedido.cliente;
         }
@@ -1507,7 +1631,7 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
                 </Text>
                 {lancamentoParaExcluir.nomeContrapartida && (
                   <Text style={{ display: "block", fontSize: "13px", color: "#666", marginBottom: "4px" }}>
-                    <strong>Origem:</strong> {lancamentoParaExcluir.nomeContrapartida}
+                    <strong>Origem:</strong> {capitalizeName(lancamentoParaExcluir.nomeContrapartida)}
                   </Text>
                 )}
                 {lancamentoParaExcluir.agenciaConta && lancamentoParaExcluir.numeroConta && (
