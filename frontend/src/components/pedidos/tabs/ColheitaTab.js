@@ -34,6 +34,11 @@ import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
 import { validarFitasCompleto } from "../../../utils/fitasValidation";
 import useResponsive from "../../../hooks/useResponsive";
 import { MaoObraRow } from '../componentesColheita';
+import {
+  buildFrutasPedidoMeta,
+  computeHerdaVinculosDaPrimeira,
+  getFruitKey,
+} from "../../../utils/pedidosCultura";
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -281,44 +286,48 @@ const ColheitaTab = ({
     }));
   };
 
-  const frutasPedidoMeta = useMemo(() => {
-    const porFrutaPedidoId = {};
-    const culturaInfo = {};
-
-    (pedidoAtual?.frutas || []).forEach((frutaPedido) => {
-      const culturaId = frutaPedido.fruta?.cultura?.id ?? null;
-      const culturaDescricao = frutaPedido.fruta?.cultura?.descricao ?? "";
-      const dePrimeira = frutaPedido.fruta?.dePrimeira ?? false;
-      const nome = frutaPedido.fruta?.nome ?? "";
-
-      porFrutaPedidoId[frutaPedido.frutaPedidoId || frutaPedido.id] = {
-        culturaId,
-        culturaDescricao,
-        dePrimeira,
-        nome: capitalizeName(nome),
-      };
-
-      if (culturaId !== null) {
-        if (!culturaInfo[culturaId]) {
-          culturaInfo[culturaId] = {
-            hasPrimeira: false,
-            frutaPrimeiraNome: "",
-          };
-        }
-
-        if (dePrimeira) {
-          culturaInfo[culturaId].hasPrimeira = true;
-          culturaInfo[culturaId].frutaPrimeiraNome = capitalizeName(nome);
-        }
+  const frutasCatalogoById = useMemo(() => {
+    const map = {};
+    (frutas || []).forEach((frutaCatalogo) => {
+      if (frutaCatalogo?.id) {
+        map[frutaCatalogo.id] = frutaCatalogo;
       }
     });
+    return map;
+  }, [frutas]);
 
-    return { porFrutaPedidoId, culturaInfo };
-  }, [pedidoAtual?.frutas]);
+  // ✅ Meta por fruta + mapa por cultura (inclui frutas novas via `new-${frutaId}`)
+  const frutasPedidoMeta = useMemo(() => {
+    const { metaByKey, culturaInfoById } = buildFrutasPedidoMeta(
+      pedidoAtual?.frutas || [],
+      frutasCatalogoById,
+    );
 
-  const frutasPedidoInfo = frutasPedidoMeta.porFrutaPedidoId;
-  const culturaInfoPorId = frutasPedidoMeta.culturaInfo;
-  const obterChaveFruta = (fruta) => fruta?.frutaPedidoId ?? fruta?.id ?? null;
+    // Mantém o nome capitalizado como o restante do código já espera
+    Object.keys(metaByKey).forEach((key) => {
+      metaByKey[key] = {
+        ...metaByKey[key],
+        nome: capitalizeName(metaByKey[key]?.nome || ""),
+      };
+    });
+
+    if (culturaInfoById) {
+      Object.keys(culturaInfoById).forEach((culturaId) => {
+        culturaInfoById[culturaId] = {
+          ...culturaInfoById[culturaId],
+          frutaPrimeiraNome: capitalizeName(
+            culturaInfoById[culturaId]?.frutaPrimeiraNome || "",
+          ),
+        };
+      });
+    }
+
+    return { metaByKey, culturaInfoById };
+  }, [pedidoAtual?.frutas, frutasCatalogoById]);
+
+  const frutasPedidoInfo = frutasPedidoMeta.metaByKey;
+  const culturaInfoPorId = frutasPedidoMeta.culturaInfoById;
+  const obterChaveFruta = (fruta) => getFruitKey(fruta);
 
   const frutasOrdenadas = useMemo(() => {
     return (pedidoAtual?.frutas || []).map((fruta, index) => {
@@ -526,7 +535,7 @@ const ColheitaTab = ({
     const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
       ? culturaInfoPorId[frutaMeta.culturaId]
       : undefined;
-    const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+    const herdaVinculosDaPrimeira = computeHerdaVinculosDaPrimeira(frutaMeta, culturaInfoPorId);
 
     const frutasDisponiveis = valoresAtuais.frutas || pedidoAtual?.frutas || [];
     const frutasDoGrupo = frutasDisponiveis
@@ -620,7 +629,7 @@ const ColheitaTab = ({
     const culturaInfo = frutaMeta?.culturaId !== null && frutaMeta?.culturaId !== undefined
       ? culturaInfoPorId[frutaMeta.culturaId]
       : undefined;
-    const herdaVinculosDaPrimeira = !!(frutaMeta && culturaInfo?.hasPrimeira && !frutaMeta.dePrimeira);
+    const herdaVinculosDaPrimeira = computeHerdaVinculosDaPrimeira(frutaMeta, culturaInfoPorId);
 
     if (herdaVinculosDaPrimeira) {
       const frutaPrimeiraNome = culturaInfo?.frutaPrimeiraNome || "fruta de primeira";
@@ -898,7 +907,7 @@ const ColheitaTab = ({
         ? culturaInfoPorId[frutaMeta.culturaId]
         : undefined;
       const hasPrimeiraNaCultura = !!culturaInfo?.hasPrimeira;
-      const herdaVinculosDaPrimeira = hasPrimeiraNaCultura && frutaMeta && !frutaMeta.dePrimeira;
+      const herdaVinculosDaPrimeira = computeHerdaVinculosDaPrimeira(frutaMeta, culturaInfoPorId);
       const nomeFruta = capitalizeName(fruta.frutaNome || fruta.fruta?.nome || (frutas.find(f => f.id === fruta.frutaId)?.nome) || `Fruta ${index + 1}`);
 
       const quantidadeReal = normalizarNumero(fruta.quantidadeReal);
@@ -1065,7 +1074,7 @@ const ColheitaTab = ({
         const culturaInfo = metaFruta?.culturaId !== null && metaFruta?.culturaId !== undefined
           ? culturaInfoPorId[metaFruta.culturaId]
           : undefined;
-        const herdaVinculosDaPrimeira = !!(metaFruta && culturaInfo?.hasPrimeira && !metaFruta.dePrimeira);
+        const herdaVinculosDaPrimeira = computeHerdaVinculosDaPrimeira(metaFruta, culturaInfoPorId);
 
         if (herdaVinculosDaPrimeira) {
           frutaNormalizada.areas = [];
@@ -1437,7 +1446,7 @@ const ColheitaTab = ({
           const culturaInfo = meta?.culturaId !== null && meta?.culturaId !== undefined
             ? culturaInfoPorId[meta.culturaId]
             : undefined;
-          const herdaVinculosDaPrimeira = !!(meta && culturaInfo?.hasPrimeira && !meta.dePrimeira);
+          const herdaVinculosDaPrimeira = computeHerdaVinculosDaPrimeira(meta, culturaInfoPorId);
           const isFrutaBanana = nomeExibicao.toLowerCase().includes('banana');
 
           const wrapperStyle = herdaVinculosDaPrimeira
@@ -1461,8 +1470,16 @@ const ColheitaTab = ({
               <Alert
                 message="Nova Fruta Adicionada"
                 description={
-                  `Esta fruta foi adicionada durante a edição. ` +
-                  `Complete os dados de colheita obrigatórios (quantidade real, áreas${isFrutaBanana ? ' e fitas' : ''}).`
+                  herdaVinculosDaPrimeira
+                    ? (
+                        `Esta fruta foi adicionada durante a edição. ` +
+                        `Ela herda ${isFrutaBanana ? 'áreas e fitas' : 'áreas'} da fruta de primeira desta cultura. ` +
+                        `Informe a quantidade real e ajuste os vínculos diretamente na fruta de primeira.`
+                      )
+                    : (
+                        `Esta fruta foi adicionada durante a edição. ` +
+                        `Complete os dados de colheita obrigatórios (quantidade real, áreas${isFrutaBanana ? ' e fitas' : ''}).`
+                      )
                 }
                 type="info"
                 showIcon

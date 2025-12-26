@@ -3417,6 +3417,42 @@ export class PedidosService {
               throw new BadRequestException('Pedido não encontrado');
             }
 
+            // ✅ REGRA 1º/2º POR CULTURA (igual ao createPedido):
+            // Se existe fruta de primeira na cultura, frutas de segunda herdam áreas/fitas e não exigem área própria.
+            const frutaCatalogo = await prisma.fruta.findUnique({
+              where: { id: fruta.frutaId },
+              select: { id: true, culturaId: true, dePrimeira: true, nome: true },
+            });
+
+            if (!frutaCatalogo) {
+              throw new BadRequestException(`Fruta com ID ${fruta.frutaId} não encontrada`);
+            }
+
+            const existePrimeiraNaCultura = await prisma.frutasPedidos.findFirst({
+              where: {
+                pedidoId: id,
+                fruta: {
+                  culturaId: frutaCatalogo.culturaId,
+                  dePrimeira: true,
+                },
+              },
+              select: { id: true },
+            });
+
+            const isFrutaDePrimeira = frutaCatalogo.dePrimeira === true;
+            const deveExigirArea = isFrutaDePrimeira || !existePrimeiraNaCultura;
+
+            console.log('🌿 DEBUG nova fruta - regra 1º/2º por cultura:', {
+              pedidoId: id,
+              frutaId: fruta.frutaId,
+              nome: frutaCatalogo.nome,
+              culturaId: frutaCatalogo.culturaId,
+              dePrimeira: isFrutaDePrimeira,
+              existePrimeiraNaCultura: !!existePrimeiraNaCultura,
+              deveExigirArea,
+              status: pedidoAtual.status,
+            });
+
             const requereColheita = [
               'COLHEITA_PARCIAL',
               'COLHEITA_REALIZADA',
@@ -3451,11 +3487,18 @@ export class PedidosService {
                 );
               }
 
-              if (!fruta.areas || fruta.areas.length === 0) {
+              // ✅ Exigir área apenas quando NÃO herda da fruta de primeira da cultura
+              if (deveExigirArea && (!fruta.areas || fruta.areas.length === 0)) {
                 throw new BadRequestException(
                   `Nova fruta (ID ${fruta.frutaId}) requer pelo menos uma área de origem porque pedido está em fase ${pedidoAtual.status}. ` +
                   `Acesse a aba de Colheita para vincular áreas.`
                 );
+              }
+
+              // ✅ Segurança: se herda, nunca criar áreas/fitas na fruta de segunda
+              if (!deveExigirArea) {
+                fruta.areas = [];
+                fruta.fitas = [];
               }
 
               console.log(`✅ Nova fruta possui dados de colheita obrigatórios`);

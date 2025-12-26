@@ -12,14 +12,16 @@ import {
   BarChartOutlined,
   FilterOutlined,
   CalculatorOutlined,
-  MessageOutlined
+  MessageOutlined,
+  InfoCircleOutlined,
+  HeatMapOutlined
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import Chart from "react-apexcharts";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
-import { formatCurrency } from "../../utils/formatters";
+import { formatCurrency, capitalizeName } from "../../utils/formatters";
 import MiniSelectPersonalizavel from "../common/MiniComponents/MiniSelectPersonalizavel";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 import useResponsive from "../../hooks/useResponsive";
@@ -95,6 +97,8 @@ const EstatisticasFornecedorModal = ({
 }) => {
   const { isMobile } = useResponsive();
   const { getStatusColor, AGUARDANDO_PAGAMENTO, PEDIDO_FINALIZADO } = usePedidoStatusColors();
+  // ✅ Mantemos o código do gráfico, mas deixamos oculto por enquanto (para testes)
+  const mostrarGrafico = false;
   const [loading, setLoading] = useState(false);
   const [estatisticas, setEstatisticas] = useState(null);
   const [intervaloMeses, setIntervaloMeses] = useState(6);
@@ -118,10 +122,10 @@ const EstatisticasFornecedorModal = ({
   }, [open]);
 
   useEffect(() => {
-    if (estatisticas && estatisticas.detalhes) {
+    if (mostrarGrafico && estatisticas && estatisticas.detalhes) {
       processarDadosGrafico();
     }
-  }, [estatisticas, intervaloMeses]);
+  }, [estatisticas, intervaloMeses, mostrarGrafico]);
 
   const fetchEstatisticas = async () => {
     try {
@@ -298,7 +302,7 @@ const EstatisticasFornecedorModal = ({
       render: (text) => (
         <Space>
           <AppleOutlined style={{ color: "#059669" }} />
-          <Text>{text}</Text>
+          <Text>{capitalizeName(text || '')}</Text>
         </Space>
       ),
     },
@@ -308,7 +312,7 @@ const EstatisticasFornecedorModal = ({
       key: "areaNome",
       width: 150,
       ellipsis: true,
-      render: (text) => <Text>{text}</Text>,
+      render: (text) => <Text>{capitalizeName(text || '')}</Text>,
     },
     {
       title: "Quantidade",
@@ -322,26 +326,27 @@ const EstatisticasFornecedorModal = ({
       ),
     },
     {
-      title: "Valor Unitário",
+      title: (
+        <Space size={6}>
+          <span>Valor Unitário</span>
+          <Tooltip
+            title="Valor unitário de compra do fornecedor. Ele é definido no processo de precificação/pagamento no modal de Pagamentos do Fornecedor. Se a colheita não foi precificada, fica vazio."
+            placement="top"
+          >
+            <InfoCircleOutlined style={{ color: "#ffffff" }} />
+          </Tooltip>
+        </Space>
+      ),
       key: "valorUnitario",
       width: 120,
       render: (_, record) => {
-        // Usar valorUnitario do backend se disponível, senão calcular (valorTotal / quantidade)
-        let valorUnitario = record.valorUnitario;
-        
-        if (valorUnitario === undefined || valorUnitario === null) {
-          // Calcular no frontend: valorTotal / quantidade
-          if (record.valorTotal && record.valorTotal > 0 && record.quantidade && record.quantidade > 0) {
-            valorUnitario = record.valorTotal / record.quantidade;
-          } else {
-            valorUnitario = null;
-          }
-        }
-        
+        // ✅ Importante: valorUnitario vem do pagamento do fornecedor (precificação/pagamento).
+        // Se não houver precificação, não exibimos cálculo "estimado".
+        const valorUnitario = record.valorUnitario;
         return (
-          <Text style={{ color: "#1890ff", fontWeight: 500 }}>
-            {valorUnitario && valorUnitario > 0 
-              ? `R$ ${formatCurrency(valorUnitario)}` 
+          <Text style={{ color: "#059669", fontWeight: 500 }}>
+            {typeof valorUnitario === "number" && Number.isFinite(valorUnitario) && valorUnitario > 0
+              ? `R$ ${formatCurrency(valorUnitario)}`
               : "-"}
           </Text>
         );
@@ -503,6 +508,130 @@ const EstatisticasFornecedorModal = ({
 
     return lista;
   }, [estatisticas, filtroBusca, filtroDataColheita]);
+
+  // ✅ A partir daqui, tudo (resumos/cards/estatísticas) deve obedecer aos filtros.
+  const resumoFiltrado = useMemo(() => {
+    const lista = detalhesFiltrados || [];
+
+    const totaisPorUnidade = {};
+    let quantidadeTotal = 0;
+    let quantidadePaga = 0;
+    let quantidadePrecificada = 0;
+    let quantidadeNaoPrecificada = 0;
+    let valorTotal = 0;
+    let valorPago = 0;
+    let valorPrecificado = 0;
+
+    const pedidosSet = new Set();
+    const frutasSet = new Set();
+
+    lista.forEach((item) => {
+      const unidade = item.unidade || "UN";
+      const quantidade = Number(item.quantidade) || 0;
+      const valorItem = Number(item.valorTotal) || 0;
+
+      if (!totaisPorUnidade[unidade]) {
+        totaisPorUnidade[unidade] = {
+          quantidade: 0,
+          quantidadePaga: 0,
+          quantidadePrecificada: 0,
+          quantidadeNaoPrecificada: 0,
+          valor: 0,
+          valorPago: 0,
+          valorPrecificado: 0,
+          valorNaoPrecificado: 0,
+        };
+      }
+
+      // Identificadores
+      if (item.pedido) pedidosSet.add(item.pedido);
+      if (item.fruta) frutasSet.add(item.fruta);
+
+      // Totais gerais
+      quantidadeTotal += quantidade;
+      totaisPorUnidade[unidade].quantidade += quantidade;
+
+      // Status de pagamento (mesma regra usada no componente para pago/precificado)
+      const temPagamentoId =
+        item.pagamentoId !== undefined &&
+        item.pagamentoId !== null &&
+        typeof item.pagamentoId === "number" &&
+        item.pagamentoId > 0;
+      const statusPago = item.statusPagamento === "PAGO";
+      const statusPendente = item.statusPagamento === "PENDENTE" || item.statusPagamento === "PROCESSANDO";
+
+      if (temPagamentoId && statusPago) {
+        quantidadePaga += quantidade;
+        totaisPorUnidade[unidade].quantidadePaga += quantidade;
+
+        valorPago += valorItem;
+        totaisPorUnidade[unidade].valorPago += valorItem;
+
+        valorTotal += valorItem;
+        totaisPorUnidade[unidade].valor += valorItem;
+      } else if (temPagamentoId && statusPendente) {
+        quantidadePrecificada += quantidade;
+        totaisPorUnidade[unidade].quantidadePrecificada += quantidade;
+
+        valorPrecificado += valorItem;
+        totaisPorUnidade[unidade].valorPrecificado += valorItem;
+
+        valorTotal += valorItem;
+        totaisPorUnidade[unidade].valor += valorItem;
+      } else {
+        quantidadeNaoPrecificada += quantidade;
+        totaisPorUnidade[unidade].quantidadeNaoPrecificada += quantidade;
+        // Valor não precificado permanece 0 (valores só vêm da tabela de pagamentos)
+      }
+    });
+
+    return {
+      totaisPorUnidade,
+      totalGeral: {
+        quantidade: quantidadeTotal,
+        quantidadePaga,
+        quantidadePrecificada,
+        quantidadeNaoPrecificada,
+        valor: valorTotal,
+        valorPago,
+        valorPrecificado,
+        valorNaoPrecificado: 0,
+        totalPedidos: pedidosSet.size,
+        totalFrutas: frutasSet.size,
+      },
+    };
+  }, [detalhesFiltrados]);
+
+  const estatisticasTabelaFiltradas = useMemo(() => {
+    const lista = detalhesFiltrados || [];
+
+    const quantidadesPorUnidade = {};
+    let somaValorUnitario = 0;
+    let qtdComValorUnitario = 0;
+
+    lista.forEach((item) => {
+      const unidade = item.unidade || "UN";
+      const quantidade = Number(item.quantidade) || 0;
+      quantidadesPorUnidade[unidade] = (quantidadesPorUnidade[unidade] || 0) + quantidade;
+
+      const vu = item.valorUnitario;
+      if (typeof vu === "number" && Number.isFinite(vu) && vu > 0) {
+        somaValorUnitario += vu;
+        qtdComValorUnitario += 1;
+      }
+    });
+
+    const valorUnitarioMedio =
+      qtdComValorUnitario > 0 ? somaValorUnitario / qtdComValorUnitario : null;
+
+    return {
+      quantidadesPorUnidade,
+      quantidadeColheitas: lista.length,
+      qtdComValorUnitario,
+      valorUnitarioMedio,
+      somaValorUnitario,
+    };
+  }, [detalhesFiltrados]);
 
   // Verificar se há filtros ativos
   const filtrosAtivos = useMemo(() => (
@@ -674,7 +803,8 @@ const EstatisticasFornecedorModal = ({
     );
   }
 
-  const { totalGeral, totaisPorUnidade, detalhes } = estatisticas;
+  const { detalhes } = estatisticas;
+  const { totalGeral: totalGeralFiltrado, totaisPorUnidade: totaisPorUnidadeFiltrado } = resumoFiltrado;
 
   // Configuração do gráfico
   const opcoesGrafico = {
@@ -890,213 +1020,150 @@ const EstatisticasFornecedorModal = ({
       centered
       destroyOnClose
     >
-      {/* Seletor de Intervalo e Gráfico */}
-      <Card
-        title={
-          <Space>
-            <BarChartOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Evolução Temporal</span>
-          </Space>
-        }
-        style={{ 
-          marginBottom: 16,
-          border: "1px solid #e8e8e8",
-          borderRadius: "8px",
-          backgroundColor: "#f9f9f9",
-        }}
-        headStyle={{
-          backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
-          color: "#ffffff",
-          borderRadius: "8px 8px 0 0",
-        }}
-        extra={
-          <Space>
-            <Text strong style={{ color: "#ffffff" }}>Período:</Text>
-            <MiniSelectPersonalizavel
-              value={intervaloMeses}
-              onChange={setIntervaloMeses}
-              options={[
-                { value: 3, label: '3 meses' },
-                { value: 6, label: '6 meses' },
-                { value: 9, label: '9 meses' },
-                { value: 12, label: '12 meses' },
-              ]}
-              placeholder="Selecione o período"
-              height="32px"
-              fontSize="12px"
-              iconColor="#ffffff"
-              iconSize="14px"
-              customPadding="6px 8px 6px 28px"
-              style={{ 
-                width: "120px",
-                border: "1px solid rgba(255, 255, 255, 0.3)",
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                borderRadius: "6px",
-                overflow: "hidden",
-              }}
-              icon={<FilterOutlined />}
-            />
-          </Space>
-        }
-      >
-        {dadosGrafico && dadosGrafico.meses.length > 0 ? (
-          <Chart
-            options={opcoesGrafico}
-            series={seriesGrafico}
-            type="line"
-            height={350}
-          />
-        ) : (
-          <div style={{ 
-            textAlign: "center", 
-            padding: "40px",
-            color: "#8c8c8c"
-          }}>
-            <BarChartOutlined style={{ fontSize: "48px", marginBottom: "16px" }} />
-            <Text type="secondary">
-              Nenhum dado disponível para o período selecionado
-            </Text>
-          </div>
-        )}
-      </Card>
+      {/* ✅ Busca e Filtros (agora no topo) */}
+      {detalhes && detalhes.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <FilterOutlined style={{ color: "#ffffff" }} />
+              <span style={{
+                color: "#ffffff",
+                fontWeight: "600",
+                fontSize: isMobile ? "14px" : "16px"
+              }}>
+                {isMobile ? "Buscar" : "Busca e Filtros"}
+              </span>
+            </Space>
+          }
+          style={{
+            marginBottom: isMobile ? 12 : 16,
+            border: "1px solid #e8e8e8",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9",
+          }}
+          headStyle={{
+            backgroundColor: "#059669",
+            borderBottom: "2px solid #047857",
+            color: "#ffffff",
+            borderRadius: "8px 8px 0 0",
+            padding: isMobile ? "6px 12px" : "8px 16px"
+          }}
+          bodyStyle={{ padding: isMobile ? "12px" : "16px" }}
+        >
+          <Row gutter={[isMobile ? 8 : 16, 16]} wrap={isMobile}>
+            <Col xs={24} sm={24} md={15}>
+              <Input
+                value={filtroBusca}
+                onChange={(e) => setFiltroBusca(e.target.value)}
+                placeholder="Buscar por pedido, fruta, área ou quantidade"
+                allowClear
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+                prefix={<FilterOutlined style={{ color: "#059669" }} />}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <RangePicker
+                value={filtroDataColheita}
+                onChange={(value) => setFiltroDataColheita(value)}
+                allowClear
+                format="DD/MM/YYYY"
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+                disabledDate={(current) => current && current > moment().endOf('day')}
+                placeholder={['Data Início', 'Data Fim']}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={3}>
+              <SecondaryButton
+                icon={<FilterOutlined />}
+                onClick={limparFiltros}
+                size={isMobile ? "middle" : "large"}
+                style={{ width: "100%" }}
+                disabled={!filtrosAtivos}
+              >
+                Limpar
+              </SecondaryButton>
+            </Col>
+          </Row>
+        </Card>
+      )}
 
-      {/* Cards de Resumo */}
-      <Card
-        title={
-          <Space>
-            <DollarOutlined style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff", fontWeight: "600" }}>Resumo Geral</span>
-          </Space>
-        }
-        style={{ 
-          marginBottom: 16,
-          border: "1px solid #e8e8e8",
-          borderRadius: "8px",
-          backgroundColor: "#f9f9f9",
-        }}
-        headStyle={{
-          backgroundColor: "#059669",
-          borderBottom: "2px solid #047857",
-          color: "#ffffff",
-          borderRadius: "8px 8px 0 0",
-        }}
-      >
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center" }}>
-              <Statistic
-                title="Total Colhido"
-                value={totalGeral.quantidade}
-                formatter={(value) => value.toLocaleString('pt-BR')}
-                suffix="unidades"
-                valueStyle={{ color: "#059669", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
-                prefix={<AppleOutlined />}
+      {/* Seletor de Intervalo e Gráfico (oculto para testes, sem remover) */}
+      {mostrarGrafico && (
+        <Card
+          title={
+            <Space>
+              <BarChartOutlined style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff", fontWeight: "600" }}>Evolução Temporal</span>
+            </Space>
+          }
+          style={{ 
+            marginBottom: 16,
+            border: "1px solid #e8e8e8",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9",
+          }}
+          headStyle={{
+            backgroundColor: "#059669",
+            borderBottom: "2px solid #047857",
+            color: "#ffffff",
+            borderRadius: "8px 8px 0 0",
+          }}
+          extra={
+            <Space>
+              <Text strong style={{ color: "#ffffff" }}>Período:</Text>
+              <MiniSelectPersonalizavel
+                value={intervaloMeses}
+                onChange={setIntervaloMeses}
+                options={[
+                  { value: 3, label: '3 meses' },
+                  { value: 6, label: '6 meses' },
+                  { value: 9, label: '9 meses' },
+                  { value: 12, label: '12 meses' },
+                ]}
+                placeholder="Selecione o período"
+                height="32px"
+                fontSize="12px"
+                iconColor="#ffffff"
+                iconSize="14px"
+                customPadding="6px 8px 6px 28px"
+                style={{ 
+                  width: "120px",
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: "6px",
+                  overflow: "hidden",
+                }}
+                icon={<FilterOutlined />}
               />
-            </div>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center" }}>
-              <Statistic
-                title="Valor Total"
-                value={totalGeral.valor || 0}
-                formatter={(value) => `R$ ${formatCurrency(value)}`}
-                valueStyle={{ color: "#059669", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
-                prefix={<DollarOutlined />}
-              />
-            </div>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center" }}>
-              <Statistic
-                title="Valor Pago"
-                value={totalGeral.valorPago || 0}
-                formatter={(value) => `R$ ${formatCurrency(value)}`}
-                valueStyle={{ color: totalGeral.valorPago > 0 ? "#52c41a" : "#d9d9d9", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
-                prefix={<CheckCircleOutlined />}
-              />
-            </div>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center" }}>
-              <Statistic
-                title="Pedidos"
-                value={totalGeral.totalPedidos}
-                suffix={`• ${totalGeral.totalFrutas} fruta(s)`}
-                valueStyle={{ color: "#1890ff", fontSize: isMobile ? "1.25rem" : "1.5rem" }}
-                prefix={<ShoppingCartOutlined />}
-              />
-            </div>
-          </Col>
-        </Row>
-        
-        <Divider style={{ margin: "16px 0" }} />
-        
-        {/* Estatísticas separadas por status */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center" }}>
-              <Statistic
-                title="Valor Pago"
-                value={totalGeral.valorPago || 0}
-                formatter={(value) => `R$ ${formatCurrency(value)}`}
-                valueStyle={{ color: "#52c41a", fontSize: isMobile ? "1.1rem" : "1.25rem" }}
-                prefix={<CheckCircleOutlined />}
-              />
-              <Text type="secondary" style={{ fontSize: "0.75rem", display: "block", marginTop: 4 }}>
-                {(totalGeral.quantidadePaga || 0).toLocaleString('pt-BR')} unidades
+            </Space>
+          }
+        >
+          {dadosGrafico && dadosGrafico.meses.length > 0 ? (
+            <Chart
+              options={opcoesGrafico}
+              series={seriesGrafico}
+              type="line"
+              height={350}
+            />
+          ) : (
+            <div style={{ 
+              textAlign: "center", 
+              padding: "40px",
+              color: "#8c8c8c"
+            }}>
+              <BarChartOutlined style={{ fontSize: "48px", marginBottom: "16px" }} />
+              <Text type="secondary">
+                Nenhum dado disponível para o período selecionado
               </Text>
             </div>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center" }}>
-              <Statistic
-                title="Valor Precificado"
-                value={totalGeral.valorPrecificado || 0}
-                formatter={(value) => `R$ ${formatCurrency(value)}`}
-                valueStyle={{ color: "#faad14", fontSize: isMobile ? "1.1rem" : "1.25rem" }}
-                prefix={<ClockCircleOutlined />}
-              />
-              <Text type="secondary" style={{ fontSize: "0.75rem", display: "block", marginTop: 4 }}>
-                {(totalGeral.quantidadePrecificada || 0).toLocaleString('pt-BR')} unidades
-              </Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center" }}>
-              <Statistic
-                title="Quantidade Não Precificada"
-                value={totalGeral.quantidadeNaoPrecificada || 0}
-                formatter={(value) => value.toLocaleString('pt-BR')}
-                suffix="unidades"
-                valueStyle={{ color: "#8c8c8c", fontSize: isMobile ? "1.1rem" : "1.25rem" }}
-                prefix={<AppleOutlined />}
-              />
-              <Text type="secondary" style={{ fontSize: "0.75rem", display: "block", marginTop: 4 }}>
-                Sem valor (não precificada)
-              </Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center" }}>
-              <Statistic
-                title="Total Colheitas"
-                value={totalGeral.quantidade || 0}
-                formatter={(value) => value.toLocaleString('pt-BR')}
-                suffix="unidades"
-                valueStyle={{ color: "#059669", fontSize: isMobile ? "1.1rem" : "1.25rem" }}
-                prefix={<AppleOutlined />}
-              />
-              <Text type="secondary" style={{ fontSize: "0.75rem", display: "block", marginTop: 4 }}>
-                {totalGeral.totalPedidos} pedidos • {totalGeral.totalFrutas} frutas
-              </Text>
-            </div>
-          </Col>
-        </Row>
-      </Card>
+          )}
+        </Card>
+      )}
 
       {/* Totais por Unidade */}
-      {Object.keys(totaisPorUnidade).length > 0 && (
+      {Object.keys(totaisPorUnidadeFiltrado || {}).length > 0 && (
         <Card
           title={
             <Space>
@@ -1118,7 +1185,7 @@ const EstatisticasFornecedorModal = ({
           }}
         >
           <Row gutter={[isMobile ? 12 : 20, isMobile ? 12 : 20]}>
-            {Object.entries(totaisPorUnidade).map(([unidade, total]) => (
+            {Object.entries(totaisPorUnidadeFiltrado).map(([unidade, total]) => (
               <Col xs={24} sm={12} lg={8} xl={6} key={unidade}>
                 <Card 
                   size="small" 
@@ -1346,75 +1413,6 @@ const EstatisticasFornecedorModal = ({
         </Card>
       )}
 
-      {/* Busca e Filtros */}
-      {detalhes && detalhes.length > 0 && (
-        <Card
-          title={
-            <Space>
-              <FilterOutlined style={{ color: "#ffffff" }} />
-              <span style={{
-                color: "#ffffff",
-                fontWeight: "600",
-                fontSize: isMobile ? "14px" : "16px"
-              }}>
-                {isMobile ? "Buscar" : "Busca e Filtros"}
-              </span>
-            </Space>
-          }
-          style={{
-            marginBottom: isMobile ? 12 : 16,
-            border: "1px solid #e8e8e8",
-            borderRadius: "8px",
-            backgroundColor: "#f9f9f9",
-          }}
-          headStyle={{
-            backgroundColor: "#059669",
-            borderBottom: "2px solid #047857",
-            color: "#ffffff",
-            borderRadius: "8px 8px 0 0",
-            padding: isMobile ? "6px 12px" : "8px 16px"
-          }}
-          bodyStyle={{ padding: isMobile ? "12px" : "16px" }}
-        >
-          <Row gutter={[isMobile ? 8 : 16, 16]} wrap={isMobile}>
-            <Col xs={24} sm={24} md={15}>
-              <Input
-                value={filtroBusca}
-                onChange={(e) => setFiltroBusca(e.target.value)}
-                placeholder="Buscar por pedido, fruta, área ou quantidade"
-                allowClear
-                size={isMobile ? "middle" : "large"}
-                style={{ width: "100%" }}
-                prefix={<FilterOutlined style={{ color: "#059669" }} />}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={6}>
-              <RangePicker
-                value={filtroDataColheita}
-                onChange={(value) => setFiltroDataColheita(value)}
-                allowClear
-                format="DD/MM/YYYY"
-                size={isMobile ? "middle" : "large"}
-                style={{ width: "100%" }}
-                disabledDate={(current) => current && current > moment().endOf('day')}
-                placeholder={['Data Início', 'Data Fim']}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={3}>
-              <SecondaryButton
-                icon={<FilterOutlined />}
-                onClick={limparFiltros}
-                size={isMobile ? "middle" : "large"}
-                style={{ width: "100%" }}
-                disabled={!filtrosAtivos}
-              >
-                Limpar
-              </SecondaryButton>
-            </Col>
-          </Row>
-        </Card>
-      )}
-
       {/* Tabela de Detalhes */}
       {detalhes && detalhes.length > 0 && (
         <Card
@@ -1438,15 +1436,291 @@ const EstatisticasFornecedorModal = ({
           }}
         >
           {detalhesFiltrados.length > 0 ? (
-            <StyledTable
-              columns={columns}
-              dataSource={detalhesFiltrados}
-              rowKey="id"
-              pagination={{ pageSize: 10 }}
-              size="middle"
-              bordered={true}
-              scroll={{ x: 'max-content' }}
-            />
+            <>
+              <StyledTable
+                columns={columns}
+                dataSource={detalhesFiltrados}
+                rowKey="id"
+                pagination={{ pageSize: 10 }}
+                size="middle"
+                bordered={true}
+                scroll={{ x: 'max-content' }}
+              />
+
+              {/* ✅ Estatísticas consolidadas (obedecendo filtros) */}
+              <Divider style={{ margin: isMobile ? "16px 0" : "24px 0" }} />
+              <div style={{
+                backgroundColor: "#ecfdf5",
+                border: "2px solid #10b981",
+                borderRadius: "12px",
+                padding: isMobile ? "16px" : "20px",
+                marginTop: "8px"
+              }}>
+                <Title level={5} style={{ 
+                  color: "#059669", 
+                  marginBottom: isMobile ? "12px" : "16px", 
+                  marginTop: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}>
+                  <CalculatorOutlined />
+                  Estatísticas Consolidadas
+                </Title>
+                
+                <Row gutter={[isMobile ? 8 : 12, isMobile ? 12 : 16]}>
+                  {/* Quantidades por Unidade */}
+                  <Col xs={12} sm={8} md={6}>
+                    <div style={{
+                      backgroundColor: "#f0fdf4",
+                      border: "1px solid #bbf7d0",
+                      borderRadius: "8px",
+                      padding: isMobile ? "12px" : "16px",
+                      minHeight: "75px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                        <AppleOutlined style={{ fontSize: "18px", color: "#16a34a" }} />
+                        <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>
+                          QTD POR UNIDADE
+                        </Text>
+                      </div>
+                      {Object.keys(estatisticasTabelaFiltradas.quantidadesPorUnidade || {}).length > 0 ? (
+                        <div style={{ 
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "6px",
+                          alignItems: "center"
+                        }}>
+                          {Object.entries(estatisticasTabelaFiltradas.quantidadesPorUnidade || {}).map(([unidade, qtd], index) => (
+                            <React.Fragment key={unidade}>
+                              <div style={{ 
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center"
+                              }}>
+                                <Text style={{ 
+                                  fontSize: isMobile ? "16px" : "18px", 
+                                  fontWeight: "700", 
+                                  color: "#059669",
+                                  display: "block",
+                                  lineHeight: "1"
+                                }}>
+                                  {Number(qtd || 0).toLocaleString("pt-BR")}
+                                </Text>
+                                <Text style={{ 
+                                  fontSize: "10px", 
+                                  color: "#64748b", 
+                                  display: "block",
+                                  marginTop: "2px"
+                                }}>
+                                  {unidade}
+                                </Text>
+                              </div>
+                              {index < Object.entries(estatisticasTabelaFiltradas.quantidadesPorUnidade || {}).length - 1 && (
+                                <div style={{
+                                  width: "4px",
+                                  height: "4px",
+                                  backgroundColor: "#94a3b8",
+                                  borderRadius: "50%",
+                                  flexShrink: 0
+                                }} />
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      ) : (
+                        <Text style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>
+                          Nenhuma quantidade
+                        </Text>
+                      )}
+                    </div>
+                  </Col>
+
+                  {/* Valor Total */}
+                  <Col xs={12} sm={8} md={6}>
+                    <div style={{
+                      backgroundColor: "#f0fdf4",
+                      border: "1px solid #bbf7d0",
+                      borderRadius: "8px",
+                      padding: isMobile ? "10px" : "12px",
+                      textAlign: "center",
+                      minHeight: "75px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center"
+                    }}>
+                      <DollarOutlined style={{ fontSize: "20px", color: "#16a34a", marginBottom: "6px" }} />
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                        VALOR TOTAL
+                      </Text>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#059669", display: "block" }}>
+                        R$ {formatCurrency(totalGeralFiltrado.valor || 0)}
+                      </Text>
+                    </div>
+                  </Col>
+
+                  {/* Valor Pago */}
+                  <Col xs={12} sm={8} md={6}>
+                    <div style={{
+                      backgroundColor: "#f0fdf4",
+                      border: "2px solid #52c41a",
+                      borderRadius: "8px",
+                      padding: isMobile ? "10px" : "12px",
+                      textAlign: "center",
+                      minHeight: "75px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center"
+                    }}>
+                      <CheckCircleOutlined style={{ fontSize: "20px", color: "#52c41a", marginBottom: "6px" }} />
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                        VALOR PAGO
+                      </Text>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#52c41a", display: "block" }}>
+                        R$ {formatCurrency(totalGeralFiltrado.valorPago || 0)}
+                      </Text>
+                    </div>
+                  </Col>
+
+                  {/* Valor Precificado */}
+                  <Col xs={12} sm={8} md={6}>
+                    <div style={{
+                      backgroundColor: "#fffbeb",
+                      border: "2px solid #faad14",
+                      borderRadius: "8px",
+                      padding: isMobile ? "10px" : "12px",
+                      textAlign: "center",
+                      minHeight: "75px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center"
+                    }}>
+                      <ClockCircleOutlined style={{ fontSize: "20px", color: "#faad14", marginBottom: "6px" }} />
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                        VALOR PRECIFICADO
+                      </Text>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#faad14", display: "block" }}>
+                        R$ {formatCurrency(totalGeralFiltrado.valorPrecificado || 0)}
+                      </Text>
+                    </div>
+                  </Col>
+
+                  {/* Valor Unitário Médio */}
+                  <Col xs={12} sm={8} md={6}>
+                    <div style={{
+                      backgroundColor: "#fffbeb",
+                      border: "2px solid #f59e0b",
+                      borderRadius: "8px",
+                      padding: isMobile ? "10px" : "12px",
+                      textAlign: "center",
+                      minHeight: "75px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      position: "relative"
+                    }}>
+                      <div style={{ marginBottom: "6px", display: "flex", justifyContent: "center", alignItems: "center", gap: "4px" }}>
+                        <DollarOutlined style={{ fontSize: "20px", color: "#f59e0b" }} />
+                        <Tooltip
+                          title={
+                            estatisticasTabelaFiltradas.qtdComValorUnitario > 0
+                              ? `Cálculo da Média: Soma dos valores unitários (R$ ${formatCurrency(estatisticasTabelaFiltradas.somaValorUnitario)}) dividido pela quantidade de colheitas com valor unitário (${estatisticasTabelaFiltradas.qtdComValorUnitario}). Fórmula: R$ ${formatCurrency(estatisticasTabelaFiltradas.somaValorUnitario)} ÷ ${estatisticasTabelaFiltradas.qtdComValorUnitario} = R$ ${formatCurrency(estatisticasTabelaFiltradas.valorUnitarioMedio)}. Apenas colheitas precificadas/pagas são consideradas no cálculo.`
+                              : "A média é calculada somando todos os valores unitários das colheitas precificadas/pagas e dividindo pela quantidade de colheitas com valor unitário. Colheitas sem valor unitário não entram no cálculo."
+                          }
+                          placement="top"
+                        >
+                          <InfoCircleOutlined style={{ fontSize: "14px", color: "#f59e0b", cursor: "pointer" }} />
+                        </Tooltip>
+                      </div>
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                        VALOR UNIT. MÉDIO
+                      </Text>
+                      <Text style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: "#d97706", display: "block" }}>
+                        {typeof estatisticasTabelaFiltradas.valorUnitarioMedio === "number" &&
+                         Number.isFinite(estatisticasTabelaFiltradas.valorUnitarioMedio)
+                          ? `R$ ${formatCurrency(estatisticasTabelaFiltradas.valorUnitarioMedio)}`
+                          : "-"}
+                      </Text>
+                    </div>
+                  </Col>
+
+                  {/* Quantidade Não Precificada */}
+                  <Col xs={12} sm={8} md={6}>
+                    <div style={{
+                      backgroundColor: "#f9fafb",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "8px",
+                      padding: isMobile ? "10px" : "12px",
+                      textAlign: "center",
+                      minHeight: "75px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center"
+                    }}>
+                      <AppleOutlined style={{ fontSize: "20px", color: "#8c8c8c", marginBottom: "6px" }} />
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                        NÃO PRECIFICADA
+                      </Text>
+                      <Text style={{ fontSize: isMobile ? "16px" : "18px", fontWeight: "700", color: "#8c8c8c", display: "block" }}>
+                        {(totalGeralFiltrado.quantidadeNaoPrecificada || 0).toLocaleString('pt-BR')}
+                      </Text>
+                      <Text style={{ fontSize: "10px", color: "#64748b", display: "block", marginTop: "2px" }}>
+                        unidades
+                      </Text>
+                    </div>
+                  </Col>
+
+                  {/* Pedidos e Frutas */}
+                  <Col xs={12} sm={8} md={6}>
+                    <div style={{
+                      backgroundColor: "#f0f9ff",
+                      border: "2px solid #0ea5e9",
+                      borderRadius: "8px",
+                      padding: isMobile ? "10px" : "12px",
+                      textAlign: "center",
+                      minHeight: "75px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center"
+                    }}>
+                      <ShoppingCartOutlined style={{ fontSize: "20px", color: "#0ea5e9", marginBottom: "6px" }} />
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                        PEDIDOS / FRUTAS
+                      </Text>
+                      <Text style={{ fontSize: isMobile ? "16px" : "18px", fontWeight: "700", color: "#0ea5e9", display: "block" }}>
+                        {totalGeralFiltrado.totalPedidos}
+                      </Text>
+                    </div>
+                  </Col>
+
+                  {/* Quantidade de Colheitas */}
+                  <Col xs={12} sm={12} md={6}>
+                    <div style={{
+                      backgroundColor: "#f0f9ff",
+                      border: "2px solid #0ea5e9",
+                      borderRadius: "8px",
+                      padding: isMobile ? "10px" : "12px",
+                      textAlign: "center",
+                      minHeight: "75px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center"
+                    }}>
+                      <HeatMapOutlined style={{ fontSize: "20px", color: "#0ea5e9", marginBottom: "6px" }} />
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                        COLHEITAS
+                      </Text>
+                      <Text style={{ fontSize: isMobile ? "18px" : "20px", fontWeight: "700", color: "#0ea5e9", display: "block" }}>
+                        {estatisticasTabelaFiltradas.quantidadeColheitas || 0}
+                      </Text>
+                    </div>
+                  </Col>
+                </Row>
+              </div>
+            </>
           ) : (
             <div style={{ padding: '40px', textAlign: 'center' }}>
               <Empty

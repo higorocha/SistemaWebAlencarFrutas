@@ -185,6 +185,14 @@ const DadosBasicosTab = ({
 
           const frutaAtualizada = { ...fruta, [field]: processedValue };
 
+          // ✅ Ao selecionar frutaId, manter shape consistente (obj fruta + culturaId + dePrimeira)
+          if (field === 'frutaId') {
+            const frutaCatalogo = processedValue ? frutasPorId?.[processedValue] : undefined;
+            frutaAtualizada.fruta = frutaCatalogo || undefined;
+            frutaAtualizada.culturaId = frutaCatalogo?.culturaId ?? frutaCatalogo?.cultura?.id ?? frutaAtualizada.culturaId ?? null;
+            frutaAtualizada.dePrimeira = frutaCatalogo?.dePrimeira ?? frutaAtualizada.dePrimeira ?? false;
+          }
+
           // ✅ LIMPAR áreas e fitas se solicitado (mudança de fruta confirmada)
           if (limparAreasEFitas) {
             frutaAtualizada.areas = [];

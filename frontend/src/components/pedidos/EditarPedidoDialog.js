@@ -13,6 +13,11 @@ import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { validarFrutasDuplicadas } from "../../utils/pedidoValidation";
 import moment from "moment";
+import {
+  buildFrutasPedidoMeta,
+  computeHerdaVinculosDaPrimeira,
+  getFruitKey,
+} from "../../utils/pedidosCultura";
 
 // Importar as abas separadas
 import { DadosBasicosTab, ColheitaTab, PrecificacaoTab, PagamentosTab } from './tabs';
@@ -479,11 +484,26 @@ const EditarPedidoDialog = ({
   // ========================================
   // 🆕 VALIDAÇÃO: Novas frutas por fase do pedido
   // ========================================
-  const validarNovasFrutasPorFase = (frutas, statusPedido) => {
+  const validarNovasFrutasPorFase = (frutasPedido, statusPedido) => {
     const novosErros = {};
-    const frutasNovas = frutas.filter(f => !f.frutaPedidoId);
+    const frutasNovas = (frutasPedido || []).filter(f => !f.frutaPedidoId);
 
     if (frutasNovas.length === 0) return { valido: true, erros: {}, quantidadeNovasFrutas: 0 };
+
+    // ✅ Construir meta/herança por cultura usando:
+    // - frutasPedido: itens do pedido (inclui novas)
+    // - frutas (state do componente): catálogo carregado do backend
+    const frutasCatalogoById = {};
+    (frutas || []).forEach((frutaCatalogo) => {
+      if (frutaCatalogo?.id) {
+        frutasCatalogoById[frutaCatalogo.id] = frutaCatalogo;
+      }
+    });
+
+    const { metaByKey, culturaInfoById } = buildFrutasPedidoMeta(
+      frutasPedido || [],
+      frutasCatalogoById,
+    );
 
     // Determinar quais dados são obrigatórios baseado na fase
     const requereColheita = [
@@ -502,14 +522,19 @@ const EditarPedidoDialog = ({
       'PAGAMENTO_REALIZADO'
     ].includes(statusPedido);
 
-    for (let i = 0; i < frutas.length; i++) {
-      const fruta = frutas[i];
+    for (let i = 0; i < (frutasPedido || []).length; i++) {
+      const fruta = frutasPedido[i];
 
       // Pular frutas existentes
       if (fruta.frutaPedidoId) continue;
 
-      const frutaInfo = frutas.find(f => f.id === fruta.frutaId);
+      // Catálogo (state) para nome/isBanana
+      const frutaInfo = (frutas || []).find(f => f.id === fruta.frutaId);
       const nomeFruta = frutaInfo?.nome || `Nova Fruta ${i + 1}`;
+
+      const frutaKey = getFruitKey(fruta);
+      const meta = frutaKey ? metaByKey?.[frutaKey] : undefined;
+      const herdaVinculosDaPrimeira = computeHerdaVinculosDaPrimeira(meta, culturaInfoById);
 
       // ✅ Validar dados de colheita se fase requer
       if (requereColheita) {
@@ -519,19 +544,21 @@ const EditarPedidoDialog = ({
             `Informe a quantidade real colhida antes de salvar.`;
         }
 
-        // Validar áreas
-        const areasValidas = fruta.areas?.filter(a =>
-          a.areaPropriaId || a.areaFornecedorId
-        ) || [];
+        // ✅ Validar áreas apenas quando NÃO herda da fruta de primeira
+        if (!herdaVinculosDaPrimeira) {
+          const areasValidas = fruta.areas?.filter(a =>
+            a.areaPropriaId || a.areaFornecedorId
+          ) || [];
 
-        if (areasValidas.length === 0) {
-          novosErros[`nova_fruta_areas_${i}`] =
-            `"${nomeFruta}" é uma nova fruta e deve ter pelo menos uma área de origem vinculada.`;
+          if (areasValidas.length === 0) {
+            novosErros[`nova_fruta_areas_${i}`] =
+              `"${nomeFruta}" é uma nova fruta e deve ter pelo menos uma área de origem vinculada.`;
+          }
         }
 
-        // Validar fitas se for banana
+        // ✅ Validar fitas (banana) apenas quando NÃO herda da fruta de primeira
         const isBanana = nomeFruta.toLowerCase().includes('banana');
-        if (isBanana) {
+        if (isBanana && !herdaVinculosDaPrimeira) {
           const fitasValidas = fruta.fitas?.filter(f =>
             f.fitaBananaId && f.quantidadeFita > 0
           ) || [];
@@ -539,6 +566,29 @@ const EditarPedidoDialog = ({
           if (fitasValidas.length === 0) {
             novosErros[`nova_fruta_fitas_${i}`] =
               `"${nomeFruta}" é uma banana e deve ter pelo menos uma fita vinculada.`;
+          }
+        }
+
+        // 🧪 Debug cirúrgico (somente dev): ajuda a explicar por que a validação disparou
+        if (process.env.NODE_ENV !== 'production') {
+          const errosDaFruta = Object.keys(novosErros)
+            .filter((k) => k.includes(`nova_fruta_`) && k.endsWith(`_${i}`))
+            .map((k) => ({ chave: k, msg: novosErros[k] }));
+
+          // Só loga quando existir erro (evita poluir console)
+          if (errosDaFruta.length > 0) {
+            console.debug('[validarNovasFrutasPorFase] nova fruta com erro', {
+              statusPedido,
+              frutaId: fruta?.frutaId,
+              frutaKey,
+              culturaId: meta?.culturaId ?? null,
+              dePrimeira: meta?.dePrimeira ?? null,
+              herdaVinculosDaPrimeira,
+              quantidadeReal: fruta?.quantidadeReal,
+              areasLen: fruta?.areas?.length ?? 0,
+              fitasLen: fruta?.fitas?.length ?? 0,
+              erros: errosDaFruta,
+            });
           }
         }
       }
