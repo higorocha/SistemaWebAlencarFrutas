@@ -246,10 +246,14 @@ export class PdfService {
             return { title, headerPage, bodyPage, headerOffset, bodyOffset };
           });
 
+          const cardEl = document.querySelector('.card');
+          const bodyEl = document.querySelector('.card-body');
+          const headerEl = document.querySelector('.card-header');
+
           const css = {
-            card: window.getComputedStyle(document.querySelector('.card') as Element | null)?.breakInside || null,
-            cardBody: window.getComputedStyle(document.querySelector('.card-body') as Element | null)?.breakInside || null,
-            cardHeader: window.getComputedStyle(document.querySelector('.card-header') as Element | null)?.breakAfter || null,
+            card: cardEl ? window.getComputedStyle(cardEl).breakInside : null,
+            cardBody: bodyEl ? window.getComputedStyle(bodyEl).breakInside : null,
+            cardHeader: headerEl ? window.getComputedStyle(headerEl).breakAfter : null,
           };
 
           return {
