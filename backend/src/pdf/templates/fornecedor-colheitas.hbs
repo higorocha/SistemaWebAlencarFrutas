@@ -81,20 +81,6 @@
       padding: 6px 10px;
       border-radius: 7px 7px 0 0;
       border-bottom: 2px solid #047857;
-      position: relative;
-    }
-
-    /* Header diferenciado para seções de status pendente */
-    .card-header-pending {
-      border-left: 5px solid #fbbf24;
-      padding-left: 8px;
-    }
-
-    .header-icon {
-      font-size: 13px;
-      font-weight: 900;
-      margin-right: 6px;
-      display: inline-block;
     }
 
     .card-title {
@@ -105,6 +91,29 @@
       font-weight: 600;
       letter-spacing: 0.3px;
       text-transform: uppercase;
+    }
+
+    /* Ícones SVG (para evitar emoji que some no Render) */
+    .svg-ico { width: 12px; height: 12px; vertical-align: -2px; margin-right: 4px; }
+    .svg-ico-lg { width: 16px; height: 16px; vertical-align: -3px; }
+    .svg-ico-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.30);
+      margin-right: 6px;
+    }
+    .svg-defs {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      left: -9999px;
+      top: -9999px;
     }
 
     .card-body { padding: 8px 10px; }
@@ -324,6 +333,37 @@
   {{!-- Cabeçalho Reutilizável --}}
   {{> header}}
 
+  {{!-- Ícones SVG reutilizáveis (CHECK "V" e AMPULHETA) --}}
+  <svg class="svg-defs" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      {{!-- Gradientes da ampulheta (mesmos stops do SVG enviado) --}}
+      <linearGradient id="hg_grad_1" gradientUnits="userSpaceOnUse" x1="83.2005" x2="46.5338" y1="111.6494" y2="20.3161">
+        <stop offset="0.002192283" stop-color="#BBDEFB"/>
+        <stop offset="1" stop-color="#E3F2FD"/>
+      </linearGradient>
+      <linearGradient id="hg_grad_2" gradientUnits="userSpaceOnUse" x1="64.3949" x2="64.3949" y1="38.3333" y2="114.2119">
+        <stop offset="0" stop-color="#FFCA7B"/>
+        <stop offset="0.2539" stop-color="#FFA726"/>
+        <stop offset="0.4688" stop-color="#FFCC80"/>
+        <stop offset="0.6586" stop-color="#FFC875"/>
+        <stop offset="0.8665" stop-color="#FFA726"/>
+      </linearGradient>
+
+      {{!-- CHECK (V) — SVG enviado --}}
+      <symbol id="icon-check-v" viewBox="0 0 426.667 426.667">
+        <path fill="#6AC259" d="M213.333,0C95.518,0,0,95.514,0,213.333s95.518,213.333,213.333,213.333c117.828,0,213.333-95.514,213.333-213.333S331.157,0,213.333,0z M174.199,322.918l-93.935-93.931l31.309-31.309l62.626,62.622l140.894-140.898l31.309,31.309L174.199,322.918z"/>
+      </symbol>
+
+      {{!-- AMPULHETA — versão compacta baseada no SVG enviado --}}
+      <symbol id="icon-hourglass" viewBox="0 0 128 128">
+        <path fill="url(#hg_grad_1)" d="M56.31,59.58c1.57,0.67,1.61,3.21,0.05,3.93C51.22,65.9,26.29,75.9,26.29,112.3l-0.16,6.72l75.75,0.13l-0.05-6.78c0-37.1-25.08-46.31-30.25-48.72c-1.55-0.72-1.52-3.26,0.05-3.93c5.13-2.2,29.63-12.65,29.63-45.39l0.63-5.7L26.13,8.51l0.66,5.97C26.79,46.2,51.16,57.37,56.31,59.58z"/>
+        <path fill="url(#hg_grad_2)" d="M95.85,109.3C94,100.63,90.93,95,83.04,95H66.79l-0.01-34.35c0-8.93,22.91-11.52,22.91-24.07l-50.95,0.03c0,12.1,22.75,15.28,22.75,24.13L61.52,95H45.64c-7.95,0-11.05,5.72-12.84,14.48l-2.19,10.46l67.56,0.18L95.85,109.3z"/>
+        <path fill="#795548" d="M25.02,4h77.96c3.33,0,6.02,2.7,6.02,6.02v0c0,3.33-2.7,6.02-6.02,6.02H25.02c-3.33,0-6.02-2.7-6.02-6.02v0C19,6.7,21.7,4,25.02,4z"/>
+        <path fill="#795548" d="M24.86,112.31h78.28c3.23,0,5.85,2.62,5.85,5.85v0c0,3.23-2.62,5.85-5.85,5.85H24.86c-3.23,0-5.85-2.62-5.85-5.85v0C19.01,114.92,21.63,112.31,24.86,112.31z"/>
+      </symbol>
+    </defs>
+  </svg>
+
   <div class="content-wrapper">
     <div class="pdf-content">
       <div class="cards-wrapper">
@@ -419,21 +459,21 @@
                       {{#if colheitasNaoPrecificadas}}
                         <!-- Tem algumas precificadas e algumas não -->
                         <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 8px; font-size: 8px; color: #047857; font-weight: 700;">
-                          ✓ COMPRA: {{colheitasPrecificadas}} precificada(s)
+                          <svg class="svg-ico"><use href="#icon-check-v" xlink:href="#icon-check-v"></use></svg> COMPRA: {{colheitasPrecificadas}} precificada(s)
                         </div>
                         <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: 3px 8px; font-size: 8px; color: #92400e; font-weight: 700;">
-                          ⏳ COMPRA: {{colheitasNaoPrecificadas}} aguardando precificação
+                          <svg class="svg-ico"><use href="#icon-hourglass" xlink:href="#icon-hourglass"></use></svg> COMPRA: {{colheitasNaoPrecificadas}} aguardando precificação
                         </div>
                       {{else}}
                         <!-- Todas precificadas -->
                         <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 8px; font-size: 8px; color: #047857; font-weight: 700;">
-                          ✓ COMPRA: Todas as colheitas foram precificadas
+                          <svg class="svg-ico"><use href="#icon-check-v" xlink:href="#icon-check-v"></use></svg> COMPRA: Todas as colheitas foram precificadas
                         </div>
                       {{/if}}
                     {{else}}
                       <!-- Nenhuma precificada -->
                       <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: 3px 8px; font-size: 8px; color: #92400e; font-weight: 700;">
-                        ⏳ COMPRA: {{colheitasNaoPrecificadas}} aguardando precificação
+                        <svg class="svg-ico"><use href="#icon-hourglass" xlink:href="#icon-hourglass"></use></svg> COMPRA: {{colheitasNaoPrecificadas}} aguardando precificação
                       </div>
                     {{/if}}
                     
@@ -441,18 +481,18 @@
                     {{#if temFaltaVenda}}
                       <!-- Tem compra mas não tem venda -->
                       <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 3px 8px; font-size: 8px; color: #991b1b; font-weight: 700;">
-                        ⚠ VENDA: {{colheitasPrecificadas}} aguardando precificação
+                        <svg class="svg-ico"><use href="#icon-hourglass" xlink:href="#icon-hourglass"></use></svg> VENDA: {{colheitasPrecificadas}} aguardando precificação
                       </div>
                     {{else}}
                       {{#if colheitasPrecificadas}}
                         <!-- Tem compra E tem venda -->
                         <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 3px 8px; font-size: 8px; color: #15803d; font-weight: 700;">
-                          ✓ VENDA: Todas as colheitas foram precificadas
+                          <svg class="svg-ico"><use href="#icon-check-v" xlink:href="#icon-check-v"></use></svg> VENDA: Todas as colheitas foram precificadas
                         </div>
                       {{else}}
                         <!-- Não tem compra E não tem venda -->
                         <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: 3px 8px; font-size: 8px; color: #92400e; font-weight: 700;">
-                          ⏳ VENDA: {{colheitasNaoPrecificadas}} aguardando precificação
+                          <svg class="svg-ico"><use href="#icon-hourglass" xlink:href="#icon-hourglass"></use></svg> VENDA: {{colheitasNaoPrecificadas}} aguardando precificação
                         </div>
                       {{/if}}
                     {{/if}}
@@ -527,14 +567,14 @@
                   <div style="background-color: #f0fdf4; border: 2px solid #22c55e; border-radius: 6px; padding: 10px; text-align: center;">
                     <div style="font-size: 9px; color: #64748b; font-weight: 700; margin-bottom: 4px; text-transform: uppercase;">PAGO AO FORNECEDOR</div>
                     <div style="font-size: 18px; font-weight: 900; color: #15803d;">{{compraPago}}</div>
-                    <div style="font-size: 7px; color: #166534; margin-top: 4px;">✓ Pagamento efetuado</div>
+                    <div style="font-size: 7px; color: #166534; margin-top: 4px;"><svg class="svg-ico"><use href="#icon-check-v" xlink:href="#icon-check-v"></use></svg> Pagamento efetuado</div>
                   </div>
 
                   <!-- Card: Valor Precificado (Aguardando Pagamento) -->
                   <div style="background-color: #fffbeb; border: 2px solid #fbbf24; border-radius: 6px; padding: 10px; text-align: center;">
                     <div style="font-size: 9px; color: #64748b; font-weight: 700; margin-bottom: 4px; text-transform: uppercase;">AGUARDANDO PAGAMENTO</div>
                     <div style="font-size: 18px; font-weight: 900; color: #d97706;">{{compraPrecificado}}</div>
-                    <div style="font-size: 7px; color: #92400e; margin-top: 4px;">⏳ Pendente/Processando</div>
+                    <div style="font-size: 7px; color: #92400e; margin-top: 4px;"><svg class="svg-ico"><use href="#icon-hourglass" xlink:href="#icon-hourglass"></use></svg> Pendente/Processando</div>
                   </div>
 
                   <!-- Card: Valor Total de Venda (Cliente) -->
@@ -558,7 +598,7 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">
-              <span class="header-icon">✓</span>
+              <span class="svg-ico-pill"><svg class="svg-ico-lg"><use href="#icon-check-v" xlink:href="#icon-check-v"></use></svg></span>
               Colheitas Precificadas (Compra do Fornecedor)
             </div>
           </div>
@@ -619,9 +659,9 @@
 
         <!-- Tabela: colheitas não precificadas (compra) -->
         <div class="card">
-          <div class="card-header card-header-pending">
+          <div class="card-header">
             <div class="card-title">
-              <span class="header-icon">⏳</span>
+              <span class="svg-ico-pill"><svg class="svg-ico-lg"><use href="#icon-hourglass" xlink:href="#icon-hourglass"></use></svg></span>
               Colheitas Não Precificadas (Aguardando Precificação)
             </div>
           </div>
