@@ -399,6 +399,7 @@ const EstatisticasFornecedorModal = ({
           {value.toLocaleString('pt-BR')} {record.unidade}
         </Text>
       ),
+      sorter: (a, b) => (Number(a?.quantidade) || 0) - (Number(b?.quantidade) || 0),
     },
     {
       title: (

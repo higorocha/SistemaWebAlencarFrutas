@@ -1792,23 +1792,6 @@ export class PdfController {
       observacaoVenda?: string | null;
     };
 
-    // Log para debug
-    console.log('[PDF Fornecedor] Total de colheitas:', colheitas.length);
-    console.log('[PDF Fornecedor] Amostra de dados (primeiras 3 colheitas):', 
-      colheitas.slice(0, 3).map(c => ({
-        pedido: c.pedido,
-        fruta: c.fruta,
-        quantidade: c.quantidade,
-        unidade: c.unidade,
-        pagamentoId: c.pagamentoId,
-        statusCompra: c.statusCompra,
-        valorUnitarioCompra: c.valorUnitarioCompra,
-        valorTotalCompra: c.valorTotalCompra,
-        valorTotalVendaProporcional: c.valorTotalVendaProporcional,
-        temVenda: c.temVenda,
-      }))
-    );
-
     const grupoResumo = new Map<string, any>();
     colheitas.forEach((c) => {
       const key = `${c.cultura}||${c.fruta}`;
@@ -1855,8 +1838,21 @@ export class PdfController {
       }
     });
 
+    const sumQtdMap = (m: Map<string, number>) =>
+      Array.from(m.values()).reduce((acc, v) => acc + (Number(v) || 0), 0);
+
     const resumoLinhas: ResumoLinha[] = Array.from(grupoResumo.values())
-      .sort((a, b) => (a.cultura + a.fruta).localeCompare(b.cultura + b.fruta))
+      // Ordenar por cultura, e dentro da cultura colocar primeiro quem tem maior "total colhido"
+      .sort((a, b) => {
+        const byCultura = String(a.cultura || '').localeCompare(String(b.cultura || ''));
+        if (byCultura !== 0) return byCultura;
+
+        const totalA = sumQtdMap(a.qtdPorUnidade as Map<string, number>);
+        const totalB = sumQtdMap(b.qtdPorUnidade as Map<string, number>);
+        if (totalB !== totalA) return totalB - totalA;
+
+        return String(a.fruta || '').localeCompare(String(b.fruta || ''));
+      })
       .map((g) => {
         // Aplicar formatação de milhar nas quantidades
         const qtds = Array.from(g.qtdPorUnidade.entries())
@@ -1889,14 +1885,6 @@ export class PdfController {
           ? `${g.compraComVendaFaltando} colheita(s) precificada(s) para compra, mas o pedido/fruta correspondente ainda não foi precificado para venda ao cliente.`
           : null;
 
-        console.log(`[PDF Fornecedor] Resumo ${g.cultura} - ${g.fruta}:`, {
-          compraComPagamento: g.compraComPagamento,
-          compraSemPagamento: g.compraSemPagamento,
-          compraComVendaFaltando: g.compraComVendaFaltando,
-          vendaTotal: g.vendaTotal,
-          temFaltaVenda,
-        });
-
         return {
           cultura: g.cultura,
           fruta: g.fruta,
@@ -1914,8 +1902,6 @@ export class PdfController {
           observacaoVenda: obs,
         };
       });
-
-    console.log('[PDF Fornecedor] Resumo por fruta concluído. Total de linhas:', resumoLinhas.length);
 
     // 10) Calcular período das colheitas e estatísticas gerais
     const datasColheitas = colheitas
@@ -1938,8 +1924,6 @@ export class PdfController {
       totalAreas: areasNoPdf.length,
     };
 
-    console.log('[PDF Fornecedor] Período:', periodo);
-    console.log('[PDF Fornecedor] Estatísticas gerais:', estatisticasGerais);
 
     // 11) Tabelas (precificadas vs não precificadas)
     const precificadas = colheitas.filter((c) => !!c.pagamentoId);
@@ -1966,6 +1950,7 @@ export class PdfController {
         g.linhas.push({
           pedido: c.pedido,
           area: c.areaNome,
+          dataColheitaRaw: c.dataColheita ? new Date(c.dataColheita).getTime() : 0,
           dataColheita: c.dataColheita ? formatDateBRSemTimezone(c.dataColheita) : '-',
           quantidade: formatNumber(c.quantidade || 0),
           unidade: c.unidade,
@@ -1981,7 +1966,9 @@ export class PdfController {
         .map((g) => ({
           cultura: g.cultura,
           fruta: g.fruta,
-          linhas: g.linhas,
+          linhas: g.linhas
+            .sort((a, b) => (Number(b.dataColheitaRaw) || 0) - (Number(a.dataColheitaRaw) || 0))
+            .map(({ dataColheitaRaw, ...rest }) => rest),
           totaisPorUnidade: Array.from(g.totaisPorUnidade.entries()).map(([unidade, quantidade]) => ({
             unidade,
             quantidade: formatNumber(quantidade),
