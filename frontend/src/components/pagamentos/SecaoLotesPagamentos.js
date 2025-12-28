@@ -1,6 +1,6 @@
 // src/components/pagamentos/SecaoLotesPagamentos.js
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import {
   Card,
@@ -13,6 +13,7 @@ import {
   Col,
   Pagination,
   Tooltip,
+  Input,
 } from "antd";
 import {
   DollarOutlined,
@@ -152,6 +153,24 @@ const SecaoLotesPagamentos = ({
   // Determinar o contexto baseado no título
   const isFolhaPagamento = titulo.includes("Folha de Pagamento");
   const contextoTexto = isFolhaPagamento ? "de folha de pagamento" : "de turma de colheita";
+
+  // Estado local de UI (somente para itens dentro de cada lote da Folha):
+  // paginação e busca por nome do funcionário ao expandir o lote.
+  const [uiFolhaPorLote, setUiFolhaPorLote] = useState({});
+
+  const getUiFolha = (loteKey) => {
+    return uiFolhaPorLote[loteKey] || { page: 1, pageSize: 10, term: "" };
+  };
+
+  const setUiFolha = (loteKey, patch) => {
+    setUiFolhaPorLote((prev) => ({
+      ...prev,
+      [loteKey]: {
+        ...(prev[loteKey] || { page: 1, pageSize: 10, term: "" }),
+        ...patch,
+      },
+    }));
+  };
 
   return (
     <Card
@@ -617,8 +636,29 @@ const SecaoLotesPagamentos = ({
                 },
                 expandedRowRender: (record) => {
                   const itens = record.itensPagamento || [];
+                  const loteKey = record.loteId || record.id || record.numeroRequisicao || "lote";
 
-                  if (itens.length === 0) {
+                  // ✅ Paginação + busca (somente para seção Folha de Pagamento)
+                  const uiFolha = getUiFolha(loteKey);
+                  const termoBusca = (uiFolha.term || "").toString().trim().toLowerCase();
+
+                  // Nota: não usar hooks aqui (expandedRowRender não é um componente).
+                  const itensFiltrados =
+                    isFolhaPagamento && termoBusca
+                      ? (itens || []).filter((item) => {
+                          const nome = item?.funcionarioPagamento?.funcionario?.nome || "";
+                          return nome.toString().toLowerCase().includes(termoBusca);
+                        })
+                      : itens;
+
+                  const totalItens = itensFiltrados.length;
+                  const pageSize = uiFolha.pageSize || 10;
+                  const page = uiFolha.page || 1;
+                  const start = (page - 1) * pageSize;
+                  const end = start + pageSize;
+                  const itensPaginados = isFolhaPagamento ? itensFiltrados.slice(start, end) : itensFiltrados;
+
+                  if (totalItens === 0) {
                     return (
                       <div
                         style={{
@@ -628,7 +668,11 @@ const SecaoLotesPagamentos = ({
                           borderTop: "1px solid #e8e8e8",
                         }}
                       >
-                        <Text type="secondary">Nenhum item neste lote.</Text>
+                        <Text type="secondary">
+                          {isFolhaPagamento && termoBusca
+                            ? "Nenhum funcionário encontrado para este lote com o termo informado."
+                            : "Nenhum item neste lote."}
+                        </Text>
                       </div>
                     );
                   }
@@ -642,6 +686,49 @@ const SecaoLotesPagamentos = ({
                         borderTop: "1px solid #e8e8e8",
                       }}
                     >
+                      {/* Barra de busca + paginação (somente Folha) */}
+                      {isFolhaPagamento && (
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 12,
+                            marginBottom: 10,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Input
+                            allowClear
+                            placeholder="Buscar funcionário no lote..."
+                            value={uiFolha.term}
+                            onChange={(e) => {
+                              setUiFolha(loteKey, { term: e.target.value, page: 1 });
+                            }}
+                            size={isMobile ? "small" : "middle"}
+                            style={{ maxWidth: 360, flex: "1 1 260px" }}
+                          />
+
+                          <Pagination
+                            size={isMobile ? "small" : "default"}
+                            current={page}
+                            pageSize={pageSize}
+                            total={totalItens}
+                            showSizeChanger={!isMobile}
+                            pageSizeOptions={["10", "20", "50", "100"]}
+                            onChange={(p, ps) => {
+                              setUiFolha(loteKey, { page: p, pageSize: ps || pageSize });
+                            }}
+                            onShowSizeChange={(p, ps) => {
+                              setUiFolha(loteKey, { page: 1, pageSize: ps || pageSize });
+                            }}
+                            showTotal={(total, range) =>
+                              isMobile ? `${range[0]}-${range[1]}/${total}` : `${range[0]}-${range[1]} de ${total} funcionários`
+                            }
+                          />
+                        </div>
+                      )}
+
                       <Text
                         strong
                         style={{
@@ -651,10 +738,10 @@ const SecaoLotesPagamentos = ({
                           display: "block",
                         }}
                       >
-                        Itens do Lote ({itens.length}):
+                        Itens do Lote ({totalItens}):
                       </Text>
                       <div style={{ display: "grid", gap: "8px" }}>
-                        {itens.map((item, index) => {
+                        {itensPaginados.map((item, index) => {
                           const colheitas = item.colheitas || [];
                           const funcionarioPagamento = item.funcionarioPagamento;
                           const isFolhaPagamento = !!funcionarioPagamento;
@@ -746,7 +833,7 @@ const SecaoLotesPagamentos = ({
                                   )}
                                   
                                   {/* Informações do Funcionário - Colunas fixas */}
-                                  <Col flex="none" style={{ minWidth: "240px", maxWidth: "240px" }}>
+                                  <Col flex="auto" style={{ minWidth: "320px" }}>
                                     <div>
                                       <Text type="secondary" style={{ fontSize: "12px", display: "block", marginBottom: "4px", lineHeight: "1.2", fontWeight: "500", color: "#595959" }}>
                                         Funcionário
@@ -806,7 +893,7 @@ const SecaoLotesPagamentos = ({
                                   })()}
                                   
                                   {/* Botão Consultar - alinhado à direita */}
-                                  <Col flex="auto" style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-end", paddingBottom: "2px" }}>
+                                  <Col flex="none" style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-end", paddingBottom: "2px" }}>
                                     {(item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento) && (
                                       <Button
                                         type="link"

@@ -193,11 +193,24 @@ const Pagamentos = () => {
     const contasSet = new Map();
     
     // Adicionar contas de lotes de turma de colheita
-    lotesTurmaColheita.forEach(lote => {
-      if (lote.contaCorrente && lote.contaCorrente.id) {
-        contasSet.set(lote.contaCorrente.id, lote.contaCorrente);
-      }
-    });
+    if (Array.isArray(lotesTurmaColheita) && lotesTurmaColheita.length > 0 && lotesTurmaColheita[0]?.diaKey) {
+      // Quando vier agrupado por dia: cada item é um dia com dia.lotes
+      lotesTurmaColheita.forEach((dia) => {
+        const lotesDia = Array.isArray(dia?.lotes) ? dia.lotes : [];
+        lotesDia.forEach((lote) => {
+          if (lote?.contaCorrente?.id) {
+            contasSet.set(lote.contaCorrente.id, lote.contaCorrente);
+          }
+        });
+      });
+    } else {
+      // Quando vier como lista de lotes
+      (lotesTurmaColheita || []).forEach((lote) => {
+        if (lote?.contaCorrente?.id) {
+          contasSet.set(lote.contaCorrente.id, lote.contaCorrente);
+        }
+      });
+    }
     
     // Adicionar contas de lotes de folha de pagamento
     lotesFolhaPagamento.forEach(lote => {
@@ -289,7 +302,12 @@ const Pagamentos = () => {
     if (!numeroRequisicaoParaAbrir) return;
 
     // Buscar em ambos os tipos de lotes
-    const alvoTurma = lotesTurmaColheita.find(
+    const lotesTurmaFlat =
+      Array.isArray(lotesTurmaColheita) && lotesTurmaColheita.length > 0 && lotesTurmaColheita[0]?.diaKey
+        ? lotesTurmaColheita.flatMap((dia) => (Array.isArray(dia?.lotes) ? dia.lotes : []))
+        : lotesTurmaColheita;
+
+    const alvoTurma = (lotesTurmaFlat || []).find(
       (lote) => lote.numeroRequisicao === numeroRequisicaoParaAbrir
     );
     const alvoFolha = lotesFolhaPagamento.find(
@@ -470,78 +488,122 @@ const Pagamentos = () => {
 
   // Processar lotes para exibição na tabela (Turma Colheita)
   const lotesFiltradosOrdenadosTurmaColheita = useMemo(() => {
-    const termo = searchTerm.trim().toLowerCase();
+    // Usar searchTermAplicado ao invés de searchTerm para não filtrar durante digitação
+    const termo = searchTermAplicado.trim().toLowerCase();
 
     // Garantir que lotesTurmaColheita é um array
     if (!Array.isArray(lotesTurmaColheita)) {
       return [];
     }
 
-    // Trabalhar diretamente com lotes (não fazer flatMap)
-    let lotes = lotesTurmaColheita.map((lote) => ({
-      ...lote,
-      loteId: lote.id,
-    }));
-
-    // Aplicar filtros de busca inteligente (chips)
-    if (appliedFilters.length > 0) {
-      lotes = lotes.filter((lote) => {
-        return appliedFilters.some((filtro) => {
-          if (filtro.type === 'colhedor') {
-            const nomeColhedor = (lote.origemNome || lote.turmaResumo?.nomeColhedor || "").trim();
-            return nomeColhedor.toLowerCase() === filtro.value.toLowerCase();
-          }
-          // Funcionário não se aplica a lotes de turma de colheita
-          return false;
-        });
-      });
+    const filtrosColhedor = appliedFilters.filter((f) => f.type === "colhedor");
+    // Se há filtros, mas nenhum deles é aplicável à Turma, então esta seção deve ficar vazia
+    if (appliedFilters.length > 0 && filtrosColhedor.length === 0) {
+      return [];
     }
 
-    // Aplicar filtro de busca por texto (fallback)
-    if (termo && appliedFilters.length === 0) {
-      lotes = lotes.filter((lote) => {
-        const numero = (lote.numeroRequisicao || "").toString();
-        const origemNome = (lote.origemNome || "").toLowerCase();
-        const conta = `${lote.contaCorrente?.agencia || ""} ${lote.contaCorrente?.contaCorrente || ""}`.toLowerCase();
+    const normalize = (v) => (v ?? "").toString().trim().toLowerCase();
 
-        return (
-          numero.includes(termo) ||
-          origemNome.includes(termo) ||
-          conta.includes(termo)
-        );
-      });
-    }
-
-    if (tipoOrigem !== "TODOS") {
-      lotes = lotes.filter(
-        (lote) => (lote.origemTipo || "").toUpperCase() === tipoOrigem,
-      );
-    }
-
-    // Ordenar por tipo de origem e depois por dataCriacao (mais recente primeiro)
-    const tipoPrioridade = {
-      FUNCIONARIO: 1,
-      TURMA_COLHEITA: 2,
-      FORNECEDOR: 3,
-      DESCONHECIDO: 4,
+    const isItemPago = (estado) => {
+      const e = (estado || "").toString().trim().toUpperCase();
+      return e === "PAGO" || e === "PROCESSADO" || e === "DEBITADO";
     };
 
-    lotes.sort((a, b) => {
-      const pa = tipoPrioridade[(a.origemTipo || "DESCONHECIDO")] || 99;
-      const pb = tipoPrioridade[(b.origemTipo || "DESCONHECIDO")] || 99;
+    const calcularTotaisLoteTurma = (lote) => {
+      const itens = Array.isArray(lote?.itensPagamento) ? lote.itensPagamento : [];
+      let totalColheitas = 0;
+      let valorTotal = 0;
+      let valorProcessado = 0;
 
-      if (pa !== pb) {
-        return pa - pb;
+      itens.forEach((item) => {
+        const colheitas = Array.isArray(item?.colheitas) ? item.colheitas : [];
+        const valorItemColheitas = colheitas.reduce((acc, c) => acc + Number(c?.valorColheita || 0), 0);
+        valorTotal += valorItemColheitas;
+        totalColheitas += colheitas.length;
+
+        const estado = item?.estadoPagamentoIndividual || item?.status;
+        if (isItemPago(estado)) {
+          valorProcessado += valorItemColheitas;
+        }
+      });
+
+      const valorPendente = Math.max(0, valorTotal - valorProcessado);
+      return { totalColheitas, valorTotal, valorProcessado, valorPendente, totalItens: itens.length };
+    };
+
+    const loteTurmaMatch = (lote) => {
+      // Chips (somente colhedor)
+      if (filtrosColhedor.length > 0) {
+        const nomeColhedor = normalize(lote?.origemNome || lote?.turmaResumo?.nomeColhedor || "");
+        return filtrosColhedor.some((f) => nomeColhedor === normalize(f.value));
       }
 
+      // Texto (fallback)
+      if (termo) {
+        const numero = normalize(lote?.numeroRequisicao || "");
+        const origemNome = normalize(lote?.origemNome || "");
+        const conta = normalize(`${lote?.contaCorrente?.agencia || ""} ${lote?.contaCorrente?.contaCorrente || ""}`);
+        return numero.includes(termo) || origemNome.includes(termo) || conta.includes(termo);
+      }
+
+      return true;
+    };
+
+    // Se vier agrupado por dia do backend, precisamos filtrar os lotes DENTRO de cada dia
+    if (lotesTurmaColheita.length > 0 && lotesTurmaColheita[0]?.diaKey) {
+      const diasFiltrados = lotesTurmaColheita
+        .map((dia) => {
+          const lotesDia = Array.isArray(dia?.lotes) ? dia.lotes : [];
+          const lotesFiltrados = lotesDia
+            .filter(loteTurmaMatch)
+            .map((lote) => ({ ...lote, loteId: lote.id }));
+
+          if (lotesFiltrados.length === 0) return null;
+
+          // Recalcular estatísticas do dia com base no que está sendo exibido (importante quando há filtros locais)
+          const totals = lotesFiltrados.reduce(
+            (acc, lote) => {
+              const t = calcularTotaisLoteTurma(lote);
+              acc.totalLotes += 1;
+              acc.totalItens += t.totalItens;
+              acc.totalColheitas += t.totalColheitas;
+              acc.valorTotal += t.valorTotal;
+              acc.valorProcessado += t.valorProcessado;
+              return acc;
+            },
+            { totalLotes: 0, totalItens: 0, totalColheitas: 0, valorTotal: 0, valorProcessado: 0 }
+          );
+
+          const valorPendente = Math.max(0, totals.valorTotal - totals.valorProcessado);
+
+          return {
+            ...dia,
+            lotes: lotesFiltrados,
+            totalLotes: totals.totalLotes,
+            totalItens: totals.totalItens,
+            totalColheitas: totals.totalColheitas,
+            valorTotal: totals.valorTotal,
+            valorProcessado: totals.valorProcessado,
+            valorPendente,
+          };
+        })
+        .filter(Boolean);
+
+      return diasFiltrados;
+    }
+
+    // Caso venha como lista simples de lotes
+    let lotes = lotesTurmaColheita.map((lote) => ({ ...lote, loteId: lote.id }));
+    lotes = lotes.filter(loteTurmaMatch);
+
+    lotes.sort((a, b) => {
       const da = new Date(a.dataCriacao).getTime();
       const db = new Date(b.dataCriacao).getTime();
-
       return db - da;
     });
 
     return lotes;
-  }, [lotesTurmaColheita, searchTermAplicado, tipoOrigem, appliedFilters]);
+  }, [lotesTurmaColheita, searchTermAplicado, appliedFilters]);
 
   // Processar lotes para exibição na tabela (Folha Pagamento)
   const lotesFiltradosOrdenadosFolhaPagamento = useMemo(() => {
@@ -559,62 +621,62 @@ const Pagamentos = () => {
       loteId: lote.id,
     }));
 
-    // Aplicar filtros de busca inteligente (chips)
-    if (appliedFilters.length > 0) {
-      lotes = lotes.filter((lote) => {
-        return appliedFilters.some((filtro) => {
-          if (filtro.type === 'funcionario') {
-            const itens = lote.itensPagamento || [];
-            return itens.some(item => {
-              const funcionario = item.funcionarioPagamento?.funcionario;
-              if (!funcionario) return false;
-              
-              // Se filtro tem CPF, comparar por CPF
-              if (filtro.metadata?.cpf && funcionario.cpf) {
-                const cpfFiltro = filtro.metadata.cpf.replace(/\D/g, '');
-                const cpfFuncionario = funcionario.cpf.replace(/\D/g, '');
-                if (cpfFiltro === cpfFuncionario) return true;
-              }
-              
-              // Comparar por nome
-              const nomeFuncionario = (funcionario.nome || "").trim().toLowerCase();
-              const nomeFiltro = filtro.metadata?.nome?.toLowerCase() || filtro.value.toLowerCase();
-              if (nomeFuncionario === nomeFiltro) return true;
-              
-              // Comparar por chavePix
-              if (filtro.metadata?.chavePix && funcionario.chavePix) {
-                const chavePixFiltro = filtro.metadata.chavePix.toLowerCase();
-                const chavePixFuncionario = funcionario.chavePix.toLowerCase();
-                if (chavePixFiltro === chavePixFuncionario) return true;
-              }
-              
-              // Comparar por responsavelChavePix
-              if (filtro.metadata?.responsavelChavePix && funcionario.responsavelChavePix) {
-                const responsavelFiltro = filtro.metadata.responsavelChavePix.toLowerCase();
-                const responsavelFuncionario = funcionario.responsavelChavePix.toLowerCase();
-                if (responsavelFiltro === responsavelFuncionario) return true;
-              }
-              
-              // Comparar por apelido
-              if (filtro.metadata?.apelido && funcionario.apelido) {
-                const apelidoFiltro = filtro.metadata.apelido.toLowerCase();
-                const apelidoFuncionario = funcionario.apelido.toLowerCase();
-                if (apelidoFiltro === apelidoFuncionario) return true;
-              }
-              
-              // Comparar pelo valor do filtro diretamente (caso seja chavePix, responsavel ou apelido)
-              const valorFiltro = filtro.value.toLowerCase();
-              if (funcionario.chavePix && funcionario.chavePix.toLowerCase() === valorFiltro) return true;
-              if (funcionario.responsavelChavePix && funcionario.responsavelChavePix.toLowerCase() === valorFiltro) return true;
-              if (funcionario.apelido && funcionario.apelido.toLowerCase() === valorFiltro) return true;
-              
-              return false;
-            });
-          }
-          // Colhedor não se aplica a lotes de folha de pagamento
-          return false;
-        });
-      });
+    const normalize = (v) => (v ?? "").toString().trim().toLowerCase();
+    const filtrosFuncionario = appliedFilters.filter((f) => f.type === "funcionario");
+    // Se há filtros, mas nenhum deles é aplicável à Folha, então esta seção deve ficar vazia
+    if (appliedFilters.length > 0 && filtrosFuncionario.length === 0) {
+      return [];
+    }
+
+    const itemMatchFuncionario = (item, filtro) => {
+      const funcionario = item?.funcionarioPagamento?.funcionario;
+      if (!funcionario) return false;
+
+      // Se filtro tem CPF, comparar por CPF
+      if (filtro?.metadata?.cpf && funcionario.cpf) {
+        const cpfFiltro = filtro.metadata.cpf.replace(/\D/g, "");
+        const cpfFuncionario = funcionario.cpf.replace(/\D/g, "");
+        if (cpfFiltro === cpfFuncionario) return true;
+      }
+
+      const nomeFuncionario = normalize(funcionario.nome || "");
+      const nomeFiltro = normalize(filtro?.metadata?.nome || filtro?.value || "");
+      if (nomeFuncionario && nomeFiltro && nomeFuncionario === nomeFiltro) return true;
+
+      // Comparar por chavePix / responsavel / apelido
+      const valorFiltro = normalize(filtro?.value || "");
+      if (funcionario.chavePix && normalize(funcionario.chavePix) === valorFiltro) return true;
+      if (funcionario.responsavelChavePix && normalize(funcionario.responsavelChavePix) === valorFiltro) return true;
+      if (funcionario.apelido && normalize(funcionario.apelido) === valorFiltro) return true;
+
+      return false;
+    };
+
+    // Chips: se tiver filtro(s) de funcionário, exibir apenas os itens daquele(s) funcionário(s) dentro do lote
+    if (filtrosFuncionario.length > 0) {
+      lotes = lotes
+        .map((lote) => {
+          const itens = Array.isArray(lote?.itensPagamento) ? lote.itensPagamento : [];
+          const itensFiltrados = itens.filter((item) =>
+            filtrosFuncionario.some((f) => itemMatchFuncionario(item, f))
+          );
+          if (itensFiltrados.length === 0) return null;
+
+          const valorTotalFuncionariosFiltrado = itensFiltrados.reduce((acc, item) => {
+            const valorLiquido = item?.funcionarioPagamento?.valorLiquido;
+            if (valorLiquido !== null && valorLiquido !== undefined) return acc + Number(valorLiquido || 0);
+            return acc + Number(item?.valorEnviado || 0);
+          }, 0);
+
+          return {
+            ...lote,
+            itensPagamento: itensFiltrados,
+            quantidadeItens: itensFiltrados.length,
+            // Ajuda o card/coluna "Valor Total" a refletir o filtro (apenas nesta visualização)
+            valorTotalFuncionarios: valorTotalFuncionariosFiltrado,
+          };
+        })
+        .filter(Boolean);
     }
 
     // Aplicar filtro de busca por texto (fallback - apenas se não houver filtros aplicados)
@@ -633,37 +695,15 @@ const Pagamentos = () => {
       });
     }
 
-    if (tipoOrigem !== "TODOS") {
-      lotes = lotes.filter(
-        (lote) => (lote.origemTipo || "").toUpperCase() === tipoOrigem,
-      );
-    }
-
-    // Ordenar por tipo de origem e depois por dataCriacao (mais recente primeiro)
-    const tipoPrioridade = {
-      FUNCIONARIO: 1,
-      TURMA_COLHEITA: 2,
-      FORNECEDOR: 3,
-      FOLHA_PAGAMENTO: 1, // Mesma prioridade de FUNCIONARIO
-      DESCONHECIDO: 4,
-    };
-
+    // Ordenar por dataCriacao (mais recente primeiro)
     lotes.sort((a, b) => {
-      const pa = tipoPrioridade[(a.origemTipo || "DESCONHECIDO")] || 99;
-      const pb = tipoPrioridade[(b.origemTipo || "DESCONHECIDO")] || 99;
-
-      if (pa !== pb) {
-        return pa - pb;
-      }
-
       const da = new Date(a.dataCriacao).getTime();
       const db = new Date(b.dataCriacao).getTime();
-
       return db - da;
     });
 
     return lotes;
-  }, [lotesFolhaPagamento, searchTermAplicado, tipoOrigem, appliedFilters]);
+  }, [lotesFolhaPagamento, searchTermAplicado, appliedFilters]);
 
   // Efeito para gerenciar expansão automática das seções baseado nos dados filtrados
   // IMPORTANTE: Só aplicar quando há filtros aplicados (chips), não durante digitação
@@ -1251,6 +1291,11 @@ const Pagamentos = () => {
               value={searchTerm}
               onChange={(value) => setSearchTerm(value)}
               onSuggestionSelect={handleSuggestionSelect}
+              onSearch={(term) => {
+                const t = (term || "").toString();
+                setSearchTerm(t);
+                setSearchTermAplicado(t);
+              }}
               size={isMobile ? "small" : "middle"}
               style={{
                 width: "100%",
@@ -1530,6 +1575,7 @@ const Pagamentos = () => {
           dataFim={dateRange && dateRange.length === 2 && dateRange[1] ? moment(dateRange[1]).endOf("day").toISOString() : null}
           tipoData={dateFilterType}
           contaCorrenteId={contaCorrenteId}
+          usarEstatisticasBackendPorDia={!(appliedFilters.length > 0 || searchTermAplicado.trim())}
         />
       )}
 

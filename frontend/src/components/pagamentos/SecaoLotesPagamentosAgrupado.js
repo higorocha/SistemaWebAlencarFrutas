@@ -35,12 +35,19 @@ import {
   CalendarOutlined,
 } from "@ant-design/icons";
 import ResponsiveTable from "../common/ResponsiveTable";
-import { formatCurrency } from "../../utils/formatters";
+import { formatCurrency, formatarChavePixPorTipo, capitalizeName } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import moment from "moment";
 
 const { Text, Title } = Typography;
 const { Panel } = Collapse;
+
+const ITEM_ESTADOS_PAGOS = new Set(["PAGO", "PAGO ", "PROCESSADO", "DEBITADO", "DEBITADO ", "DEBITADO".toLowerCase()]);
+
+const isItemPago = (estado) => {
+  const normalizado = (estado || "").toString().trim().toUpperCase();
+  return normalizado === "PAGO" || normalizado === "PROCESSADO" || normalizado === "DEBITADO";
+};
 
 const SecaoLotesPagamentosAgrupado = ({
   titulo,
@@ -60,6 +67,7 @@ const SecaoLotesPagamentosAgrupado = ({
   dataFim,
   tipoData,
   contaCorrenteId,
+  usarEstatisticasBackendPorDia = true,
 }) => {
   const { isMobile } = useResponsive();
   const isExpanded = activeKey;
@@ -95,6 +103,12 @@ const SecaoLotesPagamentosAgrupado = ({
         setEstatisticasPorDia(statsLocais);
       }
 
+      // ✅ Quando há filtros locais ativos (chips/texto), não buscar estatísticas do backend,
+      // senão ele sobrescreve os totais filtrados e "desalinha" o que está na tela.
+      if (!usarEstatisticasBackendPorDia) {
+        return;
+      }
+
       try {
         setLoadingEstatisticasPorDia(true);
 
@@ -123,7 +137,7 @@ const SecaoLotesPagamentosAgrupado = ({
       // Limpar estatísticas quando colapsa para economizar memória
       setEstatisticasPorDia([]);
     }
-  }, [isExpanded, dataInicio, dataFim, tipoData, contaCorrenteId, dadosJaAgrupados, lotes]);
+  }, [isExpanded, dataInicio, dataFim, tipoData, contaCorrenteId, dadosJaAgrupados, lotes, usarEstatisticasBackendPorDia]);
 
   // Agrupar lotes por dia (dataCriacao) - apenas se não vierem agrupados do backend
   const lotesAgrupadosPorDia = useMemo(() => {
@@ -184,7 +198,9 @@ const SecaoLotesPagamentosAgrupado = ({
   const diasComEstatisticas = useMemo(() => {
     return lotesAgrupadosPorDia.map((grupo) => {
       // Buscar estatísticas do backend para este dia
-      const statsBackend = estatisticasPorDia.find((stat) => stat.dia === grupo.diaKey);
+      const statsBackend = usarEstatisticasBackendPorDia
+        ? estatisticasPorDia.find((stat) => stat.dia === grupo.diaKey)
+        : undefined;
 
       // Calcular valor dos lotes excluídos/rejeitados (não considerar nos totais)
       const valorExcluidosRejeitados = grupo.lotes.reduce((acc, lote) => {
@@ -248,7 +264,7 @@ const SecaoLotesPagamentosAgrupado = ({
         valorExcluidosRejeitados,
       };
     });
-  }, [lotesAgrupadosPorDia, estatisticasPorDia, dadosJaAgrupados]);
+  }, [lotesAgrupadosPorDia, estatisticasPorDia, dadosJaAgrupados, usarEstatisticasBackendPorDia]);
 
   // Paginação por dia
   const diasPaginados = useMemo(() => {
@@ -788,7 +804,55 @@ const SecaoLotesPagamentosAgrupado = ({
                               expandedRowRender: (record) => {
                                 const itens = record.itensPagamento || [];
 
-                                if (itens.length === 0) {
+                                // Ordenação apenas nesta seção (Turma de Colheita):
+                                // 1) Pendentes primeiro
+                                // 2) Pagos em ordem alfabética (por responsável da chave PIX; fallback para chave / código)
+                                const itensOrdenados = [...itens].sort((a, b) => {
+                                  const estadoA = a.estadoPagamentoIndividual || a.status;
+                                  const estadoB = b.estadoPagamentoIndividual || b.status;
+                                  const pagoA = isItemPago(estadoA);
+                                  const pagoB = isItemPago(estadoB);
+
+                                  if (pagoA !== pagoB) return pagoA ? 1 : -1; // pendentes primeiro
+
+                                  // Se ambos forem pagos, ordenar alfabeticamente
+                                  if (pagoA && pagoB) {
+                                    const nomeA = (
+                                      a.responsavelChavePixEnviado ||
+                                      record.turmaResumo?.responsavelChavePix ||
+                                      a.chavePixEnviada ||
+                                      record.turmaResumo?.chavePix ||
+                                      a.identificadorPagamento ||
+                                      a.codigoIdentificadorPagamento ||
+                                      a.codigoPagamento ||
+                                      ""
+                                    )
+                                      .toString()
+                                      .trim()
+                                      .toLowerCase();
+
+                                    const nomeB = (
+                                      b.responsavelChavePixEnviado ||
+                                      record.turmaResumo?.responsavelChavePix ||
+                                      b.chavePixEnviada ||
+                                      record.turmaResumo?.chavePix ||
+                                      b.identificadorPagamento ||
+                                      b.codigoIdentificadorPagamento ||
+                                      b.codigoPagamento ||
+                                      ""
+                                    )
+                                      .toString()
+                                      .trim()
+                                      .toLowerCase();
+
+                                    return nomeA.localeCompare(nomeB, "pt-BR", { sensitivity: "base" });
+                                  }
+
+                                  // Caso ambos sejam pendentes, manter ordem original (estável)
+                                  return 0;
+                                });
+
+                                if (itensOrdenados.length === 0) {
                                   return (
                                     <div
                                       style={{
@@ -821,11 +885,16 @@ const SecaoLotesPagamentosAgrupado = ({
                                         display: "block",
                                       }}
                                     >
-                                      Itens do Lote ({itens.length}):
+                                      Itens do Lote ({itensOrdenados.length}):
                                     </Text>
                                     <div style={{ display: "grid", gap: "8px" }}>
-                                      {itens.map((item, index) => {
+                                      {itensOrdenados.map((item, index) => {
                                         const colheitas = item.colheitas || [];
+                                        const chavePixExibir = item.chavePixEnviada || record.turmaResumo?.chavePix || null;
+                                        const responsavelChavePixExibir =
+                                          item.responsavelChavePixEnviado ||
+                                          record.turmaResumo?.responsavelChavePix ||
+                                          null;
 
                                         return (
                                           <Card
@@ -900,6 +969,73 @@ const SecaoLotesPagamentosAgrupado = ({
                                                   </Text>
                                                 </div>
                                               </Col>
+
+                                              {chavePixExibir && (
+                                                <Col flex="none" style={{ minWidth: "140px", maxWidth: "140px" }}>
+                                                  <div>
+                                                    <Text
+                                                      type="secondary"
+                                                      style={{
+                                                        fontSize: "12px",
+                                                        display: "block",
+                                                        marginBottom: "4px",
+                                                        lineHeight: "1.2",
+                                                        fontWeight: "500",
+                                                        color: "#595959",
+                                                      }}
+                                                    >
+                                                      Chave PIX
+                                                    </Text>
+                                                    <Text
+                                                      style={{
+                                                        display: "block",
+                                                        fontSize: "13px",
+                                                        fontFamily: "monospace",
+                                                        wordBreak: "break-all",
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
+                                                      }}
+                                                    >
+                                                      {item.chavePixEnviada
+                                                        ? formatarChavePixPorTipo(item.chavePixEnviada, item.tipoChavePixEnviado)
+                                                        : chavePixExibir}
+                                                    </Text>
+                                                  </div>
+                                                </Col>
+                                              )}
+
+                                              {responsavelChavePixExibir && (
+                                                <Col flex="none" style={{ minWidth: "216px", maxWidth: "216px" }}>
+                                                  <div>
+                                                    <Text
+                                                      type="secondary"
+                                                      style={{
+                                                        fontSize: "12px",
+                                                        display: "block",
+                                                        marginBottom: "4px",
+                                                        lineHeight: "1.2",
+                                                        fontWeight: "500",
+                                                        color: "#595959",
+                                                      }}
+                                                    >
+                                                      Resp. Chave PIX
+                                                    </Text>
+                                                    <Text
+                                                      style={{
+                                                        display: "block",
+                                                        fontSize: "13px",
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
+                                                        whiteSpace: "nowrap",
+                                                      }}
+                                                    >
+                                                      {item.responsavelChavePixEnviado
+                                                        ? capitalizeName(item.responsavelChavePixEnviado)
+                                                        : capitalizeName(responsavelChavePixExibir)}
+                                                    </Text>
+                                                  </div>
+                                                </Col>
+                                              )}
 
                                               <Col flex="auto" style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-end", paddingBottom: "2px" }}>
                                                 {(item.identificadorPagamento ||

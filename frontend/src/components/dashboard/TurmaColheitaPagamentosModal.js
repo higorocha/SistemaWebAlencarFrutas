@@ -41,7 +41,7 @@ import {
 import styled from "styled-components";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
-import { formatCurrency, capitalizeNameShort, capitalizeName, formatarDataParaAPIBB } from "../../utils/formatters";
+import { formatCurrency, capitalizeNameShort, capitalizeName, formatarDataParaAPIBB, formatarChavePixPorTipo } from "../../utils/formatters";
 import useResponsive from "../../hooks/useResponsive";
 import useRestricaoDataPagamentoLoteBB from "../../hooks/useRestricaoDataPagamentoLoteBB";
 import ResponsiveTable from "../common/ResponsiveTable";
@@ -1343,7 +1343,7 @@ const TurmaColheitaPagamentosModal = ({
                     <Space>
                       <CreditCardOutlined />
                       <strong>Chave PIX:</strong>
-                      <Text code>{dados.turma.chavePix}</Text>
+                      <Text code>{formatarChavePixPorTipo(dados.turma.chavePix, dados.turma.tipoChavePix)}</Text>
                     </Space>
                   }
                   type="info"
@@ -1519,7 +1519,7 @@ const TurmaColheitaPagamentosModal = ({
                           {totaisColhidos.map((item, index) => (
                               <span key={index} style={{ marginRight: '8px' }}>
                                 <span style={{ fontSize: isMobile ? '1rem' : '1.5rem' }}>
-                                  {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {item.total.toLocaleString('pt-BR')}
                                 </span>
                                 <span style={{ 
                                   fontSize: isMobile ? '0.6rem' : '0.7rem',

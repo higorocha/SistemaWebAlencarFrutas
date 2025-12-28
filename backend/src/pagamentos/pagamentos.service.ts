@@ -1857,12 +1857,16 @@ export class PagamentosService {
       lote.itensPagamento.forEach(item => {
         const estado = item.estadoPagamentoIndividual || item.status;
         if (estado === 'PAGO' || estado === 'Pago' || estado === 'PROCESSADO' || estado === 'Debitado') {
-          valorTotalLiberado += Number(item.valorEnviado || 0);
+          // ✅ Importante: para Turma de Colheita, o "valor liberado" precisa seguir o valor das COLHEITAS,
+          // não o valorEnviado (que pode divergir e causar pendente negativo).
+          item.colheitas.forEach(rel => {
+            valorTotalLiberado += Number(rel.valorColheita || 0);
+          });
         }
       });
     });
 
-    const valorTotalPendente = valorTotalColheitas - valorTotalLiberado;
+    const valorTotalPendente = Math.max(0, valorTotalColheitas - valorTotalLiberado);
 
     return {
       totalLotes,
@@ -1983,28 +1987,28 @@ export class PagamentosService {
         // Calcular valores
         lote.itensPagamento.forEach((item) => {
           const estado = item.estadoPagamentoIndividual || item.status;
-          const valorItem = Number(item.valorEnviado || 0);
+          const valorItemColheitas = item.colheitas.reduce((acc: number, rel: any) => {
+            return acc + Number(rel.valorColheita || 0);
+          }, 0);
 
-          // Valor processado: itens com estado PAGO, PROCESSADO, Debitado
-          if (
+          // Valor total: soma dos valores das colheitas vinculadas
+          grupo.valorTotal += valorItemColheitas;
+          grupo.totalColheitas += item.colheitas.length;
+
+          const itemPago =
             estado === 'PAGO' ||
             estado === 'Pago' ||
             estado === 'PROCESSADO' ||
-            estado === 'Debitado'
-          ) {
-            grupo.valorProcessado += valorItem;
-          }
+            estado === 'Debitado';
 
-          // Valor total: soma dos valores das colheitas vinculadas
-          item.colheitas.forEach((rel) => {
-            grupo.valorTotal += Number(rel.valorColheita || 0);
-            grupo.totalColheitas += 1;
-          });
+          if (itemPago) {
+            // ✅ Para turma de colheita, processado precisa acompanhar o valor das colheitas do item.
+            grupo.valorProcessado += valorItemColheitas;
+          } else {
+            grupo.valorPendente += valorItemColheitas;
+          }
         });
       });
-
-      // Valor pendente = valor total - valor processado
-      grupo.valorPendente = grupo.valorTotal - grupo.valorProcessado;
     });
 
     // Converter para array e ordenar por data (mais recente primeiro)
@@ -2533,14 +2537,14 @@ export class PagamentosService {
         }
       }
 
-      const origemTipo = todasColheitas.length > 0 ? 'TURMA_COLHEITA' : 'DESCONHECIDO';
-      const origemNome = todasColheitas[0]?.turmaColheita?.nomeColhedor || null;
-
       // Mapear lotes do dia
       const lotesMapeados = lotes.map((lote) => {
         const loteColheitas = lote.itensPagamento.flatMap((item) =>
           item.colheitas.map((rel) => rel.turmaColheitaCusto),
         );
+        const origemTipoLote = loteColheitas.length > 0 ? 'TURMA_COLHEITA' : 'DESCONHECIDO';
+        const origemNomeLote = loteColheitas[0]?.turmaColheita?.nomeColhedor || null;
+        const primeiroItemLote = lote.itensPagamento?.[0];
 
         return {
           id: lote.id,
@@ -2566,8 +2570,8 @@ export class PagamentosService {
           valorTotalEnviado: lote.valorTotalEnviado,
           valorTotalValidado: lote.valorTotalValido,
           valorTotalColheitas: loteColheitas.reduce((acc, c) => acc + (c.valorColheita || 0), 0),
-          dataPagamentoAgendada: primeiroItem?.dataPagamentoEnviada ? (() => {
-            const dataStr = primeiroItem.dataPagamentoEnviada.toString().trim();
+          dataPagamentoAgendada: primeiroItemLote?.dataPagamentoEnviada ? (() => {
+            const dataStr = primeiroItemLote.dataPagamentoEnviada.toString().trim();
             if (dataStr.length === 8) {
               const dia = parseInt(dataStr.substring(0, 2), 10);
               const mes = parseInt(dataStr.substring(2, 4), 10) - 1;
@@ -2585,8 +2589,8 @@ export class PagamentosService {
             }
             return null;
           })() : null,
-          origemTipo,
-          origemNome,
+          origemTipo: origemTipoLote,
+          origemNome: origemNomeLote,
           usuarioCriacao: lote.usuarioCriacao ? {
             id: lote.usuarioCriacao.id,
             nome: lote.usuarioCriacao.nome,
@@ -2634,35 +2638,37 @@ export class PagamentosService {
               dataPagamento: rel.turmaColheitaCusto.dataPagamento,
             })),
           })),
-          turmaResumo: todasColheitas.length > 0 ? {
-            turmaId: todasColheitas[0].turmaColheitaId,
-            nomeColhedor: todasColheitas[0].turmaColheita?.nomeColhedor || null,
-            chavePix: todasColheitas[0].turmaColheita?.chavePix || null,
-            responsavelChavePix: todasColheitas[0].turmaColheita?.responsavelChavePix || null,
+          turmaResumo: loteColheitas.length > 0 ? {
+            turmaId: loteColheitas[0].turmaColheitaId,
+            nomeColhedor: loteColheitas[0].turmaColheita?.nomeColhedor || null,
+            chavePix: loteColheitas[0].turmaColheita?.chavePix || null,
+            responsavelChavePix: loteColheitas[0].turmaColheita?.responsavelChavePix || null,
           } : null,
         };
       });
 
-      // Calcular valor processado e pendente para o dia
+      // Calcular valor processado e pendente para o dia (baseado no valor das COLHEITAS)
       let valorProcessado = 0;
       lotes.forEach((lote) => {
         lote.itensPagamento.forEach((item) => {
           const estado = item.estadoPagamentoIndividual || item.status;
-          const valorItem = Number(item.valorEnviado || 0);
-
-          // Valor processado: itens com estado PAGO, PROCESSADO, Debitado
-          if (
+          const itemPago =
             estado === 'PAGO' ||
             estado === 'Pago' ||
             estado === 'PROCESSADO' ||
-            estado === 'Debitado'
-          ) {
-            valorProcessado += valorItem;
-          }
+            estado === 'Debitado';
+
+          if (!itemPago) return;
+
+          // Somar o valor das colheitas vinculadas ao item (não usar valorEnviado)
+          item.colheitas.forEach((rel) => {
+            const valorRel = Number(rel.valorColheita ?? rel.turmaColheitaCusto?.valorColheita ?? 0);
+            valorProcessado += valorRel;
+          });
         });
       });
 
-      const valorPendente = valorTotalColheitas - valorProcessado;
+      const valorPendente = Math.max(0, valorTotalColheitas - valorProcessado);
 
       return {
         diaKey,
