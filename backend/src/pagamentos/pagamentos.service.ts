@@ -1949,11 +1949,14 @@ export class PagamentosService {
     }>();
 
     lotes.forEach((lote) => {
-      // Normalizar data para o início do dia
+      // Normalizar data para o início do dia usando UTC para evitar problemas de fuso horário
       const dataCriacao = new Date(lote.createdAt);
-      dataCriacao.setHours(0, 0, 0, 0);
-      const diaKey = dataCriacao.toISOString().split('T')[0]; // YYYY-MM-DD
-      const diaLabel = `${String(dataCriacao.getDate()).padStart(2, '0')}/${String(dataCriacao.getMonth() + 1).padStart(2, '0')}/${dataCriacao.getFullYear()}`;
+      // Extrair componentes de data em UTC para evitar problemas de fuso horário
+      const ano = dataCriacao.getUTCFullYear();
+      const mes = String(dataCriacao.getUTCMonth() + 1).padStart(2, '0');
+      const dia = String(dataCriacao.getUTCDate()).padStart(2, '0');
+      const diaKey = `${ano}-${mes}-${dia}`; // YYYY-MM-DD
+      const diaLabel = `${dia}/${mes}/${ano}`; // DD/MM/YYYY
 
       if (!gruposPorDia.has(diaKey)) {
         gruposPorDia.set(diaKey, {
@@ -2458,12 +2461,17 @@ export class PagamentosService {
     });
 
     // Agrupar por dia
+    // IMPORTANTE: Usar UTC para evitar problemas de fuso horário
+    // Extrair ano, mês e dia diretamente da data UTC sem depender do fuso local
     const gruposPorDia = new Map<string, any[]>();
 
     todosLotes.forEach((lote) => {
       const dataCriacao = new Date(lote.createdAt);
-      dataCriacao.setHours(0, 0, 0, 0);
-      const diaKey = dataCriacao.toISOString().split('T')[0];
+      // Extrair componentes de data em UTC para evitar problemas de fuso horário
+      const ano = dataCriacao.getUTCFullYear();
+      const mes = String(dataCriacao.getUTCMonth() + 1).padStart(2, '0');
+      const dia = String(dataCriacao.getUTCDate()).padStart(2, '0');
+      const diaKey = `${ano}-${mes}-${dia}`;
 
       if (!gruposPorDia.has(diaKey)) {
         gruposPorDia.set(diaKey, []);
@@ -2670,10 +2678,14 @@ export class PagamentosService {
 
       const valorPendente = Math.max(0, valorTotalColheitas - valorProcessado);
 
+      // Formatar diaLabel a partir do diaKey (YYYY-MM-DD) sem depender de fuso horário
+      const [anoLabel, mesLabel, diaLabel] = diaKey.split('-');
+      const diaLabelFormatado = `${diaLabel}/${mesLabel}/${anoLabel}`;
+
       return {
         diaKey,
-        diaLabel: `${String(new Date(diaKey).getDate()).padStart(2, '0')}/${String(new Date(diaKey).getMonth() + 1).padStart(2, '0')}/${new Date(diaKey).getFullYear()}`,
-        dataCriacao: new Date(diaKey),
+        diaLabel: diaLabelFormatado,
+        dataCriacao: new Date(diaKey + 'T00:00:00.000Z'), // Usar UTC para evitar problemas de fuso
         lotes: lotesMapeados,
         // Estatísticas do dia (calculadas aqui, mas podem ser sobrescritas pelo endpoint de estatísticas)
         totalLotes: lotes.length,

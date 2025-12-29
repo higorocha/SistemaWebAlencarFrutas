@@ -71,6 +71,8 @@ const EditarPedidoDialog = ({
     valorFinal: 0,
   });
   const [loadingData, setLoadingData] = useState(false);
+  // ✅ BLOQUEIO: impedir edição de Colheita/Mão de Obra quando pagamento estiver PROCESSANDO/PAGO
+  const [colheitaLocked, setColheitaLocked] = useState(false);
 
   const parseDecimalValue = (valor) => {
     if (valor === null || valor === undefined || valor === '') {
@@ -345,6 +347,19 @@ const EditarPedidoDialog = ({
           const response = await axiosInstance.get(`/api/turma-colheita/colheita-pedido/pedido/${pedido.id}`);
           const maoObraExistente = response.data || [];
 
+          // ✅ BLOQUEIO: Se existir qualquer item com pagamento PROCESSANDO/PAGO (ou já pago),
+          // bloquear edição de colheita/mão de obra para evitar apagar vínculos PIX-API.
+          const existeBloqueio = maoObraExistente.some((item) => {
+            const status = (item?.statusPagamento || '').toString().trim().toUpperCase();
+            return (
+              item?.vinculadoPixApi === true ||
+              item?.pagamentoEfetuado === true ||
+              status === 'PROCESSANDO' ||
+              status === 'PAGO'
+            );
+          });
+          setColheitaLocked(existeBloqueio);
+
           // Transformar dados da API para o formato do frontend
           const maoObraFormatada = maoObraExistente.map(item => {
             // ✅ NOVO: Determinar se deve usar unidade secundária baseado na unidadeMedida do backend
@@ -378,6 +393,8 @@ const EditarPedidoDialog = ({
                 : undefined,
               observacoes: item.observacoes || '',
               pagamentoEfetuado: item.pagamentoEfetuado || false,
+              statusPagamento: item.statusPagamento || undefined,
+              vinculadoPixApi: item.vinculadoPixApi || false,
               // ✅ NOVO: Incluir estado do toggle baseado na unidadeMedida do backend
               usarUnidadeSecundaria: usarUnidadeSecundaria
             };
@@ -394,10 +411,12 @@ const EditarPedidoDialog = ({
           console.error("Erro ao carregar mão de obra:", error);
           // ✅ CORREÇÃO: Em caso de erro, inicializar com array vazio
           setPedidoAtual(prev => ({ ...prev, maoObra: [] }));
+          setColheitaLocked(false);
         }
       } else if (open && pedido && !podeEditarColheita) {
         // Para pedidos que não podem editar colheita, deixar vazio
         setPedidoAtual(prev => ({ ...prev, maoObra: [] }));
+        setColheitaLocked(false);
       }
     };
 
@@ -1267,6 +1286,7 @@ const EditarPedidoDialog = ({
             erros={erros}
             setErros={setErros}
             canEditTab={canEditTab}
+            colheitaLocked={colheitaLocked}
             frutas={frutas}
             areasProprias={areasProprias}
             areasFornecedores={areasFornecedores}

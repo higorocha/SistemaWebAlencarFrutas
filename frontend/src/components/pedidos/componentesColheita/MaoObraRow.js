@@ -28,6 +28,7 @@ const MaoObraRow = ({
   onAdd,
   capitalizeName,
   pagamentoEfetuado = false,
+  rowLocked = false,
 }) => {
   // ✅ Usar Form.useWatch DENTRO do componente (não no map)
   const frutaIdSelecionado = Form.useWatch(['maoObra', index, 'frutaId'], form);
@@ -147,8 +148,8 @@ const MaoObraRow = ({
   const qtd = parseFloat(qtdStr) || 0;
   const quantidadePreenchida = qtd > 0;
 
-  // ✅ Linha de mão de obra já paga não pode ser editada/removida
-  const isReadonly = pagamentoEfetuado === true;
+  // ✅ Linha protegida (PROCESSANDO/PAGO/vinculada PIX-API) não pode ser editada/removida
+  const isReadonly = pagamentoEfetuado === true || rowLocked === true;
 
   // ✅ Ref para controlar qual campo está sendo editado (evitar loop)
   const isEditingValorUnitario = React.useRef(false);
@@ -358,7 +359,7 @@ const MaoObraRow = ({
                 {identificador}
               </Text>
               {isReadonly && (
-                <Tooltip title="Mão de obra já paga. Edição e exclusão bloqueadas.">
+                <Tooltip title="Pagamento PROCESSANDO/PAGO ou vínculo PIX-API. Edição e exclusão bloqueadas.">
                   <CheckCircleOutlined style={{ color: "#16a34a", fontSize: 14 }} />
                 </Tooltip>
               )}
@@ -747,7 +748,7 @@ const MaoObraRow = ({
                   onRemove(name);
                 }
               }}
-              disabled={fieldsLength <= 1}
+              disabled={fieldsLength <= 1 || isReadonly}
               size={isMobile ? "small" : "large"}
               style={{
                 borderRadius: "3.125rem",

@@ -3674,21 +3674,44 @@ export class PedidosService {
             quantidadeColhida: true,
             valorColheita: true,
             observacoes: true,
+            statusPagamento: true,
             pagamentoEfetuado: true,
+            _count: {
+              select: {
+                pagamentoApiItemColheitas: true,
+              },
+            },
           },
         });
 
-        // Verificar se há custos já pagos
-        const possuiPagamentosEfetuados = custosAtuais.some(
-          (custo) => custo.pagamentoEfetuado === true,
-        );
+        // ✅ Custos protegidos: não podem ser alterados nem removidos
+        // - PROCESSANDO/PAGO, ou
+        // - vinculados ao PIX-API (PagamentoApiItemColheita)
+        const custosProtegidos = custosAtuais.filter((c: any) => {
+          const status = (c.statusPagamento || '').toString().trim().toUpperCase();
+          const vinculadoPix = (c?._count?.pagamentoApiItemColheitas ?? 0) > 0;
+          return (
+            c.pagamentoEfetuado === true ||
+            status === 'PROCESSANDO' ||
+            status === 'PAGO' ||
+            vinculadoPix
+          );
+        });
+        const idsCustosProtegidos = new Set<number>(custosProtegidos.map((c: any) => c.id));
+
+        // Verificar se há custos já pagos OU protegidos (equivale a "não posso substituir tudo")
+        const possuiPagamentosOuProtegidos =
+          custosProtegidos.length > 0 ||
+          custosAtuais.some((c: any) => c.pagamentoEfetuado === true);
 
         // =====================================================
         // CASO 1: Não há pagamentos efetuados -> substituir tudo
         //         (mais simples e garante que frutaId acompanha
         //          exatamente o que veio do frontend)
         // =====================================================
-        if (!possuiPagamentosEfetuados) {
+        // ✅ Porém, se existir qualquer custo protegido (PROCESSANDO/PAGO ou vinculado PIX-API),
+        // NÃO podemos deletar/recriar, senão perdemos vínculos por cascade.
+        if (!possuiPagamentosOuProtegidos) {
           // Remover todos os custos atuais do pedido
           if (custosAtuais.length > 0) {
             console.log(
@@ -3765,7 +3788,7 @@ export class PedidosService {
           }
         } else {
           // =====================================================
-          // CASO 2: Há pagamentos efetuados -> comportamento anterior
+          // CASO 2: Há pagamentos efetuados OU custos protegidos -> fluxo incremental
           //         (não removemos tudo para não quebrar vínculos)
           // =====================================================
 
@@ -3780,7 +3803,12 @@ export class PedidosService {
 
           // Remover custos obsoletos (apenas os que não têm pagamento efetuado)
           const idsParaRemover = custosParaRemover
-            .filter((c) => !c.pagamentoEfetuado)
+            .filter(
+              (c) =>
+                !c.pagamentoEfetuado &&
+                c.statusPagamento !== 'PROCESSANDO' &&
+                c.statusPagamento !== 'PAGO',
+            )
             .map((c) => c.id);
 
           if (idsParaRemover.length > 0) {
@@ -3789,7 +3817,11 @@ export class PedidosService {
               idsParaRemover,
             );
             await prisma.turmaColheitaPedidoCusto.deleteMany({
-              where: { id: { in: idsParaRemover } },
+              where: {
+                id: { in: idsParaRemover },
+                statusPagamento: { notIn: ['PROCESSANDO', 'PAGO'] } as any,
+                pagamentoApiItemColheitas: { none: {} },
+              },
             });
           }
         }
@@ -3799,7 +3831,7 @@ export class PedidosService {
         //   (deleteMany + creates), então não precisamos (nem devemos) rodar a lógica
         //   de update por ID aqui.
         // - Quando HÁ pagamentos efetuados, usamos o fluxo incremental abaixo.
-        if (possuiPagamentosEfetuados) {
+        if (possuiPagamentosOuProtegidos) {
         for (const maoObra of updatePedidoCompletoDto.maoObra) {
           // Buscar dados da fruta para fallback (se unidadeMedida não for fornecido)
           const frutaPedido = await prisma.frutasPedidos.findFirst({
@@ -3832,6 +3864,10 @@ export class PedidosService {
           }
 
           if (maoObra.id) {
+            // ✅ Se o custo é protegido, não permitir update (mantém integridade do vínculo PIX-API)
+            if (idsCustosProtegidos.has(maoObra.id)) {
+              continue;
+            }
             // Atualizar custo existente
             // ✅ IMPORTANTE: também permitir alteração da fruta vinculada à mão de obra
             await prisma.turmaColheitaPedidoCusto.update({

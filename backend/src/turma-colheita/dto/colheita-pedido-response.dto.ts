@@ -69,6 +69,12 @@ export class TurmaColheitaPedidoCustoResponseDto {
   })
   observacoes?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Indica se esta colheita está vinculada a um pagamento PIX-API (via PagamentoApiItemColheita)',
+    example: true,
+  })
+  vinculadoPixApi?: boolean;
+
   @ApiProperty({
     description: 'Data de criação',
     example: '2024-12-15T10:30:00Z',

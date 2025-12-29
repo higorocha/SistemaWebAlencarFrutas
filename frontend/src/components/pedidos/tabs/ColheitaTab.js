@@ -221,6 +221,7 @@ const ColheitaTab = ({
   erros,
   setErros,
   canEditTab,
+  colheitaLocked,
   frutas,
   areasProprias,
   areasFornecedores,
@@ -235,6 +236,20 @@ const ColheitaTab = ({
 
   // Hook de responsividade
   const { isMobile } = useResponsive();
+
+  // ✅ Regra central de edição da aba (fase do pedido).
+  // O bloqueio por pagamento é aplicado POR LINHA na seção Mão de Obra.
+  const canEditColheita = canEditTab("2");
+
+  const isMaoObraRowLocked = (item) => {
+    const status = (item?.statusPagamento || '').toString().trim().toUpperCase();
+    return (
+      item?.vinculadoPixApi === true ||
+      item?.pagamentoEfetuado === true ||
+      status === 'PROCESSANDO' ||
+      status === 'PAGO'
+    );
+  };
 
   // Estados para os modais de vinculação
   const [vincularAreasModalOpen, setVincularAreasModalOpen] = useState(false);
@@ -1342,7 +1357,7 @@ const ColheitaTab = ({
                   handleChange("dataColheita", date ? date.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null);
                 }}
                 showToday
-                disabled={!canEditTab("2")}
+                disabled={!canEditColheita}
               />
             </Form.Item>
           </Col>
@@ -1365,7 +1380,7 @@ const ColheitaTab = ({
                 }}
                 value={pedidoAtual.observacoesColheita || ""}
                 onChange={(e) => handleChange("observacoesColheita", e.target.value)}
-                disabled={!canEditTab("2")}
+                disabled={!canEditColheita}
               />
             </Form.Item>
           </Col>
@@ -1541,7 +1556,7 @@ const ColheitaTab = ({
                     size="large"
                     value={fruta.quantidadeReal}
                     onChange={(value) => handleFrutaChange(indexOriginal, 'quantidadeReal', value)}
-                    disabled={!canEditTab("2")}
+                    disabled={!canEditColheita}
                   />
                 </Form.Item>
               </Col>
@@ -1553,7 +1568,7 @@ const ColheitaTab = ({
                   <MonetaryInput
                     placeholder="Ex: 50,00"
                     addonAfter={fruta.unidadeMedida2 || ''}
-                    disabled={!fruta.unidadeMedida2 || !canEditTab("2")}
+                    disabled={!fruta.unidadeMedida2 || !canEditColheita}
                     className={!fruta.unidadeMedida2 ? 'custom-disabled-visual' : ''}
                     size="large"
                     value={fruta.quantidadeReal2}
@@ -1580,7 +1595,7 @@ const ColheitaTab = ({
                             width: '32px',
                             padding: '0'
                           }}
-                          disabled={!canEditTab("2")}
+                          disabled={!canEditColheita}
                         />
                       </Tooltip>
 
@@ -1615,9 +1630,9 @@ const ColheitaTab = ({
                         minWidth: '120px',
                         width: '120px'
                       }}
-                      disabled={!canEditTab("2")}
+                      disabled={!canEditColheita}
                     >
-                      {canEditTab("2") ? 'Vincular Áreas' : 'Visualizar Áreas'}
+                      {canEditColheita ? 'Vincular Áreas' : 'Visualizar Áreas'}
                     </FormButton>
                   )}
                 </div>
@@ -1642,7 +1657,7 @@ const ColheitaTab = ({
                               width: '32px',
                               padding: '0'
                             }}
-                            disabled={!canEditTab("2")}
+                            disabled={!canEditColheita}
                           />
                         </Tooltip>
 
@@ -1679,9 +1694,9 @@ const ColheitaTab = ({
                           minWidth: '120px',
                           width: '120px'
                         }}
-                        disabled={!canEditTab("2")}
+                        disabled={!canEditColheita}
                       >
-                        {canEditTab("2") ? 'Vincular Fitas' : 'Visualizar Fitas'}
+                        {canEditColheita ? 'Vincular Fitas' : 'Visualizar Fitas'}
                       </FormButton>
                     )}
                   </div>
@@ -1738,7 +1753,7 @@ const ColheitaTab = ({
                 }}
                 value={pedidoAtual.pesagem}
                 onChange={(e) => handleChange("pesagem", e.target.value)}
-                disabled={!canEditTab("2")}
+                disabled={!canEditColheita}
                 onKeyPress={(e) => {
                   // Permitir apenas números inteiros
                   if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
@@ -1769,7 +1784,7 @@ const ColheitaTab = ({
                   const value = e.target.value.replace(/[^0-9]/g, '');
                   handleChange("numeroNf", value ? Number(value) : undefined);
                 }}
-                disabled={!canEditTab("2")}
+                disabled={!canEditColheita}
                 onKeyPress={(e) => {
                   // Permitir apenas números inteiros
                   if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
@@ -1797,7 +1812,7 @@ const ColheitaTab = ({
                 }}
                 value={pedidoAtual.placaPrimaria}
                 onChange={(e) => handleChange("placaPrimaria", e.target.value)}
-                disabled={!canEditTab("2")}
+                disabled={!canEditColheita}
               />
             </Form.Item>
           </Col>
@@ -1819,7 +1834,7 @@ const ColheitaTab = ({
                 }}
                 value={pedidoAtual.placaSecundaria}
                 onChange={(e) => handleChange("placaSecundaria", e.target.value)}
-                disabled={!canEditTab("2")}
+                disabled={!canEditColheita}
               />
             </Form.Item>
           </Col>
@@ -1841,7 +1856,7 @@ const ColheitaTab = ({
                 }}
                 value={pedidoAtual.nomeMotorista}
                 onChange={(e) => handleChange("nomeMotorista", e.target.value)}
-                disabled={!canEditTab("2")}
+                disabled={!canEditColheita}
               />
             </Form.Item>
           </Col>
@@ -1877,6 +1892,19 @@ const ColheitaTab = ({
           }
         }}
       >
+        {(() => {
+          const itens = pedidoAtual?.maoObra || [];
+          const temLinhaBloqueada = itens.some(isMaoObraRowLocked);
+          return temLinhaBloqueada ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="Algumas linhas estão bloqueadas para edição"
+              description="Linhas com pagamento PROCESSANDO/PAGO ou vinculadas ao PIX-API ficam somente leitura para evitar perda de vínculo do pagamento."
+            />
+          ) : null;
+        })()}
         <Form.List name="maoObra">
           {(fields, { add, remove }) => (
             <>
@@ -1936,7 +1964,7 @@ const ColheitaTab = ({
 
           {fields.map((field, index) => {
             const item = form.getFieldValue('maoObra')?.[index];
-            const pagamentoEfetuado = item?.pagamentoEfetuado === true;
+            const rowLocked = isMaoObraRowLocked(item);
             return (
               <MaoObraRow
                 key={field.key}
@@ -1951,6 +1979,7 @@ const ColheitaTab = ({
                 onRemove={(name) => remove(name)}
                 onAdd={(initialValue) => add(initialValue)}
                 capitalizeName={capitalizeName}
+                rowLocked={rowLocked}
               />
             );
           })}
@@ -1963,7 +1992,7 @@ const ColheitaTab = ({
         </Form.List>
       </Card>
       
-      {canEditTab("2") && (
+      {canEditColheita && (
         <div style={{ 
           position: "absolute", 
           bottom: "-14px", 
@@ -2256,6 +2285,7 @@ ColheitaTab.propTypes = {
   erros: PropTypes.object.isRequired,
   setErros: PropTypes.func.isRequired,
   canEditTab: PropTypes.func.isRequired,
+  colheitaLocked: PropTypes.bool,
   frutas: PropTypes.array.isRequired,
   areasProprias: PropTypes.array.isRequired,
   areasFornecedores: PropTypes.array.isRequired,

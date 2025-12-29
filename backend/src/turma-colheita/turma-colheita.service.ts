@@ -275,11 +275,35 @@ export class TurmaColheitaService {
         pedidoId,
         frutaId,
       },
+      select: {
+        id: true,
+        statusPagamento: true,
+        pagamentoEfetuado: true,
+        pagamentoApiItemColheitas: {
+          select: { id: true },
+          take: 1,
+        },
+      },
     });
 
     let colheitaPedido;
 
     if (custoExistente) {
+      // ✅ PROTEÇÃO: Não permitir alteração de custos que estejam PROCESSANDO/PAGO
+      // ou vinculados a PIX-API (PagamentoApiItemColheita).
+      const estaProtegido =
+        custoExistente.pagamentoEfetuado === true ||
+        custoExistente.statusPagamento === 'PROCESSANDO' ||
+        custoExistente.statusPagamento === 'PAGO' ||
+        (custoExistente.pagamentoApiItemColheitas &&
+          custoExistente.pagamentoApiItemColheitas.length > 0);
+
+      if (estaProtegido) {
+        throw new BadRequestException(
+          `Não é possível editar esta colheita (id=${custoExistente.id}) pois o pagamento está PROCESSANDO/PAGO ou já está vinculada a PIX-API.`,
+        );
+      }
+
       // ✅ CORREÇÃO: Se já existe, fazer UPDATE substituindo valores (não incrementar)
       // Quando o usuário edita a colheita, deve substituir os valores antigos pelos novos
       colheitaPedido = await this.prisma.turmaColheitaPedidoCusto.update({
@@ -450,10 +474,33 @@ export class TurmaColheitaService {
   async updateColheitaPedido(id: number, updateColheitaPedidoDto: UpdateTurmaColheitaPedidoCustoDto): Promise<TurmaColheitaPedidoCustoResponseDto> {
     const colheitaExiste = await this.prisma.turmaColheitaPedidoCusto.findUnique({
       where: { id },
+      select: {
+        id: true,
+        statusPagamento: true,
+        pagamentoEfetuado: true,
+        pagamentoApiItemColheitas: {
+          select: { id: true },
+          take: 1,
+        },
+      },
     });
 
     if (!colheitaExiste) {
       throw new NotFoundException(`Colheita de pedido com ID ${id} não encontrada`);
+    }
+
+    // ✅ PROTEÇÃO: Bloquear updates quando PROCESSANDO/PAGO ou vinculado a PIX-API
+    const estaProtegido =
+      colheitaExiste.pagamentoEfetuado === true ||
+      colheitaExiste.statusPagamento === 'PROCESSANDO' ||
+      colheitaExiste.statusPagamento === 'PAGO' ||
+      (colheitaExiste.pagamentoApiItemColheitas &&
+        colheitaExiste.pagamentoApiItemColheitas.length > 0);
+
+    if (estaProtegido) {
+      throw new BadRequestException(
+        `Não é possível editar esta colheita (id=${id}) pois o pagamento está PROCESSANDO/PAGO ou já está vinculada a PIX-API.`,
+      );
     }
 
     const { dataColheita, formaPagamento, ...colheitaData } = updateColheitaPedidoDto;
@@ -505,10 +552,33 @@ export class TurmaColheitaService {
   async removeColheitaPedido(id: number): Promise<void> {
     const colheitaExiste = await this.prisma.turmaColheitaPedidoCusto.findUnique({
       where: { id },
+      select: {
+        id: true,
+        statusPagamento: true,
+        pagamentoEfetuado: true,
+        pagamentoApiItemColheitas: {
+          select: { id: true },
+          take: 1,
+        },
+      },
     });
 
     if (!colheitaExiste) {
       throw new NotFoundException(`Colheita de pedido com ID ${id} não encontrada`);
+    }
+
+    // ✅ PROTEÇÃO: Bloquear delete quando PROCESSANDO/PAGO ou vinculado a PIX-API
+    const estaProtegido =
+      colheitaExiste.pagamentoEfetuado === true ||
+      colheitaExiste.statusPagamento === 'PROCESSANDO' ||
+      colheitaExiste.statusPagamento === 'PAGO' ||
+      (colheitaExiste.pagamentoApiItemColheitas &&
+        colheitaExiste.pagamentoApiItemColheitas.length > 0);
+
+    if (estaProtegido) {
+      throw new BadRequestException(
+        `Não é possível remover esta colheita (id=${id}) pois o pagamento está PROCESSANDO/PAGO ou já está vinculada a PIX-API.`,
+      );
     }
 
     await this.prisma.turmaColheitaPedidoCusto.delete({
@@ -532,6 +602,11 @@ export class TurmaColheitaService {
     const colheitasPedido = await this.prisma.turmaColheitaPedidoCusto.findMany({
       where: { pedidoId },
       include: {
+        _count: {
+          select: {
+            pagamentoApiItemColheitas: true,
+          },
+        },
         turmaColheita: {
           select: {
             nomeColhedor: true,
@@ -563,7 +638,11 @@ export class TurmaColheitaService {
       },
     });
 
-    return colheitasPedido;
+    // ✅ Adicionar flag auxiliar para o frontend bloquear edição quando houver vínculo PIX-API
+    return colheitasPedido.map((c: any) => ({
+      ...c,
+      vinculadoPixApi: (c?._count?.pagamentoApiItemColheitas ?? 0) > 0,
+    }));
   }
 
   async findColheitasByTurma(turmaColheitaId: number): Promise<TurmaColheitaPedidoCustoResponseDto[]> {
