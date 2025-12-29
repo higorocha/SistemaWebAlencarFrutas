@@ -1091,6 +1091,15 @@ const Pagamentos = () => {
           estadoRequisicao !== 6 &&
           !record.dataLiberacao; // Não mostrar se já foi liberado anteriormente
         
+        // ✅ NOVA VALIDAÇÃO: Verificar se a data atual é maior que a data agendada
+        const dataAtual = moment();
+        const dataAgendada = record.dataPagamentoAgendada ? moment(record.dataPagamentoAgendada) : null;
+        const dataAgendadaPassou = dataAgendada && dataAtual.isAfter(dataAgendada, 'day');
+        
+        // O botão deve aparecer se podeLiberar for true, mas pode estar desabilitado se a data passou
+        const deveMostrarBotao = podeLiberar;
+        const botaoDesabilitado = dataAgendadaPassou;
+        
         // Cancelamento é feito no nível de item, não no nível de lote
         // Será implementado quando expandir o lote e mostrar os itens
 
@@ -1149,26 +1158,36 @@ const Pagamentos = () => {
         return (
           <Space size="small">
             {/* Botões de ação diretos */}
-            {podeLiberar && (
-              <Tooltip title="Liberar pagamento">
+            {deveMostrarBotao && (
+              <Tooltip 
+                title={
+                  botaoDesabilitado 
+                    ? `Não é possível liberar esta remessa. A data prevista de pagamento (${dataAgendada?.format('DD/MM/YYYY') || 'N/A'}) já passou. Uma remessa não pode ser liberada posteriormente à data prevista de pagamento. Aguarde o Banco retornar status 'Excluído' para a remessa e ela será liberada para criar novo lote na função de origem.`
+                    : "Liberar pagamento"
+                }
+              >
                 <Button
                   type="primary"
                   size="small"
+                  disabled={botaoDesabilitado}
                   loading={liberandoLoteId === record.numeroRequisicao}
                   onClick={() => {
-                    setLoteSelecionado(record);
-                    setModalDetalhesOpen(true);
+                    if (!botaoDesabilitado) {
+                      setLoteSelecionado(record);
+                      setModalDetalhesOpen(true);
+                    }
                   }}
                   icon={<UnlockOutlined />}
                   style={{
-                    backgroundColor: "#059669",
-                    borderColor: "#059669",
+                    backgroundColor: botaoDesabilitado ? "#d9d9d9" : "#059669",
+                    borderColor: botaoDesabilitado ? "#d9d9d9" : "#059669",
                     minWidth: "32px",
                     height: "32px",
                     padding: "0",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    cursor: botaoDesabilitado ? "not-allowed" : "pointer",
                   }}
                 />
               </Tooltip>

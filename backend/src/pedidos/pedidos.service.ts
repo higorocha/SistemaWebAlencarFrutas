@@ -3699,6 +3699,77 @@ export class PedidosService {
         });
         const idsCustosProtegidos = new Set<number>(custosProtegidos.map((c: any) => c.id));
 
+        // ✅ LOG: Detalhar colheitas protegidas que não serão alteradas
+        if (custosProtegidos.length > 0) {
+          // Buscar informações adicionais das colheitas protegidas para o log
+          const custosProtegidosComDetalhes = await Promise.all(
+            custosProtegidos.map(async (c: any) => {
+              const detalhes = await prisma.turmaColheitaPedidoCusto.findUnique({
+                where: { id: c.id },
+                select: {
+                  id: true,
+                  turmaColheitaId: true,
+                  valorColheita: true,
+                  statusPagamento: true,
+                  pagamentoEfetuado: true,
+                  quantidadeColhida: true,
+                  turmaColheita: {
+                    select: {
+                      nomeColhedor: true,
+                      responsavelChavePix: true,
+                    },
+                  },
+                  fruta: {
+                    select: {
+                      nome: true,
+                    },
+                  },
+                  _count: {
+                    select: {
+                      pagamentoApiItemColheitas: true,
+                    },
+                  },
+                },
+              });
+
+              const status = (detalhes?.statusPagamento || c.statusPagamento || '').toString().trim().toUpperCase();
+              const vinculadoPix = (detalhes?._count?.pagamentoApiItemColheitas ?? 0) > 0;
+              
+              // Determinar motivo da proteção
+              const motivos: string[] = [];
+              if (detalhes?.pagamentoEfetuado === true || c.pagamentoEfetuado === true) motivos.push('pagamentoEfetuado=true');
+              if (status === 'PROCESSANDO') motivos.push('statusPagamento=PROCESSANDO');
+              if (status === 'PAGO') motivos.push('statusPagamento=PAGO');
+              if (vinculadoPix) motivos.push('vinculadoPixApi=true');
+
+              return {
+                id: detalhes?.id || c.id,
+                turmaColheitaId: detalhes?.turmaColheitaId || c.turmaColheitaId,
+                turmaNome: detalhes?.turmaColheita?.nomeColhedor || 'N/A',
+                responsavelChavePix: detalhes?.turmaColheita?.responsavelChavePix || 'N/A',
+                frutaNome: detalhes?.fruta?.nome || 'N/A',
+                valorColheita: detalhes?.valorColheita || c.valorColheita || 0,
+                quantidadeColhida: detalhes?.quantidadeColhida || c.quantidadeColhida || 0,
+                statusPagamento: detalhes?.statusPagamento || c.statusPagamento || 'N/A',
+                pagamentoEfetuado: detalhes?.pagamentoEfetuado || c.pagamentoEfetuado || false,
+                vinculadoPixApi: vinculadoPix,
+                motivo: motivos.join(' | '),
+              };
+            })
+          );
+
+          console.log('🔒 COLHEITAS PROTEGIDAS (não serão alteradas):');
+          console.log(`   Total: ${custosProtegidosComDetalhes.length} colheita(s) protegida(s)`);
+          custosProtegidosComDetalhes.forEach((colheita) => {
+            console.log(
+              `   - ID ${colheita.id} | Turma: ${colheita.turmaNome} (${colheita.responsavelChavePix}) | ` +
+              `Fruta: ${colheita.frutaNome} | Valor: R$ ${Number(colheita.valorColheita).toFixed(2)} | ` +
+              `Qtd: ${colheita.quantidadeColhida} | Status: ${colheita.statusPagamento} | ` +
+              `Motivo: ${colheita.motivo}`
+            );
+          });
+        }
+
         // Verificar se há custos já pagos OU protegidos (equivale a "não posso substituir tudo")
         const possuiPagamentosOuProtegidos =
           custosProtegidos.length > 0 ||
@@ -3866,6 +3937,52 @@ export class PedidosService {
           if (maoObra.id) {
             // ✅ Se o custo é protegido, não permitir update (mantém integridade do vínculo PIX-API)
             if (idsCustosProtegidos.has(maoObra.id)) {
+              // Buscar informações da colheita protegida para o log
+              const colheitaProtegida = await prisma.turmaColheitaPedidoCusto.findUnique({
+                where: { id: maoObra.id },
+                select: {
+                  id: true,
+                  turmaColheitaId: true,
+                  valorColheita: true,
+                  statusPagamento: true,
+                  pagamentoEfetuado: true,
+                  turmaColheita: {
+                    select: {
+                      nomeColhedor: true,
+                      responsavelChavePix: true,
+                    },
+                  },
+                  fruta: {
+                    select: {
+                      nome: true,
+                    },
+                  },
+                  _count: {
+                    select: {
+                      pagamentoApiItemColheitas: true,
+                    },
+                  },
+                },
+              });
+
+              if (colheitaProtegida) {
+                const status = (colheitaProtegida.statusPagamento || '').toString().trim().toUpperCase();
+                const vinculadoPix = (colheitaProtegida?._count?.pagamentoApiItemColheitas ?? 0) > 0;
+                const motivos: string[] = [];
+                if (colheitaProtegida.pagamentoEfetuado === true) motivos.push('pagamentoEfetuado=true');
+                if (status === 'PROCESSANDO') motivos.push('statusPagamento=PROCESSANDO');
+                if (status === 'PAGO') motivos.push('statusPagamento=PAGO');
+                if (vinculadoPix) motivos.push('vinculadoPixApi=true');
+
+                console.log(
+                  `⚠️ IGNORANDO atualização de colheita protegida: ` +
+                  `ID ${colheitaProtegida.id} | Turma: ${colheitaProtegida.turmaColheita?.nomeColhedor || 'N/A'} ` +
+                  `(${colheitaProtegida.turmaColheita?.responsavelChavePix || 'N/A'}) | ` +
+                  `Fruta: ${colheitaProtegida.fruta?.nome || 'N/A'} | ` +
+                  `Valor: R$ ${Number(colheitaProtegida.valorColheita || 0).toFixed(2)} | ` +
+                  `Motivo: ${motivos.join(' | ')}`
+                );
+              }
               continue;
             }
             // Atualizar custo existente

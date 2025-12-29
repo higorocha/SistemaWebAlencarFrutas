@@ -141,21 +141,55 @@ const SecaoLotesPagamentosAgrupado = ({
 
   // Agrupar lotes por dia (dataCriacao) - apenas se não vierem agrupados do backend
   const lotesAgrupadosPorDia = useMemo(() => {
+    // Função auxiliar para determinar se um lote tem botão "Liberar" visível
+    // (mesmo que desabilitado, o botão ainda aparece, então consideramos para ordenação)
+    const temBotaoLiberar = (lote) => {
+      const estadoRequisicao = lote.estadoRequisicaoAtual || lote.estadoRequisicao;
+      const podeLiberar =
+        estadoRequisicao &&
+        (estadoRequisicao === 1 || estadoRequisicao === 4) &&
+        estadoRequisicao !== 9 &&
+        estadoRequisicao !== 6 &&
+        !lote.dataLiberacao;
+      
+      // Retornar true se o botão aparece (mesmo que desabilitado por data passada)
+      // A ordenação deve priorizar lotes que têm o botão visível
+      return !!podeLiberar;
+    };
     if (dadosJaAgrupados) {
       // Dados já vêm agrupados do backend - cada item é um dia com seus lotes
-      return lotes.map((dia) => ({
-        diaKey: dia.diaKey,
-        diaLabel: dia.diaLabel || moment(dia.diaKey).format("DD/MM/YYYY"),
-        dataCriacao: dia.dataCriacao ? new Date(dia.dataCriacao) : new Date(dia.diaKey),
-        lotes: Array.isArray(dia.lotes) ? dia.lotes : [],
-        // Estatísticas já vêm do backend
-        totalLotes: dia.totalLotes,
-        totalItens: dia.totalItens,
-        totalColheitas: dia.totalColheitas,
-        valorTotal: dia.valorTotal,
-        valorPendente: dia.valorPendente,
-        valorProcessado: dia.valorProcessado,
-      }));
+      return lotes.map((dia) => {
+        // Ordenar lotes dentro do dia: primeiro os que têm botão "Liberar"
+        const lotesOrdenados = Array.isArray(dia.lotes) ? [...dia.lotes] : [];
+        lotesOrdenados.sort((a, b) => {
+          const temBotaoA = temBotaoLiberar(a);
+          const temBotaoB = temBotaoLiberar(b);
+          
+          // Se um tem botão e outro não, o que tem botão vem primeiro
+          if (temBotaoA !== temBotaoB) {
+            return temBotaoA ? -1 : 1;
+          }
+          
+          // Se ambos têm ou não têm botão, manter ordem original (por dataCriacao, mais recente primeiro)
+          const dataA = a.dataCriacao ? new Date(a.dataCriacao).getTime() : 0;
+          const dataB = b.dataCriacao ? new Date(b.dataCriacao).getTime() : 0;
+          return dataB - dataA;
+        });
+        
+        return {
+          diaKey: dia.diaKey,
+          diaLabel: dia.diaLabel || moment(dia.diaKey).format("DD/MM/YYYY"),
+          dataCriacao: dia.dataCriacao ? new Date(dia.dataCriacao) : new Date(dia.diaKey),
+          lotes: lotesOrdenados,
+          // Estatísticas já vêm do backend
+          totalLotes: dia.totalLotes,
+          totalItens: dia.totalItens,
+          totalColheitas: dia.totalColheitas,
+          valorTotal: dia.valorTotal,
+          valorPendente: dia.valorPendente,
+          valorProcessado: dia.valorProcessado,
+        };
+      });
     }
 
     if (!Array.isArray(lotes) || lotes.length === 0) {
@@ -188,10 +222,31 @@ const SecaoLotesPagamentosAgrupado = ({
       }
     });
 
-    // Converter para array e ordenar por data (mais recente primeiro)
-    return Array.from(grupos.values()).sort((a, b) => {
-      return moment(b.dataCriacao).valueOf() - moment(a.dataCriacao).valueOf();
-    });
+    // Converter para array, ordenar lotes dentro de cada dia e depois ordenar dias por data
+    return Array.from(grupos.values())
+      .map((grupo) => {
+        // Ordenar lotes dentro do dia: primeiro os que têm botão "Liberar"
+        grupo.lotes.sort((a, b) => {
+          const temBotaoA = temBotaoLiberar(a);
+          const temBotaoB = temBotaoLiberar(b);
+          
+          // Se um tem botão e outro não, o que tem botão vem primeiro
+          if (temBotaoA !== temBotaoB) {
+            return temBotaoA ? -1 : 1;
+          }
+          
+          // Se ambos têm ou não têm botão, manter ordem original (por dataCriacao, mais recente primeiro)
+          const dataA = a.dataCriacao ? new Date(a.dataCriacao).getTime() : 0;
+          const dataB = b.dataCriacao ? new Date(b.dataCriacao).getTime() : 0;
+          return dataB - dataA;
+        });
+        
+        return grupo;
+      })
+      .sort((a, b) => {
+        // Ordenar dias por data (mais recente primeiro)
+        return moment(b.dataCriacao).valueOf() - moment(a.dataCriacao).valueOf();
+      });
   }, [lotes, dadosJaAgrupados]);
 
   // Combinar dados de lotes com estatísticas do backend
