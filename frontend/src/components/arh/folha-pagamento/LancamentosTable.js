@@ -4,6 +4,7 @@ import React from "react";
 import { Button, Space, Tag, Empty, Typography, Tooltip, Dropdown, InputNumber } from "antd";
 import { EditOutlined, DollarOutlined, DeleteOutlined, MoreOutlined, CalculatorOutlined, SaveOutlined, CloseOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import PropTypes from "prop-types";
+import styled from "styled-components";
 import ResponsiveTable from "../../common/ResponsiveTable";
 import { capitalizeName } from "../../../utils/formatters";
 import ConfirmActionModal from "../../common/modals/ConfirmActionModal";
@@ -18,6 +19,50 @@ const currency = (value) =>
     style: "currency",
     currency: "BRL",
   }).format(Number(value || 0));
+
+// Wrapper styled para adicionar estilos de destaque
+const TableWrapper = styled.div`
+  /* Destaque visual para linhas com dias preenchidos (concluído) */
+  .ant-table-tbody > tr.lancamento-completo {
+    background-color: #f0fdf4 !important;
+    position: relative;
+  }
+
+  /* Borda lateral esquerda arredondada verde para concluído */
+  .ant-table-tbody > tr.lancamento-completo > td:first-child {
+    border-left: 4px solid #059669 !important;
+    border-top-left-radius: 8px !important;
+    border-bottom-left-radius: 8px !important;
+    padding-left: calc(16px - 4px) !important;
+  }
+
+  /* Destaque visual para linhas sem dias preenchidos (não concluído) */
+  .ant-table-tbody > tr.lancamento-incompleto {
+    position: relative;
+  }
+
+  /* Borda lateral esquerda arredondada amarela/laranja para não concluído */
+  .ant-table-tbody > tr.lancamento-incompleto > td:first-child {
+    border-left: 4px solid #faad14 !important;
+    border-top-left-radius: 8px !important;
+    border-bottom-left-radius: 8px !important;
+    padding-left: calc(16px - 4px) !important;
+  }
+
+  /* Hover com fundo na cor da borda - verde para concluído */
+  /* Aplicar em todas as células para garantir que sobrescreva o hover padrão do ResponsiveTable */
+  .ant-table-tbody > tr.lancamento-completo:hover > td,
+  .ant-table-tbody > tr.lancamento-completo:hover {
+    background-color: rgba(5, 150, 105, 0.08) !important;
+  }
+
+  /* Hover com fundo na cor da borda - amarelo para não concluído */
+  /* Aplicar em todas as células para garantir que sobrescreva o hover padrão do ResponsiveTable */
+  .ant-table-tbody > tr.lancamento-incompleto:hover > td,
+  .ant-table-tbody > tr.lancamento-incompleto:hover {
+    background-color: rgba(250, 173, 20, 0.08) !important;
+  }
+`;
 
 const LancamentosTable = React.memo(
   ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario, folhaStatus, isProgramador = false, onGerarRecibo }) => {
@@ -796,27 +841,41 @@ const LancamentosTable = React.memo(
       },
     ];
 
+    // Função para determinar a classe da linha baseada se dias está preenchido
+    const getRowClassName = (record) => {
+      // Verifica se diasTrabalhados está preenchido (não é null, undefined, ou 0)
+      const temDiasPreenchido = record.diasTrabalhados !== null && 
+                                record.diasTrabalhados !== undefined && 
+                                Number(record.diasTrabalhados) > 0;
+      
+      // Retorna classe diferente para concluído e não concluído
+      return temDiasPreenchido ? 'lancamento-completo' : 'lancamento-incompleto';
+    };
+
     return (
       <>
-        <ResponsiveTable
-          columns={columns}
-          dataSource={lancamentos}
-          rowKey="id"
-          loading={loading}
-          pagination={false}
-          bordered={true}
-          size="middle"
-          showScrollHint={true}
-          scroll={{ x: 1600 }}
-          locale={{
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Nenhum lançamento encontrado"
-              />
-            ),
-          }}
-        />
+        <TableWrapper>
+          <ResponsiveTable
+            columns={columns}
+            dataSource={lancamentos}
+            rowKey="id"
+            loading={loading}
+            pagination={false}
+            bordered={true}
+            size="middle"
+            showScrollHint={true}
+            scroll={{ x: 1600 }}
+            rowClassName={getRowClassName}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Nenhum lançamento encontrado"
+                />
+              ),
+            }}
+          />
+        </TableWrapper>
 
         {/* Modal de Confirmação */}
         <ConfirmActionModal

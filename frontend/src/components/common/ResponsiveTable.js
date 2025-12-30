@@ -147,6 +147,12 @@ const StyledResponsiveTable = styled(Table)`
     background-color: #e6f7ff !important;
   }
 
+  /* Não aplicar hover padrão em linhas com classes customizadas */
+  .ant-table-tbody > tr.lancamento-completo:hover,
+  .ant-table-tbody > tr.lancamento-incompleto:hover {
+    background-color: inherit !important;
+  }
+
   .ant-table-tbody > tr > td {
     padding: ${props => props.$isMobile ? '6px 8px' : '12px 16px'};
     font-size: ${props => props.$isMobile ? '12px' : '14px'};
