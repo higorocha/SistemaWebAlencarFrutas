@@ -70,6 +70,7 @@ export class LancamentoExtratoService {
     'S A L D O',
     'INVEST. RESGATE AUTOM',
     'BB RENDE FÁCIL',
+    'PIX - REJEITADO',
   ]);
   private readonly VALOR_TOLERANCIA = 0.009;
   private readonly lancamentoInclude = baseLancamentoInclude;
@@ -904,8 +905,12 @@ export class LancamentoExtratoService {
     let totalErros = 0;
     let totalSalvosComCliente = 0;
     const clientesComLancamentosSalvos = new Set<number>();
+    // Mapa para armazenar contagem e valores por cliente: clienteId -> { quantidade, valorTotal }
+    const lancamentosPorCliente = new Map<number, { quantidade: number; valorTotal: number }>();
 
     for (const item of extratosElegiveis) {
+      const valorLancamento = Math.abs(Number(item.extrato.valorLancamento || 0));
+
       const resultado = await this.salvarExtratoProcessado({
         extrato: item.extrato,
         clienteId: item.clienteId,
@@ -918,10 +923,20 @@ export class LancamentoExtratoService {
         totalSalvos++;
         totalSalvosComCliente++;
         clientesComLancamentosSalvos.add(item.clienteId);
+        // Atualizar contagem e valor total do cliente
+        const clienteData = lancamentosPorCliente.get(item.clienteId) || { quantidade: 0, valorTotal: 0 };
+        clienteData.quantidade++;
+        clienteData.valorTotal += valorLancamento;
+        lancamentosPorCliente.set(item.clienteId, clienteData);
       } else if (resultado === 'atualizado') {
         totalVinculosClienteAtualizados++;
         totalSalvosComCliente++;
         clientesComLancamentosSalvos.add(item.clienteId);
+        // Atualizar contagem e valor total do cliente (mesmo sendo atualização, conta como lançamento)
+        const clienteData = lancamentosPorCliente.get(item.clienteId) || { quantidade: 0, valorTotal: 0 };
+        clienteData.quantidade++;
+        clienteData.valorTotal += valorLancamento;
+        lancamentosPorCliente.set(item.clienteId, clienteData);
       } else if (resultado === 'duplicado') {
         totalDuplicados++;
       } else {
@@ -932,9 +947,8 @@ export class LancamentoExtratoService {
     const clientesComLancamentos = clientes.filter(c => clientesComLancamentosSalvos.has(c.id));
     const clientePrincipal = clientesComLancamentos[0] ?? clientes[0];
 
-    // Log removido - informações já aparecem no log do job de extratos
-
-    return {
+    // Preparar dados de retorno
+    const resultado = {
       totalEncontrados: extratosBrutos.length,
       totalFiltrados: extratosElegiveis.length,
       totalSalvos,
@@ -960,11 +974,41 @@ export class LancamentoExtratoService {
             nome: clientePrincipal.nome,
           }
         : undefined,
-      clientes: clientesComLancamentos.map(c => ({
-        id: c.id,
-        nome: c.nome,
-      })),
+      clientes: clientesComLancamentos.map(c => {
+        const lancamentosData = lancamentosPorCliente.get(c.id) || { quantidade: 0, valorTotal: 0 };
+        return {
+          id: c.id,
+          nome: c.nome,
+          quantidadeLancamentos: lancamentosData.quantidade,
+          valorTotal: lancamentosData.valorTotal,
+        };
+      }),
     };
+
+    // Log resumido similar ao modal do frontend
+    console.log(`✅ [BUSCAR-PROCESSAR] Processamento concluído:`, {
+      periodo: `${resultado.periodo.inicio} a ${resultado.periodo.fim}`,
+      conta: `${resultado.contaCorrente.agencia}/${resultado.contaCorrente.conta}`,
+      totalAnalisados: resultado.totalFiltrados,
+      salvos: resultado.totalSalvos,
+      duplicados: resultado.totalDuplicados,
+      comCliente: resultado.totalSalvosComClienteIdentificado,
+      semCliente: resultado.totalSalvosSemClienteIdentificado,
+      clientesAfetados: resultado.clientes.length,
+      erros: resultado.totalErros || 0,
+    });
+
+    // Log detalhado dos clientes afetados (se houver)
+    if (resultado.clientes.length > 0) {
+      const clientesResumo = resultado.clientes
+        .slice(0, 5) // Mostrar apenas os 5 primeiros
+        .map(c => `${c.nome} (${c.quantidadeLancamentos} lanç., R$ ${c.valorTotal.toFixed(2)})`)
+        .join(', ');
+      const maisClientes = resultado.clientes.length > 5 ? ` e mais ${resultado.clientes.length - 5} cliente(s)` : '';
+      console.log(`   👥 Clientes: ${clientesResumo}${maisClientes}`);
+    }
+
+    return resultado;
   }
 
   /**
@@ -1153,6 +1197,8 @@ export class LancamentoExtratoService {
     let totalSalvosComCliente = 0;
     let totalSalvosSemCliente = 0;
     const clientesComLancamentosSalvos = new Set<number>();
+    // Mapa para armazenar contagem e valores por cliente: clienteId -> { quantidade, valorTotal }
+    const lancamentosPorCliente = new Map<number, { quantidade: number; valorTotal: number }>();
 
     for (const item of extratosElegiveis) {
       if (item.clienteId !== null) {
@@ -1160,6 +1206,8 @@ export class LancamentoExtratoService {
       } else {
         totalSemCliente++;
       }
+
+      const valorLancamento = Math.abs(Number(item.extrato.valorLancamento || 0));
 
       const resultado = await this.salvarExtratoProcessado({
         extrato: item.extrato,
@@ -1174,6 +1222,11 @@ export class LancamentoExtratoService {
         if (item.clienteId !== null) {
           totalSalvosComCliente++;
           clientesComLancamentosSalvos.add(item.clienteId);
+          // Atualizar contagem e valor total do cliente
+          const clienteData = lancamentosPorCliente.get(item.clienteId) || { quantidade: 0, valorTotal: 0 };
+          clienteData.quantidade++;
+          clienteData.valorTotal += valorLancamento;
+          lancamentosPorCliente.set(item.clienteId, clienteData);
         } else {
           totalSalvosSemCliente++;
         }
@@ -1183,6 +1236,11 @@ export class LancamentoExtratoService {
         if (item.clienteId !== null) {
           totalSalvosComCliente++;
           clientesComLancamentosSalvos.add(item.clienteId);
+          // Atualizar contagem e valor total do cliente (mesmo sendo atualização, conta como lançamento)
+          const clienteData = lancamentosPorCliente.get(item.clienteId) || { quantidade: 0, valorTotal: 0 };
+          clienteData.quantidade++;
+          clienteData.valorTotal += valorLancamento;
+          lancamentosPorCliente.set(item.clienteId, clienteData);
         }
       } else if (resultado === 'duplicado') {
         totalDuplicados++;
@@ -1194,9 +1252,8 @@ export class LancamentoExtratoService {
     const clientesComLancamentos = clientes.filter(c => clientesComLancamentosSalvos.has(c.id));
     const clientePrincipal = clientesComLancamentos[0] ?? clientes[0] ?? null;
 
-    // Log removido - informações já aparecem no log do job de extratos
-
-    return {
+    // Preparar dados de retorno
+    const resultado = {
       totalEncontrados: extratosBrutos.length,
       totalFiltrados: extratosElegiveis.length,
       totalSalvos,
@@ -1222,11 +1279,41 @@ export class LancamentoExtratoService {
             nome: clientePrincipal.nome,
           }
         : undefined,
-      clientes: clientesComLancamentos.map(c => ({
-        id: c.id,
-        nome: c.nome,
-      })),
+      clientes: clientesComLancamentos.map(c => {
+        const lancamentosData = lancamentosPorCliente.get(c.id) || { quantidade: 0, valorTotal: 0 };
+        return {
+          id: c.id,
+          nome: c.nome,
+          quantidadeLancamentos: lancamentosData.quantidade,
+          valorTotal: lancamentosData.valorTotal,
+        };
+      }),
     };
+
+    // Log resumido similar ao modal do frontend
+    console.log(`✅ [BUSCAR-PROCESSAR-TODOS] Processamento concluído:`, {
+      periodo: `${resultado.periodo.inicio} a ${resultado.periodo.fim}`,
+      conta: `${resultado.contaCorrente.agencia}/${resultado.contaCorrente.conta}`,
+      totalAnalisados: resultado.totalFiltrados,
+      salvos: resultado.totalSalvos,
+      duplicados: resultado.totalDuplicados,
+      comCliente: resultado.totalSalvosComClienteIdentificado,
+      semCliente: resultado.totalSalvosSemClienteIdentificado,
+      clientesAfetados: resultado.clientes.length,
+      erros: resultado.totalErros || 0,
+    });
+
+    // Log detalhado dos clientes afetados (se houver)
+    if (resultado.clientes.length > 0) {
+      const clientesResumo = resultado.clientes
+        .slice(0, 5) // Mostrar apenas os 5 primeiros
+        .map(c => `${c.nome} (${c.quantidadeLancamentos} lanç., R$ ${c.valorTotal.toFixed(2)})`)
+        .join(', ');
+      const maisClientes = resultado.clientes.length > 5 ? ` e mais ${resultado.clientes.length - 5} cliente(s)` : '';
+      console.log(`   👥 Clientes: ${clientesResumo}${maisClientes}`);
+    }
+
+    return resultado;
   }
 
   /**
@@ -1304,9 +1391,24 @@ export class LancamentoExtratoService {
       }
 
       const valorLancamento = Math.abs(Number(extrato.valorLancamento || 0));
-      const numeroDocumento = String(extrato.numeroDocumento || '');
+      
+      // Normalizar numeroDocumento: garantir que seja string e não vazio/null
+      // Se for null/undefined, usar string vazia (mas isso pode causar problemas de duplicidade)
+      // Preferir usar o valor original se existir
+      const numeroDocumentoRaw = extrato.numeroDocumento;
+      const numeroDocumento = numeroDocumentoRaw !== null && numeroDocumentoRaw !== undefined 
+        ? String(numeroDocumentoRaw).trim() 
+        : '';
+      
+      // Normalizar dataLancamentoRaw: garantir BigInt consistente
       const dataLancamentoBigInt = BigInt(dataLancamentoRaw);
-      const numeroLoteBigInt = extrato.numeroLote ? BigInt(extrato.numeroLote) : BigInt(0);
+      
+      // Normalizar numeroLote: se for null/undefined/0, usar BigInt(0)
+      // Mas se for um número válido, usar esse número
+      const numeroLoteRaw = extrato.numeroLote;
+      const numeroLoteBigInt = (numeroLoteRaw !== null && numeroLoteRaw !== undefined && numeroLoteRaw !== 0)
+        ? BigInt(numeroLoteRaw)
+        : BigInt(0);
 
       const numeroCpfCnpjContrapartida =
         cpfCnpjIdentificado ??
@@ -1314,13 +1416,18 @@ export class LancamentoExtratoService {
           ? String(extrato.numeroCpfCnpjContrapartida)
           : undefined);
 
+      // Normalizar valores para garantir consistência na busca de duplicidade e no salvamento
+      const numeroDocumentoNormalizado = numeroDocumento || '';
+      const dataLancamentoRawNormalizado = dataLancamentoBigInt;
+      const numeroLoteNormalizado = numeroLoteBigInt;
+
       const dataToCreate: any = {
         indicadorTipoLancamento: extrato.indicadorTipoLancamento,
-        dataLancamentoRaw: dataLancamentoBigInt,
+        dataLancamentoRaw: dataLancamentoRawNormalizado,
         dataMovimento: extrato.dataMovimento !== undefined ? BigInt(extrato.dataMovimento) : null,
         codigoAgenciaOrigem: extrato.codigoAgenciaOrigem !== undefined ? BigInt(extrato.codigoAgenciaOrigem) : null,
-        numeroLote: numeroLoteBigInt,
-        numeroDocumento,
+        numeroLote: numeroLoteNormalizado,
+        numeroDocumento: numeroDocumentoNormalizado,
         codigoHistorico: extrato.codigoHistorico !== undefined ? Number(extrato.codigoHistorico) : null,
         textoDescricaoHistorico: extrato.textoDescricaoHistorico,
         valorLancamentoRaw: extrato.valorLancamento !== undefined ? Number(extrato.valorLancamento) : undefined,
@@ -1358,25 +1465,119 @@ export class LancamentoExtratoService {
         }
       });
 
+      // Verificação prévia de duplicidade (para melhor detecção e logs)
+      // Usar valores normalizados definidos acima
+      // Primeira tentativa: busca exata pela constraint única
+      let lancamentoExistente = await this.prisma.lancamentoExtrato.findUnique({
+        where: {
+          numeroDocumento_dataLancamentoRaw_numeroLote: {
+            numeroDocumento: numeroDocumentoNormalizado,
+            dataLancamentoRaw: dataLancamentoRawNormalizado,
+            numeroLote: numeroLoteNormalizado,
+          },
+        },
+        select: {
+          id: true,
+          clienteId: true,
+          observacoesProcessamento: true,
+          textoDescricaoHistorico: true,
+          numeroDocumento: true,
+          dataLancamentoRaw: true,
+          numeroLote: true,
+        },
+      });
+
+      // Se não encontrou pela constraint única, tentar busca alternativa
+      // (pode acontecer se houver diferença de tipos ou normalização)
+      if (!lancamentoExistente && numeroDocumentoNormalizado) {
+        const lancamentosSimilares = await this.prisma.lancamentoExtrato.findMany({
+          where: {
+            AND: [
+              {
+                OR: [
+                  { numeroDocumento: numeroDocumentoNormalizado },
+                  { numeroDocumento: String(numeroDocumentoRaw || '') },
+                ],
+              },
+              {
+                dataLancamentoRaw: dataLancamentoRawNormalizado,
+              },
+              {
+                numeroLote: numeroLoteNormalizado,
+              },
+            ],
+          },
+          select: {
+            id: true,
+            clienteId: true,
+            observacoesProcessamento: true,
+            textoDescricaoHistorico: true,
+            numeroDocumento: true,
+            dataLancamentoRaw: true,
+            numeroLote: true,
+          },
+          take: 1,
+        });
+
+        if (lancamentosSimilares.length > 0) {
+          lancamentoExistente = lancamentosSimilares[0];
+          // Log apenas quando há diferença de normalização (caso raro que precisa ser investigado)
+          console.warn('⚠️ [DUPLICIDADE] Duplicado encontrado via busca alternativa:', {
+            descricao: extrato.textoDescricaoHistorico,
+            numeroDocumentoBuscado: numeroDocumentoNormalizado,
+            numeroDocumentoEncontrado: lancamentoExistente.numeroDocumento,
+          });
+        }
+      }
+
+      // Se já existe, tratar como duplicado ou atualizar cliente se necessário
+      if (lancamentoExistente) {
+        // Log resumido de duplicidade (apenas quando necessário para debug)
+        // Removido log detalhado para reduzir verbosidade no console
+        const podeAtualizarCliente =
+          (lancamentoExistente.clienteId === null || lancamentoExistente.clienteId === undefined) &&
+          clienteId !== null &&
+          clienteId !== undefined;
+
+        if (podeAtualizarCliente) {
+          const observacaoNova =
+            'Cliente vinculado automaticamente em reprocessamento (lançamento já existia como duplicado, mas estava sem cliente).';
+          const observacoesProcessamento = lancamentoExistente.observacoesProcessamento
+            ? `${lancamentoExistente.observacoesProcessamento}\n${observacaoNova}`
+            : observacaoNova;
+
+          await this.prisma.lancamentoExtrato.update({
+            where: { id: lancamentoExistente.id },
+            data: {
+              clienteId,
+              observacoesProcessamento,
+            },
+          });
+
+          return 'atualizado';
+        }
+
+        return 'duplicado';
+      }
+
       // Tentar criar diretamente - a constraint única do banco impedirá duplicações
-      // Se houver erro de constraint única (P2002), significa que já existe
+      // Se houver erro de constraint única (P2002), significa que já existe (race condition)
       try {
         await this.prisma.lancamentoExtrato.create({
           data: dataToCreate,
         });
         return 'salvo';
       } catch (error: any) {
-        // Erro P2002 = violação de constraint única (duplicado)
+        // Erro P2002 = violação de constraint única (duplicado) - pode acontecer em race conditions
         if (error?.code === 'P2002') {
-          // ✅ Se já existe, mas está sem cliente vinculado e agora conseguimos identificar,
-          // atualizamos SOMENTE o vínculo do cliente (sem criar novo lançamento).
+          // Em race conditions, verificar se podemos atualizar o cliente
           try {
             const existente = await this.prisma.lancamentoExtrato.findUnique({
               where: {
                 numeroDocumento_dataLancamentoRaw_numeroLote: {
-                  numeroDocumento,
-                  dataLancamentoRaw: dataLancamentoBigInt,
-                  numeroLote: numeroLoteBigInt,
+                  numeroDocumento: numeroDocumentoNormalizado,
+                  dataLancamentoRaw: dataLancamentoRawNormalizado,
+                  numeroLote: numeroLoteNormalizado,
                 },
               },
               select: {
@@ -1410,8 +1611,8 @@ export class LancamentoExtratoService {
               return 'atualizado';
             }
           } catch (updateError) {
-            // Se falhar a tentativa de atualização, caímos no comportamento padrão de duplicado
-            console.warn('⚠️ Não foi possível atualizar vínculo de cliente para lançamento duplicado.', {
+            // Se falhar a tentativa de atualização, retornar como duplicado
+            console.warn('⚠️ Não foi possível atualizar vínculo de cliente para lançamento duplicado (race condition):', {
               numeroDocumento,
               dataLancamentoRaw: String(dataLancamentoBigInt),
               numeroLote: String(numeroLoteBigInt),

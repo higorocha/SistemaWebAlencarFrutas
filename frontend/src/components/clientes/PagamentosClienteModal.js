@@ -29,6 +29,7 @@ import VincularPagamentoManualModal from "./VincularPagamentoManualModal";
 import VisualizarPedidoModal from "../pedidos/VisualizarPedidoModal";
 import VisualizarVinculosLancamentoModal from "../pedidos/VisualizarVinculosLancamentoModal";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
+import BuscaAPIResultModal from "../common/modals/BuscaAPIResultModal";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -83,6 +84,10 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   // Modal de confirmação de exclusão
   const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
   const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState(null);
+
+  // Modal de resultado da busca na API
+  const [resultadoBuscaModalOpen, setResultadoBuscaModalOpen] = useState(false);
+  const [resultadoBuscaSummary, setResultadoBuscaSummary] = useState(null);
 
   // Estatísticas do cliente
   const [estatisticas, setEstatisticas] = useState({
@@ -392,23 +397,46 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         contaCorrenteId: contaSelecionada,
       });
 
-      const totalSalvos = response.data.totalSalvos || 0;
-      const totalVinculosClienteAtualizados = response.data.totalVinculosClienteAtualizados || 0;
+      const {
+        totalSalvos = 0,
+        totalVinculosClienteAtualizados = 0,
+        periodo = null,
+        contaCorrente: contaCorrenteInfo = null,
+        cliente: clienteInfo = null,
+      } = response.data || {};
 
-      const mensagem = (() => {
-        if (totalSalvos > 0 && totalVinculosClienteAtualizados > 0) {
-          return `${totalSalvos} ${totalSalvos === 1 ? 'novo lançamento' : 'novos lançamentos'} e ${totalVinculosClienteAtualizados} ${totalVinculosClienteAtualizados === 1 ? 'vínculo de cliente atualizado' : 'vínculos de cliente atualizados'}`;
+      // Preparar summary para o modal de resultado
+      // Formatar período se existir (backend retorna DDMMYYYY)
+      let periodoFormatado = null;
+      if (periodo && periodo.inicio && periodo.fim) {
+        try {
+          const inicioMoment = moment(periodo.inicio, 'DDMMYYYY');
+          const fimMoment = moment(periodo.fim, 'DDMMYYYY');
+          if (inicioMoment.isValid() && fimMoment.isValid()) {
+            periodoFormatado = {
+              inicio: inicioMoment.format('DD/MM/YYYY'),
+              fim: fimMoment.format('DD/MM/YYYY'),
+            };
+          }
+        } catch (error) {
+          console.warn('Erro ao formatar período:', error);
         }
-        if (totalVinculosClienteAtualizados > 0) {
-          return `${totalVinculosClienteAtualizados} ${totalVinculosClienteAtualizados === 1 ? 'vínculo de cliente atualizado' : 'vínculos de cliente atualizados'}`;
-        }
-        return `${totalSalvos} ${totalSalvos === 1 ? 'novo lançamento encontrado' : 'novos lançamentos encontrados'}`;
-      })();
-      showNotification(
-        'success',
-        'Busca Concluída',
-        mensagem
-      );
+      }
+
+      const summary = {
+        totalSalvos,
+        totalVinculosClienteAtualizados,
+        periodo: periodoFormatado,
+        contaCorrente: contaCorrenteInfo ? {
+          agencia: contaCorrenteInfo.agencia || '',
+          conta: contaCorrenteInfo.conta || '',
+        } : null,
+        cliente: clienteInfo || cliente,
+      };
+
+      // Abrir modal de resultado
+      setResultadoBuscaSummary(summary);
+      setResultadoBuscaModalOpen(true);
 
       // Recarregar pagamentos após buscar
       await fetchPagamentosCliente();
@@ -661,6 +689,8 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       setLancamentoVinculos(null);
       setConfirmExclusaoOpen(false);
       setLancamentoParaExcluir(null);
+      setResultadoBuscaModalOpen(false);
+      setResultadoBuscaSummary(null);
     }
   }, [open]);
 
@@ -1411,6 +1441,17 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
           }
         />
       )}
+
+      {/* Modal de Resultado da Busca na API */}
+      <BuscaAPIResultModal
+        open={resultadoBuscaModalOpen}
+        onClose={() => {
+          setResultadoBuscaModalOpen(false);
+          setResultadoBuscaSummary(null);
+        }}
+        title="Busca Concluída"
+        summary={resultadoBuscaSummary}
+      />
     </Modal>
   );
 };

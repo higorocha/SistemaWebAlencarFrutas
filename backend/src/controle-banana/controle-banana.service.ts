@@ -320,6 +320,52 @@ export class ControleBananaService {
       // Buscar dados atuais para histórico
       const controleAtual = await this.findOne(id);
 
+      // Verificar se o lote está vinculado a pedidos
+      const fitasVinculadas = await this.prisma.frutasPedidosFitas.findMany({
+        where: {
+          controleBananaId: id
+        },
+        include: {
+          frutaPedido: {
+            include: {
+              pedido: {
+                select: {
+                  id: true,
+                  numeroPedido: true,
+                  status: true
+                }
+              }
+            }
+          }
+        },
+        take: 5 // Limitar para não sobrecarregar a resposta
+      });
+
+      if (fitasVinculadas.length > 0) {
+        const pedidosVinculados = fitasVinculadas.map(f => ({
+          numeroPedido: f.frutaPedido.pedido.numeroPedido,
+          status: f.frutaPedido.pedido.status
+        }));
+        
+        const pedidosUnicos = Array.from(
+          new Map(pedidosVinculados.map(p => [p.numeroPedido, p])).values()
+        );
+
+        const mensagemPedidos = pedidosUnicos
+          .slice(0, 3)
+          .map(p => `Pedido ${p.numeroPedido} (${p.status})`)
+          .join(', ');
+        
+        const maisPedidos = pedidosUnicos.length > 3 
+          ? ` e mais ${pedidosUnicos.length - 3} pedido(s)` 
+          : '';
+
+        throw new BadRequestException(
+          `Não é possível excluir este lote de fitas porque ele está vinculado a ${pedidosUnicos.length} pedido(s): ${mensagemPedidos}${maisPedidos}. ` +
+          `Para excluir este lote, primeiro remova as vinculações de fitas nos pedidos relacionados.`
+        );
+      }
+
       // Registrar no histórico antes de excluir
       await this.historicoFitasService.registrarAcao(
         id,
@@ -341,8 +387,15 @@ export class ControleBananaService {
 
       return { message: 'Controle de banana excluído com sucesso' };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ConflictException) {
+      if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof BadRequestException) {
         throw error;
+      }
+      // Se for erro de constraint do banco (foreign key)
+      if (error.code === 'P2003') {
+        throw new BadRequestException(
+          'Não é possível excluir este lote de fitas porque ele está vinculado a um ou mais pedidos. ' +
+          'Para excluir este lote, primeiro remova as vinculações de fitas nos pedidos relacionados.'
+        );
       }
       throw new BadRequestException('Erro ao excluir controle de banana');
     }

@@ -264,24 +264,47 @@ export class ExtratosService {
             }
           );
 
-          // Log do JSON recebido da API do BB
-          console.log(`📥 [BB-API-RESPONSE] JSON recebido da API de Extratos (Página ${paginaAtual}):`, 
-            JSON.stringify(response.data, null, 2)
-          );
-
           const data = response.data as any;
-
-          // Log removido - informações já aparecem no log do job de extratos
 
           // Verificar se há lançamentos nesta página
           if (!data || !data.listaLancamento || data.listaLancamento.length === 0) {
-            // Log removido - informações já aparecem no log do job de extratos
+            console.log(`📥 [BB-API-RESPONSE] Página ${paginaAtual}: Nenhum lançamento encontrado`);
             hasMorePages = false;
             break;
           }
 
+          // Resumo da resposta da API (ao invés do JSON completo)
+          const lancamentos = data.listaLancamento || [];
+          const totalLancamentos = lancamentos.length;
+          const proximaPagina = data.numeroPaginaProximo > 0 ? data.numeroPaginaProximo : null;
+          
+          // Contar tipos de lançamentos (crédito/débito)
+          const creditos = lancamentos.filter((l: any) => l.indicadorSinalLancamento === 'C').length;
+          const debitos = lancamentos.filter((l: any) => l.indicadorSinalLancamento === 'D').length;
+          
+          // Resumo de descrições mais comuns (top 3)
+          const descricoes = lancamentos
+            .map((l: any) => l.textoDescricaoHistorico || 'Sem descrição')
+            .reduce((acc: any, desc: string) => {
+              acc[desc] = (acc[desc] || 0) + 1;
+              return acc;
+            }, {});
+          const topDescricoes = Object.entries(descricoes)
+            .sort((a: any, b: any) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([desc, count]: [string, any]) => `${desc} (${count})`)
+            .join(', ');
+
+          console.log(`📥 [BB-API-RESPONSE] Página ${paginaAtual}:`, {
+            totalLancamentos,
+            creditos: `${creditos} crédito${creditos !== 1 ? 's' : ''}`,
+            debitos: `${debitos} débito${debitos !== 1 ? 's' : ''}`,
+            proximaPagina: proximaPagina ? `Página ${proximaPagina}` : 'Última página',
+            topDescricoes: topDescricoes || 'N/A',
+          });
+
           // Adicionar lançamentos à lista (dados brutos)
-          extratos.push(...data.listaLancamento);
+          extratos.push(...lancamentos);
 
           // Verificar se há mais páginas
           if (data.numeroPaginaProximo > 0) {

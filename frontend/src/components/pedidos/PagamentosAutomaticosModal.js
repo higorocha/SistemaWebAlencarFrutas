@@ -28,6 +28,7 @@ import VincularPagamentoManualModal from "../clientes/VincularPagamentoManualMod
 import VisualizarPedidoModal from "./VisualizarPedidoModal";
 import VisualizarVinculosLancamentoModal from "./VisualizarVinculosLancamentoModal";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
+import BuscaAPIResultModal from "../common/modals/BuscaAPIResultModal";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -98,6 +99,10 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   // Modal de confirmação de exclusão
   const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
   const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState(null);
+
+  // Modal de resultado da busca na API
+  const [resultadoBuscaModalOpen, setResultadoBuscaModalOpen] = useState(false);
+  const [resultadoBuscaSummary, setResultadoBuscaSummary] = useState(null);
 
   // Estatísticas gerais
   const [estatisticas, setEstatisticas] = useState({
@@ -493,64 +498,49 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
         totalSalvosComClienteIdentificado = 0,
         totalSalvosSemClienteIdentificado = 0,
         clientes: clientesComLancamentos = [],
+        periodo = null,
+        contaCorrente: contaCorrenteInfo = null,
       } = response.data || {};
 
       const totalClientes = Array.isArray(clientesComLancamentos) ? clientesComLancamentos.length : 0;
 
-      const partesMensagem = [];
-      
-      // Resumo geral: total analisado
-      if (totalFiltrados > 0) {
-        partesMensagem.push(`${totalFiltrados} lançamento${totalFiltrados > 1 ? 's' : ''} analisado${totalFiltrados > 1 ? 's' : ''}`);
-      }
-      
-      // 1. Lançamentos salvos (com detalhamento)
-      if (totalSalvos > 0) {
-        const labelSalvos = totalSalvos === 1 ? 'salvo' : 'salvos';
-        const detalhesSalvos = [];
-        
-        if (totalSalvosComClienteIdentificado > 0) {
-          detalhesSalvos.push(`${totalSalvosComClienteIdentificado} com cliente`);
+      // Preparar summary para o modal de resultado
+      // Formatar período se existir (backend retorna DDMMYYYY)
+      let periodoFormatado = null;
+      if (periodo && periodo.inicio && periodo.fim) {
+        try {
+          const inicioMoment = moment(periodo.inicio, 'DDMMYYYY');
+          const fimMoment = moment(periodo.fim, 'DDMMYYYY');
+          if (inicioMoment.isValid() && fimMoment.isValid()) {
+            periodoFormatado = {
+              inicio: inicioMoment.format('DD/MM/YYYY'),
+              fim: fimMoment.format('DD/MM/YYYY'),
+            };
+          }
+        } catch (error) {
+          console.warn('Erro ao formatar período:', error);
         }
-        if (totalSalvosSemClienteIdentificado > 0) {
-          detalhesSalvos.push(`${totalSalvosSemClienteIdentificado} sem cliente`);
-        }
-        
-        if (detalhesSalvos.length > 0) {
-          partesMensagem.push(`${totalSalvos} ${labelSalvos} (${detalhesSalvos.join(', ')})`);
-        } else {
-          partesMensagem.push(`${totalSalvos} ${labelSalvos}`);
-        }
-      } else {
-        partesMensagem.push('0 salvos');
-      }
-      
-      // 2. Duplicados ignorados
-      if (totalDuplicados > 0) {
-        partesMensagem.push(
-          `${totalDuplicados} duplicado${totalDuplicados > 1 ? 's' : ''} (já existiam no sistema)`
-        );
-      }
-      
-      // 3. Lançamentos não salvos por falta de cliente
-      // totalSemClienteIdentificado = todos os elegíveis sem cliente (incluindo duplicados e não salvos)
-      // totalSalvosSemClienteIdentificado = apenas os salvos sem cliente
-      // A diferença são os que não foram salvos (podem incluir duplicados sem cliente)
-      const naoSalvosPorFaltaCliente = (totalSemClienteIdentificado || 0) - (totalSalvosSemClienteIdentificado || 0);
-      if (naoSalvosPorFaltaCliente > 0) {
-        partesMensagem.push(
-          `${naoSalvosPorFaltaCliente} não salvo${naoSalvosPorFaltaCliente > 1 ? 's' : ''} (sem cliente identificado)`
-        );
-      }
-      
-      // 4. Informações adicionais (opcionais)
-      if (totalClientes > 0) {
-        partesMensagem.push(`${totalClientes} cliente${totalClientes > 1 ? 's' : ''} afetado${totalClientes > 1 ? 's' : ''}`);
       }
 
-      const mensagem = partesMensagem.join(' • ') || 'Busca finalizada sem novos lançamentos.';
+      const summary = {
+        totalFiltrados,
+        totalSalvos,
+        totalSalvosComClienteIdentificado,
+        totalSalvosSemClienteIdentificado,
+        totalDuplicados,
+        totalSemClienteIdentificado,
+        totalClientes,
+        clientes: clientesComLancamentos,
+        periodo: periodoFormatado,
+        contaCorrente: contaCorrenteInfo ? {
+          agencia: contaCorrenteInfo.agencia || '',
+          conta: contaCorrenteInfo.conta || '',
+        } : null,
+      };
 
-      showNotification('success', 'Busca Concluída', mensagem);
+      // Abrir modal de resultado
+      setResultadoBuscaSummary(summary);
+      setResultadoBuscaModalOpen(true);
 
       // Recarregar pagamentos após buscar (buscar todos, o filtro será aplicado no frontend)
       await fetchPagamentos();
@@ -842,6 +832,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       setLancamentoVinculos(null);
       setConfirmExclusaoOpen(false);
       setLancamentoParaExcluir(null);
+      setResultadoBuscaModalOpen(false);
+      setResultadoBuscaSummary(null);
     }
   }, [open]);
 
@@ -1644,6 +1636,17 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
           }
         />
       )}
+
+      {/* Modal de Resultado da Busca na API */}
+      <BuscaAPIResultModal
+        open={resultadoBuscaModalOpen}
+        onClose={() => {
+          setResultadoBuscaModalOpen(false);
+          setResultadoBuscaSummary(null);
+        }}
+        title="Busca Concluída"
+        summary={resultadoBuscaSummary}
+      />
     </Modal>
   );
 };

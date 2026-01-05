@@ -20,6 +20,7 @@ import useNotificationWithContext from '../../hooks/useNotificationWithContext';
 import useResponsive from '../../hooks/useResponsive';
 import { CentralizedLoader } from '../common/loaders';
 import { obterNumeroSemana, formatarData, calcularStatusMaturacao } from '../../utils/dateUtils';
+import ConfirmActionModal from '../common/modals/ConfirmActionModal';
 
 const { Title, Text } = Typography;
 
@@ -40,6 +41,8 @@ const DetalhamentoModal = ({
   const [editandoControle, setEditandoControle] = useState(null);
   const [fitas, setFitas] = useState([]);
   const [operacaoLoading, setOperacaoLoading] = useState(false);
+  const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
+  const [controleParaExcluir, setControleParaExcluir] = useState(null);
 
   useEffect(() => {
     if (visible && itemId) {
@@ -65,8 +68,8 @@ const DetalhamentoModal = ({
 
       const response = await axiosInstance.get(endpoint);
       setDados(response.data);
-    } catch (error) {
-      console.error('Erro ao carregar detalhes:', error);
+    } catch (err) {
+      console.error('Erro ao carregar detalhes:', err);
       error('Erro', 'Falha ao carregar detalhes');
     } finally {
       setLoading(false);
@@ -77,8 +80,8 @@ const DetalhamentoModal = ({
     try {
       const response = await axiosInstance.get('/fitas-banana');
       setFitas(response.data || []);
-    } catch (error) {
-      console.error('Erro ao carregar fitas:', error);
+    } catch (err) {
+      console.error('Erro ao carregar fitas:', err);
       error('Erro', 'Falha ao carregar lista de fitas');
     }
   };
@@ -115,7 +118,6 @@ const DetalhamentoModal = ({
       editData.fitaId = itemId; // ID da fita atual (fixa)
     }
 
-    console.log('Iniciando edição:', editData);
     setEditandoControle(editData);
   };
 
@@ -127,14 +129,30 @@ const DetalhamentoModal = ({
     try {
       setOperacaoLoading(true);
       
+      // Validar quantidade
+      const quantidade = editandoControle.quantidade;
+      
+      if (quantidade === null || quantidade === undefined || quantidade === '') {
+        error('Erro', 'Quantidade é obrigatória');
+        setOperacaoLoading(false);
+        return;
+      }
+
+      const quantidadeNum = typeof quantidade === 'string' ? parseInt(quantidade, 10) : quantidade;
+      
+      // Permitir quantidade 0 (zerar o lote)
+      if (isNaN(quantidadeNum) || quantidadeNum < 0) {
+        error('Erro', 'Quantidade deve ser um número válido maior ou igual a zero');
+        setOperacaoLoading(false);
+        return;
+      }
+      
       const dadosAtualizacao = {
         areaAgricolaId: editandoControle.areaId,
         fitaBananaId: editandoControle.fitaId,
-        quantidadeFitas: editandoControle.quantidade,
+        quantidadeFitas: quantidadeNum,
         dataRegistro: editandoControle.dataRegistro ? editandoControle.dataRegistro.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss') : null
       };
-
-      console.log('Dados para atualização:', dadosAtualizacao);
 
       await axiosInstance.patch(`/controle-banana/${editandoControle.id}`, dadosAtualizacao);
       
@@ -144,30 +162,47 @@ const DetalhamentoModal = ({
 
       // Mostrar notificação após o loading
       success('Sucesso', 'Lote atualizado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao salvar edição:', error);
-      error('Erro', 'Falha ao salvar alterações');
+    } catch (err) {
+      console.error('Erro ao salvar edição:', err);
+      
+      // Extrair mensagem de erro do backend
+      let errorMessage = 'Falha ao salvar alterações';
+      if (err.response?.data) {
+        // Tentar diferentes formatos de resposta do backend
+        if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        } else if (Array.isArray(err.response.data.message)) {
+          // Se for array de validação
+          errorMessage = err.response.data.message.join(', ');
+        } else if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        }
+      }
+      
+      error('Erro', errorMessage);
     } finally {
       setOperacaoLoading(false);
     }
   };
 
   const confirmarExclusao = (controleId) => {
-    Modal.confirm({
-      title: 'Excluir lote',
-      content: 'Tem certeza que deseja excluir este lote de fitas?',
-      okText: 'Sim',
-      cancelText: 'Não',
-      onOk: () => {
-        // Executar exclusão após o modal fechar
-        setTimeout(() => excluirControle(controleId), 100);
-        // Não retornar Promise para evitar loading no botão
-      },
-      okButtonProps: {
-        danger: true
-      },
-      zIndex: 1200 // Maior que DetalhamentoModal (1050)
-    });
+    setControleParaExcluir(controleId);
+    setConfirmExclusaoOpen(true);
+  };
+
+  const handleConfirmarExclusao = async () => {
+    if (!controleParaExcluir) return;
+    
+    setConfirmExclusaoOpen(false);
+    await excluirControle(controleParaExcluir);
+    setControleParaExcluir(null);
+  };
+
+  const handleCancelarExclusao = () => {
+    setConfirmExclusaoOpen(false);
+    setControleParaExcluir(null);
   };
 
   const excluirControle = async (controleId) => {
@@ -181,9 +216,26 @@ const DetalhamentoModal = ({
 
       // Mostrar notificação após o loading
       success('Sucesso', 'Lote excluído com sucesso!');
-    } catch (error) {
-      console.error('Erro ao excluir controle:', error);
-      error('Erro', 'Falha ao excluir lote');
+    } catch (err) {
+      console.error('Erro ao excluir controle:', err);
+      
+      // Extrair mensagem de erro do backend
+      let errorMessage = 'Falha ao excluir lote';
+      if (err.response?.data) {
+        // Tentar diferentes formatos de resposta do backend
+        if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        } else if (Array.isArray(err.response.data.message)) {
+          // Se for array de validação
+          errorMessage = err.response.data.message.join(', ');
+        } else if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        }
+      }
+      
+      error('Erro', errorMessage);
     } finally {
       setOperacaoLoading(false);
     }
@@ -1381,6 +1433,21 @@ const DetalhamentoModal = ({
       </div>
 
     </Modal>
+
+    {/* Modal de Confirmação de Exclusão */}
+    <ConfirmActionModal
+      open={confirmExclusaoOpen}
+      onConfirm={handleConfirmarExclusao}
+      onCancel={handleCancelarExclusao}
+      title="Excluir Lote"
+      message="Tem certeza que deseja excluir este lote de fitas? Esta ação não pode ser desfeita."
+      confirmText="Sim, Excluir"
+      cancelText="Cancelar"
+      confirmButtonDanger={true}
+      icon={<DeleteOutlined />}
+      iconColor="#ff4d4f"
+      confirmDisabled={operacaoLoading}
+    />
     </>
   );
 };

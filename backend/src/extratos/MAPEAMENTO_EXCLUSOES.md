@@ -14,7 +14,7 @@ Arquivo: `backend/src/extratos/lancamento-extrato.service.ts`
 
 O conjunto `descricoesCreditoIgnorar` armazena todas as descrições em letras maiúsculas, correspondendo ao campo `textoDescricaoHistorico` da API do Banco do Brasil. Antes de validar CPF/CNPJ e tentar salvar o lançamento, o serviço compara a descrição com esse conjunto para decidir se o registro deve ser pulado.
 
-```62:78:SistemaWebAlencarFrutas/backend/src/extratos/lancamento-extrato.service.ts
+```62:74:SistemaWebAlencarFrutas/backend/src/extratos/lancamento-extrato.service.ts
 private readonly descricoesCreditoIgnorar = new Set<string>([
   'LIMITE DISPONIVEL',
   'LIMITE CONTRATADO',
@@ -25,6 +25,7 @@ private readonly descricoesCreditoIgnorar = new Set<string>([
   'S A L D O',
   'INVEST. RESGATE AUTOM',
   'BB RENDE FÁCIL',
+  'PIX - REJEITADO',
 ]);
 ```
 
@@ -39,8 +40,9 @@ private readonly descricoesCreditoIgnorar = new Set<string>([
 | `SALDO DISPONIVEL`   | Indicação de saldo disponível.                                               |
 | `SALDO ATUAL`        | Resumo diário de posição; adicionado para evitar duplicidade de saldos.      |
 | `S A L D O`          | Variação de escrita do saldo informativo.                                    |
-| `INVEST. RESGATE AUTOM` | Movimento automático de investimento, não é receita operacional direta. |
+| `INVEST. RESGATE AUTOM` | Movimento automático de investimento, não é receita operacional direta. | 
 | `BB RENDE FÁCIL`     | Produto financeiro do banco, não é pagamento de cliente.                     |
+| `PIX - REJEITADO`    | Transação PIX que foi rejeitada, não representa recebimento efetivo.        |
 
 > **Nota:** As descrições são armazenadas em maiúsculas e sem acentuação para evitar divergências. Caso a API retorne uma nova variação, inclua-a no mesmo array seguindo o padrão.
 

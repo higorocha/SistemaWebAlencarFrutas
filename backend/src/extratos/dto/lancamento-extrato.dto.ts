@@ -559,6 +559,8 @@ export class BuscarProcessarExtratosResponseDto {
   clientes?: Array<{
     id: number;
     nome: string;
+    quantidadeLancamentos?: number;
+    valorTotal?: number;
   }>;
 }
 

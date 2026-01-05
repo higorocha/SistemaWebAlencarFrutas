@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsPositive, IsOptional, IsString, IsDateString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsPositive, IsOptional, IsString, IsDateString, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 export class CreateControleBananaDto {
@@ -13,7 +13,7 @@ export class CreateControleBananaDto {
   areaAgricolaId: number;
 
   @IsInt({ message: 'Quantidade de fitas deve ser um número inteiro' })
-  @IsPositive({ message: 'Quantidade de fitas deve ser maior que zero' })
+  @Min(0, { message: 'Quantidade de fitas deve ser maior ou igual a zero' })
   @Type(() => Number)
   quantidadeFitas: number;
 

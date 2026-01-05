@@ -869,7 +869,18 @@ export class NotificacoesService {
         if (nome.includes('banana') || nome.includes('prata') || nome.includes('nanica')) {
           return '🍌';
         }
-        if (nome.includes('coco')) {
+        // IMPORTANTE: Verificar coco verde PRIMEIRO (antes de qualquer verificação genérica de "coco")
+        // Verificar se contém "coco verde" ou "coco-verde"
+        if (nome.includes('coco verde') || nome.includes('coco-verde')) {
+          return '🟢';
+        }
+        // Verificar coco seco
+        if (nome.includes('coco seco') || nome.includes('coco-seco')) {
+          return '🥥';
+        }
+        // Coco genérico (só chega aqui se não for coco verde nem coco seco)
+        // Verificar se contém "coco" mas NÃO contém "verde" nem "seco"
+        if (nome.includes('coco') && !nome.includes('verde') && !nome.includes('seco')) {
           return '🥥';
         }
         if (nome.includes('melancia')) {
