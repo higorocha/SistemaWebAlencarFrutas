@@ -1,6 +1,6 @@
 // src/components/frutas/FrutasTable.js
 
-import React from "react";
+import React, { useState } from "react";
 import { Dropdown, Button, Tag, Empty, Typography, Space } from "antd";
 import {
   EditOutlined,
@@ -11,6 +11,7 @@ import {
 import PropTypes from "prop-types";
 import { showNotification } from "../../config/notificationConfig";
 import ResponsiveTable from "../common/ResponsiveTable";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 
 const { Text } = Typography;
 
@@ -93,6 +94,38 @@ const FrutasTable = ({
   onPageChange,
   onShowSizeChange,
 }) => {
+  // Estados para controle do modal de confirmação de exclusão
+  const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
+  const [frutaParaExcluir, setFrutaParaExcluir] = useState(null);
+
+  // Função para abrir o modal de confirmação de exclusão
+  const handleExcluirFruta = (fruta) => {
+    setFrutaParaExcluir(fruta);
+    setConfirmExclusaoOpen(true);
+  };
+
+  // Função para confirmar a exclusão
+  const handleConfirmarExclusao = async () => {
+    if (!frutaParaExcluir) return;
+
+    setConfirmExclusaoOpen(false);
+    
+    try {
+      await onDelete(frutaParaExcluir.id);
+      setFrutaParaExcluir(null);
+    } catch (error) {
+      console.error("Erro ao excluir fruta:", error);
+    } finally {
+      setFrutaParaExcluir(null);
+    }
+  };
+
+  // Função para cancelar a exclusão
+  const handleCancelarExclusao = () => {
+    setConfirmExclusaoOpen(false);
+    setFrutaParaExcluir(null);
+  };
+
   const getMenuContent = (record) => {
     const items = [
       {
@@ -114,7 +147,7 @@ const FrutasTable = ({
           </Space>
         ),
         danger: true,
-        onClick: () => onDelete(record.id),
+        onClick: () => handleExcluirFruta(record),
       },
     ];
 
@@ -219,29 +252,45 @@ const FrutasTable = ({
   const paginatedData = frutas.slice(startIndex, endIndex);
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      dataSource={paginatedData}
-      rowKey="id"
-      loading={loading}
-      pagination={false}
-      minWidthMobile={1000}
-      showScrollHint={true}
-      size="middle"
-      bordered={true}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span style={{ color: "#8c8c8c" }}>
-                Nenhuma fruta encontrada
-              </span>
-            }
-          />
-        ),
-      }}
-    />
+    <>
+      <ResponsiveTable
+        columns={columns}
+        dataSource={paginatedData}
+        rowKey="id"
+        loading={loading}
+        pagination={false}
+        minWidthMobile={1000}
+        showScrollHint={true}
+        size="middle"
+        bordered={true}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <span style={{ color: "#8c8c8c" }}>
+                  Nenhuma fruta encontrada
+                </span>
+              }
+            />
+          ),
+        }}
+      />
+
+      {/* Modal de Confirmação de Exclusão */}
+      <ConfirmActionModal
+        open={confirmExclusaoOpen}
+        onConfirm={handleConfirmarExclusao}
+        onCancel={handleCancelarExclusao}
+        title="Excluir Fruta"
+        message={`Tem certeza que deseja excluir a fruta "${frutaParaExcluir?.nome ? capitalizeName(frutaParaExcluir.nome) : ''}"? Esta ação não pode ser desfeita.`}
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+      />
+    </>
   );
 };
 

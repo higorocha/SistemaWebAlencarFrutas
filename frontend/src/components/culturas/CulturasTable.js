@@ -1,6 +1,6 @@
 // src/components/culturas/CulturasTable.js
 
-import React from "react";
+import React, { useState } from "react";
 import { Dropdown, Button, Tag, Empty, Typography, Space } from "antd";
 import {
   EditOutlined,
@@ -11,6 +11,7 @@ import {
 } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import ResponsiveTable from "../common/ResponsiveTable";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 
 const { Text } = Typography;
 
@@ -78,6 +79,38 @@ const CulturasTable = ({
   onPageChange,
   onShowSizeChange,
 }) => {
+  // Estados para controle do modal de confirmação de exclusão
+  const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
+  const [culturaParaExcluir, setCulturaParaExcluir] = useState(null);
+
+  // Função para abrir o modal de confirmação de exclusão
+  const handleExcluirCultura = (cultura) => {
+    setCulturaParaExcluir(cultura);
+    setConfirmExclusaoOpen(true);
+  };
+
+  // Função para confirmar a exclusão
+  const handleConfirmarExclusao = async () => {
+    if (!culturaParaExcluir) return;
+
+    setConfirmExclusaoOpen(false);
+    
+    try {
+      await onDelete(culturaParaExcluir.id);
+      setCulturaParaExcluir(null);
+    } catch (error) {
+      console.error("Erro ao excluir cultura:", error);
+    } finally {
+      setCulturaParaExcluir(null);
+    }
+  };
+
+  // Função para cancelar a exclusão
+  const handleCancelarExclusao = () => {
+    setConfirmExclusaoOpen(false);
+    setCulturaParaExcluir(null);
+  };
+
   const getMenuContent = (record) => {
     const items = [
       {
@@ -99,7 +132,7 @@ const CulturasTable = ({
           </Space>
         ),
         danger: true,
-        onClick: () => onDelete(record.id),
+        onClick: () => handleExcluirCultura(record),
       },
     ];
 
@@ -172,29 +205,45 @@ const CulturasTable = ({
   const paginatedData = culturas.slice(startIndex, endIndex);
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      dataSource={paginatedData}
-      rowKey="id"
-      loading={loading}
-      pagination={false}
-      minWidthMobile={800}
-      showScrollHint={true}
-      size="middle"
-      bordered={true}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span style={{ color: "#8c8c8c" }}>
-                Nenhuma cultura encontrada
-              </span>
-            }
-          />
-        ),
-      }}
-    />
+    <>
+      <ResponsiveTable
+        columns={columns}
+        dataSource={paginatedData}
+        rowKey="id"
+        loading={loading}
+        pagination={false}
+        minWidthMobile={800}
+        showScrollHint={true}
+        size="middle"
+        bordered={true}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <span style={{ color: "#8c8c8c" }}>
+                  Nenhuma cultura encontrada
+                </span>
+              }
+            />
+          ),
+        }}
+      />
+
+      {/* Modal de Confirmação de Exclusão */}
+      <ConfirmActionModal
+        open={confirmExclusaoOpen}
+        onConfirm={handleConfirmarExclusao}
+        onCancel={handleCancelarExclusao}
+        title="Excluir Cultura"
+        message={`Tem certeza que deseja excluir a cultura "${culturaParaExcluir?.descricao ? capitalizeName(culturaParaExcluir.descricao) : ''}"? Esta ação não pode ser desfeita.`}
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+      />
+    </>
   );
 };
 

@@ -1,6 +1,6 @@
 // src/components/clientes/ClientesTable.js
 
-import React from "react";
+import React, { useState } from "react";
 import { Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
 import {
   EditOutlined,
@@ -16,6 +16,7 @@ import {
 import PropTypes from "prop-types";
 import { showNotification } from "../../config/notificationConfig";
 import ResponsiveTable from "../common/ResponsiveTable";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 
 const { Text } = Typography;
 
@@ -66,6 +67,38 @@ const ClientesTable = React.memo(({
   onStatusFilter,
   currentStatusFilter,
 }) => {
+  // Estados para controle do modal de confirmação de exclusão
+  const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
+  const [clienteParaExcluir, setClienteParaExcluir] = useState(null);
+
+  // Função para abrir o modal de confirmação de exclusão
+  const handleExcluirCliente = (cliente) => {
+    setClienteParaExcluir(cliente);
+    setConfirmExclusaoOpen(true);
+  };
+
+  // Função para confirmar a exclusão
+  const handleConfirmarExclusao = async () => {
+    if (!clienteParaExcluir) return;
+
+    setConfirmExclusaoOpen(false);
+    
+    try {
+      await onDelete(clienteParaExcluir.id);
+      setClienteParaExcluir(null);
+    } catch (error) {
+      console.error("Erro ao excluir cliente:", error);
+    } finally {
+      setClienteParaExcluir(null);
+    }
+  };
+
+  // Função para cancelar a exclusão
+  const handleCancelarExclusao = () => {
+    setConfirmExclusaoOpen(false);
+    setClienteParaExcluir(null);
+  };
+
   // Função para criar o menu de ações
   const getMenuContent = (record) => {
     const menuItems = [
@@ -120,7 +153,7 @@ const ClientesTable = React.memo(({
             <span style={{ color: "#333" }}>Excluir</span>
           </Space>
         ),
-        onClick: () => onDelete(record.id),
+        onClick: () => handleExcluirCliente(record),
       },
     ];
 
@@ -261,29 +294,45 @@ const ClientesTable = React.memo(({
   const paginatedData = clientes.slice(startIndex, endIndex);
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      dataSource={paginatedData}
-      loading={loading}
-      rowKey="id"
-      pagination={false}
-      minWidthMobile={800}
-      showScrollHint={true}
-      size="middle"
-      bordered={true}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span style={{ color: "#8c8c8c", fontSize: "14px" }}>
-                Nenhum cliente encontrado
-              </span>
-            }
-          />
-        ),
-      }}
-    />
+    <>
+      <ResponsiveTable
+        columns={columns}
+        dataSource={paginatedData}
+        loading={loading}
+        rowKey="id"
+        pagination={false}
+        minWidthMobile={800}
+        showScrollHint={true}
+        size="middle"
+        bordered={true}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <span style={{ color: "#8c8c8c", fontSize: "14px" }}>
+                  Nenhum cliente encontrado
+                </span>
+              }
+            />
+          ),
+        }}
+      />
+
+      {/* Modal de Confirmação de Exclusão */}
+      <ConfirmActionModal
+        open={confirmExclusaoOpen}
+        onConfirm={handleConfirmarExclusao}
+        onCancel={handleCancelarExclusao}
+        title="Excluir Cliente"
+        message={`Tem certeza que deseja excluir o cliente "${clienteParaExcluir?.nome ? capitalizeName(clienteParaExcluir.nome) : ''}"? Esta ação não pode ser desfeita.`}
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+      />
+    </>
   );
 });
 

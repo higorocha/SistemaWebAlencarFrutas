@@ -17,6 +17,7 @@ import PropTypes from "prop-types";
 import ResponsiveTable from "../common/ResponsiveTable";
 import { showNotification } from "../../config/notificationConfig";
 import EstatisticasFornecedorModal from "./EstatisticasFornecedorModal";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 
 const { Text } = Typography;
 
@@ -72,6 +73,10 @@ const FornecedoresTable = React.memo(({
     fornecedorNome: "",
   });
 
+  // Estados para controle do modal de confirmação de exclusão
+  const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
+  const [fornecedorParaExcluir, setFornecedorParaExcluir] = useState(null);
+
   // Função para abrir modal de estatísticas
   const handleVerEstatisticas = (fornecedor) => {
     setModalEstatisticas({
@@ -88,6 +93,34 @@ const FornecedoresTable = React.memo(({
       fornecedorId: null,
       fornecedorNome: "",
     });
+  };
+
+  // Função para abrir o modal de confirmação de exclusão
+  const handleExcluirFornecedor = (fornecedor) => {
+    setFornecedorParaExcluir(fornecedor);
+    setConfirmExclusaoOpen(true);
+  };
+
+  // Função para confirmar a exclusão
+  const handleConfirmarExclusao = async () => {
+    if (!fornecedorParaExcluir) return;
+
+    setConfirmExclusaoOpen(false);
+    
+    try {
+      await onDelete(fornecedorParaExcluir.id);
+      setFornecedorParaExcluir(null);
+    } catch (error) {
+      console.error("Erro ao excluir fornecedor:", error);
+    } finally {
+      setFornecedorParaExcluir(null);
+    }
+  };
+
+  // Função para cancelar a exclusão
+  const handleCancelarExclusao = () => {
+    setConfirmExclusaoOpen(false);
+    setFornecedorParaExcluir(null);
   };
 
   // Função para criar o menu de ações
@@ -134,7 +167,7 @@ const FornecedoresTable = React.memo(({
             <span style={{ color: "#333" }}>Excluir</span>
           </Space>
         ),
-        onClick: () => onDelete(record.id),
+        onClick: () => handleExcluirFornecedor(record),
       },
     ];
 
@@ -385,6 +418,20 @@ const FornecedoresTable = React.memo(({
         onClose={handleFecharEstatisticas}
         fornecedorId={modalEstatisticas.fornecedorId}
         fornecedorNome={modalEstatisticas.fornecedorNome}
+      />
+
+      {/* Modal de Confirmação de Exclusão */}
+      <ConfirmActionModal
+        open={confirmExclusaoOpen}
+        onConfirm={handleConfirmarExclusao}
+        onCancel={handleCancelarExclusao}
+        title="Excluir Fornecedor"
+        message={`Tem certeza que deseja excluir o fornecedor "${fornecedorParaExcluir?.nome ? capitalizeName(fornecedorParaExcluir.nome) : ''}"? Esta ação não pode ser desfeita.`}
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
       />
     </>
   );

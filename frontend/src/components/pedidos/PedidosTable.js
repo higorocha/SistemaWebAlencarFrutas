@@ -20,6 +20,7 @@ import ResponsiveTable from "../common/ResponsiveTable";
 import FrutasPedidoModal from "./FrutasPedidoModal";
 import TurmasPedidoModal from "./TurmasPedidoModal";
 import VisualizarPedidoModal from "./VisualizarPedidoModal";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 import useCoresPorTempo from "../../hooks/useCoresPorTempo";
 import {
@@ -196,9 +197,11 @@ const PedidosTable = ({
     setConfirmDeleteModalOpen(true);
   };
 
-  // Função para excluir pedido
-  const handleExcluirPedido = async () => {
+  // Função para confirmar a exclusão
+  const handleConfirmarExclusao = async () => {
     if (!pedidoParaExcluir) return;
+
+    setConfirmDeleteModalOpen(false);
     
     try {
       setLoadingDelete(true);
@@ -211,7 +214,6 @@ const PedidosTable = ({
         onPedidoRemovido(pedidoParaExcluir.id);
       }
       
-      setConfirmDeleteModalOpen(false);
       setPedidoParaExcluir(null);
     } catch (error) {
       console.error("Erro ao excluir pedido:", error);
@@ -226,7 +228,14 @@ const PedidosTable = ({
       }
     } finally {
       setLoadingDelete(false);
+      setPedidoParaExcluir(null);
     }
+  };
+
+  // Função para cancelar a exclusão
+  const handleCancelarExclusao = () => {
+    setConfirmDeleteModalOpen(false);
+    setPedidoParaExcluir(null);
   };
 
   // Função para obter configuração de status
@@ -882,74 +891,23 @@ const PedidosTable = ({
       />
 
       {/* Modal de Confirmação de Exclusão */}
-      <Modal
-        title={
-          <span style={{ 
-            color: "#ffffff", 
-            fontWeight: "600", 
-            fontSize: "16px",
-            backgroundColor: "#ef4444",
-            padding: "12px 16px",
-            margin: "-20px -24px 0 -24px",
-            display: "block",
-            borderRadius: "8px 8px 0 0",
-          }}>
-            <DeleteOutlined style={{ marginRight: 8 }} />
-            Confirmar Exclusão
-          </span>
-        }
+      <ConfirmActionModal
         open={confirmDeleteModalOpen}
-        onCancel={() => {
-          setConfirmDeleteModalOpen(false);
-          setPedidoParaExcluir(null);
-        }}
-        onOk={handleExcluirPedido}
-        okText="Sim, Excluir"
+        onConfirm={handleConfirmarExclusao}
+        onCancel={handleCancelarExclusao}
+        title="Excluir Pedido"
+        message={
+          pedidoParaExcluir
+            ? `Tem certeza que deseja excluir o pedido "${pedidoParaExcluir.numeroPedido}"${pedidoParaExcluir.cliente?.nome ? ` do cliente ${capitalizeName(pedidoParaExcluir.cliente.nome)}` : ''}? Status: ${getStatusConfig(pedidoParaExcluir.status).text}. Esta ação não pode ser desfeita.`
+            : "Tem certeza que deseja excluir este pedido? Esta ação não pode ser desfeita."
+        }
+        confirmText="Sim, Excluir"
         cancelText="Cancelar"
-        confirmLoading={loadingDelete}
-        okButtonProps={{ 
-          danger: true,
-          style: { backgroundColor: '#ef4444', borderColor: '#ef4444' }
-        }}
-        cancelButtonProps={{ style: { borderColor: '#d9d9d9' } }}
-        width={500}
-        styles={{
-          header: { backgroundColor: "#ef4444", borderBottom: "2px solid #dc2626", padding: 0 },
-          body: { padding: 20 }
-        }}
-        centered
-      >
-        {pedidoParaExcluir && (
-          <div>
-            <p style={{ fontSize: "16px", marginBottom: "16px" }}>
-              Tem certeza que deseja excluir este pedido?
-            </p>
-            <div style={{ 
-              backgroundColor: "#fef2f2", 
-              border: "1px solid #fecaca", 
-              borderRadius: "8px", 
-              padding: "16px",
-              marginBottom: "16px"
-            }}>
-              <p style={{ margin: 0, fontWeight: "600", color: "#dc2626" }}>
-                Detalhes do Pedido:
-              </p>
-              <p style={{ margin: "8px 0 0 0", color: "#374151" }}>
-                <strong>Número:</strong> {pedidoParaExcluir.numeroPedido}
-              </p>
-              <p style={{ margin: "4px 0 0 0", color: "#374151" }}>
-                <strong>Cliente:</strong> {pedidoParaExcluir.cliente?.nome || '-'}
-              </p>
-              <p style={{ margin: "4px 0 0 0", color: "#374151" }}>
-                <strong>Status:</strong> {getStatusConfig(pedidoParaExcluir.status).text}
-              </p>
-            </div>
-            <p style={{ fontSize: "14px", color: "#6b7280", margin: 0 }}>
-              ⚠️ Esta ação não pode ser desfeita. O pedido e todos os dados relacionados serão removidos permanentemente.
-            </p>
-          </div>
-        )}
-      </Modal>
+        confirmButtonDanger={true}
+        confirmDisabled={loadingDelete}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+      />
     </>
   );
 };

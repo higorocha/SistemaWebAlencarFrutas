@@ -1,0 +1,7 @@
+-- This migration exists twice in some environments with different checksums.
+-- The actual CREATE TABLE migration is kept under:
+--   20251118105246_add_bb_webhook_events
+--
+-- This file is intentionally a no-op to allow Prisma to replay the full
+-- migrations history in a shadow database (migrate dev) without failing on
+-- duplicate CREATE TABLE.

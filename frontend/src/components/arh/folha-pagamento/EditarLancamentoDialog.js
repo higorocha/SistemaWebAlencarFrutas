@@ -1,14 +1,15 @@
 // src/components/arh/folha-pagamento/EditarLancamentoDialog.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Modal, Button } from "antd";
 import PropTypes from "prop-types";
 import { SaveOutlined, CloseOutlined, CalculatorOutlined } from "@ant-design/icons";
 import EditarLancamentoForm from "./EditarLancamentoForm";
 import ConfirmCloseModal from "../../common/modals/ConfirmCloseModal";
 import useConfirmClose from "../../../hooks/useConfirmClose";
+import GerenciarAdiantamentosModal from "./GerenciarAdiantamentosModal";
 
-const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
+const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento, folhaId }) => {
   const [lancamentoAtual, setLancamentoAtual] = useState({
     diasTrabalhados: undefined,
     faltas: undefined,
@@ -19,6 +20,10 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
     adiantamento: undefined,
   });
   const [erros, setErros] = useState({});
+  const [adiantamentoModal, setAdiantamentoModal] = useState({
+    open: false,
+    lancamento: null,
+  });
 
   // Função customizada para verificar se há dados preenchidos
   const customHasDataChecker = (data) => {
@@ -93,6 +98,26 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
 
   const funcionarioNome = lancamento?.funcionario?.nome || "Funcionário";
 
+  const handleGerenciarAdiantamentos = useCallback((lancamento) => {
+    setAdiantamentoModal({
+      open: true,
+      lancamento,
+    });
+  }, []);
+
+  const fecharAdiantamentoModal = useCallback(() => {
+    setAdiantamentoModal({
+      open: false,
+      lancamento: null,
+    });
+  }, []);
+
+  const handleAdiantamentoAtualizado = async () => {
+    // Recarregar lançamentos para atualizar valores
+    await onSave(lancamentoAtual);
+    fecharAdiantamentoModal();
+  };
+
   return (
     <>
       <Modal
@@ -133,13 +158,14 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
         }}
         centered
         destroyOnClose
-      >
+          >
         <EditarLancamentoForm
           lancamentoAtual={lancamentoAtual}
           setLancamentoAtual={setLancamentoAtual}
           erros={erros}
           setErros={setErros}
           lancamento={lancamento}
+          onGerenciarAdiantamento={handleGerenciarAdiantamentos}
         />
 
         <div
@@ -184,6 +210,15 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento }) => {
         confirmText="Sim, Descartar"
         cancelText="Continuar Editando"
       />
+
+      {/* Modal Gerenciar Adiantamentos */}
+      <GerenciarAdiantamentosModal
+        open={adiantamentoModal.open}
+        onClose={fecharAdiantamentoModal}
+        lancamento={adiantamentoModal.lancamento}
+        folhaId={folhaId}
+        onAdiantamentoAtualizado={handleAdiantamentoAtualizado}
+      />
     </>
   );
 };
@@ -193,6 +228,7 @@ EditarLancamentoDialog.propTypes = {
   onClose: PropTypes.func.isRequired,
   onSave: PropTypes.func.isRequired,
   lancamento: PropTypes.object,
+  folhaId: PropTypes.number,
 };
 
 export default EditarLancamentoDialog;

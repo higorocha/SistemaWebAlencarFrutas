@@ -31,6 +31,7 @@ model Usuario {
   itensPagamentoCancelados PagamentoApiItem[] @relation("UsuarioCancelamento")
   folhasCriadas            FolhaPagamento[]   @relation("FolhaCriacao")
   folhasLiberadas          FolhaPagamento[]   @relation("FolhaLiberacao")
+  adiantamentosCriados     AdiantamentoFuncionario[]
 
   @@map("usuarios")
 }
@@ -754,6 +755,7 @@ model Funcionario {
   gerente                Funcionario?            @relation("FuncionarioGerente", fields: [gerenteId], references: [id])
   subordinados           Funcionario[]           @relation("FuncionarioGerente")
   pagamentos             FuncionarioPagamento[]
+  adiantamentos          AdiantamentoFuncionario[]
 
   @@map("arh_funcionarios")
 }
@@ -787,6 +789,7 @@ model FolhaPagamento {
   updatedAt             DateTime                  @updatedAt
   // Relações
   pagamentos            FuncionarioPagamento[]
+  lancamentosAdiantamento LancamentoAdiantamento[]
   usuarioCriacao        Usuario                   @relation("FolhaCriacao", fields: [usuarioCriacaoId], references: [id])
   usuarioLiberacao      Usuario?                  @relation("FolhaLiberacao", fields: [usuarioLiberacaoId], references: [id])
   contaCorrente         ContaCorrente?            @relation(fields: [contaCorrenteId], references: [id])
@@ -832,11 +835,50 @@ model FuncionarioPagamento {
   cargo                 Cargo?                     @relation(fields: [cargoId], references: [id])
   funcao                FuncaoDiarista?            @relation(fields: [funcaoId], references: [id])
   pagamentoApiItem      PagamentoApiItem?          @relation("FuncionarioPagamentoToPagamentoApiItem", fields: [pagamentoApiItemId], references: [id], onDelete: SetNull)
+  lancamentosAdiantamento LancamentoAdiantamento[]
 
   @@unique([folhaId, funcionarioId])
   @@index([folhaId])
   @@index([statusPagamento])
   @@map("arh_funcionarios_pagamento")
+}
+
+model AdiantamentoFuncionario {
+  id                          Int                     @id @default(autoincrement())
+  funcionarioId               Int
+  valorTotal                  Decimal                  @db.Decimal(12, 2)
+  quantidadeParcelas          Int
+  saldoDevedor                Decimal                  @db.Decimal(12, 2)
+  quantidadeParcelasRemanescentes Int
+  observacoes                 String?                  @db.Text
+  usuarioCriacaoId            Int
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
+  funcionario                 Funcionario              @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  usuarioCriacao              Usuario                 @relation(fields: [usuarioCriacaoId], references: [id])
+  lancamentosAdiantamento     LancamentoAdiantamento[]
+
+  @@index([funcionarioId])
+  @@index([saldoDevedor])
+  @@map("arh_adiantamentos_funcionario")
+}
+
+model LancamentoAdiantamento {
+  id                    Int                     @id @default(autoincrement())
+  adiantamentoId         Int
+  folhaId                Int
+  funcionarioPagamentoId Int
+  valorDeduzido          Decimal                 @db.Decimal(12, 2)
+  parcelaNumero          Int
+  createdAt              DateTime                @default(now())
+  adiantamento           AdiantamentoFuncionario  @relation(fields: [adiantamentoId], references: [id], onDelete: Cascade)
+  folha                  FolhaPagamento          @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  funcionarioPagamento   FuncionarioPagamento    @relation(fields: [funcionarioPagamentoId], references: [id], onDelete: Cascade)
+
+  @@unique([adiantamentoId, folhaId, funcionarioPagamentoId, parcelaNumero])
+  @@index([adiantamentoId])
+  @@index([folhaId])
+  @@map("arh_lancamentos_adiantamento")
 }
 
 enum NivelUsuario {

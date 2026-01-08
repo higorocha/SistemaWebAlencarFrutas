@@ -3,6 +3,7 @@ import { TipoContratoFuncionario } from '@prisma/client';
 
 interface CalculoParametros {
   tipoContrato: TipoContratoFuncionario;
+  isGerencial?: boolean; // Indica se o cargo é gerencial
   salarioBaseReferencia?: number;
   valorDiariaAplicada?: number;
   diasTrabalhados?: number;
@@ -25,6 +26,7 @@ export class FolhaCalculoService {
   calcularValores(params: CalculoParametros): CalculoResultado {
     const {
       tipoContrato,
+      isGerencial = false,
       salarioBaseReferencia = 0,
       valorDiariaAplicada = 0,
       diasTrabalhados = 0,
@@ -35,12 +37,16 @@ export class FolhaCalculoService {
       adiantamento = 0,
     } = params;
 
-    // Mensalistas recebem salário / 2 (quinzenal)
-    // Diaristas recebem diária * dias trabalhados
+    // Cálculo do valor base:
+    // - Mensalistas Gerenciais: recebem salário / 2 (quinzenal), não influenciado por dias
+    // - Mensalistas Não Gerenciais: (salário / 30) × dias trabalhados (proporcional)
+    // - Diaristas: diária × dias trabalhados
     const valorBase =
       tipoContrato === TipoContratoFuncionario.DIARISTA
         ? valorDiariaAplicada * diasTrabalhados
-        : salarioBaseReferencia / 2; // Mensalistas recebem metade do salário (quinzenal)
+        : isGerencial
+          ? salarioBaseReferencia / 2 // Gerenciais: metade do salário (quinzenal fixa)
+          : (salarioBaseReferencia * diasTrabalhados) / 30; // Não gerenciais: proporcional aos dias
 
     const valorHorasExtras = horasExtras * valorHoraExtra;
     const valorBruto = Math.max(valorBase + ajudaCusto + valorHorasExtras + extras, 0);

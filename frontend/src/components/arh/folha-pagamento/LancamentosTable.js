@@ -65,7 +65,7 @@ const TableWrapper = styled.div`
 `;
 
 const LancamentosTable = React.memo(
-  ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario, folhaStatus, isProgramador = false, onGerarRecibo }) => {
+  ({ lancamentos, loading, onEditLancamento, onEditPagamento, onRemoveFuncionario, folhaStatus, isProgramador = false, onGerarRecibo, onGerenciarAdiantamento }) => {
     const [confirmModal, setConfirmModal] = React.useState({ open: false, record: null });
     const [editingId, setEditingId] = React.useState(null);
     const [editingValues, setEditingValues] = React.useState({});
@@ -206,6 +206,7 @@ const LancamentosTable = React.memo(
       if (!record) return { valorBruto: 0, valorLiquido: 0 };
 
       const tipoContrato = record.tipoContrato;
+      const isGerencial = record.cargo?.isGerencial === true;
       const salarioBaseReferencia = Number(record.salarioBaseReferencia || 0);
       const valorDiariaAplicada = Number(record.valorDiariaAplicada || 0);
       const diasTrabalhados = valores.diasTrabalhados || 0;
@@ -215,12 +216,16 @@ const LancamentosTable = React.memo(
       const extras = valores.extras || 0;
       const adiantamento = valores.adiantamento || 0;
 
-      // Mensalistas recebem salário / 2 (quinzenal)
-      // Diaristas recebem diária * dias trabalhados
+      // Cálculo do valor base:
+      // - Mensalistas Gerenciais: recebem salário / 2 (quinzenal), não influenciado por dias
+      // - Mensalistas Não Gerenciais: valor diário da quinzena × dias trabalhados
+      // - Diaristas: diária × dias trabalhados
       const valorBase =
         tipoContrato === "DIARISTA"
           ? valorDiariaAplicada * diasTrabalhados
-          : salarioBaseReferencia / 2; // Mensalistas recebem metade do salário (quinzenal)
+          : isGerencial
+            ? salarioBaseReferencia / 2 // Gerenciais: metade do salário (quinzenal fixa)
+            : (salarioBaseReferencia * diasTrabalhados) / 30; // Não gerenciais: proporcional aos dias
 
       const valorHorasExtras = horasExtras * valorHoraExtra;
       const valorBruto = Math.max(valorBase + ajudaCusto + valorHorasExtras + extras, 0);
@@ -519,46 +524,48 @@ const LancamentosTable = React.memo(
         width: 120,
         align: "right",
         render: (value, record) => {
-          const isEditing = editingId === record.id;
-          if (isEditing) {
-            return (
-              <div style={{ display: "flex", alignItems: "stretch" }}>
-                <MonetaryInput
-                  value={editingValues.adiantamento}
-                  onChange={(val) => handleFieldChange("adiantamento", val ? parseFloat(val) : 0)}
-                  onPressEnter={handleSaveEdit}
-                  onPressEsc={handleCancelEdit}
-                  size="small"
-                  style={{ flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-                  placeholder="0,00"
-                />
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "0 11px",
-                    fontSize: "14px",
-                    color: "rgba(0, 0, 0, 0.88)",
-                    fontWeight: 400,
-                    lineHeight: 1,
-                    textAlign: "center",
-                    backgroundColor: "#fafafa",
-                    border: "1px solid #d9d9d9",
-                    borderLeft: "none",
-                    borderTopRightRadius: "6px",
-                    borderBottomRightRadius: "6px",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  R$
-                </span>
-              </div>
-            );
-          }
+          const valorFormatado = currency(value || 0);
+          
           return (
-            <Text style={{ color: "#fa8c16", fontSize: "12px" }}>
-              {value > 0 ? currency(value) : "—"}
-            </Text>
+            <div
+              style={{
+                cursor: onGerenciarAdiantamento ? "pointer" : "default",
+                display: "inline-block",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                backgroundColor: "#fff7e6",
+                transition: "background-color 0.2s",
+              }}
+              onClick={() => {
+                if (onGerenciarAdiantamento) {
+                  onGerenciarAdiantamento(record);
+                }
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#ffe7ba";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#fff7e6";
+              }}
+            >
+              <Text
+                style={{
+                  color: "#fa8c16",
+                  fontSize: "12px",
+                }}
+              >
+                {valorFormatado}
+              </Text>
+              <span 
+                style={{ 
+                  marginLeft: 6, 
+                  fontSize: 10, 
+                  color: "#fa8c16" 
+                }}
+              >
+                🔧
+              </span>
+            </div>
           );
         },
       },
@@ -618,7 +625,9 @@ const LancamentosTable = React.memo(
                     <br />
                     <strong>Onde:</strong>
                     <br />
-                    • Mensalista: Salário Mensal ÷ 2 (quinzenal)
+                    • Mensalista Gerencial: Salário Mensal ÷ 2 (quinzenal fixa)
+                    <br />
+                    • Mensalista Não Gerencial: (Salário Mensal × Dias Trabalhados) ÷ 30
                     <br />
                     • Diarista: Valor da Diária × Dias Trabalhados
                   </div>
@@ -904,6 +913,7 @@ LancamentosTable.propTypes = {
   folhaStatus: PropTypes.string,
   isProgramador: PropTypes.bool,
   onGerarRecibo: PropTypes.func,
+  onGerenciarAdiantamento: PropTypes.func,
 };
 
 export default LancamentosTable;

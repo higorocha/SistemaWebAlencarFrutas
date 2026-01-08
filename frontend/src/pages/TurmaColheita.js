@@ -9,6 +9,7 @@ import {
   UserOutlined,
   BarChartOutlined,
   FilterOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 // Importar ícones do Iconify para agricultura
 import { Icon } from "@iconify/react";
@@ -24,6 +25,7 @@ import { Box } from "@mui/material";
 import useResponsive from "../hooks/useResponsive";
 import moment from "moment";
 import { capitalizeName } from "../utils/formatters";
+import ConfirmActionModal from "../components/common/modals/ConfirmActionModal";
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -60,6 +62,11 @@ const TurmaColheita = () => {
   // Estados do modal
   const [modalOpen, setModalOpen] = useState(false);
   const [turmaEditando, setTurmaEditando] = useState(null);
+
+  // Estados para controle do modal de confirmação de exclusão
+  const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
+  const [turmaIdParaExcluir, setTurmaIdParaExcluir] = useState(null);
+  const [turmaNomeParaExcluir, setTurmaNomeParaExcluir] = useState(null);
 
   // Estados para seção de dados consolidados
   const [colheitasConsolidadas, setColheitasConsolidadas] = useState([]);
@@ -529,44 +536,47 @@ const TurmaColheita = () => {
     }
   }, [turmaEditando, fetchTurmasColheita, currentPage, pageSize, searchTerm, handleCloseModal]);
 
-  // Função para deletar turma
-  const handleDeleteTurma = useCallback(async (turmaId) => {
-    Modal.confirm({
-      title: "Confirmar exclusão",
-      content: "Tem certeza que deseja excluir esta turma de colheita?",
-      okText: "Sim, excluir",
-      cancelText: "Cancelar",
-      okType: "danger",
-      okButtonProps: {
-        loading: false, // Desabilitar loading interno do modal
-      },
-      onOk: () => {
-        // Executar operação de exclusão de forma assíncrona
-        const executarExclusao = async () => {
-          try {
-            setCentralizedLoading(true);
-            setLoadingMessage("Removendo turma de colheita...");
-            
-            await axiosInstance.delete(`/api/turma-colheita/${turmaId}`);
-            showNotification("success", "Sucesso", "Turma de colheita removida com sucesso!");
+  // Função para abrir o modal de confirmação de exclusão
+  const handleDeleteTurma = useCallback((turmaId) => {
+    // Buscar o nome da turma para exibir na mensagem
+    const turma = turmasColheita.find(t => t.id === turmaId);
+    setTurmaIdParaExcluir(turmaId);
+    setTurmaNomeParaExcluir(turma?.nomeColhedor || null);
+    setConfirmExclusaoOpen(true);
+  }, [turmasColheita]);
 
-            setLoadingMessage("Atualizando lista de turmas...");
-            await fetchTurmasColheita();
+  // Função para confirmar a exclusão
+  const handleConfirmarExclusao = useCallback(async () => {
+    if (!turmaIdParaExcluir) return;
 
-          } catch (error) {
-            console.error("Erro ao deletar turma de colheita:", error);
-            const message = error.response?.data?.message || "Erro ao remover turma de colheita";
-            showNotification("error", "Erro", message);
-          } finally {
-            setCentralizedLoading(false);
-          }
-        };
-        
-        executarExclusao();
-        return true; // Fecha modal imediatamente
-      }
-    });
-  }, [fetchTurmasColheita, currentPage, pageSize, searchTerm]);
+    setConfirmExclusaoOpen(false);
+    
+    try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Removendo turma de colheita...");
+      
+      await axiosInstance.delete(`/api/turma-colheita/${turmaIdParaExcluir}`);
+      showNotification("success", "Sucesso", "Turma de colheita removida com sucesso!");
+
+      setLoadingMessage("Atualizando lista de turmas...");
+      await fetchTurmasColheita();
+    } catch (error) {
+      console.error("Erro ao deletar turma de colheita:", error);
+      const message = error.response?.data?.message || "Erro ao remover turma de colheita";
+      showNotification("error", "Erro", message);
+    } finally {
+      setCentralizedLoading(false);
+      setTurmaIdParaExcluir(null);
+      setTurmaNomeParaExcluir(null);
+    }
+  }, [turmaIdParaExcluir, fetchTurmasColheita]);
+
+  // Função para cancelar a exclusão
+  const handleCancelarExclusao = useCallback(() => {
+    setConfirmExclusaoOpen(false);
+    setTurmaIdParaExcluir(null);
+    setTurmaNomeParaExcluir(null);
+  }, []);
 
   return (
     <Box
@@ -969,6 +979,20 @@ const TurmaColheita = () => {
         visible={centralizedLoading}
         message={loadingMessage}
         subMessage="Aguarde enquanto processamos sua solicitação..."
+      />
+
+      {/* Modal de Confirmação de Exclusão */}
+      <ConfirmActionModal
+        open={confirmExclusaoOpen}
+        onConfirm={handleConfirmarExclusao}
+        onCancel={handleCancelarExclusao}
+        title="Excluir Turma de Colheita"
+        message={`Tem certeza que deseja excluir ${turmaNomeParaExcluir ? `a turma "${capitalizeName(turmaNomeParaExcluir)}"` : 'esta turma de colheita'}? Esta ação não pode ser desfeita.`}
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
       />
     </Box>
   );

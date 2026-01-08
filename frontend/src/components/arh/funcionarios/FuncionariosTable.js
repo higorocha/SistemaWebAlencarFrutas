@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Dropdown, Button, Space, Tag, Empty, Typography } from "antd";
-import { EditOutlined, MoreOutlined, InfoCircleOutlined, CheckCircleOutlined, StopOutlined } from "@ant-design/icons";
+import { EditOutlined, MoreOutlined, InfoCircleOutlined, CheckCircleOutlined, StopOutlined, DollarOutlined } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import { showNotification } from "../../../config/notificationConfig";
 import ResponsiveTable from "../../common/ResponsiveTable";
@@ -75,12 +75,9 @@ const FuncionariosTable = React.memo(
     loading = false,
     onEdit,
     onToggleStatus,
+    onGerenciarAdiantamentos,
     currentPage = 1,
     pageSize = 20,
-    onStatusFilter,
-    onTipoFilter,
-    currentStatusFilter,
-    currentTipoFilter,
   }) => {
     // Estado para controlar o modal de confirmação
     const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -109,6 +106,20 @@ const FuncionariosTable = React.memo(
     // Função para criar o menu de ações
     const getMenuContent = (record) => {
       const menuItems = [
+        {
+          key: "adiantamentos",
+          label: (
+            <Space>
+              <DollarOutlined style={{ color: "#059669" }} />
+              <span style={{ color: "#333" }}>Gerenciar Adiantamentos</span>
+            </Space>
+          ),
+          onClick: () => {
+            if (onGerenciarAdiantamentos) {
+              onGerenciarAdiantamentos(record);
+            }
+          },
+        },
         {
           key: "view",
           label: (
@@ -371,12 +382,9 @@ FuncionariosTable.propTypes = {
   loading: PropTypes.bool,
   onEdit: PropTypes.func.isRequired,
   onToggleStatus: PropTypes.func.isRequired,
+  onGerenciarAdiantamentos: PropTypes.func,
   currentPage: PropTypes.number,
   pageSize: PropTypes.number,
-  onStatusFilter: PropTypes.func,
-  onTipoFilter: PropTypes.func,
-  currentStatusFilter: PropTypes.string,
-  currentTipoFilter: PropTypes.string,
 };
 
 export default FuncionariosTable;

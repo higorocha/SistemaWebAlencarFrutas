@@ -26,6 +26,7 @@ import { MarcarPagamentoDto } from './dto/marcar-pagamento.dto';
 import { FinalizarFolhaDto } from './dto/finalizar-folha.dto';
 import { ProcessarPagamentoPixApiDto } from './dto/processar-pix-api.dto';
 import { ReprocessarPagamentosRejeitadosDto } from './dto/reprocessar-pagamentos-rejeitados.dto';
+import { GerenciarAdiantamentoDto } from './dto/gerenciar-adiantamento.dto';
 
 const ARH_OPERADORES = [
   NivelUsuario.ADMINISTRADOR,
@@ -82,14 +83,14 @@ export class FolhaPagamentoController {
     return this.service.removerFuncionario(id, lancamentoId);
   }
 
-  @Patch(':id/lancamentos/:lancamentoId')
+  @Patch(':id/lancamentos/:lancamentoId/adiantamento')
   @Niveis(...ARH_OPERADORES)
-  atualizarLancamento(
+  gerenciarAdiantamento(
     @Param('id', ParseIntPipe) id: number,
     @Param('lancamentoId', ParseIntPipe) lancamentoId: number,
-    @Body() dto: UpdateLancamentoDto,
+    @Body() dto: GerenciarAdiantamentoDto,
   ) {
-    return this.service.atualizarLancamento(id, lancamentoId, dto);
+    return this.service.gerenciarAdiantamento(id, lancamentoId, dto);
   }
 
   @Patch(':id/lancamentos/:lancamentoId/pagamento')
@@ -100,6 +101,24 @@ export class FolhaPagamentoController {
     @Body() dto: MarcarPagamentoDto,
   ) {
     return this.service.marcarPagamento(id, lancamentoId, dto);
+  }
+
+  @Patch(':id/lancamentos/:lancamentoId')
+  @Niveis(...ARH_OPERADORES)
+  atualizarLancamento(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('lancamentoId', ParseIntPipe) lancamentoId: number,
+    @Body() dto: UpdateLancamentoDto,
+  ) {
+    return this.service.atualizarLancamento(id, lancamentoId, dto);
+  }
+
+  @Get(':id/lancamentos/:lancamentoId/adiantamentos-disponiveis')
+  listarAdiantamentosDisponiveis(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('lancamentoId', ParseIntPipe) lancamentoId: number,
+  ) {
+    return this.service.listarAdiantamentosDisponiveis(id, lancamentoId);
   }
 
   @Patch(':id/finalizar')

@@ -29,7 +29,7 @@ import VincularPagamentoManualModal from "./VincularPagamentoManualModal";
 import VisualizarPedidoModal from "../pedidos/VisualizarPedidoModal";
 import VisualizarVinculosLancamentoModal from "../pedidos/VisualizarVinculosLancamentoModal";
 import ConfirmActionModal from "../common/modals/ConfirmActionModal";
-import BuscaAPIResultModal from "../common/modals/BuscaAPIResultModal";
+import InfoAlertModal from "../common/modals/InfoAlertModal";
 import moment from "moment";
 
 const { RangePicker } = DatePicker;
@@ -1443,14 +1443,143 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       )}
 
       {/* Modal de Resultado da Busca na API */}
-      <BuscaAPIResultModal
+      <InfoAlertModal
         open={resultadoBuscaModalOpen}
         onClose={() => {
           setResultadoBuscaModalOpen(false);
           setResultadoBuscaSummary(null);
         }}
         title="Busca Concluída"
-        summary={resultadoBuscaSummary}
+        iconType="success"
+        message="A busca foi concluída com sucesso!"
+        customContent={
+          resultadoBuscaSummary && (
+            <div>
+              {/* Informações do Período e Conta */}
+              {(resultadoBuscaSummary.periodo || resultadoBuscaSummary.contaCorrente) && (
+                <div style={{ 
+                  marginBottom: isMobile ? "16px" : "20px", 
+                  padding: isMobile ? "10px" : "12px",
+                  backgroundColor: "#f0f2f5",
+                  borderRadius: "6px",
+                  border: "1px solid #d9d9d9"
+                }}>
+                  {resultadoBuscaSummary.periodo && (
+                    <div style={{ marginBottom: resultadoBuscaSummary.periodo && resultadoBuscaSummary.contaCorrente ? "8px" : "0" }}>
+                      <Space>
+                        <CalendarOutlined style={{ color: "#1890ff", fontSize: isMobile ? "14px" : "16px" }} />
+                        <Text strong style={{ fontSize: isMobile ? "12px" : "13px", color: "#666" }}>
+                          Período:
+                        </Text>
+                        <Text style={{ fontSize: isMobile ? "12px" : "13px", color: "#333" }}>
+                          {resultadoBuscaSummary.periodo.inicio} a {resultadoBuscaSummary.periodo.fim}
+                        </Text>
+                      </Space>
+                    </div>
+                  )}
+                  {resultadoBuscaSummary.contaCorrente && (
+                    <div>
+                      <Space>
+                        <BankOutlined style={{ color: "#059669", fontSize: isMobile ? "14px" : "16px" }} />
+                        <Text strong style={{ fontSize: isMobile ? "12px" : "13px", color: "#666" }}>
+                          Conta:
+                        </Text>
+                        <Text style={{ fontSize: isMobile ? "12px" : "13px", color: "#333" }}>
+                          {resultadoBuscaSummary.contaCorrente.agencia} / {resultadoBuscaSummary.contaCorrente.conta}
+                        </Text>
+                      </Space>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Total Analisado */}
+              {resultadoBuscaSummary.totalFiltrados > 0 && (
+                <div style={{ marginBottom: isMobile ? "12px" : "16px" }}>
+                  <Text strong style={{ fontSize: isMobile ? "13px" : "14px", color: "#333", display: "block", marginBottom: "6px" }}>
+                    📊 Total de Lançamentos Analisados:
+                  </Text>
+                  <Tag color="blue" style={{ fontSize: isMobile ? "13px" : "14px", padding: isMobile ? "4px 8px" : "6px 12px" }}>
+                    {resultadoBuscaSummary.totalFiltrados} lançamento{resultadoBuscaSummary.totalFiltrados > 1 ? "s" : ""}
+                  </Tag>
+                </div>
+              )}
+
+              {/* Lançamentos Salvos */}
+              <div style={{ marginBottom: isMobile ? "12px" : "16px" }}>
+                <Text strong style={{ fontSize: isMobile ? "13px" : "14px", color: "#333", display: "block", marginBottom: "6px" }}>
+                  ✅ Lançamentos Salvos:
+                </Text>
+                <Tag color="green" style={{ fontSize: isMobile ? "13px" : "14px", padding: isMobile ? "4px 8px" : "6px 12px", marginBottom: "6px" }}>
+                  {resultadoBuscaSummary.totalSalvos} {resultadoBuscaSummary.totalSalvos === 1 ? "salvo" : "salvos"}
+                </Tag>
+                {(resultadoBuscaSummary.totalSalvosComClienteIdentificado > 0 || resultadoBuscaSummary.totalSalvosSemClienteIdentificado > 0) && (
+                  <div style={{ marginTop: "8px", paddingLeft: "12px" }}>
+                    {resultadoBuscaSummary.totalSalvosComClienteIdentificado > 0 && (
+                      <Text style={{ fontSize: isMobile ? "12px" : "13px", color: "#52c41a", display: "block", marginBottom: "4px" }}>
+                        ✓ {resultadoBuscaSummary.totalSalvosComClienteIdentificado} com cliente identificado
+                      </Text>
+                    )}
+                    {resultadoBuscaSummary.totalSalvosSemClienteIdentificado > 0 && (
+                      <Text style={{ fontSize: isMobile ? "12px" : "13px", color: "#fa8c16", display: "block", marginBottom: "4px" }}>
+                        ⚠ {resultadoBuscaSummary.totalSalvosSemClienteIdentificado} sem cliente identificado
+                      </Text>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Duplicados */}
+              {resultadoBuscaSummary.totalDuplicados > 0 && (
+                <div style={{ marginBottom: isMobile ? "12px" : "16px" }}>
+                  <Text strong style={{ fontSize: isMobile ? "13px" : "14px", color: "#333", display: "block", marginBottom: "6px" }}>
+                    🔄 Duplicados Ignorados:
+                  </Text>
+                  <Tag color="orange" style={{ fontSize: isMobile ? "13px" : "14px", padding: isMobile ? "4px 8px" : "6px 12px" }}>
+                    {resultadoBuscaSummary.totalDuplicados} {resultadoBuscaSummary.totalDuplicados === 1 ? "duplicado" : "duplicados"} (já existiam no sistema)
+                  </Tag>
+                </div>
+              )}
+
+              {/* Cliente Afetado - Lista Detalhada */}
+              {resultadoBuscaSummary.cliente && (
+                <div style={{ 
+                  marginTop: isMobile ? "16px" : "20px", 
+                  paddingTop: isMobile ? "12px" : "16px", 
+                  borderTop: "2px solid #e8e8e8" 
+                }}>
+                  <Space style={{ marginBottom: "10px", display: "flex", alignItems: "center" }}>
+                    <UserOutlined style={{ color: "#059669", fontSize: isMobile ? "16px" : "18px" }} />
+                    <Text strong style={{ fontSize: isMobile ? "14px" : "15px", color: "#333" }}>
+                      Cliente Afetado:
+                    </Text>
+                  </Space>
+                  <div style={{ 
+                    backgroundColor: "#f0f2f5",
+                    padding: isMobile ? "8px" : "12px",
+                    borderRadius: "6px",
+                    border: "1px solid #d9d9d9"
+                  }}>
+                    <Text strong style={{ fontSize: isMobile ? "12px" : "13px", color: "#333", display: "block", marginBottom: "8px" }}>
+                      {capitalizeName(resultadoBuscaSummary.cliente?.nome || "Cliente")}
+                    </Text>
+                    <Text style={{ fontSize: isMobile ? "11px" : "12px", color: "#666", display: "block", marginBottom: "4px" }}>
+                      {resultadoBuscaSummary.cliente?.cpf ? "CPF: " + resultadoBuscaSummary.cliente.cpf : ""}
+                      {resultadoBuscaSummary.cliente?.cnpj ? "CNPJ: " + resultadoBuscaSummary.cliente.cnpj : ""}
+                    </Text>
+                  </div>
+                </div>
+              )}
+
+              {/* Mensagem quando não há novos lançamentos */}
+              {resultadoBuscaSummary.totalFiltrados === 0 && resultadoBuscaSummary.totalSalvos === 0 && (
+                <Text style={{ fontSize: isMobile ? "14px" : "16px", color: "#666", fontStyle: "italic" }}>
+                  Busca finalizada sem novos lançamentos.
+                </Text>
+              )}
+            </div>
+          )
+        }
       />
     </Modal>
   );

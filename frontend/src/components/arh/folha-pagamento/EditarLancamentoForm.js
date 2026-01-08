@@ -25,6 +25,7 @@ const EditarLancamentoForm = ({
   erros,
   setErros,
   lancamento,
+  onGerenciarAdiantamento,
 }) => {
   const handleChange = (field, value) => {
     setLancamentoAtual((prev) => ({
@@ -43,6 +44,44 @@ const EditarLancamentoForm = ({
 
   return (
     <div>
+      {/* Estilos específicos para o campo de adiantamento com visual disabled */}
+      <style>
+        {`
+          .adiantamento-input-wrapper {
+            cursor: pointer !important;
+          }
+          
+          /* Visual disabled para o InputNumber - igual aos outros campos disabled */
+          .adiantamento-input-wrapper .ant-input-number-disabled {
+            background-color: #f8f9fa !important;
+            border-color: #f8bbb4 !important;
+            color: #6c757d !important;
+            cursor: pointer !important;
+            opacity: 0.8 !important;
+            pointer-events: none !important;
+          }
+          
+          .adiantamento-input-wrapper .ant-input-number-disabled:hover,
+          .adiantamento-input-wrapper .ant-input-number-disabled:focus {
+            background-color: #f8f9fa !important;
+            border-color: #f8bbb4 !important;
+            box-shadow: none !important;
+          }
+          
+          /* Input interno também com visual disabled */
+          .adiantamento-input-wrapper .ant-input-number-disabled .ant-input-number-input-wrap {
+            cursor: pointer !important;
+            pointer-events: none !important;
+          }
+          
+          .adiantamento-input-wrapper .ant-input-number-disabled .ant-input-number-input-wrap input {
+            background-color: transparent !important;
+            color: #6c757d !important;
+            cursor: pointer !important;
+            pointer-events: none !important;
+          }
+        `}
+      </style>
       <Form layout="vertical" size="large">
         {/* Informações do Funcionário */}
         <Card
@@ -283,16 +322,30 @@ const EditarLancamentoForm = ({
                   </Space>
                 }
               >
-                <InputNumber
-                  min={0}
-                  precision={2}
-                  placeholder="0,00"
-                  value={lancamentoAtual.adiantamento}
-                  onChange={(value) => handleChange("adiantamento", value)}
-                  style={{ width: "100%" }}
-                  size="large"
-                  addonAfter="R$"
-                />
+                <div
+                  className="adiantamento-input-wrapper"
+                  style={{
+                    width: "100%",
+                    position: "relative",
+                  }}
+                  onClick={() => {
+                    if (onGerenciarAdiantamento && lancamento) {
+                      onGerenciarAdiantamento(lancamento);
+                    }
+                  }}
+                >
+                  <InputNumber
+                    min={0}
+                    precision={2}
+                    placeholder="0,00"
+                    value={lancamentoAtual.adiantamento}
+                    onChange={(value) => handleChange("adiantamento", value)}
+                    style={{ width: "100%" }}
+                    size="large"
+                    addonAfter="R$"
+                    disabled
+                  />
+                </div>
               </Form.Item>
             </Col>
           </Row>
@@ -308,6 +361,7 @@ EditarLancamentoForm.propTypes = {
   erros: PropTypes.object,
   setErros: PropTypes.func,
   lancamento: PropTypes.object,
+  onGerenciarAdiantamento: PropTypes.func,
 };
 
 export default EditarLancamentoForm;

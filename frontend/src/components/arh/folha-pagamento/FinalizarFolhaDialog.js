@@ -6,11 +6,12 @@ import PropTypes from "prop-types";
 import { SaveOutlined, CloseOutlined, LockOutlined, WarningOutlined, ReloadOutlined } from "@ant-design/icons";
 import FinalizarFolhaForm from "./FinalizarFolhaForm";
 import ConfirmCloseModal from "../../common/modals/ConfirmCloseModal";
+import InfoAlertModal from "../../common/modals/InfoAlertModal";
 import useConfirmClose from "../../../hooks/useConfirmClose";
 import useRestricaoDataPagamentoLoteBB from "../../../hooks/useRestricaoDataPagamentoLoteBB";
 import moment from "moment";
 
-const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessamento = false, resumoRejeitados = null }) => {
+const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, lancamentos = [], modoReprocessamento = false, resumoRejeitados = null }) => {
   const [finalizacaoAtual, setFinalizacaoAtual] = useState({
     meioPagamento: modoReprocessamento ? "PIX_API" : "PIX",
     dataPagamento: undefined,
@@ -18,7 +19,9 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessament
     observacoes: "",
   });
   const [erros, setErros] = useState({});
-  
+  const [validacaoDiasZeroModal, setValidacaoDiasZeroModal] = useState({ open: false, itens: [] });
+  const [validacaoAdiantamentoModal, setValidacaoAdiantamentoModal] = useState({ open: false, itens: [] });
+
   // Hook de validação de data para pagamentos via API de Lote BB
   const {
     validarEMostrarErro,
@@ -28,6 +31,70 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessament
   // Função customizada para verificar se há dados preenchidos
   const customHasDataChecker = (data) => {
     return data.meioPagamento || data.dataPagamento || data.contaCorrenteId || data.observacoes?.trim();
+  };
+
+  // Validar se há funcionários com dias = 0
+  const validarDiasZero = () => {
+    if (!Array.isArray(lancamentos) || lancamentos.length === 0) {
+      return true; // Nenhum lançamento, sem problema
+    }
+
+    const funcionariosComDiasZero = [];
+
+    lancamentos.forEach((lancamento) => {
+      const dias = Number(lancamento.diasTrabalhados || 0);
+
+      // Se dias = 0, não permite finalizar
+      if (dias === 0) {
+        funcionariosComDiasZero.push({
+          id: lancamento.id,
+          nome: lancamento.funcionario?.nome || "Funcionário",
+          dias,
+          motivo: "Funcionário com 0 dias trabalhados",
+        });
+      }
+    });
+
+    if (funcionariosComDiasZero.length > 0) {
+      // Abrir modal informativo
+      setValidacaoDiasZeroModal({ open: true, itens: funcionariosComDiasZero });
+      return false;
+    }
+
+    return true;
+  };
+
+  // Validar se há funcionários com adiantamento maior que o valor bruto
+  const validarAdiantamentos = () => {
+    if (!Array.isArray(lancamentos) || lancamentos.length === 0) {
+      return true; // Nenhum lançamento, sem problema
+    }
+
+    const funcionariosComProblema = [];
+
+    lancamentos.forEach((lancamento) => {
+      const adiantamento = Number(lancamento.adiantamento || 0);
+      const valorBruto = Number(lancamento.valorBruto || 0);
+
+      // Se adiantamento > valorBruto, não permite finalizar
+      if (adiantamento > valorBruto) {
+        funcionariosComProblema.push({
+          id: lancamento.id,
+          nome: lancamento.funcionario?.nome || "Funcionário",
+          adiantamento,
+          valorBruto,
+          motivo: `Adiantamento (R$ ${adiantamento.toFixed(2)}) maior que Valor Bruto (R$ ${valorBruto.toFixed(2)})`,
+        });
+      }
+    });
+
+    if (funcionariosComProblema.length > 0) {
+      // Abrir modal informativo
+      setValidacaoAdiantamentoModal({ open: true, itens: funcionariosComProblema });
+      return false;
+    }
+
+    return true;
   };
 
   // Hook customizado para gerenciar confirmação de fechamento
@@ -74,6 +141,16 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessament
   const handleFinalizar = async () => {
     if (!validarFormulario()) {
       return;
+    }
+
+    // Validar dias = 0 antes de finalizar (validação prioritária)
+    if (!validarDiasZero()) {
+      return; // Bloquear finalização se houver funcionários com dias = 0
+    }
+
+    // Validar adiantamentos antes de finalizar
+    if (!validarAdiantamentos()) {
+      return; // Bloquear finalização se houver adiantamento > valor bruto
     }
 
     // Validar data se for PIX_API
@@ -222,6 +299,51 @@ const FinalizarFolhaDialog = ({ open, onClose, onSave, folha, modoReprocessament
         confirmText="Sim, Descartar"
         cancelText="Continuar Editando"
       />
+
+      {/* Modal de validação de dias = 0 */}
+      <InfoAlertModal
+        open={validacaoDiasZeroModal.open}
+        onClose={() => setValidacaoDiasZeroModal({ open: false, itens: [] })}
+        title="Não é possível finalizar a folha"
+        iconType="warning"
+        message="Existem funcionários com 0 dias trabalhados."
+        description={
+          <span style={{ display: "block" }}>
+            Funcionários com 0 dias não podem receber pagamento, pois não houve trabalho no período.
+            <br /><br />
+            <strong>Ações necessárias:</strong>
+            <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
+              <li style={{ marginBottom: "4px" }}>Corrija o número de dias trabalhados no lançamento do funcionário</li>
+              <li style={{ marginBottom: "4px" }}>Exclua o funcionário da folha se realmente não houve trabalho no período</li>
+            </ul>
+          </span>
+        }
+        items={validacaoDiasZeroModal.itens}
+        primaryButtonText="Entendido"
+      />
+
+      {/* Modal de validação de adiantamento */}
+      <InfoAlertModal
+        open={validacaoAdiantamentoModal.open}
+        onClose={() => setValidacaoAdiantamentoModal({ open: false, itens: [] })}
+        title="Não é possível finalizar a folha"
+        iconType="warning"
+        message="Existem funcionários com adiantamento superior ao valor bruto da quinzena."
+        description={
+          <span style={{ display: "block" }}>
+            Para estes funcionários, o valor líquido ficaria negativo, o que não é permitido pelo sistema.
+            <br /><br />
+            <strong>Soluções possíveis:</strong>
+            <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
+              <li style={{ marginBottom: "4px" }}>Ajuste o valor do adiantamento no lançamento do funcionário</li>
+              <li style={{ marginBottom: "4px" }}>Aumente o valor bruto adicionando dias trabalhados, horas extras ou ajuda de custo</li>
+              <li style={{ marginBottom: "4px" }}>Remova o funcionário da folha se não houve trabalho no período</li>
+            </ul>
+          </span>
+        }
+        items={validacaoAdiantamentoModal.itens}
+        primaryButtonText="Entendido"
+      />
     </>
   );
 };
@@ -231,6 +353,7 @@ FinalizarFolhaDialog.propTypes = {
   onClose: PropTypes.func.isRequired,
   onSave: PropTypes.func.isRequired,
   folha: PropTypes.object,
+  lancamentos: PropTypes.array,
   modoReprocessamento: PropTypes.bool,
   resumoRejeitados: PropTypes.shape({
     quantidadeTotal: PropTypes.number,

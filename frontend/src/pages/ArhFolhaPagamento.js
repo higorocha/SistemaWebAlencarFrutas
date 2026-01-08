@@ -35,6 +35,7 @@ const FinalizarFolhaDialog = lazy(() => import("../components/arh/folha-pagament
 const AdicionarFuncionariosDialog = lazy(() => import("../components/arh/folha-pagamento/AdicionarFuncionariosDialog"));
 const ListarRejeitadosModal = lazy(() => import("../components/arh/folha-pagamento/ListarRejeitadosModal"));
 const FuncionariosSemChavePixModal = lazy(() => import("../components/arh/folha-pagamento/FuncionariosSemChavePixModal"));
+const GerenciarAdiantamentosModal = lazy(() => import("../components/arh/folha-pagamento/GerenciarAdiantamentosModal"));
 
 const { Title, Text } = Typography;
 
@@ -130,6 +131,10 @@ const ArhFolhaPagamento = () => {
     open: false,
     funcionarios: [],
     meioPagamento: null,
+  });
+  const [adiantamentoModal, setAdiantamentoModal] = useState({
+    open: false,
+    lancamento: null,
   });
 
   const fecharSemChavePixModal = () =>
@@ -241,7 +246,9 @@ const ArhFolhaPagamento = () => {
 
   const filteredFolhas = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    return folhas.filter((folha) => {
+
+    // Primeiro filtrar as folhas
+    let resultado = folhas.filter((folha) => {
       const matchSearch =
         competenciaLabel(folha).includes(term) ||
         folha.referencia?.toLowerCase().includes(term);
@@ -249,6 +256,41 @@ const ArhFolhaPagamento = () => {
         statusFilter === "ALL" || folha.status === statusFilter;
       return matchSearch && matchStatus;
     });
+
+    // Ordenar por competência: mais recente para mais antiga
+    resultado.sort((a, b) => {
+      // Converter para números para garantir comparação correta
+      const anoA = Number(a.competenciaAno) || 0;
+      const anoB = Number(b.competenciaAno) || 0;
+      const mesA = Number(a.competenciaMes) || 0;
+      const mesB = Number(b.competenciaMes) || 0;
+      const periodoA = Number(a.periodo) || 0;
+      const periodoB = Number(b.periodo) || 0;
+
+      // Comparar primeiro por ano (decrescente)
+      if (anoA !== anoB) {
+        return anoB - anoA;
+      }
+
+      // Se o ano é igual, comparar por mês (decrescente)
+      if (mesA !== mesB) {
+        return mesB - mesA;
+      }
+
+      // Se o ano e mês são iguais, comparar por período se existir (decrescente: 2ª quinzena antes da 1ª)
+      if (periodoA && periodoB) {
+        return periodoB - periodoA;
+      }
+
+      // Se apenas um tem período, o que tem período vem primeiro (2ª quinzena antes da 1ª)
+      if (periodoA) return -1;
+      if (periodoB) return 1;
+
+      // Se tudo igual, manter ordem original
+      return 0;
+    });
+
+    return resultado;
   }, [folhas, searchTerm, statusFilter]);
 
   // Verificar se a folha usa PIX_API (agora verifica pelo campo da folha)
@@ -794,6 +836,20 @@ const ArhFolhaPagamento = () => {
     showNotification("info", "Desenvolvimento", "Funcionalidade em desenvolvimento");
   };
 
+  const handleGerenciarAdiantamentos = useCallback((lancamento) => {
+    setAdiantamentoModal({
+      open: true,
+      lancamento,
+    });
+  }, []);
+
+  const fecharAdiantamentoModal = useCallback(() => {
+    setAdiantamentoModal({
+      open: false,
+      lancamento: null,
+    });
+  }, []);
+
   const gerarReciboIndividual = useCallback(async (record) => {
     if (!record || !record.id) {
       showNotification("error", "Erro", "Dados do lançamento não encontrados.");
@@ -1010,7 +1066,7 @@ const ArhFolhaPagamento = () => {
   const tabItemsLancamentos = useMemo(() => {
     const items = [];
 
-    // 1. Primeira aba: Gerentes (se houver)
+        // 1. Primeira aba: Gerentes (se houver)
     if (lancamentosAgrupados.gerentes.length > 0) {
       items.push({
         key: "gerentes",
@@ -1030,6 +1086,7 @@ const ArhFolhaPagamento = () => {
               folhaStatus={selectedFolha?.status}
               isProgramador={isProgramador}
               onGerarRecibo={gerarReciboIndividual}
+              onGerenciarAdiantamento={handleGerenciarAdiantamentos}
             />
           ),
       });
@@ -1055,12 +1112,13 @@ const ArhFolhaPagamento = () => {
               folhaStatus={selectedFolha?.status}
               isProgramador={isProgramador}
               onGerarRecibo={gerarReciboIndividual}
+              onGerenciarAdiantamento={handleGerenciarAdiantamentos}
             />
           ),
       });
     }
 
-    // 3. Terceira em diante: Cada gerente individual (ordenadas por nome)
+        // 3. Terceira em diante: Cada gerente individual (ordenadas por nome)
     const gerentesOrdenados = Object.values(lancamentosAgrupados.porGerente).sort(
       (a, b) => {
         const nomeA = a.gerente?.nome || "";
@@ -1092,6 +1150,7 @@ const ArhFolhaPagamento = () => {
               folhaStatus={selectedFolha?.status}
               isProgramador={isProgramador}
               onGerarRecibo={gerarReciboIndividual}
+              onGerenciarAdiantamento={handleGerenciarAdiantamentos}
             />
           ),
         });
@@ -1108,22 +1167,23 @@ const ArhFolhaPagamento = () => {
             <span>Todos ({lancamentos.length})</span>
           </span>
         ),
-          children: (
-            <LancamentosTable
-              lancamentos={lancamentos}
-              loading={lancamentosLoading}
-              onEditLancamento={handleEditLancamento}
-              onEditPagamento={handleEditPagamento}
-              onRemoveFuncionario={removerFuncionario}
-              folhaStatus={selectedFolha?.status}
-              isProgramador={isProgramador}
-              onGerarRecibo={gerarReciboIndividual}
-            />
-          ),
+        children: (
+          <LancamentosTable
+            lancamentos={lancamentos}
+            loading={lancamentosLoading}
+            onEditLancamento={handleEditLancamento}
+            onEditPagamento={handleEditPagamento}
+            onRemoveFuncionario={removerFuncionario}
+            folhaStatus={selectedFolha?.status}
+            isProgramador={isProgramador}
+            onGerarRecibo={gerarReciboIndividual}
+            onGerenciarAdiantamento={handleGerenciarAdiantamentos}
+          />
+        ),
       });
     }
 
-    return items;
+  return items;
   }, [
     lancamentosAgrupados,
     lancamentos,
@@ -1133,6 +1193,8 @@ const ArhFolhaPagamento = () => {
     removerFuncionario,
     selectedFolha?.status,
     isProgramador,
+    gerarReciboIndividual,
+    handleGerenciarAdiantamentos,
   ]);
 
   // Ajustar aba ativa quando os lançamentos mudarem
@@ -1978,6 +2040,7 @@ const ArhFolhaPagamento = () => {
           onClose={() => setEditLancamento({ open: false, record: null })}
           onSave={atualizarLancamento}
           lancamento={editLancamento.record}
+          folhaId={selectedFolhaId}
         />
       </Suspense>
 
@@ -1998,6 +2061,7 @@ const ArhFolhaPagamento = () => {
           onClose={() => setFinalizarModal(false)}
           onSave={finalizarFolha}
           folha={selectedFolha}
+          lancamentos={lancamentos}
         />
       </Suspense>
 
@@ -2142,6 +2206,7 @@ const ArhFolhaPagamento = () => {
           onClose={() => setReprocessarRejeitadosModalOpen(false)}
           onSave={reprocessarPagamentosRejeitados}
           folha={selectedFolha}
+          lancamentos={lancamentos}
           modoReprocessamento={true}
           resumoRejeitados={resumoRejeitados}
         />
@@ -2153,6 +2218,22 @@ const ArhFolhaPagamento = () => {
           open={listarRejeitadosModalOpen}
           onClose={() => setListarRejeitadosModalOpen(false)}
           folhaId={selectedFolhaId}
+        />
+      </Suspense>
+
+      {/* Modal Gerenciar Adiantamentos */}
+      <Suspense fallback={<SuspenseFallback message="Carregando..." />}>
+        <GerenciarAdiantamentosModal
+          open={adiantamentoModal.open}
+          onClose={fecharAdiantamentoModal}
+          lancamento={adiantamentoModal.lancamento}
+          folhaId={selectedFolhaId}
+          onAdiantamentoAtualizado={async () => {
+            // Recarregar lançamentos para atualizar valores
+            if (selectedFolhaId) {
+              await carregarLancamentos(selectedFolhaId);
+            }
+          }}
         />
       </Suspense>
     </Box>

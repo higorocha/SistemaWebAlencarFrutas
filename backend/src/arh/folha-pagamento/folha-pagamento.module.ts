@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { PagamentosModule } from '../../pagamentos/pagamentos.module';
+import { AdiantamentosModule } from '../adiantamentos/adiantamentos.module';
 import { FolhaPagamentoService } from './folha-pagamento.service';
 import { FolhaPagamentoController } from './folha-pagamento.controller';
 import { FolhaCalculoService } from './folha-calculo.service';
@@ -10,6 +11,7 @@ import { FuncionarioPagamentoStatusService } from './funcionario-pagamento-statu
   imports: [
     PrismaModule,
     forwardRef(() => PagamentosModule),
+    AdiantamentosModule,
   ],
   controllers: [FolhaPagamentoController],
   providers: [FolhaPagamentoService, FolhaCalculoService, FuncionarioPagamentoStatusService],

@@ -1,24 +1,30 @@
 // src/pages/ArhFuncionarios.js
 
 import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
-import { Typography, Spin, Pagination } from "antd";
-import { PlusCircleOutlined } from "@ant-design/icons";
+import { Typography, Spin, Pagination, Select, Divider, Tag } from "antd";
+import { PlusCircleOutlined, FilterOutlined } from "@ant-design/icons";
 import { Icon } from "@iconify/react";
 import { CentralizedLoader } from "components/common/loaders";
 import LoadingFallback from "components/common/loaders/LoadingFallback";
-import { PrimaryButton } from "components/common/buttons";
+import { PrimaryButton, SecondaryButton } from "components/common/buttons";
 import { SearchInput } from "components/common/search";
 import useResponsive from "../hooks/useResponsive";
 import axiosInstance from "../api/axiosConfig";
 import { showNotification } from "../config/notificationConfig";
 import { Box } from "@mui/material";
 import { useAuth } from "../contexts/AuthContext";
+import { capitalizeName } from "../utils/formatters";
+
+const { Option } = Select;
 
 const AddEditFuncionarioDialog = lazy(() =>
   import("../components/arh/funcionarios/AddEditFuncionarioDialog")
 );
 const FuncionariosTable = lazy(() =>
   import("../components/arh/funcionarios/FuncionariosTable")
+);
+const AdiantamentosFuncionarioModal = lazy(() =>
+  import("../components/arh/funcionarios/AdiantamentosFuncionarioModal")
 );
 
 const { Title } = Typography;
@@ -43,13 +49,18 @@ const ArhFuncionarios = () => {
 
   // Estados para busca e filtros
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [tipoFilter, setTipoFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [tipoFilter, setTipoFilter] = useState([]);
+  const [gerenteFilter, setGerenteFilter] = useState([]);
 
   // Estados do modal
   const [modalOpen, setModalOpen] = useState(false);
   const [funcionarioEditando, setFuncionarioEditando] = useState(null);
   const [dadosTemporarios, setDadosTemporarios] = useState(null);
+  
+  // Estados do modal de adiantamentos
+  const [adiantamentosModalOpen, setAdiantamentosModalOpen] = useState(false);
+  const [funcionarioAdiantamentos, setFuncionarioAdiantamentos] = useState(null);
 
   // Estados para cargos, funções e gerentes
   const [cargos, setCargos] = useState([]);
@@ -102,7 +113,7 @@ const ArhFuncionarios = () => {
     fetchFuncionarios();
   }, [fetchFuncionarios]);
 
-  // Filtrar localmente por termo de busca, status e tipo
+  // Filtrar localmente por termo de busca, status, tipo e gerente
   useEffect(() => {
     let lista = [...funcionarios];
 
@@ -123,19 +134,40 @@ const ArhFuncionarios = () => {
       });
     }
 
-    if (statusFilter) {
-      lista = lista.filter((func) => func.status === statusFilter);
+    if (statusFilter && statusFilter.length > 0) {
+      lista = lista.filter((func) => statusFilter.includes(func.status));
     }
 
-    if (tipoFilter) {
-      lista = lista.filter((func) => func.tipoContrato === tipoFilter);
+    if (tipoFilter && tipoFilter.length > 0) {
+      // Verificar se "GERENTES" está selecionado
+      const isGerentesFilter = tipoFilter.includes("GERENTES");
+      const outrosTipos = tipoFilter.filter(t => t !== "GERENTES");
+
+      if (isGerentesFilter && outrosTipos.length === 0) {
+        // Se apenas GERENTES está selecionado, filtrar por funcionários que são gerentes
+        lista = lista.filter((func) =>
+          gerentes.some(g => g.id === func.id)
+        );
+      } else if (isGerentesFilter && outrosTipos.length > 0) {
+        // Se GERENTES + outros tipos, mostrar gerentes OU funcionários dos tipos selecionados
+        lista = lista.filter((func) =>
+          gerentes.some(g => g.id === func.id) || outrosTipos.includes(func.tipoContrato)
+        );
+      } else {
+        // Se apenas tipos de contrato, filtrar normalmente
+        lista = lista.filter((func) => tipoFilter.includes(func.tipoContrato));
+      }
+    }
+
+    if (gerenteFilter && gerenteFilter.length > 0) {
+      lista = lista.filter((func) => gerenteFilter.includes(func.gerenteId));
     }
 
     setFuncionariosFiltrados(lista);
     setTotalFuncionarios(lista.length || 0);
     // Ao alterar filtros, resetar para a primeira página
     setCurrentPage(1);
-  }, [funcionarios, searchTerm, statusFilter, tipoFilter]);
+  }, [funcionarios, searchTerm, statusFilter, tipoFilter, gerenteFilter, gerentes]);
 
   // Calcular dados paginados para exibição na tabela
   const dadosPaginados = React.useMemo(() => {
@@ -148,18 +180,6 @@ const ArhFuncionarios = () => {
   const handleSearch = useCallback((value) => {
     setSearchTerm(value);
     setCurrentPage(1); // Reset para primeira página ao buscar
-  }, []);
-
-  // Função para lidar com mudança de filtro de status
-  const handleStatusFilter = useCallback((status) => {
-    setStatusFilter(status);
-    setCurrentPage(1); // Reset para primeira página ao filtrar
-  }, []);
-
-  // Função para lidar com mudança de filtro de tipo
-  const handleTipoFilter = useCallback((tipo) => {
-    setTipoFilter(tipo);
-    setCurrentPage(1); // Reset para primeira página ao filtrar
   }, []);
 
   // Função para lidar com mudança de página
@@ -307,6 +327,18 @@ const ArhFuncionarios = () => {
     [fetchFuncionarios]
   );
 
+  // Função para abrir modal de adiantamentos
+  const handleGerenciarAdiantamentos = useCallback((funcionario) => {
+    setFuncionarioAdiantamentos(funcionario);
+    setAdiantamentosModalOpen(true);
+  }, []);
+
+  // Função para fechar modal de adiantamentos
+  const handleCloseAdiantamentosModal = useCallback(() => {
+    setAdiantamentosModalOpen(false);
+    setFuncionarioAdiantamentos(null);
+  }, []);
+
   return (
     <Box
       sx={{
@@ -356,20 +388,255 @@ const ArhFuncionarios = () => {
         </PrimaryButton>
       </Box>
 
-      {/* Busca */}
-      <Box sx={{ mb: 2 }}>
-        <SearchInput
-          placeholder={
-            isMobile ? "Buscar..." : "Buscar funcionários por nome, apelido ou CPF..."
-          }
-          value={searchTerm}
-          onChange={(value) => setSearchTerm(value)}
-          size={isMobile ? "small" : "middle"}
-          style={{
-            width: "100%",
-            fontSize: isMobile ? "0.875rem" : "1rem",
+      {/* Busca e Filtros */}
+      <Box
+        sx={{
+          p: isMobile ? 2 : 3,
+          bgcolor: "#f9f9f9",
+          borderRadius: 2,
+          border: "1px solid #e8e8e8",
+          mb: 0
+        }}
+      >
+        <Box sx={{ mb: 2 }}>
+          <Typography.Text strong style={{ color: "#059669", fontSize: isMobile ? "0.875rem" : "1rem" }}>
+            <FilterOutlined style={{ marginRight: 8 }} />
+            Filtros de Busca
+          </Typography.Text>
+        </Box>
+
+        {/* Linha de Filtros */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: isMobile ? 1 : 2,
+            mb: 0,
+            flexWrap: "wrap",
+            flexDirection: isMobile ? 'column' : 'row'
           }}
-        />
+        >
+          <Box sx={{ flex: { xs: "1 1 100%", md: "1 1 250px" } }}>
+            <Typography.Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
+              Buscar funcionários:
+            </Typography.Text>
+            <SearchInput
+              placeholder={
+                isMobile ? "Buscar..." : "Buscar funcionários por nome, apelido ou CPF..."
+              }
+              value={searchTerm}
+              onChange={(value) => setSearchTerm(value)}
+              size={isMobile ? "small" : "middle"}
+              style={{
+                width: "100%",
+                fontSize: isMobile ? '0.875rem' : '1rem'
+              }}
+            />
+          </Box>
+
+          {/* Divider entre busca e filtros */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+            <Typography.Text style={{ display: "block", marginBottom: 8 }}>&nbsp;</Typography.Text>
+            <Divider
+              type="vertical"
+              style={{
+                height: isMobile ? "32px" : "48px",
+                margin: 0,
+                borderColor: "#d9d9d9",
+                borderWidth: "1px"
+              }}
+            />
+          </Box>
+
+          {/* Filtro por Status */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 180px" } }}>
+            <Typography.Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
+              Status:
+            </Typography.Text>
+            <Select
+              mode="multiple"
+              allowClear
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value)}
+              size={isMobile ? "small" : "middle"}
+              maxTagCount={0}
+              maxTagPlaceholder={(omittedValues) => `${omittedValues.length} selecionado(s)`}
+              placeholder="Selecione o status"
+              style={{
+                width: "100%",
+                fontSize: isMobile ? '0.875rem' : '1rem'
+              }}
+            >
+              <Option value="ATIVO">Ativo</Option>
+              <Option value="INATIVO">Inativo</Option>
+            </Select>
+          </Box>
+
+          {/* Filtro por Tipo de Contrato */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 180px" } }}>
+            <Typography.Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
+              Tipo de Contrato:
+            </Typography.Text>
+            <Select
+              mode="multiple"
+              allowClear
+              value={tipoFilter}
+              onChange={(value) => setTipoFilter(value)}
+              size={isMobile ? "small" : "middle"}
+              maxTagCount={0}
+              maxTagPlaceholder={(omittedValues) => `${omittedValues.length} selecionado(s)`}
+              placeholder="Selecione o tipo"
+              style={{
+                width: "100%",
+                fontSize: isMobile ? '0.875rem' : '1rem'
+              }}
+            >
+              <Option value="DIARISTA">Diarista</Option>
+              <Option value="MENSALISTA">Mensalista</Option>
+              <Option value="EVENTUAL">Eventual</Option>
+              <Option value="GERENTES">Gerentes</Option>
+            </Select>
+          </Box>
+
+          {/* Filtro por Gerente */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 250px" } }}>
+            <Typography.Text style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 500,
+              fontSize: isMobile ? '0.8125rem' : '0.875rem'
+            }}>
+              Gerente:
+            </Typography.Text>
+            <Select
+              mode="multiple"
+              allowClear
+              value={gerenteFilter}
+              onChange={(value) => setGerenteFilter(value)}
+              size={isMobile ? "small" : "middle"}
+              maxTagCount={0}
+              maxTagPlaceholder={(omittedValues) => `${omittedValues.length} selecionado(s)`}
+              placeholder="Selecione o gerente"
+              style={{
+                width: "100%",
+                fontSize: isMobile ? '0.875rem' : '1rem'
+              }}
+            >
+              {gerentes.map((gerente) => (
+                <Option key={gerente.id} value={gerente.id}>
+                  {capitalizeName(gerente.nome)}
+                </Option>
+              ))}
+            </Select>
+          </Box>
+
+          {/* Botão Limpar Filtros */}
+          <Box sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+            <Typography.Text style={{ display: "block", marginBottom: 8 }}>&nbsp;</Typography.Text>
+            <SecondaryButton
+              icon={<FilterOutlined />}
+              onClick={() => {
+                setSearchTerm("");
+                setStatusFilter([]);
+                setTipoFilter([]);
+                setGerenteFilter([]);
+                setCurrentPage(1);
+              }}
+              size={isMobile ? "small" : "middle"}
+              style={{
+                height: isMobile ? "32px" : "40px",
+                padding: isMobile ? '0 12px' : '0 16px',
+                fontSize: isMobile ? '0.75rem' : undefined
+              }}
+            >
+              Limpar
+            </SecondaryButton>
+          </Box>
+        </Box>
+
+        {/* Resumo dos filtros ativos */}
+        {(statusFilter.length > 0 || tipoFilter.length > 0 || gerenteFilter.length > 0) && (
+          <Box
+            sx={{
+              mt: 2,
+              pt: 2,
+              borderTop: "1px solid #e8e8e8",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: isMobile ? 0.5 : 1,
+              alignItems: "center",
+            }}
+          >
+            <Typography.Text strong style={{
+              fontSize: isMobile ? "0.6875rem" : "0.75rem",
+              color: "#666"
+            }}>
+              Filtros ativos:
+            </Typography.Text>
+
+            {statusFilter.map((status) => (
+              <Tag
+                key={status}
+                color="green"
+                closable
+                onClose={() => setStatusFilter(currentFilters => currentFilters.filter(s => s !== status))}
+                style={{
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
+                }}
+              >
+                Status: {status === 'ATIVO' ? 'Ativo' : 'Inativo'}
+              </Tag>
+            ))}
+
+            {tipoFilter.map((tipo) => (
+              <Tag
+                key={tipo}
+                color="blue"
+                closable
+                onClose={() => setTipoFilter(currentFilters => currentFilters.filter(t => t !== tipo))}
+                style={{
+                  fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                  padding: isMobile ? "2px 6px" : "4px 8px"
+                }}
+              >
+                Tipo: {tipo === 'DIARISTA' ? 'Diarista' : tipo === 'MENSALISTA' ? 'Mensalista' : tipo === 'GERENTES' ? 'Gerentes' : 'Eventual'}
+              </Tag>
+            ))}
+
+            {gerenteFilter.map((gerenteId) => {
+              const gerente = gerentes.find(g => g.id === gerenteId);
+              return (
+                <Tag
+                  key={gerenteId}
+                  color="purple"
+                  closable
+                  onClose={() => setGerenteFilter(currentFilters => currentFilters.filter(id => id !== gerenteId))}
+                  style={{
+                    fontSize: isMobile ? "0.6875rem" : "0.75rem",
+                    padding: isMobile ? "2px 6px" : "4px 8px"
+                  }}
+                >
+                  Gerente: {gerente ? capitalizeName(gerente.nome) : gerenteId}
+                </Tag>
+              );
+            })}
+          </Box>
+        )}
       </Box>
 
       {/* Tabela de Funcionários */}
@@ -380,10 +647,7 @@ const ArhFuncionarios = () => {
             loading={false}
             onEdit={handleOpenEditModal}
             onToggleStatus={handleToggleStatus}
-            onStatusFilter={handleStatusFilter}
-            onTipoFilter={handleTipoFilter}
-            currentStatusFilter={statusFilter}
-            currentTipoFilter={tipoFilter}
+            onGerenciarAdiantamentos={handleGerenciarAdiantamentos}
             currentPage={currentPage}
             pageSize={pageSize}
           />
@@ -421,6 +685,11 @@ const ArhFuncionarios = () => {
           cargos={cargos}
           funcoes={funcoes}
           gerentes={gerentes}
+        />
+        <AdiantamentosFuncionarioModal
+          open={adiantamentosModalOpen}
+          onClose={handleCloseAdiantamentosModal}
+          funcionario={funcionarioAdiantamentos}
         />
       </Suspense>
 

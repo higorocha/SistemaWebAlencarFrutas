@@ -99,6 +99,10 @@ const AreasTable = React.memo(({
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [areaParaToggle, setAreaParaToggle] = useState(null);
 
+  // Estados para controle do modal de confirmação de exclusão
+  const [confirmExclusaoOpen, setConfirmExclusaoOpen] = useState(false);
+  const [areaParaExcluir, setAreaParaExcluir] = useState(null);
+
   // Calcular filtros de culturas usando TODOS os dados (useMemo garante cálculo único)
   const culturasFilters = useMemo(() => {
     const culturasSet = new Set();
@@ -195,6 +199,34 @@ const AreasTable = React.memo(({
     setAreaParaToggle(null);
   };
 
+  // Função para abrir o modal de confirmação de exclusão
+  const handleExcluirArea = (area) => {
+    setAreaParaExcluir(area);
+    setConfirmExclusaoOpen(true);
+  };
+
+  // Função para confirmar a exclusão
+  const handleConfirmarExclusao = async () => {
+    if (!areaParaExcluir) return;
+
+    setConfirmExclusaoOpen(false);
+    
+    try {
+      await onDelete(areaParaExcluir.id);
+      setAreaParaExcluir(null);
+    } catch (error) {
+      console.error("Erro ao excluir área:", error);
+    } finally {
+      setAreaParaExcluir(null);
+    }
+  };
+
+  // Função para cancelar a exclusão
+  const handleCancelarExclusao = () => {
+    setConfirmExclusaoOpen(false);
+    setAreaParaExcluir(null);
+  };
+
   // Função para criar o menu de ações
   const getMenuContent = (record) => {
     const menuItems = [
@@ -251,7 +283,7 @@ const AreasTable = React.memo(({
             <span style={{ color: "#333" }}>Excluir</span>
           </Space>
         ),
-        onClick: () => onDelete(record.id),
+        onClick: () => handleExcluirArea(record),
       },
     ];
 
@@ -502,6 +534,20 @@ const AreasTable = React.memo(({
         confirmButtonDanger={!areaParaToggle?.desativar}
         icon={<InfoCircleOutlined />}
         iconColor={areaParaToggle?.desativar ? "#10b981" : "#f59e0b"}
+      />
+
+      {/* Modal de Confirmação de Exclusão */}
+      <ConfirmActionModal
+        open={confirmExclusaoOpen}
+        onConfirm={handleConfirmarExclusao}
+        onCancel={handleCancelarExclusao}
+        title="Excluir Área"
+        message={`Tem certeza que deseja excluir a área "${areaParaExcluir?.nome ? capitalizeName(areaParaExcluir.nome) : ''}"? Esta ação não pode ser desfeita.`}
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
       />
     </>
   );

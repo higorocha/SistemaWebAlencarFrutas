@@ -26,9 +26,11 @@ import { MarcarPagamentoDto } from './dto/marcar-pagamento.dto';
 import { FinalizarFolhaDto } from './dto/finalizar-folha.dto';
 import { ProcessarPagamentoPixApiDto } from './dto/processar-pix-api.dto';
 import { ReprocessarPagamentosRejeitadosDto } from './dto/reprocessar-pagamentos-rejeitados.dto';
+import { GerenciarAdiantamentoDto } from './dto/gerenciar-adiantamento.dto';
 import { FolhaCalculoService } from './folha-calculo.service';
 import { FuncionarioPagamentoStatusService } from './funcionario-pagamento-status.service';
 import { PagamentosService } from '../../pagamentos/pagamentos.service';
+import { AdiantamentosService } from '../adiantamentos/adiantamentos.service';
 import { formatarDataParaAPIBB } from '../../utils/formatters';
 
 @Injectable()
@@ -39,6 +41,7 @@ export class FolhaPagamentoService {
     private readonly statusService: FuncionarioPagamentoStatusService,
     @Inject(forwardRef(() => PagamentosService))
     private readonly pagamentosService: PagamentosService,
+    private readonly adiantamentosService: AdiantamentosService,
   ) {}
 
   async listarFolhas(query: ListFolhaQueryDto) {
@@ -162,9 +165,28 @@ export class FolhaPagamentoService {
 
         // Adicionar todos os funcionários ativos automaticamente
         for (const funcionario of funcionariosAtivos) {
-          await tx.funcionarioPagamento.create({
-            data: this.buildLancamentoData(novaFolha.id, funcionario),
+          const { lancamentoData, adiantamentosProcessados } = await this.processarAdiantamentosECriarLancamento(
+            tx,
+            novaFolha.id,
+            funcionario,
+          );
+          
+          const lancamento = await tx.funcionarioPagamento.create({
+            data: lancamentoData,
           });
+
+          // Criar registros de histórico de adiantamentos
+          for (const adiantamentoProcessado of adiantamentosProcessados) {
+            await tx.lancamentoAdiantamento.create({
+              data: {
+                adiantamentoId: adiantamentoProcessado.adiantamentoId,
+                folhaId: novaFolha.id,
+                funcionarioPagamentoId: lancamento.id,
+                valorDeduzido: new Prisma.Decimal(adiantamentoProcessado.valorDeduzido),
+                parcelaNumero: adiantamentoProcessado.parcelaNumero,
+              },
+            });
+          }
         }
 
         // Recalcular totais da folha
@@ -288,9 +310,28 @@ export class FolhaPagamentoService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const funcionario of funcionarios) {
-        await tx.funcionarioPagamento.create({
-          data: this.buildLancamentoData(folhaId, funcionario),
+        const { lancamentoData, adiantamentosProcessados } = await this.processarAdiantamentosECriarLancamento(
+          tx,
+          folhaId,
+          funcionario,
+        );
+        
+        const lancamento = await tx.funcionarioPagamento.create({
+          data: lancamentoData,
         });
+
+        // Criar registros de histórico de adiantamentos
+        for (const adiantamentoProcessado of adiantamentosProcessados) {
+          await tx.lancamentoAdiantamento.create({
+            data: {
+              adiantamentoId: adiantamentoProcessado.adiantamentoId,
+              folhaId: folhaId,
+              funcionarioPagamentoId: lancamento.id,
+              valorDeduzido: new Prisma.Decimal(adiantamentoProcessado.valorDeduzido),
+              parcelaNumero: adiantamentoProcessado.parcelaNumero,
+            },
+          });
+        }
       }
       await this.recalcularFolha(tx, folhaId);
     });
@@ -357,6 +398,7 @@ export class FolhaPagamentoService {
 
     const calculo = this.calculoService.calcularValores({
       tipoContrato: lancamento.tipoContrato,
+      isGerencial: lancamento.funcionario.cargo?.isGerencial ?? false,
       salarioBaseReferencia: salarioBase,
       valorDiariaAplicada: valorDiaria,
       diasTrabalhados,
@@ -1468,11 +1510,92 @@ export class FolhaPagamentoService {
     };
   }
 
+  /**
+   * Processa adiantamentos ativos do funcionário e retorna dados do lançamento
+   * @param tx Transação do Prisma
+   * @param folhaId ID da folha
+   * @param funcionario Funcionário
+   * @returns Dados do lançamento e lista de adiantamentos processados
+   */
+  private async processarAdiantamentosECriarLancamento(
+    tx: Prisma.TransactionClient,
+    folhaId: number,
+    funcionario: Prisma.FuncionarioGetPayload<{
+      include: { cargo: true; funcao: true };
+    }>,
+  ): Promise<{
+    lancamentoData: Prisma.FuncionarioPagamentoUncheckedCreateInput;
+    adiantamentosProcessados: Array<{
+      adiantamentoId: number;
+      valorDeduzido: number;
+      parcelaNumero: number;
+    }>;
+  }> {
+    // Buscar adiantamentos ativos do funcionário
+    const adiantamentosAtivos = await this.adiantamentosService.listarAdiantamentosAtivos(
+      funcionario.id,
+    );
+
+    let totalAdiantamento = 0;
+    const adiantamentosProcessados: Array<{
+      adiantamentoId: number;
+      valorDeduzido: number;
+      parcelaNumero: number;
+    }> = [];
+
+    // Processar cada adiantamento ativo (ordem de criação - mais antigo primeiro)
+    for (const adiantamento of adiantamentosAtivos) {
+      const valorParcela = adiantamento.valorTotal / adiantamento.quantidadeParcelas;
+      const valorADeduzir = Math.min(
+        valorParcela,
+        adiantamento.saldoDevedor,
+      );
+
+      // Calcular número da parcela
+      const parcelaNumero =
+        adiantamento.quantidadeParcelas -
+        adiantamento.quantidadeParcelasRemanescentes +
+        1;
+
+      // Atualizar adiantamento na transação
+      const novoSaldoDevedor = adiantamento.saldoDevedor - valorADeduzir;
+      const novasParcelasRemanescentes =
+        adiantamento.quantidadeParcelasRemanescentes - 1;
+
+      await tx.adiantamentoFuncionario.update({
+        where: { id: adiantamento.id },
+        data: {
+          saldoDevedor: new Prisma.Decimal(novoSaldoDevedor),
+          quantidadeParcelasRemanescentes: novasParcelasRemanescentes,
+        },
+      });
+
+      // Adicionar à lista de processados
+      adiantamentosProcessados.push({
+        adiantamentoId: adiantamento.id,
+        valorDeduzido: valorADeduzir,
+        parcelaNumero,
+      });
+
+      totalAdiantamento += valorADeduzir;
+    }
+
+    // Criar dados do lançamento com adiantamento calculado
+    const lancamentoData = this.buildLancamentoData(
+      folhaId,
+      funcionario,
+      totalAdiantamento,
+    );
+
+    return { lancamentoData, adiantamentosProcessados };
+  }
+
   private buildLancamentoData(
     folhaId: number,
     funcionario: Prisma.FuncionarioGetPayload<{
       include: { cargo: true; funcao: true };
     }>,
+    adiantamento: number = 0,
   ): Prisma.FuncionarioPagamentoUncheckedCreateInput {
     const salarioBase =
       Number(funcionario.salarioCustomizado ?? 0) ||
@@ -1495,6 +1618,7 @@ export class FolhaPagamentoService {
 
     const calculo = this.calculoService.calcularValores({
       tipoContrato: funcionario.tipoContrato,
+      isGerencial: funcionario.cargo?.isGerencial ?? false,
       salarioBaseReferencia: salarioBase,
       valorDiariaAplicada: valorDiaria,
       diasTrabalhados: 0,
@@ -1502,7 +1626,7 @@ export class FolhaPagamentoService {
       valorHoraExtra: 0,
       ajudaCusto: ajudaCustoFuncionario,
       extras: 0,
-      adiantamento: 0,
+      adiantamento,
     });
 
     return {
@@ -1519,7 +1643,7 @@ export class FolhaPagamentoService {
       faltas: new Prisma.Decimal(0),
       ajudaCusto: new Prisma.Decimal(ajudaCustoFuncionario),
       extras: new Prisma.Decimal(0),
-      adiantamento: new Prisma.Decimal(0),
+      adiantamento: new Prisma.Decimal(adiantamento),
       valorBruto: new Prisma.Decimal(calculo.valorBruto),
       valorLiquido: new Prisma.Decimal(calculo.valorLiquido),
       pixTerceiro: pixTerceiroFuncionario,
@@ -1731,6 +1855,7 @@ export class FolhaPagamentoService {
         // Recalcular valores com os novos salários base
         const calculo = this.calculoService.calcularValores({
           tipoContrato: lancamento.tipoContrato,
+          isGerencial: funcionario.cargo?.isGerencial ?? false,
           salarioBaseReferencia: salarioBaseAtual,
           valorDiariaAplicada: valorDiariaAtual,
           diasTrabalhados: lancamento.diasTrabalhados,
@@ -1970,8 +2095,334 @@ export class FolhaPagamentoService {
   }
 
   /**
+   * Lista adiantamentos disponíveis para vincular a um lançamento específico
+   * Retorna parcelas vinculadas, disponíveis e valor avulso
+   */
+  async listarAdiantamentosDisponiveis(folhaId: number, lancamentoId: number) {
+    const lancamento = await this.prisma.funcionarioPagamento.findUnique({
+      where: { id: lancamentoId, folhaId },
+      include: { funcionario: true },
+    });
+
+    if (!lancamento) {
+      throw new NotFoundException('Lançamento não encontrado nesta folha.');
+    }
+
+    // Buscar parcelas já vinculadas a este lançamento
+    const vinculadas = await this.prisma.lancamentoAdiantamento.findMany({
+      where: {
+        funcionarioPagamentoId: lancamentoId,
+        folhaId,
+      },
+      include: {
+        adiantamento: {
+          select: {
+            id: true,
+            valorTotal: true,
+            createdAt: true,
+            observacoes: true,
+            usuarioCriacao: {
+              select: { nome: true },
+            },
+          },
+        },
+      },
+      orderBy: { parcelaNumero: 'asc' },
+    });
+
+    // Buscar adiantamentos do funcionário com saldo devedor
+    const adiantamentos = await this.prisma.adiantamentoFuncionario.findMany({
+      where: {
+        funcionarioId: lancamento.funcionarioId,
+        saldoDevedor: { gt: 0 },
+      },
+      include: {
+        usuarioCriacao: {
+          select: { nome: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Para cada adiantamento, buscar parcelas disponíveis
+    const disponiveis = await Promise.all(
+      adiantamentos.map(async (adiantamento) => {
+        // Buscar todas as parcelas deste adiantamento já vinculadas
+        const parcelasVinculadasAdiantamento = await this.prisma.lancamentoAdiantamento.findMany({
+          where: { adiantamentoId: adiantamento.id },
+          select: { parcelaNumero: true },
+        });
+
+        // Determinar quais parcelas estão disponíveis
+        const parcelasVinculadasNumeros = parcelasVinculadasAdiantamento.map(p => p.parcelaNumero);
+        const parcelasDisponiveis: Array<{
+          id: number;
+          numeroParcela: number;
+          valorParcela: number;
+        }> = [];
+
+        // Loop por todas as parcelas do adiantamento (não apenas remanescentes)
+        for (let i = 1; i <= adiantamento.quantidadeParcelas; i++) {
+          if (!parcelasVinculadasNumeros.includes(i)) {
+            // Verificar se esta parcela específica já está vinculada a este lançamento
+            const jaVinculadaAesteLancamento = vinculadas.some(
+              v => v.adiantamentoId === adiantamento.id && v.parcelaNumero === i
+            );
+
+            if (!jaVinculadaAesteLancamento) {
+              parcelasDisponiveis.push({
+                id: adiantamento.id * 1000 + i, // ID temporário único
+                numeroParcela: i,
+                valorParcela: Number(adiantamento.valorTotal) / adiantamento.quantidadeParcelas,
+              });
+            }
+          }
+        }
+
+        return {
+          id: adiantamento.id,
+          valorTotal: Number(adiantamento.valorTotal),
+          quantidadeParcelas: adiantamento.quantidadeParcelas,
+          quantidadeParcelasRemanescentes: adiantamento.quantidadeParcelasRemanescentes,
+          saldoDevedor: Number(adiantamento.saldoDevedor),
+          createdAt: adiantamento.createdAt,
+          observacoes: adiantamento.observacoes,
+          usuarioCriacao: adiantamento.usuarioCriacao,
+          parcelasDisponiveis,
+        };
+      }),
+    );
+
+    // Calcular valor avulso (diferença entre total de adiantamento e soma das parcelas)
+    const totalParcelasVinculadas = vinculadas.reduce(
+      (sum, p) => sum + Number(p.valorDeduzido),
+      0,
+    );
+    const totalAdiantamento = Number(lancamento.adiantamento || 0);
+    const avulso = totalAdiantamento - totalParcelasVinculadas;
+
+    return {
+      vinculadas,
+      disponiveis,
+      avulso: avulso > 0 ? avulso : 0,
+    };
+  }
+
+  /**
+   * Gerencia adiantamentos vinculados a um lançamento
+   * Atualiza parcelas vinculadas e valor avulso
+   */
+  async gerenciarAdiantamento(
+    folhaId: number,
+    lancamentoId: number,
+    dto: GerenciarAdiantamentoDto,
+  ) {
+    const folha = await this.ensureFolha(folhaId);
+
+    if (folha.status !== StatusFolhaPagamento.RASCUNHO) {
+      throw new BadRequestException(
+        'Somente folhas em rascunho permitem alterações de adiantamento.',
+      );
+    }
+
+    const lancamento = await this.prisma.funcionarioPagamento.findUnique({
+      where: { id: lancamentoId, folhaId },
+      include: {
+        funcionario: true,
+        lancamentosAdiantamento: {
+          include: {
+            adiantamento: true,
+          },
+        },
+      },
+    });
+
+    if (!lancamento) {
+      throw new NotFoundException('Lançamento não encontrado nesta folha.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      let totalParcelas = 0;
+
+      // Se IDs de lançamentos de adiantamento foram fornecidos
+      if (dto.lancamentosAdiantamento && dto.lancamentosAdiantamento.length > 0) {
+        // Obter lançamentos de adiantamento atuais
+        const lancamentosAtuais = await tx.lancamentoAdiantamento.findMany({
+          where: { funcionarioPagamentoId: lancamentoId },
+          include: { adiantamento: true },
+        });
+
+        // Determinar quais remover e quais criar/mantér
+        const idsAtuais = new Set(lancamentosAtuais.map(l => l.id));
+        const idsNovos = new Set(dto.lancamentosAdiantamento);
+
+        // Remover lançamentos não informados
+        const idsParaRemover = lancamentosAtuais
+          .filter(l => !idsNovos.has(l.id))
+          .map(l => l.id);
+
+        for (const idParaRemover of idsParaRemover) {
+          const lancamentoParaRemover = lancamentosAtuais.find(l => l.id === idParaRemover);
+
+          if (!lancamentoParaRemover) continue;
+
+          // Reverter adiantamento
+          await tx.adiantamentoFuncionario.update({
+            where: { id: lancamentoParaRemover.adiantamentoId },
+            data: {
+              saldoDevedor: new Prisma.Decimal(
+                Number(lancamentoParaRemover.adiantamento.saldoDevedor) + Number(lancamentoParaRemover.valorDeduzido),
+              ),
+              quantidadeParcelasRemanescentes: lancamentoParaRemover.adiantamento.quantidadeParcelasRemanescentes + 1,
+            },
+          });
+
+          // Excluir lançamento de adiantamento
+          await tx.lancamentoAdiantamento.delete({
+            where: { id: idParaRemover },
+          });
+        }
+
+        // Criar novos lançamentos de adiantamento
+        for (const idProcessar of dto.lancamentosAdiantamento) {
+          // Verificar se é um ID de lançamento existente (ID real) ou ID temporário
+          const lancamentoExistente = lancamentosAtuais.find(l => l.id === idProcessar);
+
+          if (lancamentoExistente) {
+            // Já existe, manter (já está na lista de mantidos abaixo)
+            continue;
+          }
+
+          // ID temporário: adiantamentoId * 1000 + numeroParcela
+          const adiantamentoId = Math.floor(idProcessar / 1000);
+          const numeroParcela = idProcessar % 1000;
+
+          // Verificar se já existe (pelo adiantamentoId e numeroParcela)
+          const existePorParcela = lancamentosAtuais.some(
+            l => l.adiantamentoId === adiantamentoId && l.parcelaNumero === numeroParcela
+          );
+
+          if (existePorParcela) {
+            // Já existe mas com ID diferente, manter
+            continue;
+          }
+
+          // Buscar adiantamento
+          const adiantamento = await tx.adiantamentoFuncionario.findUnique({
+            where: { id: adiantamentoId },
+          });
+
+          if (!adiantamento) {
+            throw new NotFoundException(`Adiantamento ${adiantamentoId} não encontrado.`);
+          }
+
+          const valorParcela = Number(adiantamento.valorTotal) / adiantamento.quantidadeParcelas;
+
+          // Criar lançamento de adiantamento
+          await tx.lancamentoAdiantamento.create({
+            data: {
+              adiantamentoId,
+              folhaId,
+              funcionarioPagamentoId: lancamentoId,
+              valorDeduzido: new Prisma.Decimal(valorParcela),
+              parcelaNumero: numeroParcela,
+            },
+          });
+
+          // Atualizar adiantamento
+          await tx.adiantamentoFuncionario.update({
+            where: { id: adiantamentoId },
+            data: {
+              saldoDevedor: new Prisma.Decimal(
+                Number(adiantamento.saldoDevedor) - valorParcela,
+              ),
+              quantidadeParcelasRemanescentes: adiantamento.quantidadeParcelasRemanescentes - 1,
+            },
+          });
+
+          totalParcelas += valorParcela;
+        }
+
+        // Calcular total das parcelas mantidas
+        const lancamentosMantidos = lancamentosAtuais.filter(l => idsNovos.has(l.id));
+        totalParcelas += lancamentosMantidos.reduce((sum, l) => sum + Number(l.valorDeduzido), 0);
+      } else {
+        // Remover todos os lançamentos de adiantamento
+        for (const lancamentoAdiantamento of lancamento.lancamentosAdiantamento) {
+          // Reverter adiantamento
+          await tx.adiantamentoFuncionario.update({
+            where: { id: lancamentoAdiantamento.adiantamentoId },
+            data: {
+              saldoDevedor: new Prisma.Decimal(
+                Number(lancamentoAdiantamento.adiantamento.saldoDevedor) + Number(lancamentoAdiantamento.valorDeduzido),
+              ),
+              quantidadeParcelasRemanescentes: lancamentoAdiantamento.adiantamento.quantidadeParcelasRemanescentes + 1,
+            },
+          });
+
+          // Excluir lançamento de adiantamento
+          await tx.lancamentoAdiantamento.delete({
+            where: { id: lancamentoAdiantamento.id },
+          });
+        }
+      }
+
+      // Calcular novo total de adiantamento
+      const adiantamentoAvulso = dto.adiantamentoAvulso ? dto.adiantamentoAvulso : 0;
+      const novoTotalAdiantamento = totalParcelas + adiantamentoAvulso;
+
+      // Validar que o adiantamento não excede o valor bruto
+      const valorBruto = Number(lancamento.valorBruto || 0);
+      if (novoTotalAdiantamento > valorBruto) {
+        throw new BadRequestException(
+          `O adiantamento total (R$ ${novoTotalAdiantamento.toFixed(2)}) não pode exceder o valor bruto (R$ ${valorBruto.toFixed(2)}).`,
+        );
+      }
+
+      // Atualizar campo de adiantamento no lançamento
+      const lancamentoAtualizado = await tx.funcionarioPagamento.update({
+        where: { id: lancamentoId },
+        data: {
+          adiantamento: new Prisma.Decimal(novoTotalAdiantamento),
+        },
+      });
+
+      // Recalcular valor líquido
+      const novoValorLiquido = Math.max(valorBruto - novoTotalAdiantamento, 0);
+      await tx.funcionarioPagamento.update({
+        where: { id: lancamentoId },
+        data: {
+          valorLiquido: new Prisma.Decimal(novoValorLiquido),
+        },
+      });
+
+      // Recalcular totais da folha
+      await this.recalcularFolha(tx, folhaId);
+
+      // Buscar lançamento atualizado completo
+      const lancamentoCompleto = await tx.funcionarioPagamento.findUnique({
+        where: { id: lancamentoId },
+        include: {
+          funcionario: {
+            select: {
+              nome: true,
+              apelido: true,
+              tipoContrato: true,
+            },
+          },
+          cargo: true,
+          funcao: true,
+        },
+      });
+
+      return lancamentoCompleto;
+    });
+  }
+
+  /**
    * Exclui uma folha de pagamento
    * Só é permitido se a folha estiver em status RASCUNHO
+   * Reverte todas as deduções de adiantamento antes de excluir
    */
   async excluirFolha(folhaId: number, _usuarioId: number) {
     const folha = await this.ensureFolha(folhaId);
@@ -1982,9 +2433,43 @@ export class FolhaPagamentoService {
       );
     }
 
-    // Excluir folha (os lançamentos serão excluídos em cascata pelo Prisma)
-    await this.prisma.folhaPagamento.delete({
-      where: { id: folhaId },
+    // Buscar todos os lançamentos de adiantamento vinculados à folha
+    const lancamentosAdiantamento = await this.prisma.lancamentoAdiantamento.findMany({
+      where: { folhaId },
+    });
+
+    // Reverter cada adiantamento antes de excluir a folha
+    await this.prisma.$transaction(async (tx) => {
+      for (const lancamento of lancamentosAdiantamento) {
+        // Buscar adiantamento atual
+        const adiantamento = await tx.adiantamentoFuncionario.findUnique({
+          where: { id: lancamento.adiantamentoId },
+        });
+
+        if (adiantamento) {
+          // Reverter o adiantamento: restaurar saldo e parcelas
+          await tx.adiantamentoFuncionario.update({
+            where: { id: adiantamento.id },
+            data: {
+              saldoDevedor: new Prisma.Decimal(
+                Number(adiantamento.saldoDevedor) + Number(lancamento.valorDeduzido),
+              ),
+              quantidadeParcelasRemanescentes:
+                adiantamento.quantidadeParcelasRemanescentes + 1,
+            },
+          });
+        }
+
+        // Excluir registro de lançamento de adiantamento
+        await tx.lancamentoAdiantamento.delete({
+          where: { id: lancamento.id },
+        });
+      }
+
+      // Agora pode excluir a folha (os lançamentos serão excluídos em cascata pelo Prisma)
+      await tx.folhaPagamento.delete({
+        where: { id: folhaId },
+      });
     });
 
     return {
