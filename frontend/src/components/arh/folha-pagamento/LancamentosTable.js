@@ -525,46 +525,57 @@ const LancamentosTable = React.memo(
         align: "right",
         render: (value, record) => {
           const valorFormatado = currency(value || 0);
+          // Programador sempre pode abrir, senão só se a folha estiver em edição
+          const podeAbrirModal = isProgramador || folhaStatus === "RASCUNHO";
           
           return (
             <div
               style={{
-                cursor: onGerenciarAdiantamento ? "pointer" : "default",
+                cursor: (onGerenciarAdiantamento && podeAbrirModal) ? "pointer" : "default",
                 display: "inline-block",
                 padding: "4px 8px",
                 borderRadius: "4px",
-                backgroundColor: "#fff7e6",
+                backgroundColor: podeAbrirModal ? "#fff7e6" : "#f5f5f5",
                 transition: "background-color 0.2s",
+                opacity: podeAbrirModal ? 1 : 0.6,
               }}
               onClick={() => {
-                if (onGerenciarAdiantamento) {
+                if (onGerenciarAdiantamento && podeAbrirModal) {
                   onGerenciarAdiantamento(record);
                 }
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#ffe7ba";
+                if (podeAbrirModal) {
+                  e.currentTarget.style.backgroundColor = "#ffe7ba";
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#fff7e6";
+                if (podeAbrirModal) {
+                  e.currentTarget.style.backgroundColor = "#fff7e6";
+                } else {
+                  e.currentTarget.style.backgroundColor = "#f5f5f5";
+                }
               }}
             >
               <Text
                 style={{
-                  color: "#fa8c16",
+                  color: podeAbrirModal ? "#fa8c16" : "#999999",
                   fontSize: "12px",
                 }}
               >
                 {valorFormatado}
               </Text>
-              <span 
-                style={{ 
-                  marginLeft: 6, 
-                  fontSize: 10, 
-                  color: "#fa8c16" 
-                }}
-              >
-                🔧
-              </span>
+              {podeAbrirModal && (
+                <span 
+                  style={{ 
+                    marginLeft: 6, 
+                    fontSize: 10, 
+                    color: "#fa8c16" 
+                  }}
+                >
+                  🔧
+                </span>
+              )}
             </div>
           );
         },
