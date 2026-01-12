@@ -98,12 +98,13 @@ model ConvenioCobranca {
   juros                   Float
   diasAberto              Int
   multaAtiva              Boolean
-  layoutBoletoFundoBranco Boolean
+  boletoPix               Boolean       @default(false)
   valorMulta              Float?
   carenciaMulta           Int?
   convenio                String
   carteira                String
   variacao                String
+  chavePix                String?
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
   contaCorrente           ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)

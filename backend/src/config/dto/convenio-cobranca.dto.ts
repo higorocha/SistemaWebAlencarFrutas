@@ -47,11 +47,11 @@ export class ConvenioCobrancaDto {
   multaAtiva: boolean;
 
   @ApiProperty({
-    description: 'Se o layout do boleto tem fundo branco',
+    description: 'Se o boleto PIX está ativado',
     example: false,
   })
-  @IsBoolean({ message: 'Layout boleto fundo branco deve ser verdadeiro ou falso' })
-  layoutBoletoFundoBranco: boolean;
+  @IsBoolean({ message: 'Boleto PIX deve ser verdadeiro ou falso' })
+  boletoPix: boolean;
 
   @ApiProperty({
     description: 'Valor da multa em percentual (obrigatório se multa ativa)',
@@ -104,6 +104,15 @@ export class ConvenioCobrancaDto {
   @IsString({ message: 'Variação deve ser um texto válido' })
   @IsNotEmpty({ message: 'Variação é obrigatória' })
   variacao: string;
+
+  @ApiProperty({
+    description: 'Chave PIX para o convênio (opcional - necessário para Boleto PIX)',
+    example: '123.456.789-00',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Chave PIX deve ser um texto válido' })
+  chavePix?: string | null;
 }
 
 /**

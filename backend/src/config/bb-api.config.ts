@@ -31,7 +31,7 @@ export interface BBAPIConfig {
 /**
  * Configuração centralizada de certificados
  * PIX e EXTRATOS usam certificados bestnet
- * PAGAMENTOS usa certificados alencar
+ * PAGAMENTOS e COBRANCA usam certificados alencar
  */
 const BB_CERTIFICATES_BESTNET: BBCertificateConfig = {
   clientCertPath: 'certs/bestnet_final.cer',
@@ -97,10 +97,27 @@ export const BB_APIS_CONFIG: Record<string, BBAPIConfig> = {
       apiKey: 'gw-dev-app-key' // Usado como query param, não header
     },
     timeout: 30000
+  },
+
+  COBRANCA: {
+    name: 'COBRANCA',
+    // URLs e configurações serão definidas após análise da documentação técnica do BB
+    // Convênio Alencar Frutas: Tipo 3 (Banco numera, cliente emite e expede)
+    // Modalidade: Simples
+    // Espécie: Boleto de Cobrança
+    authUrl: 'TBD', // TODO: Definir após análise da documentação técnica
+    baseUrl: 'TBD', // TODO: Definir após análise da documentação técnica
+    certificates: BB_CERTIFICATES_ALENCAR, // Usará certificados alencar (mesmo que pagamentos)
+    headers: {
+      authKey: 'Content-Type',
+      apiKey: 'TBD' // TODO: Definir após análise da documentação técnica (header ou query param)
+    },
+    timeout: 30000
+    // HOMOLOGAÇÃO: https://api.hm.bb.com.br/testes-portal-desenvolvedor/v1
+    // gw-app-key (homologação): 95cad3f03fd9013a9d15005056825665
   }
-  
+
   // Futuras APIs podem ser adicionadas aqui:
-  // COBRANCA: { ... },
   // TRANSFERENCIAS: { ... },
   // etc.
 };
@@ -108,16 +125,42 @@ export const BB_APIS_CONFIG: Record<string, BBAPIConfig> = {
 /**
  * Configurações de ambiente
  * 
- * Sempre retorna a configuração de produção.
- * Para testes de homologação, use o script test-pagamentos-homologacao.ts
+ * Retorna configuração baseada no NODE_ENV:
+ * - production: endpoints de produção
+ * - development ou não definido: endpoints de homologação
  */
+export const getBBAPIConfigByEnvironment = (
+  apiName: keyof typeof BB_APIS_CONFIG
+): BBAPIConfig => {
+  const config = getBBAPIConfig(apiName);
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Para homologação/produção, usar URLs diferentes (apenas para APIs que possuem separação)
+  if (apiName === 'COBRANCA' && !isProduction) {
+    // Homologação COBRANCA
+    return {
+      ...config,
+      authUrl: 'https://oauth.hm.bb.com.br', // TODO: confirmar na documentação
+      baseUrl: 'https://api.hm.bb.com.br', // TODO: confirmar na documentação
+    };
+  }
+
+  return config;
+};
+
+/**
+ * Valida se estamos em ambiente de produção
+ */
+export const isProduction = (): boolean => {
+  return process.env.NODE_ENV === 'production';
+};
 export const getBBAPIConfig = (apiName: keyof typeof BB_APIS_CONFIG): BBAPIConfig => {
   const config = BB_APIS_CONFIG[apiName];
   if (!config) {
     throw new Error(`Configuração não encontrada para a API: ${apiName}`);
   }
 
-  // Sempre retornar configuração de produção
+  // Retorna configuração baseada no ambiente (NODE_ENV)
   return config;
 };
 

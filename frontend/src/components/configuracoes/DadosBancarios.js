@@ -1331,7 +1331,7 @@ const DadosBancarios = () => {
           <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
             <Row gutter={[16, 16]} align="top">
               {/* Conta Corrente */}
-              <Col xs={24} sm={6}>
+              <Col xs={24} sm={5}>
                 <Form.Item
                   name="conta_corrente"
                   label={
@@ -1357,7 +1357,7 @@ const DadosBancarios = () => {
                 </Form.Item>
               </Col>
               {/* Juros */}
-              <Col xs={24} sm={4}>
+              <Col xs={24} sm={3}>
                 <Form.Item
                   name="juros"
                   label={
@@ -1384,7 +1384,7 @@ const DadosBancarios = () => {
                 </Form.Item>
               </Col>
               {/* Dias em Aberto */}
-              <Col xs={24} sm={4}>
+              <Col xs={24} sm={3}>
                 <Form.Item
                   name="dias_aberto"
                   label={
@@ -1401,7 +1401,7 @@ const DadosBancarios = () => {
                 </Form.Item>
               </Col>
               {/* Multa (Switch) */}
-              <Col xs={24} sm={3}>
+              <Col xs={24} sm={2}>
                 <StyledSwitchContainer>
                   <Form.Item
                     name="multa_ativa"
@@ -1422,35 +1422,10 @@ const DadosBancarios = () => {
                   </Form.Item>
                 </StyledSwitchContainer>
               </Col>
-              {/* Layout Boleto (Switch) */}
-              <Col xs={24} sm={7}>
-                <StyledSwitchContainer>
-                  <Form.Item
-                    name="layout_boleto_fundo_branco"
-                    label={
-                      <Text strong>
-                        <FileTextOutlined style={{ marginRight: 8 }} />
-                        Layout Boleto
-                      </Text>
-                    }
-                    valuePropName="checked"
-                  >
-                    <div className="switch-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Switch
-                        checked={layoutBoletoFundoBranco}
-                        onChange={handleLayoutBoletoChange}
-                      />
-                      <Text style={{ fontSize: '12px', color: '#666' }}>
-                        {layoutBoletoFundoBranco ? 'Fundo branco - Clique para ativar fundo azul.' : 'Fundo azul - Clique para ativar fundo branco.'}
-                      </Text>
-                    </div>
-                  </Form.Item>
-                </StyledSwitchContainer>
-              </Col>
               {/* Se a multa estiver ativa, exibe os campos Valor Multa e Carência na mesma linha */}
               {multaAtiva && (
                 <>
-                  <Col xs={24} sm={4}>
+                  <Col xs={24} sm={3}>
                     <Form.Item
                       name="valor_multa"
                       label={
@@ -1473,7 +1448,7 @@ const DadosBancarios = () => {
                       />
                     </Form.Item>
                   </Col>
-                  <Col xs={24} sm={4}>
+                  <Col xs={24} sm={3}>
                     <Form.Item
                       name="carencia_multa"
                       label={
@@ -1494,6 +1469,41 @@ const DadosBancarios = () => {
                   </Col>
                 </>
               )}
+              {/* Boleto PIX (Switch) */}
+              <Col xs={24} sm={3}>
+                <StyledSwitchContainer>
+                  <Form.Item
+                    name="layout_boleto_fundo_branco"
+                    label={
+                      <Text strong>
+                        <FileTextOutlined style={{ marginRight: 8 }} />
+                        Boleto PIX
+                        <Tooltip 
+                          title="Para 'Boleto PIX' funcionar, a empresa do convênio precisa ter chave PIX cadastrada no BB"
+                          placement="top"
+                        >
+                          <InfoCircleOutlined 
+                            style={{ 
+                              marginLeft: 8, 
+                              color: "#059669", 
+                              cursor: "help",
+                              fontSize: "14px"
+                            }} 
+                          />
+                        </Tooltip>
+                      </Text>
+                    }
+                    valuePropName="checked"
+                  >
+                    <div className="switch-wrapper">
+                      <Switch
+                        checked={layoutBoletoFundoBranco}
+                        onChange={handleLayoutBoletoChange}
+                      />
+                    </div>
+                  </Form.Item>
+                </StyledSwitchContainer>
+              </Col>
             </Row>
 
             {/* Linha 2: Convênio, Carteira e Variação */}
