@@ -674,7 +674,6 @@ const NovoPedidoModal = ({
                       >
                         <Col xs={24} md={6}>
                           <Form.Item
-                            {...field}
                             name={[field.name, "frutaId"]}
                             label={
                               isMobile ? (
@@ -726,7 +725,6 @@ const NovoPedidoModal = ({
 
                         <Col xs={24} md={4}>
                           <Form.Item
-                            {...field}
                             name={[field.name, "quantidadePrevista"]}
                             label={
                               isMobile ? (
@@ -800,7 +798,6 @@ const NovoPedidoModal = ({
 
                         <Col xs={24} md={6}>
                           <Form.Item
-                            {...field}
                             name={[field.name, "unidadeMedida1"]}
                             label={
                               isMobile ? (
@@ -848,7 +845,6 @@ const NovoPedidoModal = ({
 
                         <Col xs={24} md={6}>
                           <Form.Item
-                            {...field}
                             name={[field.name, "unidadeMedida2"]}
                             label={
                               isMobile ? (

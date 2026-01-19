@@ -19,6 +19,7 @@ import {
   Progress,
   InputNumber,
   Tooltip,
+  Alert,
 } from "antd";
 import {
   UserOutlined,
@@ -37,6 +38,7 @@ import {
 } from "@ant-design/icons";
 import { IMaskInput } from "react-imask";
 import { validarDocumento } from "../../utils/documentValidation";
+import { formatMissingClienteBoletoFields } from "../../utils/clienteBoletoValidation";
 import { useClienteValidation } from "../../hooks/useClienteValidation";
 import { useCnpjConsulta } from "../../hooks/useCnpjConsulta";
 
@@ -50,6 +52,7 @@ const ClienteForm = ({
   editando,
   erros,
   setErros,
+  requiredBoletoFields = [],
 }) => {
   const { nomeValidation, validateNome, resetValidation } = useClienteValidation();
   const { cnpjData, consultarCnpj, resetConsulta } = useCnpjConsulta();
@@ -148,6 +151,52 @@ const ClienteForm = ({
     setDadosCnpjEncontrados(null);
   };
 
+  // =====================================================
+  // Destaques para fluxo de boleto (sem depender de borda)
+  // =====================================================
+  const isMissingForBoleto = (fieldKey) => {
+    if (!Array.isArray(requiredBoletoFields) || requiredBoletoFields.length === 0) return false;
+    if (!requiredBoletoFields.includes(fieldKey)) return false;
+
+    if (fieldKey === "cpfCnpj") {
+      return !(clienteAtual.documento || "").trim();
+    }
+    return !(String(clienteAtual[fieldKey] || "").trim());
+  };
+
+  const missingForBoletoNow = Array.isArray(requiredBoletoFields)
+    ? requiredBoletoFields.filter((k) => isMissingForBoleto(k))
+    : [];
+
+  const makeBoletoAwareLabel = (iconNode, text, fieldKey) => {
+    const needs = isMissingForBoleto(fieldKey);
+    return (
+      <Space>
+        {iconNode}
+        <span
+          style={{
+            fontWeight: "700",
+            color: needs ? "#d48806" : "#333",
+          }}
+        >
+          {text}
+        </span>
+        {needs && (
+          <Tag
+            color="gold"
+            style={{
+              borderRadius: 6,
+              fontWeight: 700,
+              marginInlineStart: 4,
+            }}
+          >
+            Obrigatório p/ boleto
+          </Tag>
+        )}
+      </Space>
+    );
+  };
+
   return (
     <div>
       <style>
@@ -163,6 +212,15 @@ const ClienteForm = ({
         `}
       </style>
       <Form layout="vertical" size="large">
+        {missingForBoletoNow.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            message="Atenção: dados obrigatórios para boleto"
+            description={`Preencha os campos destacados em amarelo: ${formatMissingClienteBoletoFields(missingForBoletoNow).join(", ")}.`}
+            style={{ marginBottom: 16, borderRadius: 8 }}
+          />
+        )}
         {/* Seção 1: Informações Básicas */}
         <Card
           title={
@@ -285,12 +343,11 @@ const ClienteForm = ({
           <Row gutter={[16, 16]}>
             <Col xs={24} md={8}>
               <Form.Item
-                label={
-                  <Space>
-                    <IdcardOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>CPF/CNPJ</span>
-                  </Space>
-                }
+                label={makeBoletoAwareLabel(
+                  <IdcardOutlined style={{ color: "#059669" }} />,
+                  "CPF/CNPJ",
+                  "cpfCnpj"
+                )}
                 validateStatus={erros.documento ? "error" : ""}
                 help={
                   erros.documento ||
@@ -334,12 +391,26 @@ const ClienteForm = ({
                     className="ant-input ant-input-lg"
                     style={{
                       borderRadius: "6px",
-                      borderColor: erros.documento ? "#ff4d4f" : cnpjData.isLoading ? "#1890ff" : "#d9d9d9",
+                      borderColor: erros.documento
+                        ? "#ff4d4f"
+                        : cnpjData.isLoading
+                          ? "#1890ff"
+                          : (requiredBoletoFields.includes("cpfCnpj") && !(clienteAtual.documento || "").trim())
+                            ? "#faad14"
+                            : "#d9d9d9",
                       width: '100%',
                       height: '40px',
                       padding: '4px 11px',
                       fontSize: '14px',
-                      border: '1px solid',
+                      border: `1px solid ${
+                        erros.documento
+                          ? "#ff4d4f"
+                          : cnpjData.isLoading
+                            ? "#1890ff"
+                            : (requiredBoletoFields.includes("cpfCnpj") && !(clienteAtual.documento || "").trim())
+                              ? "#faad14"
+                              : "#d9d9d9"
+                      }`,
                       transition: 'all 0.3s',
                       paddingRight: cnpjData.isLoading ? '40px' : '11px',
                     }}
@@ -445,12 +516,11 @@ const ClienteForm = ({
           <Row gutter={[16, 16]}>
             <Col xs={24} md={16}>
                               <Form.Item
-                  label={
-                    <Space>
-                      <EnvironmentOutlined style={{ color: "#059669" }} />
-                      <span style={{ fontWeight: "700", color: "#333" }}>Logradouro</span>
-                    </Space>
-                  }
+                  label={makeBoletoAwareLabel(
+                    <EnvironmentOutlined style={{ color: "#059669" }} />,
+                    "Logradouro",
+                    "logradouro"
+                  )}
                   validateStatus={erros.logradouro ? "error" : ""}
                   help={erros.logradouro}
                 >
@@ -460,7 +530,18 @@ const ClienteForm = ({
                     onChange={(e) => handleChange("logradouro", e.target.value)}
                     style={{
                       borderRadius: "6px",
-                      borderColor: erros.logradouro ? "#ff4d4f" : "#d9d9d9",
+                      borderColor: erros.logradouro
+                        ? "#ff4d4f"
+                        : (requiredBoletoFields.includes("logradouro") && !(clienteAtual.logradouro || "").trim())
+                          ? "#faad14"
+                          : "#d9d9d9",
+                      border: `1px solid ${
+                        erros.logradouro
+                          ? "#ff4d4f"
+                          : (requiredBoletoFields.includes("logradouro") && !(clienteAtual.logradouro || "").trim())
+                            ? "#faad14"
+                            : "#d9d9d9"
+                      }`,
                     }}
                   />
                 </Form.Item>
@@ -468,12 +549,11 @@ const ClienteForm = ({
 
             <Col xs={24} md={8}>
               <Form.Item
-                label={
-                  <Space>
-                    <EnvironmentOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>Bairro</span>
-                  </Space>
-                }
+                label={makeBoletoAwareLabel(
+                  <EnvironmentOutlined style={{ color: "#059669" }} />,
+                  "Bairro",
+                  "bairro"
+                )}
                 validateStatus={erros.bairro ? "error" : ""}
                 help={erros.bairro}
               >
@@ -483,7 +563,18 @@ const ClienteForm = ({
                   onChange={(e) => handleChange("bairro", e.target.value)}
                   style={{
                     borderRadius: "6px",
-                    borderColor: erros.bairro ? "#ff4d4f" : "#d9d9d9",
+                    borderColor: erros.bairro
+                      ? "#ff4d4f"
+                      : (requiredBoletoFields.includes("bairro") && !(clienteAtual.bairro || "").trim())
+                        ? "#faad14"
+                        : "#d9d9d9",
+                    border: `1px solid ${
+                      erros.bairro
+                        ? "#ff4d4f"
+                        : (requiredBoletoFields.includes("bairro") && !(clienteAtual.bairro || "").trim())
+                          ? "#faad14"
+                          : "#d9d9d9"
+                    }`,
                   }}
                 />
               </Form.Item>
@@ -493,12 +584,11 @@ const ClienteForm = ({
           <Row gutter={[16, 16]}>
             <Col xs={24} md={8}>
               <Form.Item
-                label={
-                  <Space>
-                    <EnvironmentOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>Cidade</span>
-                  </Space>
-                }
+                label={makeBoletoAwareLabel(
+                  <EnvironmentOutlined style={{ color: "#059669" }} />,
+                  "Cidade",
+                  "cidade"
+                )}
                 validateStatus={erros.cidade ? "error" : ""}
                 help={erros.cidade}
               >
@@ -508,7 +598,18 @@ const ClienteForm = ({
                   onChange={(e) => handleChange("cidade", e.target.value)}
                   style={{
                     borderRadius: "6px",
-                    borderColor: erros.cidade ? "#ff4d4f" : "#d9d9d9",
+                    borderColor: erros.cidade
+                      ? "#ff4d4f"
+                      : (requiredBoletoFields.includes("cidade") && !(clienteAtual.cidade || "").trim())
+                        ? "#faad14"
+                        : "#d9d9d9",
+                    border: `1px solid ${
+                      erros.cidade
+                        ? "#ff4d4f"
+                        : (requiredBoletoFields.includes("cidade") && !(clienteAtual.cidade || "").trim())
+                          ? "#faad14"
+                          : "#d9d9d9"
+                    }`,
                   }}
                 />
               </Form.Item>
@@ -516,12 +617,11 @@ const ClienteForm = ({
 
             <Col xs={24} md={8}>
               <Form.Item
-                label={
-                  <Space>
-                    <EnvironmentOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>Estado</span>
-                  </Space>
-                }
+                label={makeBoletoAwareLabel(
+                  <EnvironmentOutlined style={{ color: "#059669" }} />,
+                  "Estado",
+                  "estado"
+                )}
                 validateStatus={erros.estado ? "error" : ""}
                 help={erros.estado}
               >
@@ -531,7 +631,18 @@ const ClienteForm = ({
                   onChange={(e) => handleChange("estado", e.target.value)}
                   style={{
                     borderRadius: "6px",
-                    borderColor: erros.estado ? "#ff4d4f" : "#d9d9d9",
+                    borderColor: erros.estado
+                      ? "#ff4d4f"
+                      : (requiredBoletoFields.includes("estado") && !(clienteAtual.estado || "").trim())
+                        ? "#faad14"
+                        : "#d9d9d9",
+                    border: `1px solid ${
+                      erros.estado
+                        ? "#ff4d4f"
+                        : (requiredBoletoFields.includes("estado") && !(clienteAtual.estado || "").trim())
+                          ? "#faad14"
+                          : "#d9d9d9"
+                    }`,
                   }}
                 />
               </Form.Item>
@@ -539,12 +650,11 @@ const ClienteForm = ({
 
             <Col xs={24} md={8}>
               <Form.Item
-                label={
-                  <Space>
-                    <EnvironmentOutlined style={{ color: "#059669" }} />
-                    <span style={{ fontWeight: "700", color: "#333" }}>CEP</span>
-                  </Space>
-                }
+                label={makeBoletoAwareLabel(
+                  <EnvironmentOutlined style={{ color: "#059669" }} />,
+                  "CEP",
+                  "cep"
+                )}
                 validateStatus={erros.cep ? "error" : ""}
                 help={erros.cep}
               >
@@ -556,12 +666,22 @@ const ClienteForm = ({
                   className="ant-input ant-input-lg"
                   style={{
                     borderRadius: "6px",
-                    borderColor: erros.cep ? "#ff4d4f" : "#d9d9d9",
+                    borderColor: erros.cep
+                      ? "#ff4d4f"
+                      : (requiredBoletoFields.includes("cep") && !(clienteAtual.cep || "").trim())
+                        ? "#faad14"
+                        : "#d9d9d9",
                     width: '100%',
                     height: '40px',
                     padding: '4px 11px',
                     fontSize: '14px',
-                    border: '1px solid',
+                    border: `1px solid ${
+                      erros.cep
+                        ? "#ff4d4f"
+                        : (requiredBoletoFields.includes("cep") && !(clienteAtual.cep || "").trim())
+                          ? "#faad14"
+                          : "#d9d9d9"
+                    }`,
                     transition: 'all 0.3s',
                   }}
                 />
@@ -1042,6 +1162,7 @@ ClienteForm.propTypes = {
   editando: PropTypes.bool.isRequired,
   erros: PropTypes.object.isRequired,
   setErros: PropTypes.func.isRequired,
+  requiredBoletoFields: PropTypes.array,
 };
 
 export default ClienteForm; 

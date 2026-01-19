@@ -39,8 +39,26 @@ const InfoAlertModal = ({
 }) => {
   const { isMobile } = useResponsive();
 
-  // Mapear tipo de ícone para componente
-  const getIconByType = () => {
+  // Mapear tipo de ícone para componente (título - tamanho padrão)
+  const getIconByTypeForTitle = () => {
+    if (icon) return icon; // Usar ícone customizado se fornecido
+    
+    switch (iconType) {
+      case "warning":
+        return <WarningOutlined style={{ color: "#ffffff" }} />;
+      case "info":
+        return <InfoCircleOutlined style={{ color: "#ffffff" }} />;
+      case "error":
+        return <ExclamationCircleOutlined style={{ color: "#ffffff" }} />;
+      case "success":
+        return <CheckCircleOutlined style={{ color: "#ffffff" }} />;
+      default:
+        return <WarningOutlined style={{ color: "#ffffff" }} />;
+    }
+  };
+
+  // Mapear tipo de ícone para componente (corpo - tamanho grande)
+  const getIconByTypeForBody = () => {
     if (icon) return icon; // Usar ícone customizado se fornecido
     
     switch (iconType) {
@@ -150,8 +168,8 @@ const InfoAlertModal = ({
           display: "block",
           borderRadius: "8px 8px 0 0",
         }}>
-          {getIconByType()}
-          <span style={{ marginLeft: "8px" }}>{title}</span>
+          <span style={{ marginRight: "0.5rem" }}>{getIconByTypeForTitle()}</span>
+          {title}
         </span>
       }
       open={open}
@@ -193,7 +211,7 @@ const InfoAlertModal = ({
           <div style={{ textAlign: "center", marginBottom: isMobile ? "16px" : "20px" }}>
             {showIcon && (
               <div style={{ marginBottom: isMobile ? "12px" : "16px" }}>
-                {getIconByType()}
+                {getIconByTypeForBody()}
               </div>
             )}
             {message && (

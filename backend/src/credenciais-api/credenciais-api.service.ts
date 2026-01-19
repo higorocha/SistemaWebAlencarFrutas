@@ -91,6 +91,19 @@ export class CredenciaisAPIService {
         throw new BadRequestException('Conta corrente não encontrada');
       }
 
+      // Validação: Se for modalidade "001 - Cobrança", verificar se a conta tem convênio
+      if (createCredenciaisAPIDto.modalidadeApi === '001 - Cobrança') {
+        const convenio = await this.prisma.convenioCobranca.findUnique({
+          where: { contaCorrenteId: createCredenciaisAPIDto.contaCorrenteId },
+        });
+
+        if (!convenio) {
+          throw new BadRequestException(
+            'Para cadastrar credenciais de API do tipo "001 - Cobrança", é necessário primeiro cadastrar um convênio de cobrança para esta conta corrente. Por favor, cadastre o convênio na seção "Convênios" antes de continuar.'
+          );
+        }
+      }
+
       // Verifica se já existem credenciais para esta combinação
       const existingCredenciais = await this.prisma.credenciaisAPI.findFirst({
         where: {
@@ -153,19 +166,35 @@ export class CredenciaisAPIService {
         }
       }
 
+      // Busca as credenciais atuais para validar modalidade
+      const credenciaisAtuais = await this.prisma.credenciaisAPI.findUnique({
+        where: { id },
+      });
+
+      if (!credenciaisAtuais) {
+        throw new NotFoundException('Credenciais API não encontradas');
+      }
+
+      // Validação: Se estiver alterando para "001 - Cobrança" ou se já for "001 - Cobrança" e mudar a conta
+      const modalidadeApi = updateCredenciaisAPIDto.modalidadeApi || credenciaisAtuais.modalidadeApi;
+      const contaCorrenteId = updateCredenciaisAPIDto.contaCorrenteId || credenciaisAtuais.contaCorrenteId;
+
+      if (modalidadeApi === '001 - Cobrança') {
+        const convenio = await this.prisma.convenioCobranca.findUnique({
+          where: { contaCorrenteId },
+        });
+
+        if (!convenio) {
+          throw new BadRequestException(
+            'Para cadastrar credenciais de API do tipo "001 - Cobrança", é necessário primeiro cadastrar um convênio de cobrança para esta conta corrente. Por favor, cadastre o convênio na seção "Convênios" antes de continuar.'
+          );
+        }
+      }
+
       // Se estiver atualizando dados únicos, verifica duplicatas
       if (updateCredenciaisAPIDto.banco || 
           updateCredenciaisAPIDto.contaCorrenteId || 
           updateCredenciaisAPIDto.modalidadeApi) {
-        
-        // Busca as credenciais atuais para preencher campos não atualizados
-        const credenciaisAtuais = await this.prisma.credenciaisAPI.findUnique({
-          where: { id },
-        });
-
-        if (!credenciaisAtuais) {
-          throw new NotFoundException('Credenciais API não encontradas');
-        }
 
         const dadosCompletos = {
           banco: updateCredenciaisAPIDto.banco || credenciaisAtuais.banco,

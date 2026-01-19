@@ -191,23 +191,34 @@ export class NotificacoesService {
     // para evitar duplicação e permitir envio em lote para múltiplos usuários
     if (notificacao.usuarioId) {
       const dadosAdicionais = notificacao.dadosAdicionais as any;
-      const isPedido = dadosAdicionais?.pedidoId || notificacao.titulo === 'Novo pedido adicionado';
+      
+      // Verificar se é boleto PRIMEIRO (boletos também têm pedidoId, mas não são pedidos)
+      const isBoleto = !!dadosAdicionais?.tipoPagamentoBoleto || 
+                       (notificacao.tipo === TipoNotificacao.BOLETO && !!dadosAdicionais?.boletoId);
+      
+      // Verificar se é pedido (mas não boleto, pois boletos também têm pedidoId)
+      const isPedido = !isBoleto && (dadosAdicionais?.pedidoId || notificacao.titulo === 'Novo pedido adicionado');
       
       // Não enviar push aqui para notificações de pedido (será enviado em criarNotificacaoPedidoCriado)
       if (!isPedido) {
-        const textoToast = dadosAdicionais?.toast?.conteudo || notificacao.conteudo;
+        let textoPush = dadosAdicionais?.toast?.conteudo || notificacao.conteudo;
+        let tituloPush = notificacao.titulo;
         
-        console.log(`[Push] Enviando push para usuário ${notificacao.usuarioId} (título: ${notificacao.titulo})`);
+        // Melhorar formatação para notificações de boleto pago
+        if (isBoleto) {
+          // Adicionar emoji de boleto no título
+          const emoji = this.getEmojiPorTipo(TipoNotificacao.BOLETO);
+          tituloPush = `${emoji} ${tituloPush}`;
+        }
+        
         this.enviarPushNotificationParaUsuario(
           notificacao.usuarioId,
-          notificacao.titulo,
-          textoToast,
+          tituloPush,
+          textoPush,
           dadosAdicionais,
         ).catch((error) => {
           console.error(`[Push] Erro ao enviar push para usuário ${notificacao.usuarioId}:`, error);
         });
-      } else {
-        console.log(`[Push] Push de pedido será enviado em lote via criarNotificacaoPedidoCriado`);
       }
     }
 
@@ -224,15 +235,11 @@ export class NotificacoesService {
     data?: any,
   ): Promise<void> {
     try {
-      console.log(`[Push] Buscando tokens para usuário ${userId}`);
       const tokens = await this.pushTokensService.getActiveTokensByUserId(userId);
 
       if (tokens.length === 0) {
-        console.log(`[Push] Usuário ${userId} não tem tokens registrados`);
         return; // Usuário não tem tokens registrados
       }
-
-      console.log(`[Push] Usuário ${userId} tem ${tokens.length} token(s) ativo(s)`);
 
       // Enviar para todos os tokens do usuário
       let successCount = 0;
@@ -247,7 +254,9 @@ export class NotificacoesService {
         }
       }
 
-      console.log(`[Push] Resultado para usuário ${userId}: ${successCount} sucesso, ${failedCount} falhas`);
+      if (successCount > 0 || failedCount > 0) {
+        console.log(`[Push] Usuário ${userId}: ${successCount} sucesso, ${failedCount} falhas`);
+      }
     } catch (error) {
       console.error(`[Push] Erro ao enviar push para usuário ${userId}:`, error);
       // Não propagar erro
@@ -1015,8 +1024,9 @@ export class NotificacoesService {
   // Métodos para emitir eventos via Socket.io
   private emitNovaNotificacao(notificacao: any): void {
     if (this.server) {
+      const notificacaoDto = this.mapToResponseDto(notificacao);
       this.server.emit('nova_notificacao', {
-        notificacao: this.mapToResponseDto(notificacao),
+        notificacao: notificacaoDto,
       });
     }
   }

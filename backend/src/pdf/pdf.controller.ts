@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Res, UseGuards, Req, Query, Body, Post, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Param, Res, UseGuards, Req, Query, Body, Post, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { PdfService } from './pdf.service';
@@ -24,6 +24,12 @@ import {
 } from '../utils/formatters';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as QRCode from 'qrcode';
+import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
+import svg64 from 'svg64';
+
+// Importar jsbarcode usando require (compatibilidade com CommonJS)
+const JSBarcode = require('jsbarcode');
 
 @ApiTags('PDF')
 @ApiBearerAuth()
@@ -2601,5 +2607,246 @@ export class PdfController {
       dataGeracaoFormatada: formatDateBR(new Date()),
     };
   }
+
+  /**
+   * Prepara os dados para o template de boleto com QR Code PIX
+   */
+  private async prepararDadosTemplateBoleto(boleto: any, logoBase64: string | null): Promise<any> {
+    console.log('[PDF Boleto] 📋 Preparando dados do boleto:', {
+      id: boleto.id,
+      nossoNumero: boleto.nossoNumero,
+      codigoBarras: boleto.codigoBarras ? `${boleto.codigoBarras.substring(0, 10)}...` : 'NÃO ENCONTRADO',
+      codigoBarrasLength: boleto.codigoBarras?.length || 0,
+    });
+
+    try {
+      // Carregar dados da empresa
+      const empresa = await this.configService.findDadosEmpresa();
+
+      const logoPath = logoBase64 ? logoBase64 : null;
+
+      // Preparar dados do boleto
+      const dadosBoleto = {
+        nossoNumero: boleto.nossoNumero,
+        numeroDocumento: boleto.numeroTituloBeneficiario,
+        carteira: boleto.convenioCobranca.carteira,
+        especie: 'R$',
+        quantidade: 1,
+        valor: boleto.valorOriginal,
+        dataVencimento: boleto.dataVencimento,
+        dataDocumento: boleto.dataEmissao,
+        dataProcessamento: boleto.dataEmissao, // Data de processamento = data de emissão
+        localPagamento: 'Pagável em qualquer banco até o vencimento',
+        juros: boleto.convenioCobranca.juros,
+        multaAtiva: boleto.convenioCobranca.multaAtiva,
+        valorMulta: boleto.convenioCobranca.valorMulta,
+      };
+
+      // Formatar CPF/CNPJ do pagador
+      let cpfCnpjFormatado: string | null = null;
+      let tipoDocumento: 'CPF' | 'CNPJ' | null = null;
+      if (boleto.pagadorNumeroInscricao) {
+        const numeroLimpo = boleto.pagadorNumeroInscricao.replace(/\D/g, '');
+        if (numeroLimpo.length === 11) {
+          cpfCnpjFormatado = formatCPF(boleto.pagadorNumeroInscricao);
+          tipoDocumento = 'CPF';
+        } else if (numeroLimpo.length === 14) {
+          cpfCnpjFormatado = formatCNPJ(boleto.pagadorNumeroInscricao);
+          tipoDocumento = 'CNPJ';
+        } else {
+          cpfCnpjFormatado = boleto.pagadorNumeroInscricao;
+        }
+      }
+
+      // Preparar dados do pagador
+      const pagador = {
+        nome: boleto.pagadorNome,
+        cpfCnpj: cpfCnpjFormatado,
+        tipoDocumento: tipoDocumento,
+        endereco: boleto.pagadorEndereco,
+        bairro: boleto.pagadorBairro,
+        cidade: boleto.pagadorCidade,
+        uf: boleto.pagadorUf,
+        cep: boleto.pagadorCep,
+      };
+
+      // Gerar QR Code PIX como imagem base64
+      let qrCodePixBase64: string | null = null;
+      if (boleto.urlPix) {
+        try {
+          qrCodePixBase64 = await QRCode.toDataURL(boleto.urlPix, {
+            errorCorrectionLevel: 'M',
+            type: 'image/png',
+            width: 300,
+            margin: 1,
+          });
+        } catch (error) {
+          console.error('[PDF Boleto] Erro ao gerar QR Code PIX:', error);
+          qrCodePixBase64 = null;
+        }
+      }
+
+      // Gerar código de barras como imagem base64
+      let barcodeBase64: string | null = null;
+      const codigoBarras = boleto.codigoBarras;
+      if (codigoBarras) {
+        try {
+          // 1. Configura o DOM Virtual
+          const xmlSerializer = new XMLSerializer();
+          const document = new DOMImplementation().createDocument(
+            'http://www.w3.org/1999/xhtml',
+            'html',
+            null,
+          );
+          const svgNode = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+
+          // 2. Gera o Barcode (formato ITF para boletos)
+          JSBarcode(svgNode, codigoBarras, {
+            xmlDocument: document,
+            format: 'ITF',
+            height: 50,
+            width: 1,
+            displayValue: false,
+            margin: 0,
+          });
+
+          // 3. Converte para Base64
+          const svgText = xmlSerializer.serializeToString(svgNode);
+          barcodeBase64 = svg64(svgText);
+
+          console.log('[PDF Boleto] ✅ Código de barras gerado:', {
+            possui: !!codigoBarras,
+            tamanho: codigoBarras.length,
+            preview: `${codigoBarras.substring(0, 10)}...${codigoBarras.substring(codigoBarras.length - 4)}`,
+          });
+        } catch (error) {
+          console.error('[PDF Boleto] Erro ao gerar código de barras:', error);
+          barcodeBase64 = null;
+        }
+      }
+
+      // Formatar CNPJ da empresa
+      const empresaFormatada = empresa ? {
+        ...empresa,
+        cnpjFormatado: empresa.cnpj ? formatCNPJ(empresa.cnpj) : null,
+      } : null;
+
+      return {
+        empresa: empresaFormatada,
+        conta: {
+          agencia: boleto.contaCorrente.agencia,
+          codigoBeneficiario: boleto.convenioCobranca.convenio, // Usar o número do convênio como código beneficiário
+          carteira: boleto.convenioCobranca.carteira,
+        },
+        convenio: {
+          numero: boleto.convenioCobranca.convenio,
+        },
+        dadosBoleto: dadosBoleto,
+        linhaDigitavel: boleto.linhaDigitavel,
+        barcodeBase64: barcodeBase64,
+        pagador: pagador,
+        qrCodePix: boleto.urlPix || null,
+        qrCodePixBase64: qrCodePixBase64,
+        valor: boleto.valorOriginal, // Valor no nível raiz para o helper
+        valorCobrado: boleto.valorOriginal, // Valor cobrado = valor original (juros/multa só aplicam quando vencido)
+        desconto: 0, // Desconto sempre 0,00 no momento da geração
+        jurosMulta: 0, // Juros/Multa sempre 0,00 no momento da geração (BB calcula apenas quando vencido e pago)
+        dataVencimento: boleto.dataVencimento, // Data no nível raiz para o helper
+        dataGeracao: formatDateBR(new Date()),
+        logoPath: logoPath,
+      };
+    } catch (error) {
+      console.error('[PDF Service] ❌ ERRO ao executar prepararDadosTemplateBoleto:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Gera PDF de boleto com QR Code PIX
+   */
+  @Get('boleto/:id')
+  @ApiOperation({ summary: 'Gerar PDF do boleto' })
+  @ApiParam({ name: 'id', description: 'ID do boleto' })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF gerado com sucesso',
+    content: {
+      'application/pdf': {},
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Boleto não encontrado' })
+  async downloadBoletoPdf(
+  @Param('id') id: string,
+  @Res() res: Response,
+  @Req() request?: any,
+) {
+  console.log('[PDF Boleto] Iniciando geração de PDF para boleto ID:', id);
+
+  try {
+      // Buscar boleto completo com relacionamentos
+      const boleto = await this.prisma.boleto.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          contaCorrente: {
+            select: {
+              agencia: true,
+            }
+          },
+          convenioCobranca: {
+            select: {
+              convenio: true,
+              carteira: true,
+              juros: true,
+              multaAtiva: true,
+              valorMulta: true,
+            }
+          },
+          usuarioCriacao: true,
+        }
+      });
+
+    if (!boleto) {
+      throw new NotFoundException('Boleto não encontrado');
+    }
+
+    console.log('[PDF Boleto] Boleto encontrado:', {
+      id: boleto.id,
+      nossoNumero: boleto.nossoNumero,
+      codigoBarras: boleto.codigoBarras ? 'Presente' : 'Ausente',
+    });
+
+    // Carregar logo em base64
+    const logoBase64 = await this.carregarLogoBase64();
+
+    // Preparar dados para o template
+    const dadosTemplate = await this.prepararDadosTemplateBoleto(boleto, logoBase64);
+
+    // Gerar o PDF
+    const buffer = await this.pdfService.gerarPdf('boleto', dadosTemplate);
+
+    // Formatar nome do arquivo
+    const nomeArquivo = `boleto-${boleto.id}-${boleto.nossoNumero}.pdf`;
+
+    console.log('[PDF Boleto] PDF gerado com sucesso:', nomeArquivo);
+
+    // Enviar como download
+    const contentDisposition = `attachment; filename="${nomeArquivo}"; filename*=UTF-8''${encodeURIComponent(nomeArquivo)}`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': contentDisposition,
+      'Access-Control-Expose-Headers': 'Content-Disposition',
+      'Content-Length': buffer.length.toString(),
+    });
+
+    res.send(buffer);
+  } catch (error) {
+    console.error('[PDF Controller] Erro ao gerar PDF do boleto:', error);
+    if (error instanceof NotFoundException) {
+      throw error;
+    }
+    throw new InternalServerErrorException('Erro ao gerar PDF do boleto');
+  }
+}
 }
 

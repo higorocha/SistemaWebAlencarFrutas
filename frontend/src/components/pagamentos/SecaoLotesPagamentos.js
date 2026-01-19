@@ -502,15 +502,9 @@ const SecaoLotesPagamentos = ({
                     title={
                       <div>
                         <div style={{ marginBottom: "4px" }}>
-                          <strong>Valor das colheitas que ainda não foi pago:</strong>
+                          <strong>{isFolhaPagamento ? 'Valor dos pagamentos de funcionários que ainda não foi pago:' : 'Valor das colheitas que ainda não foi pago:'}</strong>
                         </div>
-                        <div>• Diferença entre o valor total das colheitas e o valor já pago</div>
-                        <div style={{ marginTop: "4px", fontSize: "11px", opacity: 0.9 }}>
-                          <strong>Fórmula:</strong> Valor Total Colheitas - Valor Total Liberado
-                        </div>
-                        <div style={{ marginTop: "4px", fontSize: "11px", opacity: 0.9 }}>
-                          Este valor representa colheitas que ainda estão aguardando processamento pelo banco.
-                        </div>
+                        <div>• {isFolhaPagamento ? 'Este valor representa pagamentos de funcionários que ainda estão aguardando processamento pelo banco.' : 'Este valor representa colheitas que ainda estão aguardando processamento pelo banco.'}</div>
                       </div>
                     }
                   >

@@ -34,4 +34,12 @@ export class CreatePagamentoDto {
   @IsOptional()
   @IsString({ message: 'Referência externa deve ser uma string' })
   referenciaExterna?: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'Data de vencimento deve ser uma data válida' })
+  dataVencimento?: string; // Obrigatório quando metodoPagamento === 'BOLETO'
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ID da conta corrente deve ser um número' })
+  contaCorrenteId?: number; // Obrigatório quando metodoPagamento === 'BOLETO'
 }

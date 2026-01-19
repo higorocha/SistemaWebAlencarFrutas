@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Agent } from 'https';
-import { BBAPIConfig, getBBAPIConfig } from '../config/bb-api.config';
+import { BBAPIConfig, getBBAPIConfig, getBBAPIConfigByEnvironment } from '../config/bb-api.config';
 
 /**
  * Factory para criar clientes HTTP para APIs do Banco do Brasil
@@ -73,7 +73,7 @@ function createHTTPSAgent(config: BBAPIConfig): Agent {
  * Cria um cliente Axios para autenticação OAuth2
  */
 export function createBBAuthClient(options: BBAPIClientOptions) {
-  const config = getBBAPIConfig(options.apiName);
+  const config = getBBAPIConfigByEnvironment(options.apiName);
   const httpsAgent = createHTTPSAgent(config);
 
   console.log(`[BB-API-Factory] Criando cliente de autenticação para ${config.name}`);
@@ -92,7 +92,7 @@ export function createBBAuthClient(options: BBAPIClientOptions) {
  * Cria um cliente Axios para chamadas da API
  */
 export function createBBAPIClient(options: BBAPIClientOptions) {
-  const config = getBBAPIConfig(options.apiName);
+  const config = getBBAPIConfigByEnvironment(options.apiName);
   const httpsAgent = createHTTPSAgent(config);
 
   console.log(`[BB-API-Factory] Criando cliente API para ${config.name}`);

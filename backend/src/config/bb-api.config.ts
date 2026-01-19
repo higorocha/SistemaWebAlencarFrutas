@@ -101,20 +101,17 @@ export const BB_APIS_CONFIG: Record<string, BBAPIConfig> = {
 
   COBRANCA: {
     name: 'COBRANCA',
-    // URLs e configurações serão definidas após análise da documentação técnica do BB
     // Convênio Alencar Frutas: Tipo 3 (Banco numera, cliente emite e expede)
     // Modalidade: Simples
     // Espécie: Boleto de Cobrança
-    authUrl: 'TBD', // TODO: Definir após análise da documentação técnica
-    baseUrl: 'TBD', // TODO: Definir após análise da documentação técnica
+    authUrl: 'https://oauth.bb.com.br/oauth/token',        // Produção
+    baseUrl: 'https://api.bb.com.br/cobrancas/v2',        // Produção
     certificates: BB_CERTIFICATES_ALENCAR, // Usará certificados alencar (mesmo que pagamentos)
     headers: {
       authKey: 'Content-Type',
-      apiKey: 'TBD' // TODO: Definir após análise da documentação técnica (header ou query param)
+      apiKey: 'gw-dev-app-key'  // Query param (não header)
     },
     timeout: 30000
-    // HOMOLOGAÇÃO: https://api.hm.bb.com.br/testes-portal-desenvolvedor/v1
-    // gw-app-key (homologação): 95cad3f03fd9013a9d15005056825665
   }
 
   // Futuras APIs podem ser adicionadas aqui:
@@ -140,8 +137,8 @@ export const getBBAPIConfigByEnvironment = (
     // Homologação COBRANCA
     return {
       ...config,
-      authUrl: 'https://oauth.hm.bb.com.br', // TODO: confirmar na documentação
-      baseUrl: 'https://api.hm.bb.com.br', // TODO: confirmar na documentação
+      authUrl: 'https://oauth.hm.bb.com.br/oauth/token',
+      baseUrl: 'https://api.hm.bb.com.br/cobrancas/v2',
     };
   }
 

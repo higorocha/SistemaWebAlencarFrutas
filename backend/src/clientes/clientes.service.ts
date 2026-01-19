@@ -49,16 +49,20 @@ export class ClientesService {
       if (documentoLimpo.length === 11) {
         // É um CPF
         dataToCreate.cpf = createClienteDto.documento;
-        dataToCreate.cnpj = undefined;
+        dataToCreate.cnpj = null;
       } else if (documentoLimpo.length === 14) {
         // É um CNPJ
         dataToCreate.cnpj = createClienteDto.documento;
-        dataToCreate.cpf = undefined;
+        dataToCreate.cpf = null;
+      } else {
+        throw new BadRequestException(
+          'Documento deve conter 11 dígitos (CPF) ou 14 dígitos (CNPJ)',
+        );
       }
     } else {
       // Se documento está vazio, limpar ambos os campos
-      dataToCreate.cpf = undefined;
-      dataToCreate.cnpj = undefined;
+      dataToCreate.cpf = null;
+      dataToCreate.cnpj = null;
     }
 
     // Verificar se já existe um cliente com o mesmo CNPJ ou CPF
@@ -213,16 +217,22 @@ export class ClientesService {
       if (documentoLimpo.length === 11) {
         // É um CPF
         dataToUpdate.cpf = updateClienteDto.documento;
-        dataToUpdate.cnpj = undefined;
+        // IMPORTANTE: no Prisma, undefined = "não altera".
+        // Para garantir exclusividade (CPF XOR CNPJ), precisamos limpar o outro campo com null.
+        dataToUpdate.cnpj = null;
       } else if (documentoLimpo.length === 14) {
         // É um CNPJ
         dataToUpdate.cnpj = updateClienteDto.documento;
-        dataToUpdate.cpf = undefined;
+        dataToUpdate.cpf = null;
+      } else {
+        throw new BadRequestException(
+          'Documento deve conter 11 dígitos (CPF) ou 14 dígitos (CNPJ)',
+        );
       }
     } else if (updateClienteDto.documento !== undefined) {
       // Se documento foi explicitamente definido como vazio, limpar ambos os campos
-      dataToUpdate.cpf = undefined;
-      dataToUpdate.cnpj = undefined;
+      dataToUpdate.cpf = null;
+      dataToUpdate.cnpj = null;
     }
 
     // Verificar se já existe outro cliente com o mesmo CNPJ ou CPF

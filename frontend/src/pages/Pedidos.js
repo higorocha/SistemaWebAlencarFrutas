@@ -30,6 +30,7 @@ import useResponsive from "../hooks/useResponsive";
 import moment from "moment";
 import { getFruitIcon } from "../utils/fruitIcons";
 import { capitalizeName } from "../utils/formatters";
+import { formatMissingClienteBoletoFields } from "../utils/clienteBoletoValidation";
 
 const PedidosTable = lazy(() => import("../components/pedidos/PedidosTable"));
 const EditarPedidoDialog = lazy(() =>
@@ -749,7 +750,13 @@ const Pedidos = () => {
   const handleNovoPagamento = useCallback(async (pagamentoData) => {
     try {
       setCentralizedLoading(true);
-      setLoadingMessage(pagamentoData.id ? "Atualizando pagamento..." : "Registrando pagamento...");
+      setLoadingMessage(
+        pagamentoData.id
+          ? "Atualizando pagamento..."
+          : pagamentoData?.metodoPagamento === "BOLETO"
+            ? "Registrando boleto..."
+            : "Registrando pagamento..."
+      );
       setLoading(true);
 
       if (pagamentoData.id) {
@@ -758,9 +765,33 @@ const Pedidos = () => {
         await axiosInstance.patch(`/api/pedidos/pagamentos/${id}`, dadosSemId);
         showNotification("success", "Sucesso", "Pagamento atualizado com sucesso!");
       } else {
-        // Criação - usar POST
-        await axiosInstance.post('/api/pedidos/pagamentos', pagamentoData);
-        showNotification("success", "Sucesso", "Pagamento registrado com sucesso!");
+        // Criação
+        if (pagamentoData?.metodoPagamento === "BOLETO") {
+          if (!pagamentoData.contaCorrenteId) {
+            throw new Error("contaCorrenteId é obrigatório para criar boleto");
+          }
+
+          const boletoData = {
+            pedidoId: pagamentoData.pedidoId,
+            contaCorrenteId: pagamentoData.contaCorrenteId,
+            valorOriginal: pagamentoData.valorRecebido,
+            dataVencimento: pagamentoData.dataVencimento,
+            mensagemBloquetoOcorrencia:
+              pagamentoData.observacoesPagamento ||
+              `Pagamento referente ao pedido ${pedidoSelecionado?.numeroPedido || ""}`,
+          };
+
+          await axiosInstance.post("/api/cobranca/boletos", boletoData);
+          showNotification(
+            "success",
+            "Sucesso",
+            "Boleto gerado com sucesso! O pagamento será registrado automaticamente quando o boleto for pago."
+          );
+        } else {
+          // Para outros métodos, usar endpoint de pagamentos do pedido
+          await axiosInstance.post("/api/pedidos/pagamentos", pagamentoData);
+          showNotification("success", "Sucesso", "Pagamento registrado com sucesso!");
+        }
       }
 
       setLoadingMessage("Atualizando lista de pedidos...");
@@ -776,7 +807,22 @@ const Pedidos = () => {
 
     } catch (error) {
       console.error("Erro ao processar pagamento:", error);
-      const message = error.response?.data?.message || "Erro ao processar pagamento";
+      const data = error?.response?.data;
+
+      // Caso especial: cliente incompleto para boleto (validação do backend)
+      if (pagamentoData?.metodoPagamento === "BOLETO" && data?.code === "CLIENTE_INCOMPLETO_BOLETO") {
+        const missingLabels = formatMissingClienteBoletoFields(data?.missingFields || []);
+        const missingText = missingLabels.length ? missingLabels.join(", ") : "dados obrigatórios";
+
+        showNotification(
+          "warning",
+          "Atualize o cadastro do cliente",
+          `Não é possível gerar boleto sem os dados obrigatórios do cliente. Preencha: ${missingText}.`
+        );
+        throw error;
+      }
+
+      const message = data?.message || "Erro ao processar pagamento";
       showNotification("error", "Erro", message);
       throw error; // Re-throw para o modal tratar
     } finally {

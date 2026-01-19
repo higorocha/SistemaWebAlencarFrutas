@@ -5,6 +5,7 @@ import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { checkCertificateExpiry, validateAllCertificates } from '../utils/certificate-manager';
 import { CreateNotificacaoCompletaDto } from '../notificacoes/dto/create-notificacao-completa.dto';
 import { TipoNotificacao, PrioridadeNotificacao } from '../notificacoes/dto';
+import { getBBAPIConfig } from '../config/bb-api.config';
 
 /**
  * Serviço de Monitoramento Automático de Certificados
@@ -295,15 +296,36 @@ export class CertificateMonitorService {
 
   /**
    * Obtém informações detalhadas de todos os certificados
-   * Separa certificados bestnet (PIX/EXTRATOS) dos certificados alencar (PAGAMENTOS)
+   * Agrupa dinamicamente APIs que usam os mesmos certificados baseado na configuração
+   * - APIs que usam certificados bestnet (detectado pelo caminho contendo 'bestnet')
+   * - APIs que usam certificados alencar (detectado pelo caminho contendo 'alencar')
+   * - Certificados CA são compartilhados por todas as APIs
    */
   private getDetailedCertificateInfo(): any {
     const statuses = validateAllCertificates();
     const certificates: any = {};
     
-    // Separa status por tipo de certificado
-    const statusBestnet = statuses.filter(s => s.apiName === 'PIX' || s.apiName === 'EXTRATOS');
-    const statusPagamentos = statuses.find(s => s.apiName === 'PAGAMENTOS');
+    // Separa status por tipo de certificado de forma dinâmica
+    // Agrupa APIs que usam os mesmos certificados baseado na configuração
+    const statusBestnet: any[] = [];
+    const statusAlencar: any[] = [];
+    
+    // Agrupa APIs dinamicamente baseado no certificado que cada uma usa
+    statuses.forEach(status => {
+      try {
+        const config = getBBAPIConfig(status.apiName as any);
+        // Verifica qual conjunto de certificados a API usa comparando o caminho do certificado
+        // Isso permite adicionar novas APIs sem alterar código hardcoded
+        if (config.certificates.clientCertPath.includes('bestnet')) {
+          statusBestnet.push(status);
+        } else if (config.certificates.clientCertPath.includes('alencar')) {
+          statusAlencar.push(status);
+        }
+      } catch (error) {
+        // Se não conseguir obter config, ignora (não deve acontecer)
+        console.warn(`[Certificate-Monitor] Não foi possível determinar certificado para API ${status.apiName}`);
+      }
+    });
     
     // ===== CERTIFICADOS BESTNET (PIX e EXTRATOS) =====
     if (statusBestnet.length > 0) {
@@ -346,8 +368,11 @@ export class CertificateMonitorService {
         issues: statusBestnet.flatMap(s => s.issues.filter(i => i.includes('Certificado cliente') || i.includes('Chave privada')))
       };
       
-      // Certificados CA do BB (compartilhados entre PIX e EXTRATOS)
+      // Certificados CA do BB (compartilhados entre TODAS as APIs: PIX, EXTRATOS, PAGAMENTOS e COBRANCA)
       if (primeiroStatusBestnet && primeiroStatusBestnet.certificates.caCerts.length > 0) {
+        // Todos os statuses usam os mesmos CAs, então incluir todas as APIs
+        const todasAPIs = statuses.map(s => s.apiName);
+        
         certificates['CA_BB'] = {
           tipo: 'ca_bb',
           nome: 'Certificados CA do BB',
@@ -365,16 +390,17 @@ export class CertificateMonitorService {
               daysUntilExpiry: caCert.daysUntilExpiry
             }
           })),
-          usadoPor: statusBestnet.map(s => s.apiName), // ['PIX', 'EXTRATOS']
+          usadoPor: todasAPIs, // ['PIX', 'EXTRATOS', 'PAGAMENTOS', 'COBRANCA']
           issues: primeiroStatusBestnet.issues.filter(i => i.includes('CA'))
         };
       }
     }
     
-    // ===== CERTIFICADOS ALENCAR (PAGAMENTOS) =====
-    if (statusPagamentos) {
-      const pagamentosCert = statusPagamentos.certificates?.clientCert;
-      const pagamentosKey = statusPagamentos.certificates?.clientKey;
+    // ===== CERTIFICADOS ALENCAR (PAGAMENTOS e COBRANCA) =====
+    if (statusAlencar.length > 0) {
+      const primeiroStatusAlencar = statusAlencar[0];
+      const pagamentosCert = primeiroStatusAlencar?.certificates?.clientCert;
+      const pagamentosKey = primeiroStatusAlencar?.certificates?.clientKey;
       
       // Extrai o nome da empresa
       let empresaNome = 'Empresa';
@@ -383,6 +409,9 @@ export class CertificateMonitorService {
                       pagamentosCert.subject.organization || 
                       'Empresa';
       }
+      
+      // Mapeia as APIs que usam certificados Alencar baseado nos statuses validados
+      const apisUsandoCertificadosAlencar = statusAlencar.map(s => s.apiName);
       
       certificates['EMPRESA_ALENCAR'] = {
         tipo: 'empresa',
@@ -407,8 +436,8 @@ export class CertificateMonitorService {
           size: pagamentosKey?.size || 0,
           lastModified: pagamentosKey?.lastModified?.toISOString()
         },
-        usadoPor: ['PAGAMENTOS'],
-        issues: statusPagamentos.issues.filter(i => i.includes('Certificado cliente') || i.includes('Chave privada'))
+        usadoPor: apisUsandoCertificadosAlencar, // ['PAGAMENTOS', 'COBRANCA']
+        issues: statusAlencar.flatMap(s => s.issues.filter(i => i.includes('Certificado cliente') || i.includes('Chave privada')))
       };
     }
     

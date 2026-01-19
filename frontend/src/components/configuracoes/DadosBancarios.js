@@ -211,8 +211,10 @@ const DadosBancarios = () => {
   const [editingContaCorrente, setEditingContaCorrente] = useState(null);
   const [multaAtiva, setMultaAtiva] = useState(false);
   const [layoutBoletoFundoBranco, setLayoutBoletoFundoBranco] = useState(false);
+  const [selectedContaCorrenteId, setSelectedContaCorrenteId] = useState(null);
+  const [convenioExiste, setConvenioExiste] = useState(false);
   const [loadingConvenios, setLoadingConvenios] = useState(false);
-  
+
   // Estados para modais de exclusão
   const [deleteContaCorrenteModalOpen, setDeleteContaCorrenteModalOpen] = useState(false);
   const [contaCorrenteToDelete, setContaCorrenteToDelete] = useState(null);
@@ -240,11 +242,11 @@ const DadosBancarios = () => {
   const loadCredenciais = async () => {
     try {
       const response = await axiosInstance.get(API_URL.credenciaisAPI);
-      if (response.data && response.data.length > 0) {
-        setCredenciaisRecords(response.data);
-      }
+      // Sempre seta o array, mesmo que vazio (para garantir que o estado está atualizado)
+      setCredenciaisRecords(response.data || []);
     } catch (error) {
       message.error("Erro ao carregar as Credenciais API");
+      setCredenciaisRecords([]); // Em caso de erro, seta como array vazio
     }
   };
 
@@ -253,11 +255,20 @@ const DadosBancarios = () => {
     loadCredenciais();
   }, []);
 
-  // Carregar dados dos convênios
+  // Carregar dados dos convênios por conta corrente
   useEffect(() => {
     const carregarConvenios = async () => {
+      // Se não selecionou conta corrente, limpa o formulário
+      if (!selectedContaCorrenteId) {
+        conveniosForm.resetFields();
+        setMultaAtiva(false);
+        setLayoutBoletoFundoBranco(false);
+        setConvenioExiste(false);
+        return;
+      }
+
       try {
-        const response = await axiosInstance.get(API_URL.convenios);
+        const response = await axiosInstance.get(`${API_URL.convenios}?contaCorrenteId=${selectedContaCorrenteId}`);
         if (response.data) {
           // Mapear campos do backend para o frontend
           const dadosConvenio = {
@@ -265,28 +276,82 @@ const DadosBancarios = () => {
             juros: response.data.juros,
             dias_aberto: response.data.diasAberto,
             multa_ativa: response.data.multaAtiva || false,
-            layout_boleto_fundo_branco: response.data.layoutBoletoFundoBranco || false,
+            layout_boleto_fundo_branco: response.data.boletoPix || false,
             valor_multa: response.data.valorMulta,
             carencia_multa: response.data.carenciaMulta,
             convenio: response.data.convenio,
             carteira: response.data.carteira,
             variacao: response.data.variacao,
+            chave_pix: response.data.chavePix || null,
           };
-          
+
           conveniosForm.setFieldsValue(dadosConvenio);
           setMultaAtiva(response.data.multaAtiva || false);
-          setLayoutBoletoFundoBranco(response.data.layoutBoletoFundoBranco || false);
+          setLayoutBoletoFundoBranco(response.data.boletoPix || false);
+          setConvenioExiste(true);
+        } else {
+          // Não há convênio para esta conta - limpa todos os campos
+          conveniosForm.setFieldsValue({
+            conta_corrente: selectedContaCorrenteId,
+            juros: undefined,
+            dias_aberto: undefined,
+            multa_ativa: false,
+            layout_boleto_fundo_branco: false,
+            valor_multa: undefined,
+            carencia_multa: undefined,
+            convenio: undefined,
+            carteira: undefined,
+            variacao: undefined,
+            chave_pix: undefined,
+          });
+          setMultaAtiva(false);
+          setLayoutBoletoFundoBranco(false);
+          setConvenioExiste(false);
         }
       } catch (error) {
-        // Se for 404 ou similar, é porque não existe convênio ainda - isso é normal
-        if (error.response?.status !== 404) {
-          // Erro inesperado
+        // Se for 404, é porque não existe convênio para esta conta - limpa o formulário
+        if (error.response?.status === 404) {
+          // Limpa todos os campos mas mantém a conta corrente selecionada
+          conveniosForm.setFieldsValue({
+            conta_corrente: selectedContaCorrenteId,
+            juros: undefined,
+            dias_aberto: undefined,
+            multa_ativa: false,
+            layout_boleto_fundo_branco: false,
+            valor_multa: undefined,
+            carencia_multa: undefined,
+            convenio: undefined,
+            carteira: undefined,
+            variacao: undefined,
+            chave_pix: undefined,
+          });
+          setMultaAtiva(false);
+          setLayoutBoletoFundoBranco(false);
+          setConvenioExiste(false);
+        } else {
+          // Para outros erros, também limpa mas mantém a conta
+          conveniosForm.setFieldsValue({
+            conta_corrente: selectedContaCorrenteId,
+            juros: undefined,
+            dias_aberto: undefined,
+            multa_ativa: false,
+            layout_boleto_fundo_branco: false,
+            valor_multa: undefined,
+            carencia_multa: undefined,
+            convenio: undefined,
+            carteira: undefined,
+            variacao: undefined,
+            chave_pix: undefined,
+          });
+          setMultaAtiva(false);
+          setLayoutBoletoFundoBranco(false);
+          setConvenioExiste(false);
         }
       }
     };
 
     carregarConvenios();
-  }, [conveniosForm]);
+  }, [selectedContaCorrenteId]);
 
   // Verifica se a conta corrente em edição tem credenciais de extrato
   const temCredenciaisExtrato = () => {
@@ -382,17 +447,18 @@ const DadosBancarios = () => {
     }
   };
 
-  const handleEditContaCorrente = (contaCorrente) => {
-    setEditingContaCorrente(contaCorrente);
+  const handleEditContaCorrente = (conta) => {
+    setEditingContaCorrente(conta);
+    setSelectedContaCorrenteId(conta.id);
     form.setFieldsValue({
-      conta_banco: contaCorrente.bancoCodigo, // Mapear bancoCodigo de volta para conta_banco
-      agencia: contaCorrente.agencia,
-      agenciaDigito: contaCorrente.agenciaDigito,
-      contaCorrente: contaCorrente.contaCorrente,
-      contaCorrenteDigito: contaCorrente.contaCorrenteDigito,
-        numeroContratoPagamento: contaCorrente.numeroContratoPagamento || undefined,
-      monitorar: Boolean(contaCorrente.monitorar),
-      intervalo: contaCorrente.intervalo || undefined,
+      conta_banco: conta.bancoCodigo,
+      agencia: conta.agencia,
+      agenciaDigito: conta.agenciaDigito,
+      contaCorrente: conta.contaCorrente,
+      contaCorrenteDigito: conta.contaCorrenteDigito,
+      numeroContratoPagamento: conta.numeroContratoPagamento || undefined,
+      monitorar: Boolean(conta.monitorar),
+      intervalo: conta.intervalo || undefined,
     });
   };
 
@@ -444,6 +510,37 @@ const DadosBancarios = () => {
 
   const onFinishAPICredentials = async (values) => {
     try {
+      // Validação: Se for modalidade "001 - Cobrança", verificar se a conta tem convênio
+      if (values.modalidadeApi === "001 - Cobrança") {
+        try {
+          const convenioResponse = await axiosInstance.get(
+            `${API_URL.convenios}?contaCorrenteId=${values.api_contaCorrente}`
+          );
+          
+          // Se não retornar dados (404 ou null), não tem convênio
+          if (!convenioResponse.data) {
+            showNotification(
+              "error",
+              "Convênio Obrigatório",
+              "Para cadastrar credenciais de API do tipo '001 - Cobrança', é necessário primeiro cadastrar um convênio de cobrança para esta conta corrente. Por favor, cadastre o convênio na seção 'Convênios' antes de continuar."
+            );
+            return; // Impede o salvamento
+          }
+        } catch (convenioError) {
+          // Se for 404, não tem convênio
+          if (convenioError.response?.status === 404) {
+            showNotification(
+              "error",
+              "Convênio Obrigatório",
+              "Para cadastrar credenciais de API do tipo '001 - Cobrança', é necessário primeiro cadastrar um convênio de cobrança para esta conta corrente. Por favor, cadastre o convênio na seção 'Convênios' antes de continuar."
+            );
+            return; // Impede o salvamento
+          }
+          // Se for outro erro, apenas loga e continua (pode ser problema de rede, etc)
+          console.error('Erro ao verificar convênio:', convenioError);
+        }
+      }
+
       // Mapear dados para o backend
       const dadosFormatados = {
         banco: values.api_banco,
@@ -605,18 +702,54 @@ const DadosBancarios = () => {
   const handleLayoutBoletoChange = (checked) => {
     setLayoutBoletoFundoBranco(checked);
     conveniosForm.setFieldsValue({ layout_boleto_fundo_branco: checked });
+    // Não mostra notificação - salva apenas quando clicar no botão "Salvar"
+  };
 
-    if (checked) {
+  const podeExcluirConvenio = (contaCorrenteId) => {
+    if (!contaCorrenteId) {
+      return false;
+    }
+    
+    // Verificar se tem credenciais de API do tipo "001 - Cobrança" cadastradas para esta conta corrente
+    const temCredenciaisCobranca = credenciaisRecords.some(
+      (cred) => cred.contaCorrenteId === contaCorrenteId && cred.modalidadeApi === "001 - Cobrança"
+    );
+    
+    // Pode excluir se NÃO tem credenciais de cobrança
+    return !temCredenciaisCobranca;
+  };
+
+  const handleDeleteConvenio = async () => {
+    if (!selectedContaCorrenteId) return;
+
+    // Verificar se pode excluir (não tem credenciais de API)
+    if (!podeExcluirConvenio(selectedContaCorrenteId)) {
+      showNotification(
+        "error",
+        "Não é possível excluir",
+        "Não é possível excluir o convênio porque existem credenciais de API cadastradas para esta conta corrente."
+      );
+      return;
+    }
+
+    try {
+      await axiosInstance.delete(`${API_URL.convenios}?contaCorrenteId=${selectedContaCorrenteId}`);
       showNotification(
         "success",
-        "Layout do Boleto",
-        "Fundo branco ativado para boletos, salve as alterações!"
+        "Convênios",
+        "Convênio de cobrança excluído com sucesso!"
       );
-    } else {
+      // Limpar formulário e estado após exclusão
+      conveniosForm.resetFields();
+      setMultaAtiva(false);
+      setLayoutBoletoFundoBranco(false);
+      setConvenioExiste(false);
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || "Erro ao excluir convênio";
       showNotification(
-        "success", 
-        "Layout do Boleto",
-        "Fundo verde ativado para boletos, salve as alterações!"
+        "error",
+        "Erro ao Excluir Convênio",
+        errorMessage
       );
     }
   };
@@ -630,12 +763,13 @@ const DadosBancarios = () => {
         juros: values.juros,
         diasAberto: values.dias_aberto,
         multaAtiva: values.multa_ativa || false,
-        layoutBoletoFundoBranco: values.layout_boleto_fundo_branco || false,
+        boletoPix: values.layout_boleto_fundo_branco || false,
         valorMulta: values.valor_multa || null,
         carenciaMulta: values.carencia_multa || null,
         convenio: values.convenio,
         carteira: values.carteira,
         variacao: values.variacao,
+        chavePix: values.chave_pix || null,
       };
       await axiosInstance.post(API_URL.convenios, dataToSend);
       showNotification(
@@ -643,6 +777,9 @@ const DadosBancarios = () => {
         "Sucesso",
         "Convênio de cobrança salvo com sucesso!"
       );
+      // Atualizar estado após salvar
+      setSelectedContaCorrenteId(values.conta_corrente);
+      setConvenioExiste(true);
     } catch (error) {
       const msg = error.response?.data?.message || "Erro ao salvar convênio de cobrança.";
       showNotification(
@@ -704,11 +841,9 @@ const DadosBancarios = () => {
                    ]}
                  >
                    <Select size="large" placeholder="Selecione o banco">
-                     {getBancosOptions().map(banco => (
-                       <Option key={banco.value} value={banco.value}>
-                         {banco.label}
-                       </Option>
-                     ))}
+                     <Option key="001" value="001">
+                       001 - Banco do Brasil
+                     </Option>
                    </Select>
                  </Form.Item>
 
@@ -1102,11 +1237,9 @@ const DadosBancarios = () => {
                        rules={[{ required: true, message: "Selecione o banco" }]}
                      >
                        <Select size="large" placeholder="Selecione o banco">
-                         {getBancosOptions().map(banco => (
-                           <Option key={banco.value} value={banco.value}>
-                             {banco.label}
-                           </Option>
-                         ))}
+                         <Option key="001" value="001">
+                           001 - Banco do Brasil
+                         </Option>
                        </Select>
                      </Form.Item>
                    </Col>
@@ -1347,7 +1480,14 @@ const DadosBancarios = () => {
                     },
                   ]}
                 >
-                  <Select size="large" placeholder="Selecione a conta corrente">
+                  <Select 
+                    size="large" 
+                    placeholder="Selecione a conta corrente"
+                    onChange={(value) => {
+                      setSelectedContaCorrenteId(value);
+                      // O useEffect vai carregar os dados automaticamente
+                    }}
+                  >
                     {contaCorrenteRecords.map((conta) => (
                       <Option key={conta.id} value={conta.id}>
                         {getBancoDisplay(conta.bancoCodigo)} - Ag: {conta.agencia}-{conta.agenciaDigito} CC: {conta.contaCorrente}-{conta.contaCorrenteDigito}
@@ -1553,13 +1693,30 @@ const DadosBancarios = () => {
             </Row>
 
           <Form.Item style={{ marginTop: 24 }}>
-            <PrimaryButton
-              htmlType="submit"
-              size="large"
-              loading={loadingConvenios}
-            >
-              Salvar Convênio de Cobrança
-            </PrimaryButton>
+            <Space size="middle">
+              {convenioExiste && (
+                <PrimaryButton
+                  icon={<DeleteOutlined />}
+                  size="large"
+                  onClick={handleDeleteConvenio}
+                  disabled={!selectedContaCorrenteId || !podeExcluirConvenio(selectedContaCorrenteId)}
+                  style={
+                    !selectedContaCorrenteId || !podeExcluirConvenio(selectedContaCorrenteId)
+                      ? { backgroundColor: '#d9d9d9', borderColor: '#d9d9d9', color: '#00000040', cursor: 'not-allowed' }
+                      : { backgroundColor: '#ff4d4f', borderColor: '#ff4d4f' }
+                  }
+                >
+                  Excluir
+                </PrimaryButton>
+              )}
+              <PrimaryButton
+                htmlType="submit"
+                size="large"
+                loading={loadingConvenios}
+              >
+                Salvar Convênio de Cobrança
+              </PrimaryButton>
+            </Space>
           </Form.Item>
         </StyledForm>
         </StyledCard>

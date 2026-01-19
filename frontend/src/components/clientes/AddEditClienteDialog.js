@@ -7,6 +7,7 @@ import { SaveOutlined, CloseOutlined, UserOutlined } from "@ant-design/icons";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import { validarDocumento } from "../../utils/documentValidation";
+import { formatMissingClienteBoletoFields } from "../../utils/clienteBoletoValidation";
 import ClienteForm from "./ClienteForm";
 import ConfirmCloseModal from "../common/modals/ConfirmCloseModal";
 import useConfirmClose from "../../hooks/useConfirmClose";
@@ -17,6 +18,7 @@ const AddEditClienteDialog = ({
   onSave,
   cliente,
   loading,
+  requiredBoletoFields = [],
 }) => {
   const [clienteAtual, setClienteAtual] = useState({
     nome: "",
@@ -145,6 +147,55 @@ const AddEditClienteDialog = ({
       }
     }
 
+    // =====================================================
+    // Validação contextual: obrigatórios para emissão de boleto
+    // =====================================================
+    // Quando o modal é aberto a partir do fluxo de boleto, o backend informa quais campos
+    // estavam faltando (missingFields). Aqui reforçamos e impedimos salvar até completar.
+    if (Array.isArray(requiredBoletoFields) && requiredBoletoFields.length > 0) {
+      const missingNow = [];
+
+      if (requiredBoletoFields.includes("cpfCnpj")) {
+        if (!clienteAtual.documento || !clienteAtual.documento.trim()) {
+          novosErros.documento = "CPF/CNPJ é obrigatório para gerar boleto";
+          missingNow.push("cpfCnpj");
+        } else {
+          const validacao = validarDocumento(clienteAtual.documento);
+          if (!validacao.valido) {
+            novosErros.documento = validacao.mensagem;
+            missingNow.push("cpfCnpj");
+          }
+        }
+      }
+
+      const requiredMap = [
+        ["logradouro", "logradouro"],
+        ["bairro", "bairro"],
+        ["cidade", "cidade"],
+        ["estado", "estado"],
+        ["cep", "cep"],
+      ];
+
+      requiredMap.forEach(([flagKey, fieldKey]) => {
+        if (requiredBoletoFields.includes(flagKey)) {
+          const v = clienteAtual[fieldKey];
+          if (!v || String(v).trim() === "") {
+            novosErros[fieldKey] = "Campo obrigatório para gerar boleto";
+            missingNow.push(flagKey);
+          }
+        }
+      });
+
+      if (missingNow.length > 0) {
+        const labels = formatMissingClienteBoletoFields(missingNow);
+        showNotification(
+          "warning",
+          "Complete os dados do cliente",
+          `Para gerar boleto, preencha: ${labels.join(", ")}.`
+        );
+      }
+    }
+
     // Validações de formato removidas - as máscaras garantem o formato correto
 
     if (clienteAtual.email1 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clienteAtual.email1)) {
@@ -233,6 +284,10 @@ const AddEditClienteDialog = ({
           borderBottom: "2px solid #047857",
           padding: 0,
         }
+        ,
+        // Garantir que o modal de cliente fique acima de outros modais (ex.: NovoPagamentoModal)
+        wrapper: { zIndex: 1200 },
+        mask: { zIndex: 1150 }
       }}
       centered
       destroyOnClose
@@ -243,6 +298,7 @@ const AddEditClienteDialog = ({
         editando={editando}
         erros={erros}
         setErros={setErros}
+        requiredBoletoFields={requiredBoletoFields}
       />
 
       <div
@@ -299,6 +355,7 @@ AddEditClienteDialog.propTypes = {
   onSave: PropTypes.func.isRequired,
   cliente: PropTypes.object,
   loading: PropTypes.bool,
+  requiredBoletoFields: PropTypes.array,
 };
 
 export default AddEditClienteDialog; 

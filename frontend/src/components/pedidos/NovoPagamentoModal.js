@@ -25,12 +25,16 @@ import {
   FileTextOutlined,
   BankOutlined,
   PlusOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
 import { MonetaryInput, MaskedDatePicker } from "../../components/common/inputs";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
 import useResponsive from "../../hooks/useResponsive";
+import axiosInstance from "../../api/axiosConfig";
+import AddEditClienteDialog from "../clientes/AddEditClienteDialog";
+import { showNotification } from "../../config/notificationConfig";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -44,16 +48,60 @@ const NovoPagamentoModal = ({
   valorRestante,
   loading,
   pagamentoEditando,
+  boletoClienteErro,
+  onClearBoletoClienteErro,
 }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
 
   const [form] = Form.useForm();
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [contasCorrentes, setContasCorrentes] = useState([]);
+  const [loadingContas, setLoadingContas] = useState(false);
+
+  // Quando o backend retornar "cliente incompleto para boleto", guardamos aqui
+  // para exibir o botão "Atualizar cliente" ao lado do "Gerar Boleto".
+  const [boletoClienteErroState, setBoletoClienteErroState] = useState(null); // { clienteId, clienteNome, missingFields }
+
+  // Modal de edição do cliente (reutiliza AddEditClienteDialog)
+  const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
+  const [clienteEditando, setClienteEditando] = useState(null);
+  const [clienteDialogLoading, setClienteDialogLoading] = useState(false);
+  
+  // Observar mudança no campo metodoPagamento para mostrar/ocultar campo dataVencimento
+  const metodoPagamento = Form.useWatch('metodoPagamento', form);
+
+  // Carregar contas correntes com convênio de cobrança quando modal abrir e método for BOLETO
+  useEffect(() => {
+    const fetchContasCorrentes = async () => {
+      // Só buscar contas se o método de pagamento for BOLETO
+      if (metodoPagamento !== 'BOLETO') {
+        setContasCorrentes([]);
+        return;
+      }
+
+      try {
+        setLoadingContas(true);
+        const response = await axiosInstance.get('/contacorrente/com-convenio-cobranca');
+        setContasCorrentes(response.data || []);
+      } catch (error) {
+        console.error("Erro ao carregar contas correntes:", error);
+        setContasCorrentes([]);
+      } finally {
+        setLoadingContas(false);
+      }
+    };
+
+    if (open) {
+      fetchContasCorrentes();
+    }
+  }, [open, metodoPagamento]);
 
   // Resetar formulário quando modal abrir
   useEffect(() => {
     if (open && pedido) {
+      // Se o componente for reaberto após erro (destroyOnClose), sincronizar com o erro vindo do pai
+      setBoletoClienteErroState(boletoClienteErro || null);
       if (pagamentoEditando) {
         // MODO EDIÇÃO: Carrega os dados diretamente.
         const dataPagamento = moment(pagamentoEditando.dataPagamento);
@@ -81,12 +129,20 @@ const NovoPagamentoModal = ({
     } else if (open) {
       // Garante que o formulário seja limpo se o modal for fechado sem pedido.
       form.resetFields();
+      setBoletoClienteErroState(boletoClienteErro || null);
+    } else {
+      // Ao fechar, limpar estados auxiliares
+      setBoletoClienteErroState(null);
+      setClienteDialogOpen(false);
+      setClienteEditando(null);
     }
-  }, [open, pedido, pagamentoEditando, form]);
+  }, [open, pedido, pagamentoEditando, form, boletoClienteErro]);
 
   const handleSubmit = async (values) => {
     try {
       setSubmitLoading(true);
+      setBoletoClienteErroState(null);
+      onClearBoletoClienteErro?.();
 
       // Converter valor para número se necessário
       const valorRecebido = typeof values.valorRecebido === 'string' ? parseFloat(values.valorRecebido) : values.valorRecebido;
@@ -125,6 +181,17 @@ const NovoPagamentoModal = ({
         dataPagamento: values.dataPagamento.startOf('day').add(12, 'hours').format('YYYY-MM-DD HH:mm:ss'),
       };
 
+      // Se for boleto, incluir dataVencimento formatada e contaCorrenteId
+      if (formData.metodoPagamento === 'BOLETO') {
+        if (values.dataVencimento) {
+          formData.dataVencimento = values.dataVencimento.format('YYYY-MM-DD');
+        }
+        // contaCorrenteId deve ser preenchido no formulário
+        if (!formData.contaCorrenteId) {
+          throw new Error("Conta corrente é obrigatória para criar boleto");
+        }
+      }
+
       // Se estiver editando, adicionar o ID do pagamento
       if (pagamentoEditando) {
         formData.id = pagamentoEditando.id;
@@ -135,8 +202,64 @@ const NovoPagamentoModal = ({
       form.resetFields();
     } catch (error) {
       console.error("Erro ao registrar pagamento:", error);
+
+      // Se o backend bloquear por cadastro incompleto, habilitar ação de editar cliente
+      const data = error?.response?.data;
+      if (values?.metodoPagamento === "BOLETO" && data?.code === "CLIENTE_INCOMPLETO_BOLETO") {
+        setBoletoClienteErroState({
+          clienteId: data?.clienteId,
+          clienteNome: data?.clienteNome,
+          missingFields: data?.missingFields || [],
+        });
+      }
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  const handleAbrirEdicaoCliente = async () => {
+    const clienteId = boletoClienteErroState?.clienteId;
+    if (!clienteId) {
+      showNotification("warning", "Cliente não identificado", "Não foi possível identificar o cliente para edição.");
+      return;
+    }
+
+    try {
+      setClienteDialogLoading(true);
+      const resp = await axiosInstance.get(`/api/clientes/${clienteId}`);
+      setClienteEditando(resp.data);
+      setClienteDialogOpen(true);
+    } catch (e) {
+      console.error("Erro ao buscar cliente para edição:", e);
+      const msg = e?.response?.data?.message || "Erro ao carregar dados do cliente";
+      showNotification("error", "Erro", msg);
+    } finally {
+      setClienteDialogLoading(false);
+    }
+  };
+
+  const handleSalvarCliente = async (clienteData) => {
+    const clienteId = clienteEditando?.id || boletoClienteErroState?.clienteId;
+    if (!clienteId) {
+      showNotification("warning", "Cliente não identificado", "Não foi possível identificar o cliente para salvar.");
+      return;
+    }
+
+    try {
+      setClienteDialogLoading(true);
+      await axiosInstance.patch(`/api/clientes/${clienteId}`, clienteData);
+      showNotification("success", "Sucesso", "Cliente atualizado com sucesso! Agora você pode gerar o boleto.");
+      setClienteDialogOpen(false);
+      setClienteEditando(null);
+      setBoletoClienteErroState(null);
+      onClearBoletoClienteErro?.();
+    } catch (e) {
+      console.error("Erro ao salvar cliente:", e);
+      const msg = e?.response?.data?.message || "Erro ao salvar cliente";
+      showNotification("error", "Erro", msg);
+      throw e; // deixa o modal manter os dados se necessário
+    } finally {
+      setClienteDialogLoading(false);
     }
   };
 
@@ -188,6 +311,7 @@ const NovoPagamentoModal = ({
   ];
 
   return (
+    <>
     <Modal
       title={
         <span style={{ 
@@ -458,6 +582,60 @@ const NovoPagamentoModal = ({
             </Col>
           </Row>
 
+          {/* Campo de Data de Vencimento - Mostrar apenas quando método for BOLETO */}
+          {metodoPagamento === 'BOLETO' && (
+            <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <CalendarOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333" }}>Data de Vencimento</span>
+                    </Space>
+                  }
+                  name="dataVencimento"
+                  rules={[
+                    { required: true, message: "Por favor, selecione a data de vencimento do boleto" },
+                  ]}
+                >
+                  <MaskedDatePicker
+                    style={{ width: "100%", borderRadius: "0.375rem" }}
+                    placeholder="Data de vencimento"
+                    disabledDate={(current) => current && current < moment().startOf('day')}
+                    size={isMobile ? "middle" : "large"}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <BankOutlined style={{ color: "#059669" }} />
+                      <span style={{ fontWeight: "700", color: "#333" }}>Conta Corrente</span>
+                    </Space>
+                  }
+                  name="contaCorrenteId"
+                  rules={[
+                    { required: true, message: "Por favor, selecione a conta corrente para o boleto" },
+                  ]}
+                >
+                  <Select 
+                    placeholder="Selecione a conta corrente" 
+                    style={{ borderRadius: "0.375rem" }}
+                    size={isMobile ? "middle" : "large"}
+                    loading={loadingContas}
+                  >
+                    {contasCorrentes.map((conta) => (
+                      <Option key={conta.id} value={conta.id}>
+                        {conta.agencia} / {conta.contaCorrente} - {conta.bancoCodigo === '001' ? 'Banco do Brasil' : conta.bancoCodigo}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
+
           <Form.Item 
             label={
               <Space>
@@ -512,6 +690,24 @@ const NovoPagamentoModal = ({
           >
             Cancelar
           </Button>
+
+          {/* Ação contextual: se boleto falhou por cadastro incompleto, oferecer edição do cliente */}
+          {metodoPagamento === "BOLETO" && boletoClienteErroState?.clienteId && (
+            <Button
+              icon={<UserOutlined />}
+              onClick={handleAbrirEdicaoCliente}
+              loading={clienteDialogLoading}
+              disabled={loading || submitLoading}
+              size={isMobile ? "small" : "large"}
+              style={{
+                height: isMobile ? "32px" : "40px",
+                padding: isMobile ? "0 12px" : "0 16px",
+              }}
+            >
+              Atualizar cliente
+            </Button>
+          )}
+
           <Button
             type="primary"
             icon={<SaveOutlined />}
@@ -526,11 +722,31 @@ const NovoPagamentoModal = ({
               padding: isMobile ? "0 12px" : "0 16px",
             }}
           >
-            {submitLoading ? (pagamentoEditando ? "Atualizando..." : "Registrando...") : (pagamentoEditando ? "Atualizar Pagamento" : "Registrar Pagamento")}
+            {submitLoading 
+              ? (pagamentoEditando 
+                  ? "Atualizando..." 
+                  : (metodoPagamento === 'BOLETO' ? "Registrando boleto..." : "Registrando..."))
+              : (pagamentoEditando 
+                  ? "Atualizar Pagamento" 
+                  : (metodoPagamento === 'BOLETO' ? "Gerar Boleto" : "Registrar Pagamento"))}
           </Button>
         </div>
       </Form>
     </Modal>
+
+    {/* Modal de edição do cliente (aberto a partir do erro do boleto) */}
+    <AddEditClienteDialog
+      open={clienteDialogOpen}
+      onClose={() => {
+        setClienteDialogOpen(false);
+        setClienteEditando(null);
+      }}
+      onSave={handleSalvarCliente}
+      cliente={clienteEditando}
+      loading={clienteDialogLoading}
+      requiredBoletoFields={boletoClienteErroState?.missingFields || []}
+    />
+    </>
   );
 };
 
@@ -542,6 +758,8 @@ NovoPagamentoModal.propTypes = {
   valorRestante: PropTypes.number,
   loading: PropTypes.bool,
   pagamentoEditando: PropTypes.object,
+  boletoClienteErro: PropTypes.object,
+  onClearBoletoClienteErro: PropTypes.func,
 };
 
 export default NovoPagamentoModal;

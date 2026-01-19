@@ -5,6 +5,7 @@ import * as fsSync from 'fs';
 import * as hbs from 'handlebars';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { formatCurrency, formatDateBR, formatarLinhaDigitavel } from '../utils/formatters';
 
 @Injectable()
 export class PdfService {
@@ -45,6 +46,25 @@ export class PdfService {
       // Registrar helper para somar números
       hbs.registerHelper('add', function(a: any, b: any) {
         return Number(a) + Number(b);
+      });
+
+      // Registrar helper para formatar moeda
+      hbs.registerHelper('formatarMoeda', function(value: any) {
+        if (value === null || value === undefined) return '0,00';
+        const numValue = typeof value === 'string' ? parseFloat(value) : Number(value);
+        return formatCurrency(numValue);
+      });
+
+      // Registrar helper para formatar data
+      hbs.registerHelper('formatarData', function(date: any) {
+        if (!date) return 'Data inválida';
+        return formatDateBR(date);
+      });
+
+      // Registrar helper para formatar linha digitável
+      hbs.registerHelper('formatarLinhaDigitavel', function(linhaDigitavel: any) {
+        if (!linhaDigitavel) return '';
+        return formatarLinhaDigitavel(linhaDigitavel);
       });
 
       this.partialsRegistered = true;
@@ -289,14 +309,21 @@ export class PdfService {
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
 
-      // 4. Gerar o PDF com footer customizado usando displayHeaderFooter
+      // 4. Gerar o PDF com footer customizado usando displayHeaderFooter (exceto para boleto)
+      const isBoleto = templateName === 'boleto';
       this.logger.debug('Gerando PDF...');
-      const pdfBuffer = await page.pdf({
+      
+      const pdfOptions: any = {
         format: 'A4',
         printBackground: true,
-        displayHeaderFooter: true,
-        headerTemplate: '<div></div>',
-        footerTemplate: `
+        timeout: 30000,
+      };
+
+      if (!isBoleto) {
+        // Apenas para outros PDFs, usar rodapé
+        pdfOptions.displayHeaderFooter = true;
+        pdfOptions.headerTemplate = '<div></div>';
+        pdfOptions.footerTemplate = `
           <style>
             * {
               -webkit-print-color-adjust: exact !important;
@@ -317,15 +344,24 @@ export class PdfService {
               <div style="font-size: 10px; color: #6b7280 !important; font-weight: normal; display: block; -webkit-print-color-adjust: exact;">Gerado em: <span style="color: #6b7280 !important; -webkit-print-color-adjust: exact;">${dataGeracao}</span></div>
             </div>
           </div>
-        `,
-        margin: {
+        `;
+        pdfOptions.margin = {
           top: '20px',
           bottom: '80px', // Espaço para o footer
           left: '16px',   // Margem lateral
           right: '16px',  // Margem lateral
-        },
-        timeout: 30000,
-      });
+        };
+      } else {
+        // Para boleto, sem rodapé
+        pdfOptions.margin = {
+          top: '10mm',
+          bottom: '10mm',
+          left: '5mm',
+          right: '5mm',
+        };
+      }
+
+      const pdfBuffer = await page.pdf(pdfOptions);
 
       // #region agent log
       try {

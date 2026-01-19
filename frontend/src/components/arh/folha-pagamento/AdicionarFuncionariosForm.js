@@ -99,6 +99,14 @@ const AdicionarFuncionariosForm = ({
         style={{ marginBottom: "20px" }}
       />
 
+      <Alert
+        message="Atualização de Cargos"
+        description="Se um funcionário teve alteração de cargo e a folha atual já estava em edição, o usuário precisa remover e adicionar o funcionário novamente para replicar a alteração."
+        type="warning"
+        showIcon
+        style={{ marginBottom: "20px" }}
+      />
+
       <Card
         title={
           <Space>

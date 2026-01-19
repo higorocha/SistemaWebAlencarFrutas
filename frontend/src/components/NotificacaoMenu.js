@@ -18,6 +18,7 @@ import NotificacaoDetalheModal from "./NotificacaoDetalheModal";
 import VincularPagamentoManualModal from "./clientes/VincularPagamentoManualModal";
 import LotePagamentosDetalhesModal from "./pagamentos/LotePagamentosDetalhesModal";
 import VisualizarPedidoModal from "./pedidos/VisualizarPedidoModal";
+import VisualizarBoletoModal from "./pedidos/VisualizarBoletoModal";
 import CentralizedLoader from "./common/loaders/CentralizedLoader";
 import moment from "../config/momentConfig";
 import { formatarValorMonetario } from "../utils/formatters";
@@ -63,6 +64,11 @@ const NotificacaoMenu = () => {
   const [pedidoParaVisualizar, setPedidoParaVisualizar] = useState(null);
   const [loadingPedidoVisualizar, setLoadingPedidoVisualizar] = useState(false);
 
+  // Estados para modal de visualização de boleto
+  const [visualizarBoletoModalOpen, setVisualizarBoletoModalOpen] = useState(false);
+  const [boletoParaVisualizar, setBoletoParaVisualizar] = useState(null);
+  const [loadingBoletoVisualizar, setLoadingBoletoVisualizar] = useState(false);
+
   // Estado para controlar quantas notificações estão sendo exibidas
   const [limiteExibicao, setLimiteExibicao] = useState(50);
   const [popoverAberto, setPopoverAberto] = useState(false);
@@ -97,11 +103,28 @@ const NotificacaoMenu = () => {
     }
   };
 
-  // Função para verificar se é notificação de pagamento
+  // Função para verificar se é notificação de pagamento de boleto
+  const isNotificacaoBoletoPago = (notificacao) => {
+    if (!notificacao) return false;
+
+    const dadosAdicionais = obterDadosAdicionais(notificacao);
+
+    // Verificar se é notificação de boleto pago através do tipo ou flag específica
+    return !!dadosAdicionais.tipoPagamentoBoleto || 
+           (notificacao.tipo === 'BOLETO' && dadosAdicionais.boletoId) ||
+           notificacao.titulo === 'Boleto pago';
+  };
+
+  // Função para verificar se é notificação de pagamento (extrato bancário)
   const isNotificacaoPagamento = (notificacao) => {
     if (!notificacao) return false;
 
     const dadosAdicionais = obterDadosAdicionais(notificacao);
+
+    // Se for boleto, não é pagamento de extrato
+    if (isNotificacaoBoletoPago(notificacao)) {
+      return false;
+    }
 
     return !!dadosAdicionais.tipoPagamento || notificacao.titulo === 'Novo pagamento recebido';
   };
@@ -125,6 +148,70 @@ const NotificacaoMenu = () => {
       return null;
     }
   }, []);
+
+  // Função para buscar boleto completo do backend
+  const buscarBoletoCompleto = useCallback(async (boletoId, pedidoId) => {
+    try {
+      // Se tiver pedidoId, buscar todos os boletos do pedido (retorna com todos os relacionamentos)
+      if (pedidoId) {
+        const boletosResponse = await axiosInstance.get(`/api/cobranca/boletos/pedido/${pedidoId}`);
+        const boletos = boletosResponse.data;
+        
+        // Encontrar o boleto específico na lista
+        const boletoCompleto = boletos.find(b => b.id === boletoId);
+        
+        if (boletoCompleto) {
+          return boletoCompleto;
+        }
+      }
+
+      // Fallback: tentar buscar diretamente usando o endpoint de consulta
+      // Mas esse endpoint usa nossoNumero, não ID. Então se não encontrar pelo pedido, retornar null
+      console.warn(`Boleto ${boletoId} não encontrado na lista de boletos do pedido ${pedidoId}`);
+      return null;
+    } catch (error) {
+      console.error("Erro ao buscar boleto completo:", error);
+      showNotification("error", "Erro", "Erro ao carregar dados do boleto");
+      return null;
+    }
+  }, []);
+
+  // Função para abrir modal de visualização de boleto
+  const handleAbrirVisualizarBoleto = useCallback(async (notificacao) => {
+    const dadosAdicionais = obterDadosAdicionais(notificacao);
+    const boletoId = dadosAdicionais?.boletoId;
+    const pedidoId = dadosAdicionais?.pedidoId;
+
+    if (!boletoId) {
+      showNotification("warning", "Atenção", "Não foi possível identificar o boleto da notificação");
+      return;
+    }
+
+    if (!pedidoId) {
+      showNotification("warning", "Atenção", "Não foi possível identificar o pedido da notificação");
+      return;
+    }
+
+    setLoadingBoletoVisualizar(true);
+    setVisualizarBoletoModalOpen(true);
+    setBoletoParaVisualizar(null);
+
+    try {
+      const boletoCompleto = await buscarBoletoCompleto(boletoId, pedidoId);
+      if (boletoCompleto) {
+        setBoletoParaVisualizar(boletoCompleto);
+      } else {
+        showNotification("warning", "Atenção", "Boleto não encontrado");
+        setVisualizarBoletoModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Erro ao abrir visualização de boleto:", error);
+      showNotification("error", "Erro", "Erro ao carregar dados do boleto");
+      setVisualizarBoletoModalOpen(false);
+    } finally {
+      setLoadingBoletoVisualizar(false);
+    }
+  }, [buscarBoletoCompleto]);
 
   // Função para abrir modal de visualização de pedido
   const handleAbrirVisualizarPedido = useCallback(async (notificacao) => {
@@ -168,7 +255,13 @@ const NotificacaoMenu = () => {
       return;
     }
 
-    // Se for notificação de pagamento, abrir modal de vinculação
+    // Se for notificação de boleto pago, abrir modal de visualização de boleto
+    if (isNotificacaoBoletoPago(notificacao)) {
+      await handleAbrirVisualizarBoleto(notificacao);
+      return;
+    }
+
+    // Se for notificação de pagamento (extrato bancário), abrir modal de vinculação
     if (isNotificacaoPagamento(notificacao)) {
       await handleAbrirVinculacaoPagamento(notificacao);
       return;
@@ -1108,7 +1201,16 @@ const NotificacaoMenu = () => {
             );
           }
 
-          // Renderizar notificação de pagamento com layout customizado
+          // Renderizar notificação de boleto pago com layout customizado (mesma renderização de pagamento)
+          if (isNotificacaoBoletoPago(item)) {
+            return (
+              <Box key={item?.id || Math.random()}>
+                {renderNotificacaoPagamento(item)}
+              </Box>
+            );
+          }
+
+          // Renderizar notificação de pagamento (extrato bancário) com layout customizado
           if (isNotificacaoPagamento(item)) {
             return (
               <Box key={item?.id || Math.random()}>
@@ -1326,6 +1428,23 @@ const NotificacaoMenu = () => {
         }}
         pedido={pedidoParaVisualizar}
         loading={loadingPedidoVisualizar}
+      />
+
+      {/* Modal de visualização de boleto */}
+      <VisualizarBoletoModal
+        open={visualizarBoletoModalOpen}
+        onClose={() => {
+          setVisualizarBoletoModalOpen(false);
+          setBoletoParaVisualizar(null);
+        }}
+        boleto={boletoParaVisualizar}
+      />
+
+      {/* Loader centralizado para busca de dados do boleto */}
+      <CentralizedLoader
+        visible={loadingBoletoVisualizar}
+        message="Carregando dados do boleto..."
+        subMessage="Buscando informações do boleto pago"
       />
     </>
   );

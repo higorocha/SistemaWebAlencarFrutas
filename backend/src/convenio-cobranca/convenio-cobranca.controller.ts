@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Delete,
+  Query,
   ValidationPipe,
   HttpStatus,
 } from '@nestjs/common';
@@ -12,6 +13,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { ConvenioCobrancaService } from './convenio-cobranca.service';
 import {
@@ -26,8 +28,14 @@ export class ConvenioCobrancaController {
 
   @Get()
   @ApiOperation({
-    summary: 'Buscar convênio de cobrança',
-    description: 'Retorna o convênio de cobrança único do sistema (se existir)',
+    summary: 'Buscar convênio de cobrança por conta corrente',
+    description: 'Retorna o convênio de cobrança da conta corrente especificada (ou do sistema se conta não for informada)',
+  })
+  @ApiQuery({
+    name: 'contaCorrenteId',
+    required: false,
+    type: Number,
+    description: 'ID da conta corrente (opcional - se não informado, retorna o primeiro convênio encontrado)',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -36,10 +44,16 @@ export class ConvenioCobrancaController {
   })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
-    description: 'Nenhum convênio cadastrado',
+    description: 'Nenhum convênio cadastrado para esta conta',
   })
-  async findConvenio(): Promise<ConvenioCobrancaResponseDto | null> {
-    return this.convenioCobrancaService.findConvenio();
+  async findConvenio(@Query('contaCorrenteId') contaCorrenteId?: number): Promise<ConvenioCobrancaResponseDto | null> {
+    // Se contaCorrenteId não foi informado, retorna o primeiro convênio (comportamento legado)
+    if (contaCorrenteId === undefined) {
+      const convenio = await this.convenioCobrancaService.findFirstConvenio();
+      return convenio;
+    }
+    // Se contaCorrenteId foi informado, busca o convênio específico da conta
+    return this.convenioCobrancaService.findConvenio(contaCorrenteId);
   }
 
   @Post()
@@ -78,8 +92,14 @@ export class ConvenioCobrancaController {
 
   @Delete()
   @ApiOperation({
-    summary: 'Remover convênio de cobrança',
-    description: 'Remove o convênio de cobrança do sistema (útil para reset)',
+    summary: 'Remover convênio de cobrança por conta corrente',
+    description: 'Remove o convênio de cobrança de uma conta corrente específica',
+  })
+  @ApiQuery({
+    name: 'contaCorrenteId',
+    required: true,
+    type: Number,
+    description: 'ID da conta corrente do convênio a ser removido',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -91,22 +111,28 @@ export class ConvenioCobrancaController {
     },
   })
   @ApiResponse({
-    status: HttpStatus.NO_CONTENT,
-    description: 'Nenhum convênio encontrado para remover',
+    status: HttpStatus.NOT_FOUND,
+    description: 'Convênio não encontrado',
     schema: {
       example: {
-        message: 'Nenhum convênio de cobrança encontrado para remover',
+        message: 'Nenhum convênio de cobrança encontrado para esta conta corrente',
       },
     },
   })
-  async deleteConvenio(): Promise<{ message: string }> {
-    return this.convenioCobrancaService.deleteConvenio();
+  async deleteConvenioByContaCorrenteId(@Query('contaCorrenteId') contaCorrenteId: number): Promise<{ message: string }> {
+    return this.convenioCobrancaService.deleteConvenioByContaCorrenteId(contaCorrenteId);
   }
 
   @Get('exists')
   @ApiOperation({
     summary: 'Verificar se existe convênio',
-    description: 'Verifica se existe um convênio de cobrança cadastrado',
+    description: 'Verifica se existe um convênio de cobrança cadastrado para uma conta corrente',
+  })
+  @ApiQuery({
+    name: 'contaCorrenteId',
+    required: true,
+    type: Number,
+    description: 'ID da conta corrente para verificar se existe convênio',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -117,8 +143,8 @@ export class ConvenioCobrancaController {
       },
     },
   })
-  async existeConvenio(): Promise<{ exists: boolean }> {
-    const exists = await this.convenioCobrancaService.existeConvenio();
+  async existeConvenio(@Query('contaCorrenteId') contaCorrenteId: number): Promise<{ exists: boolean }> {
+    const exists = await this.convenioCobrancaService.existeConvenio(contaCorrenteId);
     return { exists };
   }
 } 

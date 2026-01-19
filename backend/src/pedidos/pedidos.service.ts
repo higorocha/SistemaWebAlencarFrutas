@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ControleBananaService } from '../controle-banana/controle-banana.service';
 import { TurmaColheitaService } from '../turma-colheita/turma-colheita.service';
 import { CreateTurmaColheitaPedidoCustoDto } from '../turma-colheita/dto/create-colheita-pedido.dto';
-import { StatusPedido, Prisma } from '@prisma/client';
+import { StatusPedido, Prisma, StatusBoleto } from '@prisma/client';
 import { capitalizeName } from '../utils/formatters';
 import {
   CreatePedidoDto,
@@ -606,6 +606,27 @@ export class PedidosService {
     
     const valorTotal = pagamentos.reduce((total, pagamento) => {
       return total + (pagamento.valorRecebido || 0);
+    }, 0);
+    
+    return Number(valorTotal.toFixed(2));
+  }
+
+  // NOVO: Função para calcular o valor total de boletos pendentes de um pedido
+  private async calcularValorBoletosPendentes(pedidoId: number, prismaClient?: any): Promise<number> {
+    const prisma = prismaClient || this.prisma;
+    
+    const boletosPendentes = await prisma.boleto.findMany({
+      where: {
+        pedidoId: pedidoId,
+        statusBoleto: {
+          in: [StatusBoleto.ABERTO, StatusBoleto.PROCESSANDO, StatusBoleto.VENCIDO]
+        }
+      },
+      select: { valorOriginal: true },
+    });
+    
+    const valorTotal = boletosPendentes.reduce((total, boleto) => {
+      return total + Number(boleto.valorOriginal || 0);
     }, 0);
     
     return Number(valorTotal.toFixed(2));
@@ -2751,9 +2772,15 @@ export class PedidosService {
     }
 
     // Verificar se o valor do pagamento não excede o valor final
+    // IMPORTANTE: Considerar também boletos pendentes no cálculo
     const valorRecebidoAtual = await this.calcularValorRecebidoConsolidado(createPagamentoDto.pedidoId);
-    if (valorRecebidoAtual + createPagamentoDto.valorRecebido > (pedido.valorFinal || 0)) {
-      throw new BadRequestException('Valor do pagamento excede o valor final do pedido');
+    const valorBoletosPendentes = await this.calcularValorBoletosPendentes(createPagamentoDto.pedidoId);
+    const valorTotalReservado = valorRecebidoAtual + valorBoletosPendentes + createPagamentoDto.valorRecebido;
+    
+    if (valorTotalReservado > (pedido.valorFinal || 0)) {
+      throw new BadRequestException(
+        `Valor do pagamento excede o valor restante do pedido. Valor recebido: R$ ${valorRecebidoAtual.toFixed(2)}, Boletos pendentes: R$ ${valorBoletosPendentes.toFixed(2)}, Valor disponível: R$ ${((pedido.valorFinal || 0) - valorRecebidoAtual - valorBoletosPendentes).toFixed(2)}`
+      );
     }
 
     // Criar pagamento usando Prisma ORM

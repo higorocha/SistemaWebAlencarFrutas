@@ -35,6 +35,7 @@ import { BbWebhooksModule } from './bb-webhooks/bb-webhooks.module';
 import { PdfModule } from './pdf/pdf.module';
 import { ArhModule } from './arh/arh.module';
 import { PedidosFinalizacaoJobModule } from './pedidos/pedidos-finalizacao-job.module';
+import { CobrancaModule } from './cobranca/cobranca.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { PedidosFinalizacaoJobModule } from './pedidos/pedidos-finalizacao-job.m
     PdfModule, // Módulo para geração de PDFs
     ArhModule,
     PedidosFinalizacaoJobModule, // Job de finalização automática de pedidos zerados
+    CobrancaModule, // Módulo de Cobrança - API de Boletos do Banco do Brasil
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -475,7 +475,7 @@ const Certificados = () => {
                     });
                   }
                   
-                  // Adicionar certificado alencar (PAGAMENTOS)
+                  // Adicionar certificado alencar (PAGAMENTOS e COBRANCA)
                   if (certificateStatus.certificates.EMPRESA_ALENCAR) {
                     const empresa = certificateStatus.certificates.EMPRESA_ALENCAR;
                     const cert = empresa.certificado;
@@ -483,7 +483,7 @@ const Certificados = () => {
                       key: 'EMPRESA_ALENCAR',
                       nome: empresa.nome || 'Empresa (Alencar)',
                       tipo: 'Certificado da Empresa (Alencar)',
-                      usadoPor: empresa.usadoPor?.join(', ') || 'PAGAMENTOS',
+                      usadoPor: empresa.usadoPor?.join(', ') || 'PAGAMENTOS, COBRANCA',
                       validade: cert.expiryInfo?.isExpired ? 'Vencido' :
                                cert.expiryInfo?.isExpiringSoon ? 'Vence em Breve' : 'Válido',
                       dataVencimento: cert.expiryInfo?.expiryDate ? 

@@ -279,3 +279,26 @@ export const formatarDataParaAPIBB = (data: string | Date): string => {
 
   return `${diaFormatado}${mesFormatado}${anoFormatado}`;
 };
+
+/**
+ * Formata a linha digitável de boleto bancário no padrão brasileiro
+ * Formato: XXXXX.XXXXX XXXXX.XXXXXXX XXXXXX.XXXXXXX X XXXXXXXXXXXXXX
+ * 
+ * @param linhaDigitavel Linha digitável sem formatação (47 dígitos)
+ * @returns Linha digitável formatada
+ */
+export const formatarLinhaDigitavel = (linhaDigitavel: string): string => {
+  if (!linhaDigitavel) return '';
+  
+  // Remove todos os caracteres não numéricos
+  const numeros = linhaDigitavel.replace(/\D/g, '');
+  
+  // Verifica se tem 47 dígitos (padrão de linha digitável)
+  if (numeros.length !== 47) {
+    // Se não tiver 47 dígitos, retorna a linha original (pode já estar formatada)
+    return linhaDigitavel;
+  }
+  
+  // Formatação padrão: XXXXX.XXXXX XXXXX.XXXXXXX XXXXXX.XXXXXXX X XXXXXXXXXXXXXX
+  return `${numeros.slice(0, 5)}.${numeros.slice(5, 10)} ${numeros.slice(10, 15)}.${numeros.slice(15, 21)} ${numeros.slice(21, 26)}.${numeros.slice(26, 32)} ${numeros.slice(32, 33)} ${numeros.slice(33)}`;
+};

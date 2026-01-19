@@ -121,13 +121,26 @@ export const NotificacaoProvider = ({ children }) => {
             const titulo = toastInfo.titulo || notificacao.titulo || 'Notificação';
             const tipo = toastInfo.tipo || 'info';
             
-            // Verificar se é notificação de pedido para usar layout customizado
+            // Verificar se é notificação de pedido ou boleto para usar layout customizado
             const dadosAdicionais = typeof notificacao.dadosAdicionais === 'string'
               ? JSON.parse(notificacao.dadosAdicionais || '{}')
               : notificacao.dadosAdicionais || {};
             
-            if (dadosAdicionais.pedidoId || dadosAdicionais.toast) {
-              // Extrair cliente e frutas do conteúdo do toast
+            // Verificar se é notificação de boleto pago
+            const isNotificacaoBoleto = !!dadosAdicionais.tipoPagamentoBoleto || 
+                                       (notificacao.tipo === 'BOLETO' && dadosAdicionais.boletoId);
+            
+            // Verificar se é notificação de pagamento via extrato bancário
+            const isNotificacaoPagamentoExtrato = !!dadosAdicionais.tipoPagamento && !isNotificacaoBoleto;
+            
+            if (isNotificacaoBoleto || isNotificacaoPagamentoExtrato) {
+              // Notificações de pagamento (boleto ou extrato): usar toast diretamente
+              const conteudo = typeof toastInfo.conteudo === 'string' 
+                ? toastInfo.conteudo 
+                : (notificacao.conteudo || '');
+              showNotification(tipo, titulo, conteudo);
+            } else if (dadosAdicionais.pedidoId || dadosAdicionais.toast) {
+              // Notificação de pedido: tentar extrair cliente e frutas para layout customizado
               const conteudoToast = dadosAdicionais.toast?.conteudo || notificacao.conteudo || '';
               const linhas = conteudoToast.split('\n').filter(l => l.trim());
               
@@ -271,13 +284,26 @@ export const NotificacaoProvider = ({ children }) => {
       const titulo = toastInfo.titulo || novaNotificacao.titulo || 'Notificação';
       const tipo = toastInfo.tipo || 'info';
       
-      // Verificar se é notificação de pedido para usar layout customizado
+      // Verificar se é notificação de pedido ou boleto para usar layout customizado
       const dadosAdicionais = typeof novaNotificacao.dadosAdicionais === 'string'
         ? JSON.parse(novaNotificacao.dadosAdicionais || '{}')
         : novaNotificacao.dadosAdicionais || {};
       
-      if (dadosAdicionais.pedidoId || dadosAdicionais.toast) {
-        // Extrair cliente e frutas do conteúdo do toast
+      // Verificar se é notificação de boleto pago
+      const isNotificacaoBoleto = !!dadosAdicionais.tipoPagamentoBoleto || 
+                                   (novaNotificacao.tipo === 'BOLETO' && dadosAdicionais.boletoId);
+      
+      // Verificar se é notificação de pagamento via extrato bancário
+      const isNotificacaoPagamentoExtrato = !!dadosAdicionais.tipoPagamento && !isNotificacaoBoleto;
+      
+      if (isNotificacaoBoleto || isNotificacaoPagamentoExtrato) {
+        // Notificações de pagamento (boleto ou extrato): usar toast diretamente
+        const conteudo = typeof toastInfo.conteudo === 'string' 
+          ? toastInfo.conteudo 
+          : (novaNotificacao.conteudo || '');
+        showNotification(tipo, titulo, conteudo);
+      } else if (dadosAdicionais.pedidoId || dadosAdicionais.toast) {
+        // Notificação de pedido: tentar extrair cliente e frutas para layout customizado
         const conteudoToast = dadosAdicionais.toast?.conteudo || novaNotificacao.conteudo || '';
         const linhas = conteudoToast.split('\n').filter(l => l.trim());
         

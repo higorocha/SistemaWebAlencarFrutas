@@ -639,9 +639,9 @@ const FuncionarioForm = ({
                       <Select.Option 
                         value={gerente.id} 
                         key={gerente.id}
-                        label={`${capitalizeName(gerente.nome)} - ${gerente.cargo?.nome || ""}`}
+                        label={`${capitalizeName(gerente.nome)} - ${capitalizeName(gerente.cargo?.nome || "")}`}
                       >
-                        {capitalizeName(gerente.nome)} {gerente.cargo && `- ${gerente.cargo.nome}`}
+                        {capitalizeName(gerente.nome)} {gerente.cargo && `- ${capitalizeName(gerente.cargo.nome)}`}
                       </Select.Option>
                     ))}
                   </Select>

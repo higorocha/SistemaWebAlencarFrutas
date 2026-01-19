@@ -524,9 +524,15 @@ const LancamentosTable = React.memo(
         width: 120,
         align: "right",
         render: (value, record) => {
-          const valorFormatado = currency(value || 0);
+          const valorNumerico = Number(value || 0);
+          const valorFormatado = currency(valorNumerico);
           // Programador sempre pode abrir, senão só se a folha estiver em edição
           const podeAbrirModal = isProgramador || folhaStatus === "RASCUNHO";
+          
+          // Se a folha não é rascunho E valor é 0, exibir '—' (igual as demais colunas)
+          if (!podeAbrirModal && valorNumerico <= 0) {
+            return <Text style={{ color: "#999", fontSize: "12px" }}>—</Text>;
+          }
           
           return (
             <div
@@ -537,7 +543,6 @@ const LancamentosTable = React.memo(
                 borderRadius: "4px",
                 backgroundColor: podeAbrirModal ? "#fff7e6" : "#f5f5f5",
                 transition: "background-color 0.2s",
-                opacity: podeAbrirModal ? 1 : 0.6,
               }}
               onClick={() => {
                 if (onGerenciarAdiantamento && podeAbrirModal) {
@@ -559,7 +564,7 @@ const LancamentosTable = React.memo(
             >
               <Text
                 style={{
-                  color: podeAbrirModal ? "#fa8c16" : "#999999",
+                  color: podeAbrirModal ? "#fa8c16" : "#ff4d4f",
                   fontSize: "12px",
                 }}
               >

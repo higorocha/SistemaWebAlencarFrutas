@@ -31,6 +31,31 @@ export class ContaCorrenteService {
   }
 
   /**
+   * Busca contas correntes que possuem convênio de cobrança cadastrado
+   */
+  async findAllComConvenioCobranca(): Promise<ContaCorrenteResponseDto[]> {
+    console.log('🔍 [CONTA-CORRENTE] Buscando contas correntes com convênio de cobrança...');
+    
+    const contasCorrentes = await this.prisma.contaCorrente.findMany({
+      where: {
+        conveniosCobranca: {
+          some: {}, // Pelo menos um convênio de cobrança cadastrado
+        },
+      },
+      include: {
+        credenciaisAPI: true,
+        conveniosCobranca: true, // Inclui convênios de cobrança
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    console.log(`✅ [CONTA-CORRENTE] Encontradas ${contasCorrentes.length} contas correntes com convênio de cobrança`);
+    return contasCorrentes;
+  }
+
+  /**
    * Busca uma conta corrente específica por ID
    */
   async findOne(id: number): Promise<ContaCorrenteResponseDto> {

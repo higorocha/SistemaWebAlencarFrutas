@@ -17,6 +17,7 @@ import {
   Tooltip,
   Form,
   Collapse,
+  message,
 } from "antd";
 import {
   CreditCardOutlined,
@@ -33,15 +34,20 @@ import {
   CloseCircleOutlined,
   TruckOutlined,
   PercentageOutlined,
+  BarcodeOutlined,
+  LoadingOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import { formatarValorMonetario, formataLeitura } from "../../utils/formatters";
-import { PrimaryButton } from "../common/buttons";
+import { PrimaryButton, PDFButton } from "../common/buttons";
 import { MonetaryInput } from "../common/inputs";
 import axiosInstance from "../../api/axiosConfig";
 import { showNotification } from "../../config/notificationConfig";
 import useNotificationWithContext from "../../hooks/useNotificationWithContext";
 import NovoPagamentoModal from "./NovoPagamentoModal";
+import VisualizarBoletoModal from "./VisualizarBoletoModal";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../Icons/PaymentIcons";
+import ConfirmActionModal from "../common/modals/ConfirmActionModal";
 import styled from "styled-components";
 import getTheme from "../../theme";
 import useResponsive from "../../hooks/useResponsive";
@@ -215,6 +221,17 @@ const PagamentoModal = ({
   const [ajustesLoading, setAjustesLoading] = useState(false); // Loading para salvar ajustes
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [pagamentoParaRemover, setPagamentoParaRemover] = useState(null);
+  const [boletos, setBoletos] = useState([]);
+  const [loadingBoletos, setLoadingBoletos] = useState(false);
+  const [confirmBaixaBoletoOpen, setConfirmBaixaBoletoOpen] = useState(false);
+  const [boletoParaBaixar, setBoletoParaBaixar] = useState(null);
+  const [baixandoBoletoId, setBaixandoBoletoId] = useState(null);
+  const [metodoPagamentoAtual, setMetodoPagamentoAtual] = useState(null);
+  const [boletoClienteErroParaModal, setBoletoClienteErroParaModal] = useState(null);
+  const [visualizarBoletoModalOpen, setVisualizarBoletoModalOpen] = useState(false);
+  const [boletoSelecionado, setBoletoSelecionado] = useState(null);
+  const [loadingPDFBoletoId, setLoadingPDFBoletoId] = useState(null);
+  const [verificandoBoletoId, setVerificandoBoletoId] = useState(null);
 
   // Sincronizar estado interno com props e resetar form
   useEffect(() => {
@@ -229,12 +246,26 @@ const PagamentoModal = ({
     }
   }, [pedido, form]);
 
-  // Buscar pagamentos quando modal abrir
+  // Buscar pagamentos e boletos quando modal abrir
   useEffect(() => {
     if (open && pedido?.id) {
       fetchPagamentos();
+      fetchBoletos();
     }
   }, [open, pedido?.id]);
+
+  const fetchBoletos = async () => {
+    try {
+      setLoadingBoletos(true);
+      const response = await axiosInstance.get(`/api/cobranca/boletos/pedido/${pedido.id}`);
+      setBoletos(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Erro ao buscar boletos:", error);
+      setBoletos([]);
+    } finally {
+      setLoadingBoletos(false);
+    }
+  };
 
   const fetchPagamentos = async () => {
     try {
@@ -255,6 +286,10 @@ const PagamentoModal = ({
 
   const handleNovoPagamento = async (pagamentoData) => {
     try {
+      // Salvar método de pagamento atual para mostrar mensagem correta no overlay
+      setMetodoPagamentoAtual(pagamentoData.metodoPagamento);
+      setBoletoClienteErroParaModal(null);
+      
       // Fechar modal filho e mostrar overlay interno
       setNovoPagamentoModalOpen(false);
       setPagamentoEditando(null);
@@ -262,15 +297,34 @@ const PagamentoModal = ({
 
       await onNovoPagamento(pagamentoData);
       await fetchPagamentos(); // Recarregar lista interna
+      
+      // Se for boleto, recarregar também a lista de boletos
+      if (pagamentoData.metodoPagamento === 'BOLETO') {
+        await fetchBoletos();
+      }
+      
       // Não mostrar mensagem aqui pois a página principal já mostra
     } catch (error) {
       console.error("Erro ao registrar pagamento:", error);
+
+      // Se o erro foi "cliente incompleto para boleto", guardar para reabrir o modal
+      // com o botão "Atualizar cliente" visível (o modal é destroyOnClose).
+      const data = error?.response?.data;
+      if (pagamentoData?.metodoPagamento === 'BOLETO' && data?.code === 'CLIENTE_INCOMPLETO_BOLETO') {
+        setBoletoClienteErroParaModal({
+          clienteId: data?.clienteId,
+          clienteNome: data?.clienteNome,
+          missingFields: data?.missingFields || [],
+        });
+      }
+
       // Em caso de erro, reabrir o modal
       setNovoPagamentoModalOpen(true);
       setPagamentoEditando(pagamentoData.id ? pagamentoData : null);
       throw error; // Re-throw para o modal tratar
     } finally {
       setOperacaoLoading(false); // Desativar overlay interno
+      setMetodoPagamentoAtual(null); // Limpar método de pagamento
     }
   };
 
@@ -297,6 +351,296 @@ const PagamentoModal = ({
     } catch (err) {
       console.error("Erro ao remover pagamento:", err);
       error("Erro", "Erro ao remover pagamento");
+    }
+  };
+
+  // Função para abrir modal de confirmação de baixa
+  const handleAbrirConfirmacaoBaixa = (boleto) => {
+    setBoletoParaBaixar(boleto);
+    setConfirmBaixaBoletoOpen(true);
+  };
+
+  // Função para montar payload do webhook no formato do BB
+  const montarPayloadWebhook = (boleto) => {
+    // Formatar data no formato "dd.mm.aaaa"
+    const formatarDataBB = (data) => {
+      if (!data) return null;
+      const d = new Date(data);
+      const dia = String(d.getDate()).padStart(2, '0');
+      const mes = String(d.getMonth() + 1).padStart(2, '0');
+      const ano = d.getFullYear();
+      return `${dia}.${mes}.${ano}`;
+    };
+
+    // Formatar data de liquidação no formato "dd/MM/yyyyHH:mm:ss" (sem espaço)
+    const formatarDataLiquidacao = (data) => {
+      if (!data) return null;
+      const d = new Date(data);
+      const dia = String(d.getDate()).padStart(2, '0');
+      const mes = String(d.getMonth() + 1).padStart(2, '0');
+      const ano = d.getFullYear();
+      const hora = String(d.getHours()).padStart(2, '0');
+      const minuto = String(d.getMinutes()).padStart(2, '0');
+      const segundo = String(d.getSeconds()).padStart(2, '0');
+      return `${dia}/${mes}/${ano}${hora}:${minuto}:${segundo}`;
+    };
+
+    // Tentar extrair dados do responsePayloadBanco se existir
+    let responseBB = null;
+    try {
+      if (boleto.responsePayloadBanco) {
+        responseBB = typeof boleto.responsePayloadBanco === 'string' 
+          ? JSON.parse(boleto.responsePayloadBanco) 
+          : boleto.responsePayloadBanco;
+      }
+    } catch (e) {
+      console.warn('Erro ao parsear responsePayloadBanco:', e);
+    }
+
+    // Extrair valores do responsePayloadBanco ou usar valores do boleto local
+    const nossoNumero = boleto.nossoNumero || boleto.id?.toString().padStart(20, '0');
+    const dataEmissao = responseBB?.dataEmissaoTituloCobranca 
+      ? responseBB.dataEmissaoTituloCobranca.replace(/\./g, '.') // Já vem no formato dd.mm.aaaa
+      : formatarDataBB(boleto.dataEmissao);
+    const dataVencimento = responseBB?.dataVencimentoTituloCobranca
+      ? responseBB.dataVencimentoTituloCobranca.replace(/\./g, '.') // Já vem no formato dd.mm.aaaa
+      : formatarDataBB(boleto.dataVencimento);
+    const valorOriginal = responseBB?.valorOriginalTituloCobranca 
+      ? Math.round(responseBB.valorOriginalTituloCobranca) 
+      : (boleto.valorOriginal ? Math.round(boleto.valorOriginal * 100) : 0); // Converter para centavos
+    const valorPago = responseBB?.valorPagoSacado 
+      ? Math.round(responseBB.valorPagoSacado) 
+      : (boleto.dataPagamento && boleto.valorOriginal ? Math.round(boleto.valorOriginal * 100) : 0);
+    const numeroConvenio = responseBB?.numeroConvenio || parseInt(boleto.numeroConvenio) || 0;
+    const carteira = responseBB?.numeroCarteiraCobranca || parseInt(boleto.numeroCarteira) || 17;
+    const variacao = responseBB?.numeroVariacaoCarteiraCobranca || parseInt(boleto.numeroVariacaoCarteira) || 35;
+    const codigoModalidade = responseBB?.codigoModalidadeTitulo || 1;
+
+    // Mapear status do boleto para codigoEstadoBaixaOperacional
+    // 1 - Baixa Operacional BB, 2 - Baixa Operacional outros Bancos
+    // Se o boleto está PAGO, usar 2 (outros bancos) como padrão
+    const codigoEstadoBaixa = boleto.statusBoleto === 'PAGO' ? 2 : 2;
+
+    const payload = {
+      id: nossoNumero,
+      dataRegistro: dataEmissao || formatarDataBB(new Date()),
+      dataVencimento: dataVencimento || formatarDataBB(new Date()),
+      valorOriginal: valorOriginal,
+      valorPagoSacado: valorPago,
+      numeroConvenio: numeroConvenio,
+      numeroOperacao: responseBB?.numeroOperacao || Math.floor(Math.random() * 1000000), // Gerar número aleatório se não existir
+      carteiraConvenio: carteira,
+      variacaoCarteiraConvenio: variacao,
+      codigoEstadoBaixaOperacional: codigoEstadoBaixa,
+      dataLiquidacao: formatarDataLiquidacao(boleto.dataPagamento) || formatarDataLiquidacao(new Date()),
+      instituicaoLiquidacao: 60746948, // Código do Banco do Brasil (padrão, pode vir do responseBB)
+      canalLiquidacao: 3, // Internet (padrão, pode ser 1-9 conforme documentação)
+      codigoModalidadeBoleto: codigoModalidade,
+      tipoPessoaPortador: 2, // Pessoa Jurídica (padrão, 1=PF, 2=PJ)
+      identidadePortador: 191, // Código do Banco do Brasil (padrão)
+      nomePortador: "BancodoBrasilS.A.",
+      formaPagamento: 1 // Forma de pagamento padrão
+    };
+
+    return payload;
+  };
+
+  // Função para abrir modal de visualização de boleto
+  const handleVisualizarBoleto = (boleto) => {
+    // Montar e logar payload do webhook no console
+    const payloadWebhook = montarPayloadWebhook(boleto);
+    console.log('📋 [WEBHOOK-PAYLOAD] Payload formatado para teste do webhook:');
+    console.log(JSON.stringify([payloadWebhook], null, 2));
+    console.log('📋 [WEBHOOK-PAYLOAD] Copie o JSON acima para testar no Portal BB');
+    
+    setBoletoSelecionado(boleto);
+    setVisualizarBoletoModalOpen(true);
+  };
+
+  // Função para gerar PDF do boleto
+  const handleGerarPdfBoleto = async (boleto) => {
+    if (!boleto?.id) {
+      showNotification("error", "Erro", "Boleto não encontrado para gerar PDF.");
+      return;
+    }
+
+    try {
+      setLoadingPDFBoletoId(boleto.id);
+      
+      // Fazer requisição para o endpoint de PDF
+      const response = await axiosInstance.get(`/api/pdf/boleto/${boleto.id}`, {
+        responseType: 'blob',
+        transformResponse: [(data) => data], // Não transforma a resposta
+      });
+
+      // Extrair nome do arquivo do header Content-Disposition do backend
+      let nomeArquivo = `boleto-${boleto.id}-${boleto.nossoNumero}.pdf`; // Fallback
+      
+      // Tentar diferentes formas de acessar o header
+      const contentDisposition = 
+        response.headers['content-disposition'] || 
+        response.headers['Content-Disposition'];
+      
+      if (contentDisposition) {
+        // Primeiro tenta o formato RFC 5987 (filename*=UTF-8''...)
+        let match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
+        if (match && match[1]) {
+          nomeArquivo = decodeURIComponent(match[1]);
+        } else {
+          // Fallback para o formato padrão (filename="...")
+          match = contentDisposition.match(/filename="([^"]+)"/);
+          if (!match) {
+            match = contentDisposition.match(/filename=([^;]+)/);
+          }
+          if (match && match[1]) {
+            nomeArquivo = match[1].replace(/['"]/g, '').trim();
+          }
+        }
+      }
+
+      // Criar blob do PDF
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      
+      // Criar URL temporária para o blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Criar elemento <a> para download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nomeArquivo;
+      
+      // Adicionar ao DOM, clicar e remover
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Limpar URL temporária
+      window.URL.revokeObjectURL(url);
+      
+      showNotification("success", "PDF Gerado", "O PDF do boleto foi gerado e baixado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      
+      // Tentar extrair mensagem de erro do response
+      let errorMessage = "Erro ao gerar PDF do boleto.";
+      
+      if (error.response?.status === 404) {
+        errorMessage = "Boleto não encontrado.";
+      } else if (error.response?.status === 401) {
+        errorMessage = "Sessão expirada. Por favor, faça login novamente.";
+      } else if (error.response?.data) {
+        // Se o erro vier como blob, tentar converter para texto
+        try {
+          const text = await error.response.data.text();
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // Se não conseguir parsear, usar mensagem padrão
+        }
+      }
+      
+      showNotification("error", "Erro ao Gerar PDF", errorMessage);
+    } finally {
+      setLoadingPDFBoletoId(null);
+    }
+  };
+
+  // Função para cancelar baixa
+  const handleCancelarBaixa = () => {
+    setConfirmBaixaBoletoOpen(false);
+    setBoletoParaBaixar(null);
+  };
+
+  // Função para confirmar e baixar boleto
+  const handleConfirmarBaixa = async () => {
+    if (!boletoParaBaixar) return;
+
+    setConfirmBaixaBoletoOpen(false);
+    setBaixandoBoletoId(boletoParaBaixar.id); // Ativar spinner
+
+    try {
+      await axiosInstance.post(`/api/cobranca/boletos/${boletoParaBaixar.nossoNumero}/baixar`, {
+        numeroConvenio: boletoParaBaixar.numeroConvenio
+      });
+      showNotification("success", "Sucesso", "Boleto baixado com sucesso!");
+      await fetchBoletos(); // Recarregar lista de boletos (o baixado não aparecerá mais)
+      setBoletoParaBaixar(null);
+      setBaixandoBoletoId(null); // Desativar spinner
+    } catch (err) {
+      console.error("Erro ao baixar boleto:", err);
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || "Erro ao baixar boleto";
+      showNotification("error", "Erro", errorMessage);
+      setBoletoParaBaixar(null);
+      setBaixandoBoletoId(null); // Desativar spinner em caso de erro
+    }
+  };
+
+  // Função para verificar status do boleto manualmente
+  const handleVerificarStatusBoleto = async (boleto) => {
+    if (!boleto?.nossoNumero || !boleto?.contaCorrenteId) {
+      showNotification("error", "Erro", "Dados do boleto incompletos para verificação.");
+      return;
+    }
+
+    try {
+      setVerificandoBoletoId(boleto.id);
+      
+      // Fazer requisição para verificar status
+      const response = await axiosInstance.post(
+        `/api/cobranca/boletos/${boleto.nossoNumero}/verificar-status?contaCorrenteId=${boleto.contaCorrenteId}`
+      );
+
+      const boletoAtualizado = response.data;
+      const statusBoleto = boletoAtualizado?.statusBoleto || 'DESCONHECIDO';
+
+      // Mapear status para texto legível
+      const statusText = {
+        'PAGO': 'PAGO',
+        'ABERTO': 'ABERTO',
+        'PROCESSANDO': 'PROCESSANDO',
+        'VENCIDO': 'VENCIDO',
+        'BAIXADO': 'BAIXADO',
+        'ERRO': 'ERRO'
+      }[statusBoleto] || statusBoleto;
+
+      // Recarregar dados
+      await fetchBoletos();
+      await fetchPagamentos();
+
+      // Se o boleto foi processado como pago, recarregar dados do pedido
+      if (statusBoleto === 'PAGO') {
+        // Buscar pedido atualizado para atualizar o estado interno
+        try {
+          const pedidoResponse = await axiosInstance.get(`/api/pedidos/${internalPedido.id}`);
+          if (pedidoResponse.data) {
+            setInternalPedido(pedidoResponse.data);
+            
+            // Atualizar form com novos valores se necessário
+            form.setFieldsValue({
+              frete: pedidoResponse.data.frete || 0,
+              icms: pedidoResponse.data.icms || 0,
+              desconto: pedidoResponse.data.desconto || 0,
+              avaria: pedidoResponse.data.avaria || 0,
+            });
+
+            // Chamar callback de ajustes salvos para atualizar componente pai
+            if (onAjustesSalvos) {
+              await onAjustesSalvos();
+            }
+          }
+        } catch (err) {
+          console.error("Erro ao atualizar dados do pedido:", err);
+          // Continuar mesmo com erro na atualização do pedido
+        }
+      }
+
+      showNotification("success", "Status Verificado", `Status do boleto: ${statusText}`);
+    } catch (err) {
+      console.error("Erro ao verificar status do boleto:", err);
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || "Erro ao verificar status do boleto";
+      showNotification("error", "Erro", errorMessage);
+    } finally {
+      setVerificandoBoletoId(null);
     }
   };
 
@@ -351,7 +695,14 @@ const PagamentoModal = ({
   const valorBrutoPedido = valorTotalFrutas + freteAtual + icmsAtual;
   const valorFinalPedido = valorBrutoPedido - descontoAtual - avariaAtual;
   const valorTotalRecebido = internalPedido?.valorRecebido || 0;
-  const valorRestante = valorFinalPedido - valorTotalRecebido;
+  
+  // Calcular valor de boletos pendentes (ABERTO, PROCESSANDO, VENCIDO)
+  const valorBoletosPendentes = boletos
+    .filter(boleto => ['ABERTO', 'PROCESSANDO', 'VENCIDO'].includes(boleto.statusBoleto))
+    .reduce((acc, boleto) => acc + (parseFloat(boleto.valorOriginal) || 0), 0);
+  
+  // Valor restante considerando boletos pendentes
+  const valorRestante = valorFinalPedido - valorTotalRecebido - valorBoletosPendentes;
   const percentualPago = valorFinalPedido > 0 ? (valorTotalRecebido / valorFinalPedido) * 100 : 0;
   
   // Calcular status local baseado no valor restante (mais preciso que o status do banco)
@@ -618,7 +969,7 @@ const PagamentoModal = ({
                   fontSize: '16px',
                   fontWeight: '600'
                 }}>
-                  Processando pagamento...
+                  {metodoPagamentoAtual === 'BOLETO' ? 'Registrando boleto...' : 'Processando pagamento...'}
                 </div>
               </div>
             </div>
@@ -843,69 +1194,92 @@ const PagamentoModal = ({
                 )}
               </Form>
 
-              <Row gutter={[isMobile ? 8 : 20, isMobile ? 8 : 16]} align="middle">
-                <Col xs={24} sm={12} md={6}>
+              <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 16]} align="middle">
+                <Col xs={24} sm={12} md={valorBoletosPendentes > 0 ? 5 : 6}>
                   <div style={{ 
                     backgroundColor: "#f0f9ff", 
                     border: "2px solid #0ea5e9", 
                     borderRadius: "12px", 
-                    padding: "16px",
+                    padding: isMobile ? "12px" : "14px",
                     textAlign: "center",
                     boxShadow: "0 2px 8px rgba(14, 165, 233, 0.15)"
                   }}>
-                    <div style={{ marginBottom: "8px" }}>
-                      <DollarOutlined style={{ fontSize: "24px", color: "#0ea5e9" }} />
+                    <div style={{ marginBottom: "6px" }}>
+                      <DollarOutlined style={{ fontSize: isMobile ? "20px" : "22px", color: "#0ea5e9" }} />
                     </div>
-                    <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                    <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
                       VALOR TOTAL
                     </Text>
-                    <Text style={{ fontSize: "20px", fontWeight: "700", color: "#0f172a", display: "block" }}>
+                    <Text style={{ fontSize: isMobile ? "16px" : "18px", fontWeight: "700", color: "#0f172a", display: "block" }}>
                       {formatarValorMonetario(valorFinalPedido)}
                     </Text>
                   </div>
                 </Col>
                 
-                <Col xs={24} sm={12} md={6}>
+                <Col xs={24} sm={12} md={valorBoletosPendentes > 0 ? 5 : 6}>
                   <div style={{ 
                     backgroundColor: "#f0fdf4", 
                     border: "0.125rem solid #22c55e", 
                     borderRadius: "0.75rem", 
-                    padding: "16px",
+                    padding: isMobile ? "12px" : "14px",
                     textAlign: "center",
                     boxShadow: "0 2px 8px rgba(34, 197, 94, 0.15)"
                   }}>
-                    <div style={{ marginBottom: "8px" }}>
-                      <BankOutlined style={{ fontSize: "24px", color: "#22c55e" }} />
+                    <div style={{ marginBottom: "6px" }}>
+                      <BankOutlined style={{ fontSize: isMobile ? "20px" : "22px", color: "#22c55e" }} />
                     </div>
-                    <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                    <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
                       VALOR RECEBIDO
                     </Text>
-                    <Text style={{ fontSize: "20px", fontWeight: "700", color: "#15803d", display: "block" }}>
+                    <Text style={{ fontSize: isMobile ? "16px" : "18px", fontWeight: "700", color: "#15803d", display: "block" }}>
                       {formatarValorMonetario(valorTotalRecebido)}
                     </Text>
                   </div>
                 </Col>
+
+                {valorBoletosPendentes > 0 && (
+                  <Col xs={24} sm={12} md={4}>
+                    <div style={{ 
+                      backgroundColor: "#fff7ed", 
+                      border: "0.125rem solid #f59e0b", 
+                      borderRadius: "0.75rem", 
+                      padding: isMobile ? "12px" : "14px",
+                      textAlign: "center",
+                      boxShadow: "0 2px 8px rgba(245, 158, 11, 0.15)"
+                    }}>
+                      <div style={{ marginBottom: "6px" }}>
+                        <BarcodeOutlined style={{ fontSize: isMobile ? "20px" : "22px", color: "#f59e0b" }} />
+                      </div>
+                      <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                        PENDENTES
+                      </Text>
+                      <Text style={{ fontSize: isMobile ? "16px" : "18px", fontWeight: "700", color: "#d97706", display: "block" }}>
+                        {formatarValorMonetario(valorBoletosPendentes)}
+                      </Text>
+                    </div>
+                  </Col>
+                )}
                 
-                <Col xs={24} sm={12} md={6}>
+                <Col xs={24} sm={12} md={valorBoletosPendentes > 0 ? 5 : 6}>
                   <div style={{ 
                     backgroundColor: valorRestante > 0 ? "#fef2f2" : "#f0fdf4", 
                     border: valorRestante > 0 ? "0.125rem solid #ef4444" : "0.125rem solid #22c55e", 
                     borderRadius: "0.75rem", 
-                    padding: "16px",
+                    padding: isMobile ? "12px" : "14px",
                     textAlign: "center",
                     boxShadow: valorRestante > 0 ? "0 2px 8px rgba(239, 68, 68, 0.15)" : "0 2px 8px rgba(34, 197, 94, 0.15)"
                   }}>
-                    <div style={{ marginBottom: "8px" }}>
+                    <div style={{ marginBottom: "6px" }}>
                       <CalendarOutlined style={{ 
-                        fontSize: "24px", 
+                        fontSize: isMobile ? "20px" : "22px", 
                         color: valorRestante > 0 ? "#ef4444" : "#22c55e" 
                       }} />
                     </div>
-                    <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                    <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
                       VALOR RESTANTE
                     </Text>
                     <Text style={{ 
-                      fontSize: "20px", 
+                      fontSize: isMobile ? "16px" : "18px", 
                       fontWeight: "700", 
                       color: valorRestante > 0 ? "#dc2626" : "#15803d",
                       display: "block"
@@ -915,12 +1289,12 @@ const PagamentoModal = ({
                   </div>
                 </Col>
                 
-                <Col xs={24} sm={12} md={6}>
+                <Col xs={24} sm={12} md={valorBoletosPendentes > 0 ? 5 : 6}>
                   <div style={{ 
                     backgroundColor: percentualPago >= 100 ? "#f0fdf4" : percentualPago >= 50 ? "#fffbeb" : "#fef2f2", 
                     border: percentualPago >= 100 ? "0.125rem solid #22c55e" : percentualPago >= 50 ? "0.125rem solid #f59e0b" : "0.125rem solid #ef4444", 
                     borderRadius: "0.75rem", 
-                    padding: "16px",
+                    padding: isMobile ? "12px" : "14px",
                     textAlign: "center",
                     boxShadow: percentualPago >= 100 
                       ? "0 2px 8px rgba(34, 197, 94, 0.15)" 
@@ -928,17 +1302,17 @@ const PagamentoModal = ({
                         ? "0 2px 8px rgba(245, 158, 11, 0.15)" 
                         : "0 2px 8px rgba(239, 68, 68, 0.15)"
                   }}>
-                    <div style={{ marginBottom: "8px" }}>
+                    <div style={{ marginBottom: "6px" }}>
                       <InfoCircleOutlined style={{ 
-                        fontSize: "24px", 
+                        fontSize: isMobile ? "20px" : "22px", 
                         color: percentualPago >= 100 ? "#22c55e" : percentualPago >= 50 ? "#f59e0b" : "#ef4444"
                       }} />
                     </div>
-                    <Text style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
+                    <Text style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block", marginBottom: "4px" }}>
                       % PAGO
                     </Text>
                     <Text style={{ 
-                      fontSize: "20px", 
+                      fontSize: isMobile ? "16px" : "18px", 
                       fontWeight: "700", 
                       color: percentualPago >= 100 ? "#15803d" : percentualPago >= 50 ? "#d97706" : "#dc2626",
                       display: "block"
@@ -949,6 +1323,158 @@ const PagamentoModal = ({
                 </Col>
               </Row>
             </Card>
+
+            {/* Boletos Emitidos (Aguardando Pagamento) */}
+            {boletos.filter(b => ['ABERTO', 'PROCESSANDO', 'VENCIDO'].includes(b.statusBoleto)).length > 0 && (
+              <Card
+                title={
+                  <Space>
+                    <BarcodeOutlined style={{ color: "#ffffff" }} />
+                    <span style={{ color: "#ffffff", fontWeight: "600", fontSize: "0.875rem" }}>
+                      Boletos Emitidos (Aguardando Pagamento)
+                    </span>
+                  </Space>
+                }
+                style={{ 
+                  marginBottom: isMobile ? 12 : 16, 
+                  border: "0.0625rem solid #e8e8e8", 
+                  borderRadius: "0.5rem", 
+                  backgroundColor: "#f9f9f9" 
+                }}
+                styles={{ 
+                  header: { 
+                    backgroundColor: "#059669", 
+                    borderBottom: "0.125rem solid #047857", 
+                    color: "#ffffff", 
+                    borderRadius: "0.5rem 0.5rem 0 0",
+                    padding: isMobile ? "6px 12px" : "8px 16px"
+                  },
+                  body: { padding: isMobile ? "8px" : "12px 16px" }
+                }}
+              >
+                {boletos.filter(b => ['ABERTO', 'PROCESSANDO', 'VENCIDO'].includes(b.statusBoleto)).length > 0 ? (
+                  <StyledTable
+                    columns={[
+                      {
+                        title: "Nosso Número",
+                        dataIndex: "nossoNumero",
+                        key: "nossoNumero",
+                        width: 150,
+                      },
+                      {
+                        title: "Valor",
+                        dataIndex: "valorOriginal",
+                        key: "valorOriginal",
+                        width: 120,
+                        render: (valor) => (
+                          <Text strong style={{ color: "#059669" }}>
+                            {formatarValorMonetario(valor)}
+                          </Text>
+                        ),
+                      },
+                      {
+                        title: "Vencimento",
+                        dataIndex: "dataVencimento",
+                        key: "dataVencimento",
+                        width: 120,
+                        render: (date) => formatarData(date),
+                      },
+                      {
+                        title: "Status",
+                        dataIndex: "statusBoleto",
+                        key: "statusBoleto",
+                        width: 120,
+                        render: (status) => {
+                          const statusConfig = {
+                            'ABERTO': { color: '#52c41a', text: 'Pendente' },
+                            'PROCESSANDO': { color: '#faad14', text: 'Processando' },
+                            'VENCIDO': { color: '#f5222d', text: 'Vencido' },
+                          };
+                          const config = statusConfig[status] || { color: '#8c8c8c', text: status };
+                          return (
+                            <Tag color={config.color}>
+                              {config.text}
+                            </Tag>
+                          );
+                        },
+                      },
+                      {
+                        title: "PDF",
+                        key: "pdf",
+                        width: 100,
+                        align: "center",
+                        render: (_, record) => (
+                          <PDFButton
+                            size="small"
+                            tooltip="Gerar PDF do boleto"
+                            onClick={() => handleGerarPdfBoleto(record)}
+                            loading={loadingPDFBoletoId === record.id}
+                            disabled={loadingPDFBoletoId === record.id}
+                          >
+                            Boleto
+                          </PDFButton>
+                        ),
+                      },
+                      {
+                        title: "Ações",
+                        key: "acoes",
+                        width: 150,
+                        align: "center",
+                        render: (_, record) => (
+                          <Space size="small">
+                            <Tooltip title="Verificar status do boleto no banco">
+                              <Button
+                                type="text"
+                                icon={verificandoBoletoId === record.id ? <LoadingOutlined spin /> : <SyncOutlined />}
+                                size="small"
+                                onClick={() => handleVerificarStatusBoleto(record)}
+                                disabled={verificandoBoletoId === record.id}
+                                style={{ color: '#1890ff' }}
+                              />
+                            </Tooltip>
+                            <Tooltip title="Visualizar boleto">
+                              <Button
+                                type="text"
+                                icon={<EyeOutlined />}
+                                size="small"
+                                onClick={() => handleVisualizarBoleto(record)}
+                              />
+                            </Tooltip>
+                            <Tooltip title="Baixar/Cancelar boleto">
+                              <Button
+                                type="text"
+                                danger
+                                icon={baixandoBoletoId === record.id ? <LoadingOutlined spin /> : <DeleteOutlined />}
+                                size="small"
+                                onClick={() => handleAbrirConfirmacaoBaixa(record)}
+                                disabled={baixandoBoletoId === record.id}
+                              />
+                            </Tooltip>
+                          </Space>
+                        ),
+                      },
+                    ]}
+                    dataSource={boletos.filter(b => ['ABERTO', 'PROCESSANDO', 'VENCIDO'].includes(b.statusBoleto))}
+                    rowKey="id"
+                    pagination={false}
+                    loading={loadingBoletos}
+                    size="middle"
+                    bordered={true}
+                    style={{
+                      backgroundColor: "#ffffff",
+                      borderRadius: "0.5rem",
+                      overflow: "hidden",
+                    }}
+                    scroll={{ x: isMobile ? 800 : undefined }}
+                  />
+                ) : (
+                  <Empty
+                    description="Nenhum boleto pendente"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  />
+                )}
+              </Card>
+            )}
 
             {/* Lista de Pagamentos */}
             <Card
@@ -1059,12 +1585,15 @@ const PagamentoModal = ({
         onClose={() => {
           setNovoPagamentoModalOpen(false);
           setPagamentoEditando(null);
+          setBoletoClienteErroParaModal(null);
         }}
         onSave={handleNovoPagamento}
         pedido={internalPedido}
         valorRestante={valorRestante}
         loading={loading}
         pagamentoEditando={pagamentoEditando}
+        boletoClienteErro={boletoClienteErroParaModal}
+        onClearBoletoClienteErro={() => setBoletoClienteErroParaModal(null)}
       />
 
       {/* Modal de Confirmação de Exclusão */}
@@ -1135,6 +1664,30 @@ const PagamentoModal = ({
           </div>
         )}
       </Modal>
+
+      {/* Modal de Confirmação de Baixa de Boleto */}
+      <ConfirmActionModal
+        open={confirmBaixaBoletoOpen}
+        onConfirm={handleConfirmarBaixa}
+        onCancel={handleCancelarBaixa}
+        title="Baixar/Cancelar Boleto"
+        message={`Tem certeza que deseja baixar/cancelar este boleto? Esta ação não pode ser desfeita.`}
+        confirmText="Sim, Baixar"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+      />
+
+      {/* Modal de Visualização de Boleto */}
+      <VisualizarBoletoModal
+        open={visualizarBoletoModalOpen}
+        onClose={() => {
+          setVisualizarBoletoModalOpen(false);
+          setBoletoSelecionado(null);
+        }}
+        boleto={boletoSelecionado}
+      />
     </>
   );
 };

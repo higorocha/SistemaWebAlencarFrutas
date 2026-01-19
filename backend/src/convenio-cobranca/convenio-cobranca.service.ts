@@ -10,23 +10,23 @@ export class ConvenioCobrancaService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Busca o convênio de cobrança (único registro)
+   * Busca o primeiro convênio de cobrança (comportamento legado)
    * Retorna null se não existir
    */
-  async findConvenio(): Promise<ConvenioCobrancaResponseDto | null> {
-    console.log('🔍 [CONVENIO-COBRANCA] Buscando convênio de cobrança...');
-    
+  async findFirstConvenio(): Promise<ConvenioCobrancaResponseDto | null> {
+    console.log('🔍 [CONVENIO-COBRANCA] Buscando primeiro convênio de cobrança (legado)...');
+
     const convenio = await this.prisma.convenioCobranca.findFirst({
       include: {
-        contaCorrente: true, // Incluir dados da conta corrente
+        contaCorrente: true,
       },
       orderBy: {
-        updatedAt: 'desc', // Pega o mais recente (caso existam múltiplos por erro)
+        updatedAt: 'desc',
       },
     });
 
     if (convenio) {
-      console.log('✅ [CONVENIO-COBRANCA] Convênio encontrado:', convenio.convenio);
+      console.log('✅ [CONVENIO-COBRANCA] Convênio encontrado (legado):', convenio.convenio);
     } else {
       console.log('📝 [CONVENIO-COBRANCA] Nenhum convênio encontrado');
     }
@@ -35,8 +35,31 @@ export class ConvenioCobrancaService {
   }
 
   /**
-   * Cria ou atualiza o convênio de cobrança (upsert)
-   * Como é um registro único, sempre sobrescreve o existente
+   * Busca o convênio de cobrança por conta corrente
+   * Retorna null se não existir
+   */
+  async findConvenio(contaCorrenteId: number): Promise<ConvenioCobrancaResponseDto | null> {
+    console.log('🔍 [CONVENIO-COBRANCA] Buscando convênio de cobrança para conta ID:', contaCorrenteId);
+
+    const convenio = await this.prisma.convenioCobranca.findUnique({
+      where: { contaCorrenteId },
+      include: {
+        contaCorrente: true, // Incluir dados da conta corrente
+      },
+    });
+
+    if (convenio) {
+      console.log('✅ [CONVENIO-COBRANCA] Convênio encontrado:', convenio.convenio);
+    } else {
+      console.log('📝 [CONVENIO-COBRANCA] Nenhum convênio encontrado para conta ID:', contaCorrenteId);
+    }
+
+    return convenio;
+  }
+
+  /**
+   * Cria ou atualiza o convênio de cobrança por conta corrente (upsert)
+   * Cada conta corrente pode ter seu próprio convênio
    */
   async upsertConvenio(convenioDto: ConvenioCobrancaDto): Promise<ConvenioCobrancaResponseDto> {
     console.log('💾 [CONVENIO-COBRANCA] Salvando convênio de cobrança...', {
@@ -45,75 +68,56 @@ export class ConvenioCobrancaService {
       carteira: convenioDto.carteira,
       multaAtiva: convenioDto.multaAtiva,
     });
-    
+
     try {
       // Validação de negócio: verifica se conta corrente existe
       await this.validateContaCorrente(convenioDto.contaCorrenteId);
-      
+
       // Validação de negócio: se multa ativa, campos de multa são obrigatórios
       this.validateMultaFields(convenioDto);
 
-      // Busca se já existe um convênio
-      const convenioExistente = await this.prisma.convenioCobranca.findFirst();
+      // Usa upsert do Prisma - cria se não existe, atualiza se existe
+      const convenioSalvo = await this.prisma.convenioCobranca.upsert({
+        where: { contaCorrenteId: convenioDto.contaCorrenteId },
+        update: {
+          juros: convenioDto.juros,
+          diasAberto: convenioDto.diasAberto,
+          multaAtiva: convenioDto.multaAtiva,
+          boletoPix: convenioDto.boletoPix,
+          valorMulta: convenioDto.valorMulta,
+          carenciaMulta: convenioDto.carenciaMulta,
+          convenio: convenioDto.convenio,
+          carteira: convenioDto.carteira,
+          variacao: convenioDto.variacao,
+          chavePix: convenioDto.chavePix,
+        },
+        create: {
+          contaCorrenteId: convenioDto.contaCorrenteId,
+          juros: convenioDto.juros,
+          diasAberto: convenioDto.diasAberto,
+          multaAtiva: convenioDto.multaAtiva,
+          boletoPix: convenioDto.boletoPix,
+          valorMulta: convenioDto.valorMulta,
+          carenciaMulta: convenioDto.carenciaMulta,
+          convenio: convenioDto.convenio,
+          carteira: convenioDto.carteira,
+          variacao: convenioDto.variacao,
+          chavePix: convenioDto.chavePix,
+        },
+        include: {
+          contaCorrente: true,
+        },
+      });
 
-      let convenioSalvo: ConvenioCobrancaResponseDto;
-
-      if (convenioExistente) {
-        // Atualiza o convênio existente
-        console.log('🔄 [CONVENIO-COBRANCA] Atualizando convênio existente ID:', convenioExistente.id);
-        
-        convenioSalvo = await this.prisma.convenioCobranca.update({
-          where: { id: convenioExistente.id },
-          data: {
-            contaCorrenteId: convenioDto.contaCorrenteId,
-            juros: convenioDto.juros,
-            diasAberto: convenioDto.diasAberto,
-            multaAtiva: convenioDto.multaAtiva,
-            boletoPix: convenioDto.boletoPix,
-            valorMulta: convenioDto.valorMulta,
-            carenciaMulta: convenioDto.carenciaMulta,
-            convenio: convenioDto.convenio,
-            carteira: convenioDto.carteira,
-            variacao: convenioDto.variacao,
-            chavePix: convenioDto.chavePix,
-          },
-          include: {
-            contaCorrente: true,
-          },
-        });
-      } else {
-        // Cria novo convênio
-        console.log('➕ [CONVENIO-COBRANCA] Criando novo convênio');
-        
-        convenioSalvo = await this.prisma.convenioCobranca.create({
-          data: {
-            contaCorrenteId: convenioDto.contaCorrenteId,
-            juros: convenioDto.juros,
-            diasAberto: convenioDto.diasAberto,
-            multaAtiva: convenioDto.multaAtiva,
-            boletoPix: convenioDto.boletoPix,
-            valorMulta: convenioDto.valorMulta,
-            carenciaMulta: convenioDto.carenciaMulta,
-            convenio: convenioDto.convenio,
-            carteira: convenioDto.carteira,
-            variacao: convenioDto.variacao,
-            chavePix: convenioDto.chavePix,
-          },
-          include: {
-            contaCorrente: true,
-          },
-        });
-      }
-      
       console.log('✅ [CONVENIO-COBRANCA] Convênio salvo com sucesso');
       return convenioSalvo;
     } catch (error) {
       console.error('❌ [CONVENIO-COBRANCA] Erro ao salvar convênio:', error);
-      
+
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
       }
-      
+
       throw error;
     }
   }
@@ -175,11 +179,41 @@ export class ConvenioCobrancaService {
   }
 
   /**
-   * Verifica se existe um convênio cadastrado
+   * Verifica se existe um convênio para uma conta corrente
    * Útil para verificações rápidas
    */
-  async existeConvenio(): Promise<boolean> {
-    const count = await this.prisma.convenioCobranca.count();
+  async existeConvenio(contaCorrenteId: number): Promise<boolean> {
+    const count = await this.prisma.convenioCobranca.count({
+      where: { contaCorrenteId },
+    });
     return count > 0;
+  }
+
+  /**
+   * Remove o convênio de cobrança de uma conta corrente específica
+   */
+  async deleteConvenioByContaCorrenteId(contaCorrenteId: number): Promise<{ message: string }> {
+    console.log('🗑️ [CONVENIO-COBRANCA] Removendo convênio de cobrança para conta ID:', contaCorrenteId);
+
+    try {
+      const convenioExistente = await this.prisma.convenioCobranca.findUnique({
+        where: { contaCorrenteId },
+      });
+
+      if (!convenioExistente) {
+        console.log('📝 [CONVENIO-COBRANCA] Nenhum convênio para conta ID:', contaCorrenteId);
+        return { message: 'Nenhum convênio de cobrança encontrado para esta conta corrente' };
+      }
+
+      await this.prisma.convenioCobranca.delete({
+        where: { contaCorrenteId },
+      });
+
+      console.log('✅ [CONVENIO-COBRANCA] Convênio removido com sucesso para conta ID:', contaCorrenteId);
+      return { message: 'Convênio de cobrança removido com sucesso' };
+    } catch (error) {
+      console.error('❌ [CONVENIO-COBRANCA] Erro ao remover convênio:', error);
+      throw error;
+    }
   }
 } 

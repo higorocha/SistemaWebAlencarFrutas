@@ -8,30 +8,35 @@ datasource db {
 }
 
 model Usuario {
-  id                       Int                @id @default(autoincrement())
+  id                       Int                       @id @default(autoincrement())
   nome                     String
-  cpf                      String             @unique
-  email                    String             @unique
-  nivel                    NivelUsuario       @default(ESCRITORIO)
+  cpf                      String                    @unique
+  email                    String                    @unique
+  nivel                    NivelUsuario              @default(ESCRITORIO)
   senha                    String
-  dataCadastro             DateTime           @default(now())
+  dataCadastro             DateTime                  @default(now())
   ultimoAcesso             DateTime?
-  createdAt                DateTime           @default(now())
-  updatedAt                DateTime           @updatedAt
-  culturaId                Int?               @map("cultura_id")
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  culturaId                Int?                      @map("cultura_id")
   controlesBanana          ControleBanana[]
   fitasBanana              FitaBanana[]
   historicosFitas          HistoricoFitas[]
   notificacoes             Notificacao[]
   pushTokens               PushToken[]
-  cultura                  Cultura?           @relation(fields: [culturaId], references: [id])
+  cultura                  Cultura?                  @relation(fields: [culturaId], references: [id])
   historicoPedidos         HistoricoPedido[]
-  lotesPagamentoCriados    PagamentoApiLote[] @relation("UsuarioCriacao")
-  lotesPagamentoLiberados  PagamentoApiLote[] @relation("UsuarioLiberacao")
-  itensPagamentoCancelados PagamentoApiItem[] @relation("UsuarioCancelamento")
-  folhasCriadas            FolhaPagamento[]   @relation("FolhaCriacao")
-  folhasLiberadas          FolhaPagamento[]   @relation("FolhaLiberacao")
+  lotesPagamentoCriados    PagamentoApiLote[]        @relation("UsuarioCriacao")
+  lotesPagamentoLiberados  PagamentoApiLote[]        @relation("UsuarioLiberacao")
+  itensPagamentoCancelados PagamentoApiItem[]        @relation("UsuarioCancelamento")
+  folhasCriadas            FolhaPagamento[]          @relation("FolhaCriacao")
+  folhasLiberadas          FolhaPagamento[]          @relation("FolhaLiberacao")
   adiantamentosCriados     AdiantamentoFuncionario[]
+  boletosCriados           Boleto[]                  @relation("BoletoCriacao")
+  boletosAlterados         Boleto[]                  @relation("BoletoAlteracao")
+  boletosBaixados          Boleto[]                  @relation("BoletoBaixa")
+  boletosPagamentos        Boleto[]                  @relation("BoletoPagamento")
+  boletoLogs               BoletoLog[]               @relation("BoletoLogUsuario")
 
   @@map("usuarios")
 }
@@ -55,22 +60,24 @@ model ConfigDadosEmpresa {
 }
 
 model ContaCorrente {
-  id                      Int                   @id @default(autoincrement())
-  bancoCodigo             String
-  agencia                 String
-  agenciaDigito           String
-  contaCorrente           String
-  contaCorrenteDigito     String
-  numeroContratoPagamento Int? // Número do contrato de pagamentos BB (ex: 731030)
-  monitorar               Boolean               @default(false)
-  intervalo               Int? // Intervalo em segundos para monitoramento
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
-  conveniosCobranca       ConvenioCobranca[]
-  credenciaisAPI          CredenciaisAPI[]
-  lotesPagamentoApi       PagamentoApiLote[]
-  syncJobs                PagamentoApiSyncJob[]
-  folhasPagamento         FolhaPagamento[] // Folhas de pagamento que usam esta conta para PIX_API
+  id                       Int                        @id @default(autoincrement())
+  bancoCodigo              String
+  agencia                  String
+  agenciaDigito            String
+  contaCorrente            String
+  contaCorrenteDigito      String
+  numeroContratoPagamento  Int? // Número do contrato de pagamentos BB (ex: 731030)
+  monitorar                Boolean                    @default(false)
+  intervalo                Int? // Intervalo em segundos para monitoramento
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  conveniosCobranca        ConvenioCobranca[]
+  credenciaisAPI           CredenciaisAPI[]
+  lotesPagamentoApi        PagamentoApiLote[]
+  syncJobs                 PagamentoApiSyncJob[]
+  folhasPagamento          FolhaPagamento[] // Folhas de pagamento que usam esta conta para PIX_API
+  boletos                  Boleto[]
+  controleSequencialBoleto ControleSequencialBoleto[]
 
   @@unique([bancoCodigo, agencia, contaCorrente])
   @@map("conta_corrente")
@@ -93,22 +100,24 @@ model CredenciaisAPI {
 }
 
 model ConvenioCobranca {
-  id                      Int           @id @default(autoincrement())
-  contaCorrenteId         Int
-  juros                   Float
-  diasAberto              Int
-  multaAtiva              Boolean
-  boletoPix               Boolean       @default(false)
-  valorMulta              Float?
-  carenciaMulta           Int?
-  convenio                String
-  carteira                String
-  variacao                String
-  chavePix                String?
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
-  contaCorrente           ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  id              Int           @id @default(autoincrement())
+  contaCorrenteId Int
+  juros           Float
+  diasAberto      Int
+  multaAtiva      Boolean
+  boletoPix       Boolean       @default(false)
+  valorMulta      Float?
+  carenciaMulta   Int?
+  convenio        String
+  carteira        String
+  variacao        String
+  chavePix        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  contaCorrente   ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  boletos         Boleto[]
 
+  @@unique([contaCorrenteId])
   @@map("convenio_cobranca")
 }
 
@@ -351,6 +360,7 @@ model Pedido {
   lancamentosExtratoVinculos LancamentoExtratoPedido[]
   historico                  HistoricoPedido[]
   pagamentosFornecedor       FornecedorPagamento[]
+  boletos                    Boleto[]
 
   @@map("pedidos")
 }
@@ -392,7 +402,9 @@ model PagamentosPedidos {
   contaDestino         ContaDestino
   chequeCompensado     Boolean?        @default(false)
   referenciaExterna    String?         @db.VarChar(100)
+  boletoId             Int?            @unique // Relacionamento opcional com Boleto
   pedido               Pedido          @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  boleto               Boleto?         @relation(fields: [boletoId], references: [id], onDelete: SetNull)
 
   @@map("pagamentos_pedidos")
 }
@@ -711,25 +723,25 @@ model FuncaoDiarista {
 }
 
 model Funcionario {
-  id                     Int                     @id @default(autoincrement())
-  nome                   String                  @db.VarChar(180)
-  apelido                String?                 @db.VarChar(100)
-  cpf                    String                  @unique @db.VarChar(14)
-  rg                     String?                 @db.VarChar(20)
-  pis                    String?                 @db.VarChar(20)
-  ctps                   String?                 @db.VarChar(30)
+  id                     Int                       @id @default(autoincrement())
+  nome                   String                    @db.VarChar(180)
+  apelido                String?                   @db.VarChar(100)
+  cpf                    String                    @unique @db.VarChar(14)
+  rg                     String?                   @db.VarChar(20)
+  pis                    String?                   @db.VarChar(20)
+  ctps                   String?                   @db.VarChar(30)
   dataNascimento         DateTime?
-  telefone               String?                 @db.VarChar(20)
-  celular                String?                 @db.VarChar(20)
-  email                  String?                 @db.VarChar(120)
-  estadoCivil            String?                 @db.VarChar(30)
-  cep                    String?                 @db.VarChar(9)
-  logradouro             String?                 @db.VarChar(100)
-  numero                 String?                 @db.VarChar(10)
-  complemento            String?                 @db.VarChar(50)
-  bairro                 String?                 @db.VarChar(50)
-  cidade                 String?                 @db.VarChar(50)
-  estado                 String?                 @db.VarChar(2)
+  telefone               String?                   @db.VarChar(20)
+  celular                String?                   @db.VarChar(20)
+  email                  String?                   @db.VarChar(120)
+  estadoCivil            String?                   @db.VarChar(30)
+  cep                    String?                   @db.VarChar(9)
+  logradouro             String?                   @db.VarChar(100)
+  numero                 String?                   @db.VarChar(10)
+  complemento            String?                   @db.VarChar(50)
+  bairro                 String?                   @db.VarChar(50)
+  cidade                 String?                   @db.VarChar(50)
+  estado                 String?                   @db.VarChar(2)
   endereco               Json?
   dadosBancarios         Json?
   dependentes            Json?
@@ -738,23 +750,23 @@ model Funcionario {
   cargoId                Int?
   funcaoId               Int?
   gerenteId              Int?
-  salarioCustomizado     Decimal?                @db.Decimal(12, 2)
-  valorDiariaCustomizada Decimal?                @db.Decimal(12, 2)
+  salarioCustomizado     Decimal?                  @db.Decimal(12, 2)
+  valorDiariaCustomizada Decimal?                  @db.Decimal(12, 2)
   tipoChavePix           Int? // Código: 1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave Aleatória
-  modalidadeChave        String?                 @db.VarChar(50) // Nome: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"
-  chavePix               String?                 @db.VarChar(200)
-  responsavelChavePix    String?                 @db.VarChar(180)
-  ajudaCusto             Decimal?                @default(0) @db.Decimal(12, 2)
-  pixTerceiro            Boolean                 @default(false)
-  status                 StatusFuncionario       @default(ATIVO)
+  modalidadeChave        String?                   @db.VarChar(50) // Nome: "Telefone", "Email", "CPF/CNPJ", "Chave Aleatória"
+  chavePix               String?                   @db.VarChar(200)
+  responsavelChavePix    String?                   @db.VarChar(180)
+  ajudaCusto             Decimal?                  @default(0) @db.Decimal(12, 2)
+  pixTerceiro            Boolean                   @default(false)
+  status                 StatusFuncionario         @default(ATIVO)
   dataAdmissao           DateTime?
   dataDemissao           DateTime?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  cargo                  Cargo?                  @relation(fields: [cargoId], references: [id])
-  funcao                 FuncaoDiarista?         @relation(fields: [funcaoId], references: [id])
-  gerente                Funcionario?            @relation("FuncionarioGerente", fields: [gerenteId], references: [id])
-  subordinados           Funcionario[]           @relation("FuncionarioGerente")
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  cargo                  Cargo?                    @relation(fields: [cargoId], references: [id])
+  funcao                 FuncaoDiarista?           @relation(fields: [funcaoId], references: [id])
+  gerente                Funcionario?              @relation("FuncionarioGerente", fields: [gerenteId], references: [id])
+  subordinados           Funcionario[]             @relation("FuncionarioGerente")
   pagamentos             FuncionarioPagamento[]
   adiantamentos          AdiantamentoFuncionario[]
 
@@ -762,81 +774,81 @@ model Funcionario {
 }
 
 model FolhaPagamento {
-  id                    Int                       @id @default(autoincrement())
-  competenciaMes        Int
-  competenciaAno        Int
-  periodo               Int // 1 ou 2 (primeira ou segunda quinzena)
-  dataInicial           DateTime // Data inicial da quinzena
-  dataFinal             DateTime // Data final da quinzena
-  referencia            String?                   @db.VarChar(40)
-  status                StatusFolhaPagamento      @default(RASCUNHO)
-  observacoes           String?
+  id                      Int                       @id @default(autoincrement())
+  competenciaMes          Int
+  competenciaAno          Int
+  periodo                 Int // 1 ou 2 (primeira ou segunda quinzena)
+  dataInicial             DateTime // Data inicial da quinzena
+  dataFinal               DateTime // Data final da quinzena
+  referencia              String?                   @db.VarChar(40)
+  status                  StatusFolhaPagamento      @default(RASCUNHO)
+  observacoes             String?
   // Campos de pagamento (definidos ao finalizar a folha)
-  meioPagamento         MeioPagamentoFuncionario? // Método de pagamento da folha
-  dataPagamento         DateTime? // Data prevista de pagamento
-  contaCorrenteId       Int? // Conta corrente para PIX_API
+  meioPagamento           MeioPagamentoFuncionario? // Método de pagamento da folha
+  dataPagamento           DateTime? // Data prevista de pagamento
+  contaCorrenteId         Int? // Conta corrente para PIX_API
   // Totais
-  totalBruto            Decimal                   @default(0) @db.Decimal(14, 2)
-  totalLiquido          Decimal                   @default(0) @db.Decimal(14, 2)
-  totalPago             Decimal                   @default(0) @db.Decimal(14, 2)
-  totalPendente         Decimal                   @default(0) @db.Decimal(14, 2)
-  quantidadeLancamentos Int                       @default(0)
-  dataProcessamento     DateTime?
-  dataFechamento        DateTime?
-  dataLiberacao         DateTime?
-  usuarioCriacaoId      Int
-  usuarioLiberacaoId    Int?
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
+  totalBruto              Decimal                   @default(0) @db.Decimal(14, 2)
+  totalLiquido            Decimal                   @default(0) @db.Decimal(14, 2)
+  totalPago               Decimal                   @default(0) @db.Decimal(14, 2)
+  totalPendente           Decimal                   @default(0) @db.Decimal(14, 2)
+  quantidadeLancamentos   Int                       @default(0)
+  dataProcessamento       DateTime?
+  dataFechamento          DateTime?
+  dataLiberacao           DateTime?
+  usuarioCriacaoId        Int
+  usuarioLiberacaoId      Int?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
   // Relações
-  pagamentos            FuncionarioPagamento[]
+  pagamentos              FuncionarioPagamento[]
   lancamentosAdiantamento LancamentoAdiantamento[]
-  usuarioCriacao        Usuario                   @relation("FolhaCriacao", fields: [usuarioCriacaoId], references: [id])
-  usuarioLiberacao      Usuario?                  @relation("FolhaLiberacao", fields: [usuarioLiberacaoId], references: [id])
-  contaCorrente         ContaCorrente?            @relation(fields: [contaCorrenteId], references: [id])
+  usuarioCriacao          Usuario                   @relation("FolhaCriacao", fields: [usuarioCriacaoId], references: [id])
+  usuarioLiberacao        Usuario?                  @relation("FolhaLiberacao", fields: [usuarioLiberacaoId], references: [id])
+  contaCorrente           ContaCorrente?            @relation(fields: [contaCorrenteId], references: [id])
 
   @@unique([competenciaMes, competenciaAno, periodo])
   @@map("arh_folhas_pagamento")
 }
 
 model FuncionarioPagamento {
-  id                    Int                        @id @default(autoincrement())
-  folhaId               Int
-  funcionarioId         Int
-  cargoId               Int?
-  funcaoId              Int?
-  tipoContrato          TipoContratoFuncionario
-  referenciaNomeCargo   String?                    @db.VarChar(120)
-  referenciaNomeFuncao  String?                    @db.VarChar(120)
-  salarioBaseReferencia Decimal?                   @db.Decimal(12, 2)
-  valorDiariaAplicada   Decimal?                   @db.Decimal(12, 2)
-  diasTrabalhados       Int                        @default(0)
-  faltas                Decimal?                   @default(0) @db.Decimal(10, 2)
-  horasExtras           Decimal?                   @db.Decimal(10, 2)
-  valorHoraExtra        Decimal?                   @db.Decimal(10, 2)
-  ajudaCusto            Decimal?                   @default(0) @db.Decimal(12, 2)
-  extras                Decimal?                   @default(0) @db.Decimal(12, 2)
-  adiantamento          Decimal?                   @default(0) @db.Decimal(12, 2)
-  valorBruto            Decimal                    @default(0) @db.Decimal(12, 2)
-  valorLiquido          Decimal                    @default(0) @db.Decimal(12, 2)
-  pixTerceiro           Boolean                    @default(false)
-  chavePixEnviada       String?                    @db.VarChar(200)
-  responsavelChavePixEnviado String?               @db.VarChar(180)
-  meioPagamento         MeioPagamentoFuncionario   @default(PIX)
-  pagamentoEfetuado     Boolean                    @default(false)
-  dataPagamento         DateTime?
-  statusPagamento       StatusFuncionarioPagamento @default(PENDENTE)
-  pagamentoApiItemId    Int?                       @unique
-  observacoes           String?
-  funcionarioSnapshot   Json?
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
-  folha                 FolhaPagamento             @relation(fields: [folhaId], references: [id], onDelete: Cascade)
-  funcionario           Funcionario                @relation(fields: [funcionarioId], references: [id])
-  cargo                 Cargo?                     @relation(fields: [cargoId], references: [id])
-  funcao                FuncaoDiarista?            @relation(fields: [funcaoId], references: [id])
-  pagamentoApiItem      PagamentoApiItem?          @relation("FuncionarioPagamentoToPagamentoApiItem", fields: [pagamentoApiItemId], references: [id], onDelete: SetNull)
-  lancamentosAdiantamento LancamentoAdiantamento[]
+  id                         Int                        @id @default(autoincrement())
+  folhaId                    Int
+  funcionarioId              Int
+  cargoId                    Int?
+  funcaoId                   Int?
+  tipoContrato               TipoContratoFuncionario
+  referenciaNomeCargo        String?                    @db.VarChar(120)
+  referenciaNomeFuncao       String?                    @db.VarChar(120)
+  salarioBaseReferencia      Decimal?                   @db.Decimal(12, 2)
+  valorDiariaAplicada        Decimal?                   @db.Decimal(12, 2)
+  diasTrabalhados            Int                        @default(0)
+  faltas                     Decimal?                   @default(0) @db.Decimal(10, 2)
+  horasExtras                Decimal?                   @db.Decimal(10, 2)
+  valorHoraExtra             Decimal?                   @db.Decimal(10, 2)
+  ajudaCusto                 Decimal?                   @default(0) @db.Decimal(12, 2)
+  extras                     Decimal?                   @default(0) @db.Decimal(12, 2)
+  adiantamento               Decimal?                   @default(0) @db.Decimal(12, 2)
+  valorBruto                 Decimal                    @default(0) @db.Decimal(12, 2)
+  valorLiquido               Decimal                    @default(0) @db.Decimal(12, 2)
+  pixTerceiro                Boolean                    @default(false)
+  chavePixEnviada            String?                    @db.VarChar(200)
+  responsavelChavePixEnviado String?                    @db.VarChar(180)
+  meioPagamento              MeioPagamentoFuncionario   @default(PIX)
+  pagamentoEfetuado          Boolean                    @default(false)
+  dataPagamento              DateTime?
+  statusPagamento            StatusFuncionarioPagamento @default(PENDENTE)
+  pagamentoApiItemId         Int?                       @unique
+  observacoes                String?
+  funcionarioSnapshot        Json?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  folha                      FolhaPagamento             @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  funcionario                Funcionario                @relation(fields: [funcionarioId], references: [id])
+  cargo                      Cargo?                     @relation(fields: [cargoId], references: [id])
+  funcao                     FuncaoDiarista?            @relation(fields: [funcaoId], references: [id])
+  pagamentoApiItem           PagamentoApiItem?          @relation("FuncionarioPagamentoToPagamentoApiItem", fields: [pagamentoApiItemId], references: [id], onDelete: SetNull)
+  lancamentosAdiantamento    LancamentoAdiantamento[]
 
   @@unique([folhaId, funcionarioId])
   @@index([folhaId])
@@ -845,19 +857,19 @@ model FuncionarioPagamento {
 }
 
 model AdiantamentoFuncionario {
-  id                          Int                     @id @default(autoincrement())
-  funcionarioId               Int
-  valorTotal                  Decimal                  @db.Decimal(12, 2)
-  quantidadeParcelas          Int
-  saldoDevedor                Decimal                  @db.Decimal(12, 2)
+  id                              Int                      @id @default(autoincrement())
+  funcionarioId                   Int
+  valorTotal                      Decimal                  @db.Decimal(12, 2)
+  quantidadeParcelas              Int
+  saldoDevedor                    Decimal                  @db.Decimal(12, 2)
   quantidadeParcelasRemanescentes Int
-  observacoes                 String?                  @db.Text
-  usuarioCriacaoId            Int
-  createdAt                   DateTime                 @default(now())
-  updatedAt                   DateTime                 @updatedAt
-  funcionario                 Funcionario              @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
-  usuarioCriacao              Usuario                 @relation(fields: [usuarioCriacaoId], references: [id])
-  lancamentosAdiantamento     LancamentoAdiantamento[]
+  observacoes                     String?                  @db.Text
+  usuarioCriacaoId                Int
+  createdAt                       DateTime                 @default(now())
+  updatedAt                       DateTime                 @updatedAt
+  funcionario                     Funcionario              @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  usuarioCriacao                  Usuario                  @relation(fields: [usuarioCriacaoId], references: [id])
+  lancamentosAdiantamento         LancamentoAdiantamento[]
 
   @@index([funcionarioId])
   @@index([saldoDevedor])
@@ -865,14 +877,14 @@ model AdiantamentoFuncionario {
 }
 
 model LancamentoAdiantamento {
-  id                    Int                     @id @default(autoincrement())
+  id                     Int                     @id @default(autoincrement())
   adiantamentoId         Int
   folhaId                Int
   funcionarioPagamentoId Int
   valorDeduzido          Decimal                 @db.Decimal(12, 2)
   parcelaNumero          Int
   createdAt              DateTime                @default(now())
-  adiantamento           AdiantamentoFuncionario  @relation(fields: [adiantamentoId], references: [id], onDelete: Cascade)
+  adiantamento           AdiantamentoFuncionario @relation(fields: [adiantamentoId], references: [id], onDelete: Cascade)
   folha                  FolhaPagamento          @relation(fields: [folhaId], references: [id], onDelete: Cascade)
   funcionarioPagamento   FuncionarioPagamento    @relation(fields: [funcionarioPagamentoId], references: [id], onDelete: Cascade)
 
@@ -1136,7 +1148,7 @@ model PagamentoApiLote {
   ultimaAtualizacaoWebhook DateTime? // Última atualização recebida via webhook
   estadoRequisicaoAtual    Int? // Estado atual (pode mudar após consulta/webhook)
   payloadRespostaAtual     Json? // Resposta mais recente (após consulta/webhook)
-  excluido                  Boolean  @default(false) // Marcação de exclusão (soft delete) - apenas visual e estatísticas
+  excluido                 Boolean   @default(false) // Marcação de exclusão (soft delete) - apenas visual e estatísticas
 
   // Auditoria
   observacoes       String?
@@ -1337,4 +1349,167 @@ model PagamentoApiSyncJob {
   @@index([tipo, identificadorPagamento])
   @@index([contaCorrenteId])
   @@map("pagamento_api_sync_job")
+}
+
+// ========================================
+// ENUMS PARA CONTROLE DE BOLETOS
+// ========================================
+enum StatusBoleto {
+  ABERTO
+  PROCESSANDO
+  PAGO
+  VENCIDO
+  BAIXADO
+  ERRO
+}
+
+enum TipoOperacaoBoletoLog {
+  CRIACAO
+  ALTERACAO
+  BAIXA
+  PAGAMENTO_WEBHOOK
+  PAGAMENTO_MANUAL
+  ERRO_BB
+}
+
+// ========================================
+// MODELOS PARA CONTROLE DE BOLETOS
+// ========================================
+
+model Boleto {
+  id Int @id @default(autoincrement())
+
+  // Relacionamentos principais
+  convenioCobrancaId Int
+  convenioCobranca   ConvenioCobranca @relation(fields: [convenioCobrancaId], references: [id], onDelete: Cascade)
+  pedidoId           Int
+  pedido             Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  contaCorrenteId    Int
+  contaCorrente      ContaCorrente    @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+
+  // Campos principais
+  valorOriginal            Decimal      @db.Decimal(10, 2)
+  dataVencimento           DateTime
+  dataEmissao              DateTime     @default(now())
+  dataPagamento            DateTime? // Data de pagamento (baixa operacional via webhook)
+  dataBaixa                DateTime? // Data de baixa/cancelamento manual
+  statusBoleto             StatusBoleto @default(ABERTO)
+  nossoNumero              String       @unique @db.VarChar(20) // Nosso número (20 dígitos) - gerado pelo BB ou localmente em dev
+  numeroTituloBeneficiario String       @db.VarChar(15) // Seu número (OBRIGATÓRIO, enviado ao BB)
+  numeroTituloCliente      String?      @db.VarChar(20) // Nosso número gerado localmente (apenas em desenvolvimento)
+  linhaDigitavel           String       @db.VarChar(54) // Linha digitável retornada pelo BB
+  codigoBarras             String       @db.VarChar(44) // Código de barras
+  qrCodePix                String?      @db.Text // URL completa do QR Code Pix (JSON)
+  txidPix                  String?      @db.VarChar(100) // TxID do Pix
+  urlPix                   String?      @db.Text // URL do Pix
+
+  // Campos Denormalizados (para facilitar consultas)
+  numeroConvenio         String @db.VarChar(10) // Número do convênio (denormalizado de ConvenioCobranca)
+  numeroCarteira         String @db.VarChar(5) // Número da carteira (denormalizado de ConvenioCobranca)
+  numeroVariacaoCarteira String @db.VarChar(5) // Número da variação (denormalizado de ConvenioCobranca)
+
+  // Campos de Rastreamento e Auditoria
+  usuarioCriacaoId     Int
+  usuarioCriacao       Usuario   @relation("BoletoCriacao", fields: [usuarioCriacaoId], references: [id])
+  usuarioAlteracaoId   Int?
+  usuarioAlteracao     Usuario?  @relation("BoletoAlteracao", fields: [usuarioAlteracaoId], references: [id])
+  usuarioBaixaId       Int?
+  usuarioBaixa         Usuario?  @relation("BoletoBaixa", fields: [usuarioBaixaId], references: [id])
+  usuarioPagamentoId   Int?
+  usuarioPagamento     Usuario?  @relation("BoletoPagamento", fields: [usuarioPagamentoId], references: [id])
+  atualizadoPorWebhook Boolean   @default(false) // Se o boleto foi atualizado via webhook
+  dataWebhookPagamento DateTime? // Timestamp de quando o webhook informou o pagamento
+  ipAddressWebhook     String?   @db.VarChar(50) // IP do webhook (para auditoria)
+
+  // Campos de Metadata (JSON)
+  requestPayloadBanco  Json // Payload JSON enviado para o BB (completo)
+  responsePayloadBanco Json // Resposta JSON completa recebida do BB
+  metadata             Json? // Metadados adicionais (sequencial local, etc.)
+
+  // Campos do Pagador (denormalizados)
+  pagadorTipoInscricao   String  @db.VarChar(1) // 1 (PF) ou 2 (PJ)
+  pagadorNumeroInscricao String  @db.VarChar(14) // CPF ou CNPJ (SEM zeros à esquerda, conforme regra do BB)
+  pagadorNome            String  @db.VarChar(60) // Nome (maiúsculas)
+  pagadorEndereco        String  @db.VarChar(60) // Endereço
+  pagadorCep             String  @db.VarChar(8) // CEP
+  pagadorCidade          String  @db.VarChar(30) // Cidade
+  pagadorBairro          String  @db.VarChar(30) // Bairro
+  pagadorUf              String  @db.VarChar(2) // Estado (UF)
+  pagadorTelefone        String? @db.VarChar(30) // Telefone
+  pagadorEmail           String? @db.VarChar(100) // Email
+
+  // Campos Opcionais (para uso futuro - não enviados no payload atual)
+  valorAbatimento                  Decimal?  @db.Decimal(10, 2) // Valor de abatimento (não usado atualmente)
+  quantidadeDiasProtesto           Int? // Quantidade de dias para protesto (não usado atualmente)
+  quantidadeDiasNegativacao        Int? // Quantidade de dias para negativação (não usado atualmente)
+  orgaoNegativador                 String?   @db.VarChar(2) // Código do órgão negativador (10-SERASA, 11-QUOD) (não usado atualmente)
+  beneficiarioFinalTipoInscricao   String?   @db.VarChar(1) // Tipo de inscrição do beneficiário final (não usado atualmente)
+  beneficiarioFinalNumeroInscricao String?   @db.VarChar(14) // CPF/CNPJ do beneficiário final (não usado atualmente)
+  beneficiarioFinalNome            String?   @db.VarChar(30) // Nome do beneficiário final (não usado atualmente)
+  descontoTipo                     Int? // Tipo de desconto (0-sem, 1-valor fixo, 2-percentual) (não usado atualmente)
+  descontoValor                    Decimal?  @db.Decimal(10, 2) // Valor do desconto (não usado atualmente)
+  descontoPorcentagem              Decimal?  @db.Decimal(5, 2) // Porcentagem do desconto (não usado atualmente)
+  descontoDataExpiracao            DateTime? // Data de expiração do desconto (não usado atualmente)
+  segundoDescontoValor             Decimal?  @db.Decimal(10, 2) // Valor do segundo desconto (não usado atualmente)
+  segundoDescontoPorcentagem       Decimal?  @db.Decimal(5, 2) // Porcentagem do segundo desconto (não usado atualmente)
+  segundoDescontoDataExpiracao     DateTime? // Data de expiração do segundo desconto (não usado atualmente)
+  terceiroDescontoValor            Decimal?  @db.Decimal(10, 2) // Valor do terceiro desconto (não usado atualmente)
+  terceiroDescontoPorcentagem      Decimal?  @db.Decimal(5, 2) // Porcentagem do terceiro desconto (não usado atualmente)
+  terceiroDescontoDataExpiracao    DateTime? // Data de expiração do terceiro desconto (não usado atualmente)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamento com logs
+  logs BoletoLog[]
+
+  // Relacionamento com pagamento
+  pagamentoPedido PagamentosPedidos?
+
+  // Índices
+  @@index([pedidoId])
+  @@index([convenioCobrancaId])
+  @@index([contaCorrenteId])
+  @@index([statusBoleto])
+  @@index([dataVencimento])
+  @@index([numeroConvenio])
+  @@index([usuarioCriacaoId])
+  @@index([nossoNumero])
+  @@map("boletos")
+}
+
+model BoletoLog {
+  id                Int                   @id @default(autoincrement())
+  boletoId          Int
+  boleto            Boleto                @relation(fields: [boletoId], references: [id], onDelete: Cascade)
+  tipoOperacao      TipoOperacaoBoletoLog
+  descricaoOperacao String                @db.VarChar(255)
+  dadosAntes        Json? // Dados antes da operação
+  dadosDepois       Json? // Dados depois da operação
+  usuarioId         Int?
+  usuario           Usuario?              @relation("BoletoLogUsuario", fields: [usuarioId], references: [id])
+  ipAddress         String?               @db.VarChar(50)
+  mensagemErro      String?               @db.Text
+  createdAt         DateTime              @default(now())
+
+  @@index([boletoId])
+  @@index([tipoOperacao])
+  @@index([createdAt])
+  @@index([usuarioId])
+  @@map("boleto_logs")
+}
+
+model ControleSequencialBoleto {
+  id               Int           @id @default(autoincrement())
+  contaCorrenteId  Int
+  contaCorrente    ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  convenio         String        @db.VarChar(7) // Número do convênio
+  ultimoSequencial Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([contaCorrenteId, convenio])
+  @@index([contaCorrenteId])
+  @@map("controle_sequencial_boleto")
 }
