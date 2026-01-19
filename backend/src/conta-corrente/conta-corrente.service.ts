@@ -56,6 +56,39 @@ export class ContaCorrenteService {
   }
 
   /**
+   * Busca contas correntes aptas para emissão de boleto:
+   * - possuem convênio de cobrança cadastrado
+   * - possuem credenciais de API "001 - Cobrança" cadastradas (banco 001)
+   *
+   * Usado pelo frontend ao selecionar conta para gerar boleto.
+   */
+  async findAllComConvenioECredenciaisCobranca(): Promise<ContaCorrenteResponseDto[]> {
+    console.log('🔍 [CONTA-CORRENTE] Buscando contas correntes com convênio E credenciais de cobrança...');
+
+    const contasCorrentes = await this.prisma.contaCorrente.findMany({
+      where: {
+        conveniosCobranca: { some: {} },
+        credenciaisAPI: {
+          some: {
+            banco: '001',
+            modalidadeApi: '001 - Cobrança',
+          },
+        },
+      },
+      include: {
+        credenciaisAPI: true,
+        conveniosCobranca: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    console.log(
+      `✅ [CONTA-CORRENTE] Encontradas ${contasCorrentes.length} contas com convênio e credenciais de cobrança`,
+    );
+    return contasCorrentes;
+  }
+
+  /**
    * Busca uma conta corrente específica por ID
    */
   async findOne(id: number): Promise<ContaCorrenteResponseDto> {

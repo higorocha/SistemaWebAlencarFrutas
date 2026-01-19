@@ -59,6 +59,20 @@ export class ContaCorrenteController {
     return await this.contaCorrenteService.findAllComConvenioCobranca();
   }
 
+  @Get('com-convenio-e-credenciais-cobranca')
+  @ApiOperation({
+    summary: 'Listar contas correntes com convênio e credenciais de cobrança',
+    description:
+      'Retorna uma lista apenas com as contas correntes que possuem convênio de cobrança e credenciais de API "001 - Cobrança" cadastradas',
+  })
+  @ApiOkResponse({
+    description: 'Lista de contas correntes aptas para emissão de boletos',
+    type: [ContaCorrenteResponseDto],
+  })
+  async findAllComConvenioECredenciaisCobranca(): Promise<ContaCorrenteResponseDto[]> {
+    return await this.contaCorrenteService.findAllComConvenioECredenciaisCobranca();
+  }
+
   @Get(':id')
   @ApiOperation({ 
     summary: 'Buscar conta corrente por ID',

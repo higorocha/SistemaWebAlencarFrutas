@@ -15,6 +15,7 @@ import {
   Card,
   Statistic,
   Alert,
+  Tooltip,
 } from "antd";
 import {
   SaveOutlined,
@@ -26,6 +27,7 @@ import {
   BankOutlined,
   PlusOutlined,
   UserOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario } from "../../utils/formatters";
@@ -82,7 +84,10 @@ const NovoPagamentoModal = ({
 
       try {
         setLoadingContas(true);
-        const response = await axiosInstance.get('/contacorrente/com-convenio-cobranca');
+        // Somente contas aptas para emitir boleto:
+        // - convênio de cobrança cadastrado
+        // - credenciais API "001 - Cobrança" cadastradas
+        const response = await axiosInstance.get('/contacorrente/com-convenio-e-credenciais-cobranca');
         setContasCorrentes(response.data || []);
       } catch (error) {
         console.error("Erro ao carregar contas correntes:", error);
@@ -612,6 +617,28 @@ const NovoPagamentoModal = ({
                     <Space>
                       <BankOutlined style={{ color: "#059669" }} />
                       <span style={{ fontWeight: "700", color: "#333" }}>Conta Corrente</span>
+                      <Tooltip
+                        placement="top"
+                        title={
+                          <div style={{ maxWidth: 320 }}>
+                            Para gerar boleto, a conta precisa estar configurada em:
+                            <br />- <b>Credenciais API</b> com modalidade <b>001 - Cobrança</b>
+                            <br />- <b>Convênios</b> (convênio de cobrança)
+                            <br />
+                            <br />
+                            Se a conta não aparecer aqui, verifique essas configurações em <b>Configurações → Dados Bancários</b>.
+                          </div>
+                        }
+                      >
+                        <InfoCircleOutlined
+                          style={{
+                            marginLeft: 6,
+                            color: "#059669",
+                            cursor: "help",
+                            fontSize: 14,
+                          }}
+                        />
+                      </Tooltip>
                     </Space>
                   }
                   name="contaCorrenteId"

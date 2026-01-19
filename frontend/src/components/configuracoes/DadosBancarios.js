@@ -215,6 +215,17 @@ const DadosBancarios = () => {
   const [convenioExiste, setConvenioExiste] = useState(false);
   const [loadingConvenios, setLoadingConvenios] = useState(false);
 
+  // Contas disponíveis para cadastrar convênio:
+  // regra: só permitir selecionar contas que já tenham credenciais "001 - Cobrança"
+  const contasComCredenciaisCobranca = contaCorrenteRecords.filter((conta) =>
+    credenciaisRecords.some(
+      (cred) =>
+        cred.contaCorrenteId === conta.id &&
+        cred.banco === "001" &&
+        cred.modalidadeApi === "001 - Cobrança"
+    )
+  );
+
   // Estados para modais de exclusão
   const [deleteContaCorrenteModalOpen, setDeleteContaCorrenteModalOpen] = useState(false);
   const [contaCorrenteToDelete, setContaCorrenteToDelete] = useState(null);
@@ -510,36 +521,9 @@ const DadosBancarios = () => {
 
   const onFinishAPICredentials = async (values) => {
     try {
-      // Validação: Se for modalidade "001 - Cobrança", verificar se a conta tem convênio
-      if (values.modalidadeApi === "001 - Cobrança") {
-        try {
-          const convenioResponse = await axiosInstance.get(
-            `${API_URL.convenios}?contaCorrenteId=${values.api_contaCorrente}`
-          );
-          
-          // Se não retornar dados (404 ou null), não tem convênio
-          if (!convenioResponse.data) {
-            showNotification(
-              "error",
-              "Convênio Obrigatório",
-              "Para cadastrar credenciais de API do tipo '001 - Cobrança', é necessário primeiro cadastrar um convênio de cobrança para esta conta corrente. Por favor, cadastre o convênio na seção 'Convênios' antes de continuar."
-            );
-            return; // Impede o salvamento
-          }
-        } catch (convenioError) {
-          // Se for 404, não tem convênio
-          if (convenioError.response?.status === 404) {
-            showNotification(
-              "error",
-              "Convênio Obrigatório",
-              "Para cadastrar credenciais de API do tipo '001 - Cobrança', é necessário primeiro cadastrar um convênio de cobrança para esta conta corrente. Por favor, cadastre o convênio na seção 'Convênios' antes de continuar."
-            );
-            return; // Impede o salvamento
-          }
-          // Se for outro erro, apenas loga e continua (pode ser problema de rede, etc)
-          console.error('Erro ao verificar convênio:', convenioError);
-        }
-      }
+      // IMPORTANTE (ajuste de regra):
+      // Para cadastrar convênio, a conta deve ter credenciais "001 - Cobrança".
+      // Portanto, aqui não exigimos convênio prévio para salvar credenciais.
 
       // Mapear dados para o backend
       const dadosFormatados = {
@@ -757,6 +741,22 @@ const DadosBancarios = () => {
   const onFinishConvenios = async (values) => {
     setLoadingConvenios(true);
     try {
+      // Validação de segurança: só permitir cadastrar convênio se a conta tiver credenciais de cobrança
+      const temCredenciaisCobranca = credenciaisRecords.some(
+        (cred) =>
+          cred.contaCorrenteId === values.conta_corrente &&
+          cred.banco === "001" &&
+          cred.modalidadeApi === "001 - Cobrança"
+      );
+      if (!temCredenciaisCobranca) {
+        showNotification(
+          "error",
+          "Credenciais obrigatórias",
+          "Para cadastrar um convênio, primeiro cadastre as Credenciais API (modalidade '001 - Cobrança') para esta conta corrente."
+        );
+        return;
+      }
+
       // Mapear campos do frontend para o backend
       const dataToSend = {
         contaCorrenteId: values.conta_corrente,
@@ -1274,6 +1274,29 @@ const DadosBancarios = () => {
                         <Text strong>
                           <AppstoreOutlined style={{ marginRight: 8 }} />
                           Modalidade API
+                          <Tooltip
+                            placement="top"
+                            title={
+                              <div style={{ maxWidth: 340 }}>
+                                <b>Dica:</b> para emitir boletos, selecione e cadastre as credenciais da modalidade <b>001 - Cobrança</b>.
+                                <br />
+                                <br />
+                                Depois, vá na seção <b>Convênios</b> e cadastre o convênio de cobrança para a mesma conta.
+                                <br />
+                                <br />
+                                Só após isso a conta ficará disponível para seleção na geração de boletos.
+                              </div>
+                            }
+                          >
+                            <InfoCircleOutlined
+                              style={{
+                                marginLeft: 8,
+                                color: "#059669",
+                                cursor: "help",
+                                fontSize: "14px",
+                              }}
+                            />
+                          </Tooltip>
                         </Text>
                       }
                       rules={[
@@ -1465,12 +1488,44 @@ const DadosBancarios = () => {
             <Row gutter={[16, 16]} align="top">
               {/* Conta Corrente */}
               <Col xs={24} sm={5}>
+                {contasComCredenciaisCobranca.length === 0 && (
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 12, borderRadius: 12 }}
+                    message="Nenhuma conta disponível para convênio"
+                    description="Para cadastrar convênios, primeiro cadastre as Credenciais API (modalidade '001 - Cobrança') para uma conta corrente. Após isso, a conta aparecerá aqui."
+                  />
+                )}
                 <Form.Item
                   name="conta_corrente"
                   label={
                     <Text strong>
                       <ContainerOutlined style={{ marginRight: 8 }} />
                       Conta Corrente
+                      <Tooltip
+                        placement="top"
+                        title={
+                          <div style={{ maxWidth: 340 }}>
+                            Aqui aparecem somente contas que já possuem <b>Credenciais API</b> cadastradas com a modalidade <b>001 - Cobrança</b>.
+                            <br />
+                            <br />
+                            <b>Fluxo recomendado:</b>
+                            <br />1) Cadastre a conta corrente
+                            <br />2) Cadastre as credenciais de API (001 - Cobrança)
+                            <br />3) Cadastre o convênio de cobrança
+                          </div>
+                        }
+                      >
+                        <InfoCircleOutlined
+                          style={{
+                            marginLeft: 8,
+                            color: "#059669",
+                            cursor: "help",
+                            fontSize: "14px",
+                          }}
+                        />
+                      </Tooltip>
                     </Text>
                   }
                   rules={[
@@ -1483,12 +1538,13 @@ const DadosBancarios = () => {
                   <Select 
                     size="large" 
                     placeholder="Selecione a conta corrente"
+                    disabled={contasComCredenciaisCobranca.length === 0}
                     onChange={(value) => {
                       setSelectedContaCorrenteId(value);
                       // O useEffect vai carregar os dados automaticamente
                     }}
                   >
-                    {contaCorrenteRecords.map((conta) => (
+                    {contasComCredenciaisCobranca.map((conta) => (
                       <Option key={conta.id} value={conta.id}>
                         {getBancoDisplay(conta.bancoCodigo)} - Ag: {conta.agencia}-{conta.agenciaDigito} CC: {conta.contaCorrente}-{conta.contaCorrenteDigito}
                       </Option>
