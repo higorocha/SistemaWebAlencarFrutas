@@ -820,7 +820,7 @@ const DadosBancarios = () => {
         <Row gutter={[24, 0]}>
           {/* Metade Esquerda - Formulário */}
           <Col xs={24} lg={12}>
-            <StyledCard type="inner" style={{ minHeight: '500px' }}>
+            <StyledCard type="inner" style={{ height: "600px" }}>
               <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
                 <FormOutlined style={{ marginRight: 8 }} />
                 Formulário de Conta Corrente
@@ -1139,13 +1139,32 @@ const DadosBancarios = () => {
 
                      {/* Metade Direita - Listagem */}
            <Col xs={24} lg={12}>
-             <StyledCard type="inner" style={{ minHeight: '500px' }}>
+             <StyledCard
+               type="inner"
+               style={{ height: "600px" }}
+               styles={{
+                 body: {
+                   height: "100%",
+                   display: "flex",
+                   flexDirection: "column",
+                 },
+               }}
+             >
                <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
                  <UnorderedListOutlined style={{ marginRight: 8 }} />
                  Contas Correntes Cadastradas
                </Title>
                <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-               <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden' }}>
+               <div
+                 style={{
+                   flex: 1,
+                   minHeight: 0,
+                   overflowY: "auto",
+                   overflowX: "hidden",
+                   paddingBottom: 16, // respiro no fim da lista
+                   paddingRight: 6, // evita o scroll colar no conteúdo
+                 }}
+               >
                  <StyledList
                    itemLayout="vertical"
                    dataSource={contaCorrenteRecords}
@@ -1216,7 +1235,7 @@ const DadosBancarios = () => {
                  <Row gutter={[24, 0]}>
            {/* Metade Esquerda - Formulário */}
            <Col xs={24} lg={12}>
-             <StyledCard type="inner" style={{ minHeight: '600px' }}>
+             <StyledCard type="inner" style={{ height: "600px" }}>
                <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
                  <FormOutlined style={{ marginRight: 8 }} />
                  Formulário de Credenciais API
@@ -1393,64 +1412,85 @@ const DadosBancarios = () => {
 
                      {/* Metade Direita - Listagem */}
            <Col xs={24} lg={12}>
-             <StyledCard type="inner" style={{ minHeight: '600px' }}>
-               <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
-                 <UnorderedListOutlined style={{ marginRight: 8 }} />
-                 Credenciais API Cadastradas
-               </Title>
-               <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
-              <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden' }}>
-                <StyledList
-                  itemLayout="vertical"
-                  dataSource={credenciaisRecords}
-                  renderItem={(item) => {
-                    // Encontrar a conta corrente correspondente
-                    const contaCorrelata = contaCorrenteRecords.find(conta => conta.id === item.contaCorrenteId);
-                    const contaDisplay = contaCorrelata 
-                      ? `Ag: ${contaCorrelata.agencia}-${contaCorrelata.agenciaDigito} CC: ${contaCorrelata.contaCorrente}-${contaCorrelata.contaCorrenteDigito}`
-                      : 'Conta não encontrada';
-
-                    return (
-                      <List.Item
-                        key={item.id}
-                        actions={[
-                          <PrimaryButton
-                            icon={<EditOutlined />}
-                            onClick={() => handleEdit(item)}
-                            size="small"
-                          >
-                            Editar
-                          </PrimaryButton>,
-                          <PrimaryButton
-                            icon={<DeleteOutlined />}
-                            onClick={() => handleDelete(item.id)}
-                            size="small"
-                            style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f' }}
-                          >
-                            Excluir
-                          </PrimaryButton>,
-                        ]}
-                      >
-                                                 <List.Item.Meta
-                           title={`${getBancoDisplay(item.banco)} - ${item.modalidadeApi}`}
-                           description={
-                             <>
-                               <Text strong>Banco:</Text> {getBancoDisplay(item.banco)} <br />
-                               <Text strong>Conta:</Text> {contaDisplay} <br />
-                               <Text strong>Modalidade:</Text> {item.modalidadeApi}
-                             </>
-                           }
-                        />
-                      </List.Item>
-                    );
+             <StyledCard
+               type="inner"
+               style={{
+                 height: "600px",
+               }}
+               styles={{
+                 body: {
+                   height: "100%",
+                   display: "flex",
+                   flexDirection: "column",
+                 },
+               }}
+             >
+                <Title level={5} style={{ color: "#059669", marginBottom: "8px", marginTop: "0" }}>
+                  <UnorderedListOutlined style={{ marginRight: 8 }} />
+                  Credenciais API Cadastradas
+                </Title>
+                <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: "auto",
+                    overflowX: "hidden",
+                    paddingBottom: 16, // respiro no fim da lista
+                    paddingRight: 6, // evita o scroll colar no conteúdo
                   }}
-                />
-                {credenciaisRecords.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
-                    Nenhuma credencial API cadastrada
-                  </div>
-                )}
-               </div>
+                >
+                  <StyledList
+                    itemLayout="vertical"
+                    dataSource={credenciaisRecords}
+                    renderItem={(item) => {
+                      // Encontrar a conta corrente correspondente
+                      const contaCorrelata = contaCorrenteRecords.find(conta => conta.id === item.contaCorrenteId);
+                      const contaDisplay = contaCorrelata 
+                        ? `Ag: ${contaCorrelata.agencia}-${contaCorrelata.agenciaDigito} CC: ${contaCorrelata.contaCorrente}-${contaCorrelata.contaCorrenteDigito}`
+                        : 'Conta não encontrada';
+
+                      return (
+                        <List.Item
+                          key={item.id}
+                          actions={[
+                            <PrimaryButton
+                              icon={<EditOutlined />}
+                              onClick={() => handleEdit(item)}
+                              size="small"
+                            >
+                              Editar
+                            </PrimaryButton>,
+                            <PrimaryButton
+                              icon={<DeleteOutlined />}
+                              onClick={() => handleDelete(item.id)}
+                              size="small"
+                              style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f' }}
+                            >
+                              Excluir
+                            </PrimaryButton>,
+                          ]}
+                        >
+                          <List.Item.Meta
+                            title={`${getBancoDisplay(item.banco)} - ${item.modalidadeApi}`}
+                            description={
+                              <>
+                                <Text strong>Banco:</Text> {getBancoDisplay(item.banco)} <br />
+                                <Text strong>Conta:</Text> {contaDisplay} <br />
+                                <Text strong>Modalidade:</Text> {item.modalidadeApi}
+                              </>
+                            }
+                          />
+                        </List.Item>
+                      );
+                    }}
+                  />
+                  {credenciaisRecords.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                      Nenhuma credencial API cadastrada
+                    </div>
+                  )}
+                </div>
              </StyledCard>
            </Col>
         </Row>
