@@ -1528,15 +1528,6 @@ const DadosBancarios = () => {
             <Row gutter={[16, 16]} align="top">
               {/* Conta Corrente */}
               <Col xs={24} sm={5}>
-                {contasComCredenciaisCobranca.length === 0 && (
-                  <Alert
-                    type="info"
-                    showIcon
-                    style={{ marginBottom: 12, borderRadius: 12 }}
-                    message="Nenhuma conta disponível para convênio"
-                    description="Para cadastrar convênios, primeiro cadastre as Credenciais API (modalidade '001 - Cobrança') para uma conta corrente. Após isso, a conta aparecerá aqui."
-                  />
-                )}
                 <Form.Item
                   name="conta_corrente"
                   label={
@@ -1578,7 +1569,6 @@ const DadosBancarios = () => {
                   <Select 
                     size="large" 
                     placeholder="Selecione a conta corrente"
-                    disabled={contasComCredenciaisCobranca.length === 0}
                     onChange={(value) => {
                       setSelectedContaCorrenteId(value);
                       // O useEffect vai carregar os dados automaticamente

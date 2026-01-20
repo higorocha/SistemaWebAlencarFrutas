@@ -91,18 +91,11 @@ export class CredenciaisAPIService {
         throw new BadRequestException('Conta corrente não encontrada');
       }
 
-      // Validação: Se for modalidade "001 - Cobrança", verificar se a conta tem convênio
-      if (createCredenciaisAPIDto.modalidadeApi === '001 - Cobrança') {
-        const convenio = await this.prisma.convenioCobranca.findUnique({
-          where: { contaCorrenteId: createCredenciaisAPIDto.contaCorrenteId },
-        });
-
-        if (!convenio) {
-          throw new BadRequestException(
-            'Para cadastrar credenciais de API do tipo "001 - Cobrança", é necessário primeiro cadastrar um convênio de cobrança para esta conta corrente. Por favor, cadastre o convênio na seção "Convênios" antes de continuar.'
-          );
-        }
-      }
+      // IMPORTANTE (regra de negócio atual):
+      // Primeiro o usuário cadastra as Credenciais API (ex.: "001 - Cobrança"),
+      // depois ele cadastra o Convênio de cobrança.
+      // A validação de "ter convênio" deve existir na emissão/registro de boleto,
+      // e/ou no fluxo de cadastro de convênio, mas não aqui.
 
       // Verifica se já existem credenciais para esta combinação
       const existingCredenciais = await this.prisma.credenciaisAPI.findFirst({
@@ -179,17 +172,8 @@ export class CredenciaisAPIService {
       const modalidadeApi = updateCredenciaisAPIDto.modalidadeApi || credenciaisAtuais.modalidadeApi;
       const contaCorrenteId = updateCredenciaisAPIDto.contaCorrenteId || credenciaisAtuais.contaCorrenteId;
 
-      if (modalidadeApi === '001 - Cobrança') {
-        const convenio = await this.prisma.convenioCobranca.findUnique({
-          where: { contaCorrenteId },
-        });
-
-        if (!convenio) {
-          throw new BadRequestException(
-            'Para cadastrar credenciais de API do tipo "001 - Cobrança", é necessário primeiro cadastrar um convênio de cobrança para esta conta corrente. Por favor, cadastre o convênio na seção "Convênios" antes de continuar.'
-          );
-        }
-      }
+      // IMPORTANTE (regra de negócio atual):
+      // Não exigir convênio para cadastrar/alterar credenciais "001 - Cobrança".
 
       // Se estiver atualizando dados únicos, verifica duplicatas
       if (updateCredenciaisAPIDto.banco || 
