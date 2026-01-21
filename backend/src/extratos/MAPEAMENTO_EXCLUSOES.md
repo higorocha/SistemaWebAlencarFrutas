@@ -12,10 +12,15 @@ Este documento descreve como o serviço de lançamentos de extrato bloqueia tran
 
 Arquivo: `backend/src/extratos/lancamento-extrato.service.ts`
 
-O conjunto `descricoesCreditoIgnorar` armazena todas as descrições em letras maiúsculas, correspondendo ao campo `textoDescricaoHistorico` da API do Banco do Brasil. Antes de validar CPF/CNPJ e tentar salvar o lançamento, o serviço compara a descrição com esse conjunto para decidir se o registro deve ser pulado.
+O serviço utiliza duas estruturas para filtrar descrições:
+1. **Verificação exata**: `descricoesCreditoIgnorarExatas` - compara a descrição completa
+2. **Verificação parcial**: `termosCreditoIgnorarParciais` - verifica se a descrição contém o termo
 
-```62:74:SistemaWebAlencarFrutas/backend/src/extratos/lancamento-extrato.service.ts
-private readonly descricoesCreditoIgnorar = new Set<string>([
+A função `deveIgnorarDescricao()` centraliza a lógica de verificação, aplicando ambas as regras antes de validar CPF/CNPJ e tentar salvar o lançamento.
+
+```typescript
+// Termos que devem ser verificados exatamente (descrição completa)
+private readonly descricoesCreditoIgnorarExatas = new Set<string>([
   'LIMITE DISPONIVEL',
   'LIMITE CONTRATADO',
   'SALDO DO DIA',
@@ -27,6 +32,9 @@ private readonly descricoesCreditoIgnorar = new Set<string>([
   'BB RENDE FÁCIL',
   'PIX - REJEITADO',
 ]);
+
+// Termos que devem ser verificados parcialmente (descrição contém o termo)
+private readonly termosCreditoIgnorarParciais = ['COBRANCA', 'COBRANÇA'];
 ```
 
 ## Descrições Ignoradas
@@ -43,8 +51,12 @@ private readonly descricoesCreditoIgnorar = new Set<string>([
 | `INVEST. RESGATE AUTOM` | Movimento automático de investimento, não é receita operacional direta. | 
 | `BB RENDE FÁCIL`     | Produto financeiro do banco, não é pagamento de cliente.                     |
 | `PIX - REJEITADO`    | Transação PIX que foi rejeitada, não representa recebimento efetivo.        |
+| `COBRANCA` / `COBRANÇA` | Qualquer lançamento que contenha a palavra "COBRANCA" ou "COBRANÇA" na descrição será ignorado (ex: "Cobranca Adiantamento", "Cobrança QR Code", etc). Verificação **parcial** (contém). |
 
-> **Nota:** As descrições são armazenadas em maiúsculas e sem acentuação para evitar divergências. Caso a API retorne uma nova variação, inclua-a no mesmo array seguindo o padrão.
+> **Nota:** 
+> - As descrições são armazenadas em maiúsculas e sem acentuação para evitar divergências.
+> - **Verificação Exata**: Termos que devem corresponder exatamente à descrição completa (ex: "SALDO DO DIA")
+> - **Verificação Parcial**: Termos que são verificados se a descrição contém o termo (ex: qualquer descrição que contenha "COBRANCA" ou "COBRANÇA")
 
 ## Fluxo de Filtragem
 
@@ -52,19 +64,22 @@ private readonly descricoesCreditoIgnorar = new Set<string>([
 2. Para cada lançamento:
    - Validar se `indicadorSinalLancamento` é crédito (`'C'`).
    - Normalizar a descrição (`textoDescricaoHistorico`) para maiúsculas.
-   - Se a descrição estiver no conjunto `descricoesCreditoIgnorar`, a iteração avança para o próximo item (`continue`).
+   - Chamar `deveIgnorarDescricao()` que verifica:
+     - **Verificação exata**: Se a descrição completa está em `descricoesCreditoIgnorarExatas`
+     - **Verificação parcial**: Se a descrição contém algum termo de `termosCreditoIgnorarParciais`
+   - Se a descrição deve ser ignorada, a iteração avança para o próximo item (`continue`).
    - Caso contrário, o serviço tenta mapear o CPF/CNPJ e salvar o lançamento.
 
 Trecho relevante:
 
-```1128:1168:SistemaWebAlencarFrutas/backend/src/extratos/lancamento-extrato.service.ts
+```typescript
 for (const extrato of extratosBrutos) {
   if (extrato.indicadorSinalLancamento !== 'C') {
     continue;
   }
 
   const descricaoUpper = (extrato.textoDescricaoHistorico || '').toUpperCase().trim();
-  if (this.descricoesCreditoIgnorar.has(descricaoUpper)) {
+  if (this.deveIgnorarDescricao(descricaoUpper)) {
     continue;
   }
 
@@ -72,12 +87,39 @@ for (const extrato of extratosBrutos) {
 }
 ```
 
+A função `deveIgnorarDescricao()` implementa a lógica de verificação:
+
+```typescript
+private deveIgnorarDescricao(descricaoNormalizada: string): boolean {
+  // Verificação exata
+  if (this.descricoesCreditoIgnorarExatas.has(descricaoNormalizada)) {
+    return true;
+  }
+
+  // Verificação parcial (contém)
+  for (const termo of this.termosCreditoIgnorarParciais) {
+    if (descricaoNormalizada.includes(termo)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+```
+
 ## Como adicionar novas exclusões
 
+### Para exclusão exata (descrição completa):
 1. Identifique a descrição exata retornada pela API (sempre em maiúsculas para manter o padrão).
 2. Abra `lancamento-extrato.service.ts`.
-3. Adicione a descrição ao array do `Set`.
+3. Adicione a descrição ao `Set` `descricoesCreditoIgnorarExatas`.
 4. Registre a justificativa na tabela acima para manter a documentação alinhada.
+
+### Para exclusão parcial (contém termo):
+1. Identifique o termo que deve ser verificado parcialmente (ex: "COBRANCA" para ignorar "Cobranca Adiantamento", "Cobrança QR Code", etc).
+2. Abra `lancamento-extrato.service.ts`.
+3. Adicione o termo ao array `termosCreditoIgnorarParciais`.
+4. Registre a justificativa na tabela acima indicando que é verificação **parcial**.
 
 ## Boas práticas
 
@@ -87,5 +129,5 @@ for (const extrato of extratosBrutos) {
 
 ---
 
-Atualizado em: `08/11/2025`
+Atualizado em: `08/11/2025` (última atualização: adicionado verificação parcial para COBRANCA e COBRANÇA)
 

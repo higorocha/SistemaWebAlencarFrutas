@@ -37,15 +37,12 @@ export async function gerarNumeroTituloCliente(
     throw new Error(`Convênio deve ter 7 dígitos. Recebido: ${convenio}`);
   }
 
-  // Sequencial inicial aleatório para evitar conflitos em homologação
-  // Usamos um número aleatório entre 1500000000 e 2000000000
-  // Isso reduz drasticamente a chance de conflitos com outros desenvolvedores/testes
-  // NOTA: Limite máximo do campo Int (32 bits) é 2.147.483.647
-  const MIN_SEQUENCIAL = 1500000000; // 1.5 bilhões
-  const MAX_SEQUENCIAL_INICIAL = 2000000000; // 2 bilhões
-  const SEQUENCIAL_INICIAL_HOMOLOGACAO = Math.floor(
-    Math.random() * (MAX_SEQUENCIAL_INICIAL - MIN_SEQUENCIAL) + MIN_SEQUENCIAL
-  );
+  // Sequencial inicial
+  // Produção: iniciar em 1 (tipo 4)
+  // Desenvolvimento/Homologação: comportamento antigo (random) para evitar conflitos
+  const SEQUENCIAL_INICIAL = isProduction()
+    ? 1
+    : Math.floor(Math.random() * (2000000000 - 1500000000) + 1500000000);
 
   // Buscar ou criar registro de controle sequencial
   const controle = await prisma.controleSequencialBoleto.upsert({
@@ -62,7 +59,7 @@ export async function gerarNumeroTituloCliente(
     create: {
       contaCorrenteId,
       convenio: convenioLimpo,
-      ultimoSequencial: SEQUENCIAL_INICIAL_HOMOLOGACAO
+      ultimoSequencial: SEQUENCIAL_INICIAL
     },
     select: {
       ultimoSequencial: true

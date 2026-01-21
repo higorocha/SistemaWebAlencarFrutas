@@ -59,7 +59,8 @@ type LancamentoWithRelations = Prisma.LancamentoExtratoGetPayload<{ include: typ
 
 @Injectable()
 export class LancamentoExtratoService {
-  private readonly descricoesCreditoIgnorar = new Set<string>([
+  // Termos que devem ser verificados exatamente (descrição completa)
+  private readonly descricoesCreditoIgnorarExatas = new Set<string>([
     'LIMITE DISPONIVEL',
     'LIMITE CONTRATADO',
     'SALDO DO DIA',
@@ -72,6 +73,10 @@ export class LancamentoExtratoService {
     'BB RENDE FÁCIL',
     'PIX - REJEITADO',
   ]);
+
+  // Termos que devem ser verificados parcialmente (descrição contém o termo)
+  private readonly termosCreditoIgnorarParciais = ['COBRANCA', 'COBRANÇA'];
+
   private readonly VALOR_TOLERANCIA = 0.009;
   private readonly lancamentoInclude = baseLancamentoInclude;
   constructor(
@@ -79,6 +84,28 @@ export class LancamentoExtratoService {
     private extratosService: ExtratosService,
     private contaCorrenteService: ContaCorrenteService
   ) {}
+
+  /**
+   * Verifica se uma descrição deve ser ignorada baseado nas regras de exclusão.
+   * Verifica tanto correspondência exata quanto parcial (contém).
+   * @param descricaoNormalizada Descrição em maiúsculas e sem espaços extras
+   * @returns true se a descrição deve ser ignorada, false caso contrário
+   */
+  private deveIgnorarDescricao(descricaoNormalizada: string): boolean {
+    // Verificação exata: se a descrição completa está na lista de exclusões exatas
+    if (this.descricoesCreditoIgnorarExatas.has(descricaoNormalizada)) {
+      return true;
+    }
+
+    // Verificação parcial: se a descrição contém algum dos termos parciais
+    for (const termo of this.termosCreditoIgnorarParciais) {
+      if (descricaoNormalizada.includes(termo)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   /**
    * Cria um novo lançamento de extrato
@@ -862,7 +889,7 @@ export class LancamentoExtratoService {
       }
 
       const descricaoUpper = (extrato.textoDescricaoHistorico || '').toUpperCase().trim();
-      if (this.descricoesCreditoIgnorar.has(descricaoUpper)) {
+      if (this.deveIgnorarDescricao(descricaoUpper)) {
         continue;
       }
 
@@ -1151,7 +1178,7 @@ export class LancamentoExtratoService {
       }
 
       const descricaoUpper = (extrato.textoDescricaoHistorico || '').toUpperCase().trim();
-      if (this.descricoesCreditoIgnorar.has(descricaoUpper)) {
+      if (this.deveIgnorarDescricao(descricaoUpper)) {
         continue;
       }
 
