@@ -5,27 +5,29 @@ import { isProduction } from '../../config/bb-api.config';
  * Gerador de numeroTituloCliente (Nosso Número)
  * 
  * Lógica:
- * - Desenvolvimento: Gerar localmente usando ControleSequencialBoleto
- * - Produção: Omitir (BB gera automaticamente para convênio tipo 3)
+ * - Convênio Tipo 3 (Banco numera): BB gera automaticamente em produção, só gerar em dev
+ * - Convênio Tipo 4 (Cliente numera): SEMPRE gerar e enviar (produção e desenvolvimento)
  * - Formato: 000{convenio7digitos}{sequencial10digitos}
  */
 
 /**
- * Gera o numeroTituloCliente (Nosso Número) para desenvolvimento
- * Em produção, este campo deve ser omitido (BB gera automaticamente)
+ * Gera o numeroTituloCliente (Nosso Número)
  * 
  * @param prisma Instância do PrismaService
  * @param contaCorrenteId ID da conta corrente
  * @param convenio Número do convênio (7 dígitos)
- * @returns numeroTituloCliente formatado ou null se em produção
+ * @param tipoConvenio Tipo do convênio: 3 (Banco numera) ou 4 (Cliente numera)
+ * @returns numeroTituloCliente formatado ou null se tipo 3 em produção
  */
 export async function gerarNumeroTituloCliente(
   prisma: PrismaService,
   contaCorrenteId: number,
-  convenio: string
+  convenio: string,
+  tipoConvenio: number = 3
 ): Promise<string | null> {
-  // Em produção, não gerar (BB gera automaticamente para convênio tipo 3)
-  if (isProduction()) {
+  // Convênio Tipo 4: SEMPRE gerar (obrigatório)
+  // Convênio Tipo 3: Só gerar em desenvolvimento (BB gera em produção)
+  if (tipoConvenio === 3 && isProduction()) {
     return null;
   }
 

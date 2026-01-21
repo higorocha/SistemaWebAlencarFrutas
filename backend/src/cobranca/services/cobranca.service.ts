@@ -174,14 +174,23 @@ export class CobrancaService {
 
       console.log(`   ✅ Número título beneficiário: ${numeroTituloBeneficiario}`);
 
-      // 4. Gerar numeroTituloCliente (apenas em dev)
-      console.log(`\n   🔍 [PASSO 4] Gerando número do título cliente...`);
+      // 4. Gerar numeroTituloCliente (nosso número)
+      console.log(`\n   🔍 [PASSO 4] Gerando número do título cliente (Nosso Número)...`);
+      const tipoConvenio = convenio.tipoConvenio || 3; // Default 3 se não informado
+      console.log(`   📋 Tipo de convênio: ${tipoConvenio} (${tipoConvenio === 4 ? 'Cliente numera' : 'Banco numera'})`);
+      
       const numeroTituloCliente = await gerarNumeroTituloCliente(
         this.prisma,
         dto.contaCorrenteId,
-        convenio.convenio
+        convenio.convenio,
+        tipoConvenio
       );
-      console.log(`   ✅ Número título cliente: ${numeroTituloCliente || 'N/A (produção)'}`);
+      
+      if (numeroTituloCliente) {
+        console.log(`   ✅ Nosso número gerado: ${numeroTituloCliente}`);
+      } else {
+        console.log(`   ✅ Nosso número: será gerado pelo Banco do Brasil (tipo 3 em produção)`);
+      }
 
       // 5. Preparar dados do pagador
       console.log(`\n   🔍 [PASSO 5] Preparando dados do pagador...`);
@@ -258,9 +267,19 @@ export class CobrancaService {
       payloadBB.mensagemBloquetoOcorrencia = formatarTextoBB(dto.mensagemBloquetoOcorrencia, 165);
     }
 
-    // Adicionar numeroTituloCliente apenas em desenvolvimento
+    // Adicionar numeroTituloCliente (Nosso Número)
+    // Tipo 4: obrigatório sempre | Tipo 3: apenas em desenvolvimento
     if (numeroTituloCliente) {
       payloadBB.numeroTituloCliente = numeroTituloCliente;
+      console.log(`   ✅ numeroTituloCliente incluído no payload: ${numeroTituloCliente}`);
+    } else if (tipoConvenio === 4) {
+      // Tipo 4 sempre requer nosso número - erro se não foi gerado
+      throw new BadRequestException(
+        'Convênio tipo 4 requer nosso número (numeroTituloCliente). ' +
+        'Erro ao gerar nosso número para o convênio.'
+      );
+    } else {
+      console.log(`   ℹ️  numeroTituloCliente não incluído (BB gerará automaticamente para tipo 3)`);
     }
 
       // 7. Validar payload
@@ -280,52 +299,8 @@ export class CobrancaService {
       const token = await this.authService.obterTokenDeAcesso(dto.contaCorrenteId);
       console.log(`   ✅ Token obtido com sucesso`);
 
-      // 9. Criar boleto no banco local com status PROCESSANDO
-      console.log(`\n   🔍 [PASSO 9] Criando boleto no banco de dados local...`);
-      let boleto;
-      try {
-        boleto = await this.prisma.boleto.create({
-        data: {
-          convenioCobrancaId: convenio.id,
-          pedidoId: dto.pedidoId,
-          contaCorrenteId: dto.contaCorrenteId,
-          valorOriginal: dto.valorOriginal,
-          dataVencimento: dataVencimento,
-          dataEmissao: dataEmissao,
-          statusBoleto: StatusBoleto.PROCESSANDO,
-          nossoNumero: numeroTituloCliente || 'TEMP', // Será atualizado com resposta do BB
-          numeroTituloBeneficiario: numeroTituloBeneficiario,
-          numeroTituloCliente: numeroTituloCliente,
-          linhaDigitavel: 'TEMP', // Será atualizado com resposta do BB
-          codigoBarras: 'TEMP', // Será atualizado com resposta do BB
-          numeroConvenio: convenio.convenio,
-          numeroCarteira: convenio.carteira,
-          numeroVariacaoCarteira: convenio.variacao,
-          usuarioCriacaoId: usuarioId,
-          requestPayloadBanco: payloadBB as any,
-          responsePayloadBanco: {} as any, // Será atualizado com resposta do BB
-          pagadorTipoInscricao: pagador.tipoInscricao,
-          pagadorNumeroInscricao: pagador.numeroInscricao,
-          pagadorNome: pagador.nome,
-          pagadorEndereco: pagador.endereco,
-          pagadorCep: pagador.cep,
-          pagadorCidade: pagador.cidade,
-          pagadorBairro: pagador.bairro,
-          pagadorUf: pagador.uf,
-          pagadorTelefone: pagador.telefone || null,
-          pagadorEmail: pagador.email || null
-        }
-      });
-      console.log(`   ✅ Boleto criado no banco local (ID: ${boleto.id})`);
-    } catch (error) {
-      console.error(`   ❌ [ERRO] Falha ao criar boleto no banco de dados`);
-      console.error(`   📋 Erro:`, error.message);
-      console.error(`   📋 Stack:`, error.stack);
-      throw new InternalServerErrorException('Erro ao criar registro do boleto no banco de dados');
-    }
-
-      // 10. Registrar no BB
-      console.log(`\n   🔍 [PASSO 10] Registrando boleto no Banco do Brasil...`);
+      // 9. Registrar no BB
+      console.log(`\n   🔍 [PASSO 9] Registrando boleto no Banco do Brasil...`);
       try {
       const config = getBBAPIConfigByEnvironment('COBRANCA');
       const apiClient = createCobrancaApiClient(credenciais.developerAppKey);
@@ -341,61 +316,123 @@ export class CobrancaService {
       });
 
         const respostaBB = response.data as any;
-        console.log(`   ✅ Boleto registrado com sucesso no BB`);
-        console.log(`   📋 Resposta do BB:`, JSON.stringify(respostaBB).substring(0, 500));
+        console.log(`   ✅ Boleto registrado com sucesso no Banco do Brasil`);
+        console.log(`\n   📋 [RESPOSTA BB] Dados retornados pelo banco:`);
+        console.log(`      - Nosso Número: ${respostaBB.numero || respostaBB.numeroTituloCliente || respostaBB.nossoNumero || 'N/A'}`);
+        console.log(`      - Linha Digitável: ${respostaBB.linhaDigitavel || 'N/A'}`);
+        console.log(`      - Código de Barras: ${respostaBB.codigoBarraNumerico || respostaBB.codigoBarras || 'N/A'}`);
+        console.log(`      - Seu Número: ${respostaBB.numeroTituloBeneficiario || 'N/A'}`);
+        if (respostaBB.qrCode) {
+          console.log(`      - PIX: TxID ${respostaBB.qrCode.txId || 'N/A'}`);
+        }
+        console.log(`   📋 [RESPOSTA BB] Payload completo:`, JSON.stringify(respostaBB, null, 2));
 
-        // 11. Atualizar boleto local com resposta do BB
-        console.log(`\n   🔍 [PASSO 11] Atualizando boleto local com resposta do BB...`);
-      const dadosAtualizacao: any = {
-        statusBoleto: StatusBoleto.ABERTO,
-        linhaDigitavel: respostaBB.linhaDigitavel || boleto.linhaDigitavel,
-        codigoBarras: respostaBB.codigoBarraNumerico || respostaBB.codigoBarras || boleto.codigoBarras,
-        responsePayloadBanco: respostaBB
-      };
+        // 10. Criar boleto no banco local com resposta do BB
+        console.log(`\n   🔍 [PASSO 10] Criando boleto no banco local com resposta do BB...`);
+        const nossoNumeroRetornado =
+          respostaBB.numero || respostaBB.numeroTituloCliente || respostaBB.nossoNumero || null;
+        const nossoNumeroEnviado = numeroTituloCliente || null;
+        const nossoNumeroFinal = nossoNumeroRetornado || nossoNumeroEnviado;
+        const nossoNumeroMatch =
+          Boolean(nossoNumeroEnviado && nossoNumeroRetornado && nossoNumeroEnviado === nossoNumeroRetornado);
 
-      // Atualizar nosso número se retornado pelo BB (produção)
-      if (respostaBB.numero || respostaBB.numeroTituloCliente || respostaBB.nossoNumero) {
-        dadosAtualizacao.nossoNumero = respostaBB.numero || respostaBB.numeroTituloCliente || respostaBB.nossoNumero;
-      }
+        console.log(
+          `   🧾 [NOSSO NUMERO] Enviado: ${nossoNumeroEnviado || 'N/A'} | ` +
+          `Retornado: ${nossoNumeroRetornado || 'N/A'} | ` +
+          `Match: ${nossoNumeroMatch ? 'SIM' : 'NAO'}`
+        );
 
-      // Atualizar dados do PIX se retornado
-      if (respostaBB.qrCode) {
-        dadosAtualizacao.qrCodePix = respostaBB.qrCode.url || null;
-        dadosAtualizacao.txidPix = respostaBB.qrCode.txId || null;
-        dadosAtualizacao.urlPix = respostaBB.qrCode.emv || null;
-      }
+        if (!nossoNumeroFinal) {
+          throw new InternalServerErrorException(
+            'Boleto registrado no BB, mas o nosso número não foi retornado.'
+          );
+        }
 
-      await this.prisma.boleto.update({
-        where: { id: boleto.id },
-        data: dadosAtualizacao
-      });
+        const boleto = await this.prisma.boleto.create({
+          data: {
+            convenioCobrancaId: convenio.id,
+            pedidoId: dto.pedidoId,
+            contaCorrenteId: dto.contaCorrenteId,
+            valorOriginal: dto.valorOriginal,
+            dataVencimento: dataVencimento,
+            dataEmissao: dataEmissao,
+            statusBoleto: StatusBoleto.ABERTO,
+            nossoNumero: nossoNumeroFinal,
+            numeroTituloBeneficiario: numeroTituloBeneficiario,
+            numeroTituloCliente: numeroTituloCliente,
+            linhaDigitavel: respostaBB.linhaDigitavel || 'N/A',
+            codigoBarras: respostaBB.codigoBarraNumerico || respostaBB.codigoBarras || 'N/A',
+            qrCodePix: respostaBB.qrCode?.url || null,
+            txidPix: respostaBB.qrCode?.txId || null,
+            urlPix: respostaBB.qrCode?.emv || null,
+            numeroConvenio: convenio.convenio,
+            numeroCarteira: convenio.carteira,
+            numeroVariacaoCarteira: convenio.variacao,
+            usuarioCriacaoId: usuarioId,
+            requestPayloadBanco: payloadBB as any,
+            responsePayloadBanco: respostaBB,
+            metadata: {
+              nossoNumeroEnviado,
+              nossoNumeroRetornado,
+              nossoNumeroMatch,
+              tipoConvenio,
+            } as any,
+            pagadorTipoInscricao: pagador.tipoInscricao,
+            pagadorNumeroInscricao: pagador.numeroInscricao,
+            pagadorNome: pagador.nome,
+            pagadorEndereco: pagador.endereco,
+            pagadorCep: pagador.cep,
+            pagadorCidade: pagador.cidade,
+            pagadorBairro: pagador.bairro,
+            pagadorUf: pagador.uf,
+            pagadorTelefone: pagador.telefone || null,
+            pagadorEmail: pagador.email || null,
+          },
+        });
 
-        // 12. Criar log de auditoria
-        console.log(`   🔍 [PASSO 12] Criando log de auditoria...`);
+        console.log(`   ✅ Boleto criado no banco local (ID: ${boleto.id})`);
+
+        // 11. Criar log de auditoria
+        console.log(`   🔍 [PASSO 11] Criando log de auditoria...`);
         await this.logService.criarLog(
-        boleto.id,
-        TipoOperacaoBoletoLog.CRIACAO,
-        'Boleto criado via API',
-        null,
-        dadosAtualizacao,
-        usuarioId,
-        ipAddress
-      );
+          boleto.id,
+          TipoOperacaoBoletoLog.CRIACAO,
+          `Boleto criado via API (BB: nossoNumero=${nossoNumeroRetornado || 'N/A'} | ` +
+            `enviado=${nossoNumeroEnviado || 'N/A'} | match=${nossoNumeroMatch ? 'SIM' : 'NAO'})`,
+          null,
+          {
+            nossoNumeroRetornado,
+            nossoNumeroEnviado,
+            nossoNumeroMatch,
+            linhaDigitavel: respostaBB.linhaDigitavel || null,
+            codigoBarras: respostaBB.codigoBarraNumerico || respostaBB.codigoBarras || null,
+            respostaBB,
+          },
+          usuarioId,
+          ipAddress
+        );
 
-        // 13. Retornar boleto atualizado
-        console.log(`   🔍 [PASSO 13] Buscando boleto atualizado...`);
+        // 12. Retornar boleto atualizado
+        console.log(`   🔍 [PASSO 12] Buscando boleto atualizado...`);
         const boletoAtualizado = await this.prisma.boleto.findUnique({
-          where: { id: boleto.id }
+          where: { id: boleto.id },
         });
 
         console.log(`\n${'='.repeat(80)}`);
         console.log(`✅ [CRIAR-BOLETO-SERVICE] Boleto criado com sucesso!`);
         console.log(`${'='.repeat(80)}`);
-        console.log(`   🆔 ID: ${boletoAtualizado!.id}`);
+        console.log(`   🆔 ID Local: ${boletoAtualizado!.id}`);
         console.log(`   📋 Nosso Número: ${boletoAtualizado!.nossoNumero}`);
-        console.log(`   💰 Valor: R$ ${boletoAtualizado!.valorOriginal}`);
-        console.log(`   📦 Pedido: ${dto.pedidoId}`);
+        console.log(`   📋 Seu Número: ${boletoAtualizado!.numeroTituloBeneficiario}`);
+        console.log(`   💰 Valor: R$ ${Number(boletoAtualizado!.valorOriginal).toFixed(2)}`);
+        console.log(`   📅 Vencimento: ${boletoAtualizado!.dataVencimento.toLocaleDateString('pt-BR')}`);
+        console.log(`   📦 Pedido ID: ${dto.pedidoId}`);
         console.log(`   🏦 Conta: ${convenio.contaCorrente.agencia}/${convenio.contaCorrente.contaCorrente}`);
+        console.log(`   🏦 Convênio: ${convenio.convenio} (Tipo: ${tipoConvenio})`);
+        console.log(`   🔗 Linha Digitável: ${boletoAtualizado!.linhaDigitavel || 'N/A'}`);
+        if (boletoAtualizado!.qrCodePix) {
+          console.log(`   💳 PIX: Disponível (TxID: ${boletoAtualizado!.txidPix || 'N/A'})`);
+        }
         console.log(`${'='.repeat(80)}\n`);
 
         return this.mapearBoletoParaResponse(boletoAtualizado!);
@@ -407,46 +444,19 @@ export class CobrancaService {
         console.error(`   📋 Response Status: ${error.response?.status || 'N/A'}`);
         console.error(`   📋 Response Data:`, JSON.stringify(error.response?.data || {}).substring(0, 500));
         console.error(`   📋 Stack:`, error.stack?.substring(0, 500));
-        
-        // Se falhar, atualizar status para ERRO
-        console.log(`   🔍 Atualizando status do boleto para ERRO...`);
-        await this.prisma.boleto.update({
-        where: { id: boleto.id },
-        data: {
-          statusBoleto: StatusBoleto.ERRO,
-          responsePayloadBanco: {
-            erro: error.response?.data || error.message,
-            timestamp: new Date().toISOString()
-          } as any
-        }
-      });
-
-      // Criar log de erro
-      await this.logService.criarLog(
-        boleto.id,
-        TipoOperacaoBoletoLog.ERRO_BB,
-        'Erro ao registrar boleto no BB',
-        null,
-        null,
-        usuarioId,
-        ipAddress,
-        error.response?.data ? JSON.stringify(error.response.data) : error.message
-      );
 
         if (error.response?.status === 401) {
-        // Token expirado, tentar renovar e retentar
-        const novoToken = await this.authService.forcarRenovacaoToken(dto.contaCorrenteId);
-        // Retentar uma vez
-        // TODO: Implementar retry lógico
-        throw new BadRequestException('Token expirado. Tente novamente.');
-      }
+          throw new BadRequestException('Token expirado. Tente novamente.');
+        }
 
-      if (error.response?.data?.erros) {
-        throw new BadRequestException({
-          message: 'Erro na API do Banco do Brasil',
-          erros: error.response.data.erros
-        });
-      }
+        if (error.response?.data?.erros) {
+          throw new BadRequestException({
+            message: 'Erro na API do Banco do Brasil',
+            code: 'BB_API_ERROR',
+            erros: error.response.data.erros,
+            status: error.response?.status || 400,
+          });
+        }
 
         throw new InternalServerErrorException(
           `Erro ao registrar boleto no Banco do Brasil: ${error.message}`

@@ -64,6 +64,7 @@ const NovoPagamentoModal = ({
   // Quando o backend retornar "cliente incompleto para boleto", guardamos aqui
   // para exibir o botão "Atualizar cliente" ao lado do "Gerar Boleto".
   const [boletoClienteErroState, setBoletoClienteErroState] = useState(null); // { clienteId, clienteNome, missingFields }
+  const [boletoApiErroState, setBoletoApiErroState] = useState(null); // { mensagem, erros }
 
   // Modal de edição do cliente (reutiliza AddEditClienteDialog)
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
@@ -107,6 +108,7 @@ const NovoPagamentoModal = ({
     if (open && pedido) {
       // Se o componente for reaberto após erro (destroyOnClose), sincronizar com o erro vindo do pai
       setBoletoClienteErroState(boletoClienteErro || null);
+      setBoletoApiErroState(null);
       if (pagamentoEditando) {
         // MODO EDIÇÃO: Carrega os dados diretamente.
         const dataPagamento = moment(pagamentoEditando.dataPagamento);
@@ -135,9 +137,11 @@ const NovoPagamentoModal = ({
       // Garante que o formulário seja limpo se o modal for fechado sem pedido.
       form.resetFields();
       setBoletoClienteErroState(boletoClienteErro || null);
+      setBoletoApiErroState(null);
     } else {
       // Ao fechar, limpar estados auxiliares
       setBoletoClienteErroState(null);
+      setBoletoApiErroState(null);
       setClienteDialogOpen(false);
       setClienteEditando(null);
     }
@@ -147,6 +151,7 @@ const NovoPagamentoModal = ({
     try {
       setSubmitLoading(true);
       setBoletoClienteErroState(null);
+      setBoletoApiErroState(null);
       onClearBoletoClienteErro?.();
 
       // Converter valor para número se necessário
@@ -215,6 +220,14 @@ const NovoPagamentoModal = ({
           clienteId: data?.clienteId,
           clienteNome: data?.clienteNome,
           missingFields: data?.missingFields || [],
+        });
+        return;
+      }
+
+      if (values?.metodoPagamento === "BOLETO" && Array.isArray(data?.erros) && data.erros.length > 0) {
+        setBoletoApiErroState({
+          mensagem: data?.message || "Erro ao registrar boleto no Banco do Brasil",
+          erros: data.erros,
         });
       }
     } finally {
@@ -412,6 +425,26 @@ const NovoPagamentoModal = ({
               message="Pedido já está totalmente pago"
               description="Não é possível adicionar mais pagamentos a este pedido."
               type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {/* Alerta de erro da API do BB ao registrar boleto */}
+          {boletoApiErroState?.erros?.length > 0 && (
+            <Alert
+              message={boletoApiErroState.mensagem || "Erro ao registrar boleto"}
+              description={
+                <div>
+                  {boletoApiErroState.erros.map((erro, index) => (
+                    <div key={`${erro.codigo || "BB"}-${index}`}>
+                      • {erro.mensagem || "Erro não identificado"}
+                      {erro.providencia ? ` — ${erro.providencia}` : ""}
+                    </div>
+                  ))}
+                </div>
+              }
+              type="error"
               showIcon
               style={{ marginBottom: 16 }}
             />

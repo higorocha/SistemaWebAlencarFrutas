@@ -111,6 +111,7 @@ model ConvenioCobranca {
   convenio        String
   carteira        String
   variacao        String
+  tipoConvenio    Int           @default(3) // 3 = Banco numera, 4 = Cliente numera
   chavePix        String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

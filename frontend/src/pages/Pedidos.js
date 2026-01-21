@@ -32,6 +32,16 @@ import { getFruitIcon } from "../utils/fruitIcons";
 import { capitalizeName } from "../utils/formatters";
 import { formatMissingClienteBoletoFields } from "../utils/clienteBoletoValidation";
 
+const formatarErrosBB = (erros = []) =>
+  erros
+    .map((erro) => {
+      const codigo = erro?.codigo ? `(${erro.codigo}) ` : "";
+      const mensagem = erro?.mensagem || "Erro não identificado";
+      const providencia = erro?.providencia ? ` — ${erro.providencia}` : "";
+      return `${codigo}${mensagem}${providencia}`;
+    })
+    .join(" | ");
+
 const PedidosTable = lazy(() => import("../components/pedidos/PedidosTable"));
 const EditarPedidoDialog = lazy(() =>
   import("../components/pedidos/EditarPedidoDialog")
@@ -818,6 +828,20 @@ const Pedidos = () => {
           "warning",
           "Atualize o cadastro do cliente",
           `Não é possível gerar boleto sem os dados obrigatórios do cliente. Preencha: ${missingText}.`
+        );
+        throw error;
+      }
+
+      // Caso especial: erro retornado pelo BB ao registrar boleto
+      if (
+        pagamentoData?.metodoPagamento === "BOLETO" &&
+        Array.isArray(data?.erros) &&
+        data.erros.length > 0
+      ) {
+        showNotification(
+          "error",
+          "Erro ao registrar boleto",
+          formatarErrosBB(data.erros)
         );
         throw error;
       }

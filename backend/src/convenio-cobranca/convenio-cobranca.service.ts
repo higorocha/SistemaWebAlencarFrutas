@@ -62,10 +62,11 @@ export class ConvenioCobrancaService {
    * Cada conta corrente pode ter seu próprio convênio
    */
   async upsertConvenio(convenioDto: ConvenioCobrancaDto): Promise<ConvenioCobrancaResponseDto> {
-    console.log('💾 [CONVENIO-COBRANCA] Salvando convênio de cobrança...', {
+      console.log('💾 [CONVENIO-COBRANCA] Salvando convênio de cobrança...', {
       contaCorrenteId: convenioDto.contaCorrenteId,
       convenio: convenioDto.convenio,
       carteira: convenioDto.carteira,
+      tipoConvenio: convenioDto.tipoConvenio || 3,
       multaAtiva: convenioDto.multaAtiva,
     });
 
@@ -89,6 +90,7 @@ export class ConvenioCobrancaService {
           convenio: convenioDto.convenio,
           carteira: convenioDto.carteira,
           variacao: convenioDto.variacao,
+          tipoConvenio: convenioDto.tipoConvenio || 3,
           chavePix: convenioDto.chavePix,
         },
         create: {
@@ -102,6 +104,7 @@ export class ConvenioCobrancaService {
           convenio: convenioDto.convenio,
           carteira: convenioDto.carteira,
           variacao: convenioDto.variacao,
+          tipoConvenio: convenioDto.tipoConvenio || 3,
           chavePix: convenioDto.chavePix,
         },
         include: {

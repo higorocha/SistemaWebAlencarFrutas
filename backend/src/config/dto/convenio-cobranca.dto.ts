@@ -106,6 +106,17 @@ export class ConvenioCobrancaDto {
   variacao: string;
 
   @ApiProperty({
+    description: 'Tipo de convênio: 3 (Banco numera) ou 4 (Cliente numera)',
+    example: 4,
+    default: 3,
+    enum: [3, 4],
+  })
+  @IsInt({ message: 'Tipo de convênio deve ser um número inteiro' })
+  @IsOptional()
+  @Type(() => Number)
+  tipoConvenio?: number;
+
+  @ApiProperty({
     description: 'Chave PIX para o convênio (opcional - necessário para Boleto PIX)',
     example: '123.456.789-00',
     required: false,

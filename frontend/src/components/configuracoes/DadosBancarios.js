@@ -293,6 +293,7 @@ const DadosBancarios = () => {
             convenio: response.data.convenio,
             carteira: response.data.carteira,
             variacao: response.data.variacao,
+            tipo_convenio: response.data.tipoConvenio || 3,
             chave_pix: response.data.chavePix || null,
           };
 
@@ -313,6 +314,7 @@ const DadosBancarios = () => {
             convenio: undefined,
             carteira: undefined,
             variacao: undefined,
+            tipo_convenio: 3,
             chave_pix: undefined,
           });
           setMultaAtiva(false);
@@ -334,6 +336,7 @@ const DadosBancarios = () => {
             convenio: undefined,
             carteira: undefined,
             variacao: undefined,
+            tipo_convenio: 3,
             chave_pix: undefined,
           });
           setMultaAtiva(false);
@@ -352,6 +355,7 @@ const DadosBancarios = () => {
             convenio: undefined,
             carteira: undefined,
             variacao: undefined,
+            tipo_convenio: 3,
             chave_pix: undefined,
           });
           setMultaAtiva(false);
@@ -769,6 +773,7 @@ const DadosBancarios = () => {
         convenio: values.convenio,
         carteira: values.carteira,
         variacao: values.variacao,
+        tipoConvenio: values.tipo_convenio || 3,
         chavePix: values.chave_pix || null,
       };
       await axiosInstance.post(API_URL.convenios, dataToSend);
@@ -1732,9 +1737,9 @@ const DadosBancarios = () => {
               </Col>
             </Row>
 
-            {/* Linha 2: Convênio, Carteira e Variação */}
+            {/* Linha 2: Convênio, Carteira, Variação e Tipo de Convênio */}
             <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
-              <Col xs={24} sm={8}>
+              <Col xs={24} sm={6}>
                 <Form.Item
                   name="convenio"
                   label={
@@ -1748,7 +1753,7 @@ const DadosBancarios = () => {
                   <Input size="large" placeholder="Ex: Convênio XYZ" />
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={8}>
+              <Col xs={24} sm={6}>
                 <Form.Item
                   name="carteira"
                   label={
@@ -1762,7 +1767,7 @@ const DadosBancarios = () => {
                   <Input size="large" placeholder="Ex: 123" />
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={8}>
+              <Col xs={24} sm={6}>
                 <Form.Item
                   name="variacao"
                   label={
@@ -1774,6 +1779,41 @@ const DadosBancarios = () => {
                   rules={[{ required: true, message: "Informe a variação" }]}
                 >
                   <Input size="large" placeholder="Ex: 001" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={6}>
+                <Form.Item
+                  name="tipo_convenio"
+                  label={
+                    <Text strong>
+                      <NumberOutlined style={{ marginRight: 8 }} />
+                      Tipo de Convênio
+                      <Tooltip 
+                        title="Tipo 3: Banco gera o nosso número automaticamente. Tipo 4: Cliente gera e envia o nosso número (obrigatório)."
+                        placement="top"
+                      >
+                        <InfoCircleOutlined 
+                          style={{ 
+                            marginLeft: 8, 
+                            color: "#059669", 
+                            cursor: "help",
+                            fontSize: "14px"
+                          }} 
+                        />
+                      </Tooltip>
+                    </Text>
+                  }
+                  rules={[{ required: true, message: "Selecione o tipo de convênio" }]}
+                  initialValue={3}
+                >
+                  <Select size="large" placeholder="Selecione o tipo">
+                    <Option value={3}>
+                      3 - Banco Numera (BB gera o nosso número)
+                    </Option>
+                    <Option value={4}>
+                      4 - Cliente Numera (você gera o nosso número)
+                    </Option>
+                  </Select>
                 </Form.Item>
               </Col>
             </Row>
