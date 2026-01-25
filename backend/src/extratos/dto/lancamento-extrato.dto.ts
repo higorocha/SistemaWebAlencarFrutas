@@ -1,6 +1,7 @@
 import { IsOptional, IsString, IsNumber, IsBoolean, IsInt, IsDateString, IsEnum, IsNotEmpty, Matches, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { LancamentoExtratoPedidoResponseDto } from './lancamento-extrato-pedido.dto';
 import { TipoOperacaoExtrato } from '@prisma/client';
 
 /**
@@ -424,6 +425,14 @@ export class LancamentoExtratoResponseDto {
     createdAt: Date;
     updatedAt: Date;
   }>;
+}
+
+export class VincularLancamentoPedidosResponseDto extends LancamentoExtratoResponseDto {
+  @ApiProperty({
+    description: 'Vínculos criados no lançamento',
+    type: [LancamentoExtratoPedidoResponseDto],
+  })
+  vinculosCriados: LancamentoExtratoPedidoResponseDto[];
 }
 
 /**

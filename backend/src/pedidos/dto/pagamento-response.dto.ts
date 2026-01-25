@@ -3,6 +3,8 @@ import { MetodoPagamento, ContaDestino } from '@prisma/client';
 export class PagamentoResponseDto {
   id: number;
   pedidoId: number;
+  lancamentoExtratoPedidoId?: number;
+  lancamentoExtratoId?: string;
   dataPagamento: Date;
   valorRecebido: number;
   metodoPagamento: MetodoPagamento;

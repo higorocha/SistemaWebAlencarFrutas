@@ -436,6 +436,38 @@ const PedidosDashboard = () => {
     }
   }, [reloadAfterPagamento, pedidoSelecionado, buscarPedidoAtualizado]);
 
+  // Handler para finalizar pedido
+  const handleFinalizarPedido = useCallback(async () => {
+    if (!pedidoSelecionado?.id) {
+      showNotification("error", "Erro", "Pedido não encontrado");
+      return;
+    }
+
+    try {
+      setOperacaoLoading(true);
+      
+      // Chamar endpoint de finalização
+      await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/finalizar`);
+      showNotification("success", "Sucesso", "Pedido finalizado com sucesso!");
+
+      // Atualizar pedido selecionado com os dados mais recentes
+      const pedidoAtualizado = await buscarPedidoAtualizado(pedidoSelecionado.id);
+      if (pedidoAtualizado) {
+        setPedidoSelecionado(pedidoAtualizado);
+      }
+
+      // Recarregar dashboard
+      await reloadAfterPagamento();
+
+    } catch (error) {
+      console.error("Erro ao finalizar pedido:", error);
+      const message = error.response?.data?.message || "Erro ao finalizar pedido";
+      showNotification("error", "Erro", message);
+    } finally {
+      setOperacaoLoading(false);
+    }
+  }, [pedidoSelecionado, buscarPedidoAtualizado, reloadAfterPagamento, setOperacaoLoading]);
+
   // Handler para salvar pagamentos em lote
   const handleSalvarPagamentosLote = useCallback(async (pagamentos) => {
     try {
@@ -722,6 +754,7 @@ const PedidosDashboard = () => {
           onNovoPagamento={handleNovoPagamento}
           onRemoverPagamento={handleRemoverPagamento}
           onAjustesSalvos={handleAjustesSalvos} // ✅ Handler que atualiza dashboard E pedido selecionado
+          onFinalizarPedido={handleFinalizarPedido}
           pedido={pedidoSelecionado}
           loading={operacaoLoading}
         />

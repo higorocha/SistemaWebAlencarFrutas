@@ -493,6 +493,26 @@ const PedidosTable = ({
       },
     },
     {
+      title: 'Nota Fiscal',
+      dataIndex: 'numeroNf',
+      key: 'numeroNf',
+      width: 100,
+      align: 'center',
+      sorter: (a, b) => {
+        // Tratar valores nulos/undefined - colocar no final
+        if (!a.numeroNf && !b.numeroNf) return 0;
+        if (!a.numeroNf) return 1;
+        if (!b.numeroNf) return -1;
+        // Ordenação numérica
+        return (a.numeroNf || 0) - (b.numeroNf || 0);
+      },
+      render: (numeroNf) => (
+        <Text style={{ fontWeight: 500, fontSize: 13, color: numeroNf ? '#059669' : '#999' }}>
+          {numeroNf ? `#${numeroNf}` : '-'}
+        </Text>
+      ),
+    },
+    {
       title: 'Placa',
       dataIndex: 'placaPrimaria',
       key: 'placaPrimaria',

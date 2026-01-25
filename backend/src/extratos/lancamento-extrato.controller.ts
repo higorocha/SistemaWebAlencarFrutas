@@ -27,6 +27,7 @@ import {
   VincularLancamentoPedidoDto,
   QueryLancamentoExtratoDto,
   LancamentoExtratoResponseDto,
+  VincularLancamentoPedidosResponseDto,
   BuscarProcessarExtratosDto,
   BuscarProcessarExtratosResponseDto,
   BuscarProcessarExtratosTodosClientesDto,
@@ -252,12 +253,12 @@ export class LancamentoExtratoController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Pedidos vinculados com sucesso',
-    type: LancamentoExtratoResponseDto,
+    type: VincularLancamentoPedidosResponseDto,
   })
   async vincularPedidos(
     @Param('id', ParseIntPipe) id: string,
     @Body() dto: VincularLancamentoPedidosDto,
-  ): Promise<LancamentoExtratoResponseDto> {
+  ): Promise<VincularLancamentoPedidosResponseDto> {
     return this.lancamentoExtratoService.vincularPedidos(BigInt(id), dto);
   }
 

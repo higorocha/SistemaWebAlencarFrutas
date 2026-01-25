@@ -7,11 +7,12 @@ import {
   Param,
   Delete,
   Query,
+  ParseIntPipe,
   UseGuards,
   HttpStatus,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { PedidosService } from './pedidos.service';
 import { 
   CreatePedidoDto, 
@@ -19,6 +20,7 @@ import {
   UpdateColheitaDto, 
   UpdatePrecificacaoDto, 
   UpdatePagamentoDto, 
+  UpdatePagamentoValeDto,
   PedidoResponseDto, 
   UpdatePedidoCompletoDto,
   CreatePagamentoDto,
@@ -178,6 +180,27 @@ export class PedidosController {
     return this.pedidosService.updatePagamentoIndividual(+id, updatePagamentoDto, usuarioId);
   }
 
+  // NOVO: Endpoint para atualizar apenas o vale (referência externa) do pagamento
+  @Patch('pagamentos/:id/vale')
+  @ApiOperation({ summary: 'Atualizar vale (referência externa) do pagamento' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Vale atualizado com sucesso',
+    type: PagamentoPedidoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Pagamento não encontrado',
+  })
+  updatePagamentoVale(
+    @Param('id') id: string,
+    @Body() updatePagamentoValeDto: UpdatePagamentoValeDto,
+    @Req() req,
+  ): Promise<PagamentoPedidoResponseDto> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.updatePagamentoVale(+id, updatePagamentoValeDto, usuarioId);
+  }
+
   // NOVO: Endpoint para remover pagamento individual
   @Delete('pagamentos/:id')
   @ApiOperation({ summary: 'Remover um pagamento existente' })
@@ -196,6 +219,31 @@ export class PedidosController {
   removePagamento(@Param('id') id: string, @Req() req): Promise<void> {
     const usuarioId = req.user.id;
     return this.pedidosService.removePagamento(+id, usuarioId);
+  }
+
+  @Delete('pagamentos/vinculo/:vinculoId')
+  @ApiOperation({ summary: 'Remover vínculo de pagamento com lançamento' })
+  @ApiParam({ name: 'vinculoId', description: 'ID do vínculo do lançamento', type: Number })
+  @ApiQuery({ name: 'lancamentoExtratoId', required: true, type: String, description: 'ID do lançamento de extrato' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Vínculo removido com sucesso',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Pagamento não encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Não foi possível remover vínculo ou pagamento',
+  })
+  removePagamentoPorVinculo(
+    @Param('vinculoId', ParseIntPipe) vinculoId: number,
+    @Query('lancamentoExtratoId') lancamentoExtratoId: string,
+    @Req() req,
+  ): Promise<void> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.removePagamentoPorVinculo(vinculoId, lancamentoExtratoId, usuarioId);
   }
 
   @Get()

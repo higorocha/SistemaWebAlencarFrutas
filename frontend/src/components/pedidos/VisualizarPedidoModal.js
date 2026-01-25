@@ -1,6 +1,6 @@
 // src/components/pedidos/VisualizarPedidoModal.js
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Modal, 
   Card, 
@@ -13,7 +13,8 @@ import {
   Table, 
   Empty,
   Button,
-  Tooltip
+  Tooltip,
+  Input
 } from "antd";
 import PropTypes from "prop-types";
 import {
@@ -34,7 +35,10 @@ import {
   CloseCircleOutlined,
   CheckCircleOutlined,
   HistoryOutlined,
-  LinkOutlined
+  LinkOutlined,
+  EditOutlined,
+  SaveOutlined,
+  CloseOutlined
 } from "@ant-design/icons";
 import { formatarValorMonetario, numberFormatter, capitalizeName, intFormatter } from "../../utils/formatters";
 import { PDFButton } from "../common/buttons";
@@ -68,6 +72,17 @@ const VisualizarPedidoModal = ({
   
   // Estado para controlar loading do PDF
   const [loadingPDF, setLoadingPDF] = useState(false);
+
+  // Estados para edição inline do campo Vale
+  const [editingPagamentoId, setEditingPagamentoId] = useState(null);
+  const [editingValeValue, setEditingValeValue] = useState('');
+  const [savingVale, setSavingVale] = useState(false);
+  const [localPedido, setLocalPedido] = useState(pedido);
+
+  // Sincronizar localPedido quando pedido prop mudar
+  useEffect(() => {
+    setLocalPedido(pedido);
+  }, [pedido]);
 
   // Função para formatar datas
   const formatarData = (data) => {
@@ -178,6 +193,71 @@ const VisualizarPedidoModal = ({
     } finally {
       setLoadingPDF(false);
     }
+  };
+
+  // Função para salvar o vale (referenciaExterna) de um pagamento
+  const handleSaveVale = async (pagamentoId, novoValor) => {
+    try {
+      setSavingVale(true);
+      
+      // Chamar API para atualizar apenas o campo referenciaExterna
+      await axiosInstance.patch(`/api/pedidos/pagamentos/${pagamentoId}/vale`, {
+        referenciaExterna: novoValor || null, // Permite string vazia para limpar o campo
+      });
+
+      // Atualizar estado local do pedido
+      setLocalPedido((prevPedido) => {
+        if (!prevPedido || !prevPedido.pagamentosPedidos) return prevPedido;
+        
+        const pagamentosAtualizados = prevPedido.pagamentosPedidos.map((pagamento) => {
+          if (pagamento.id === pagamentoId) {
+            return {
+              ...pagamento,
+              referenciaExterna: novoValor || null,
+            };
+          }
+          return pagamento;
+        });
+
+        return {
+          ...prevPedido,
+          pagamentosPedidos: pagamentosAtualizados,
+        };
+      });
+
+      // Limpar estado de edição
+      setEditingPagamentoId(null);
+      setEditingValeValue('');
+      
+      showNotification("success", "Sucesso", "Vale atualizado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao atualizar vale:", error);
+      
+      let errorMessage = "Erro ao atualizar vale.";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.status === 404) {
+        errorMessage = "Pagamento não encontrado.";
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response.data?.message || "Dados inválidos para atualizar o vale.";
+      }
+      
+      showNotification("error", "Erro ao Atualizar Vale", errorMessage);
+    } finally {
+      setSavingVale(false);
+    }
+  };
+
+  // Função para cancelar edição do vale
+  const handleCancelEditVale = () => {
+    setEditingPagamentoId(null);
+    setEditingValeValue('');
+  };
+
+  // Função para iniciar edição do vale
+  const handleStartEditVale = (pagamentoId, valorAtual) => {
+    setEditingPagamentoId(pagamentoId);
+    setEditingValeValue(valorAtual || '');
   };
 
   // Colunas da tabela de valores das frutas
@@ -356,32 +436,118 @@ const VisualizarPedidoModal = ({
       title: 'Vale',
       dataIndex: 'referenciaExterna',
       key: 'referenciaExterna',
-      width: 80,
-      ellipsis: true,
-      render: (ref) => ref || '-',
+      width: 110,
+      ellipsis: false,
+      render: (ref, record) => {
+        // Modo edição: mostrar input com botões
+        if (editingPagamentoId === record.id) {
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%" }}>
+              <Input
+                value={editingValeValue}
+                onChange={(e) => setEditingValeValue(e.target.value)}
+                placeholder="Vale"
+                style={{ 
+                  borderRadius: "0.375rem",
+                  borderColor: "#d9d9d9",
+                  flex: 1
+                }}
+                size={isMobile ? "small" : "middle"}
+                onPressEnter={() => handleSaveVale(record.id, editingValeValue)}
+                disabled={savingVale}
+                autoFocus
+              />
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <Tooltip title="Salvar">
+                  <Button
+                    type="text"
+                    icon={<SaveOutlined style={{ color: "#059669", fontSize: "16px" }} />}
+                    onClick={() => handleSaveVale(record.id, editingValeValue)}
+                    loading={savingVale}
+                    disabled={savingVale}
+                    size="small"
+                    style={{
+                      border: "none",
+                      boxShadow: "none",
+                      padding: "4px",
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip title="Cancelar">
+                  <Button
+                    type="text"
+                    icon={<CloseOutlined style={{ color: "#ff4d4f", fontSize: "16px" }} />}
+                    onClick={handleCancelEditVale}
+                    disabled={savingVale}
+                    size="small"
+                    style={{
+                      border: "none",
+                      boxShadow: "none",
+                      padding: "4px",
+                    }}
+                  />
+                </Tooltip>
+              </div>
+            </div>
+          );
+        }
+        
+        // Modo visualização: mostrar valor ou ícone de lápis
+        if (!ref || ref.trim() === '') {
+          return (
+            <Tooltip title="Clique para adicionar vale">
+              <Button
+                type="text"
+                icon={<EditOutlined style={{ color: "#059669", fontSize: "16px" }} />}
+                onClick={() => handleStartEditVale(record.id, '')}
+                size="small"
+                style={{
+                  border: "none",
+                  boxShadow: "none",
+                  padding: "4px",
+                }}
+              />
+            </Tooltip>
+          );
+        }
+        
+        // Quando há valor: mostrar apenas o texto (sem opção de editar)
+        return (
+          <Text
+            style={{
+              color: '#333',
+              fontSize: '13px',
+            }}
+          >
+            {ref}
+          </Text>
+        );
+      },
     },
     {
       title: 'Observações',
       dataIndex: 'observacoesPagamento',
       key: 'observacoesPagamento',
-      width: 150,
-      ellipsis: true,
+      width: 280,
+      ellipsis: {
+        showTitle: false,
+      },
       render: (observacoes) => {
         if (!observacoes) return <Text type="secondary">-</Text>;
         
         return (
           <Tooltip title={observacoes} placement="topLeft">
             <Text 
+              ellipsis
               style={{ 
                 cursor: 'pointer',
                 color: '#666',
-                fontSize: '13px'
+                fontSize: '13px',
+                maxWidth: '100%',
+                display: 'block',
               }}
             >
-              {observacoes.length > 20 
-                ? `${observacoes.substring(0, 20)}...` 
-                : observacoes
-              }
+              {observacoes}
             </Text>
           </Tooltip>
         );
@@ -2007,7 +2173,7 @@ const VisualizarPedidoModal = ({
                 })()}
 
                 {/* Subseção: Histórico de Pagamentos */}
-                {pedido.pagamentosPedidos && pedido.pagamentosPedidos.length > 0 ? (
+                {localPedido?.pagamentosPedidos && localPedido.pagamentosPedidos.length > 0 ? (
                   <>
                     <Title level={5} style={{ color: "#059669", marginBottom: "8px" }}>
                       <CalendarOutlined style={{ marginRight: 8 }} />
@@ -2016,7 +2182,7 @@ const VisualizarPedidoModal = ({
                     <Divider style={{ margin: "0 0 16px 0", borderColor: "#e8e8e8" }} />
                     <ResponsiveTable
                       columns={pagamentosColumns}
-                      dataSource={pedido.pagamentosPedidos}
+                      dataSource={localPedido.pagamentosPedidos}
                       rowKey="id"
                       pagination={false}
                       minWidthMobile={900}
@@ -2024,7 +2190,7 @@ const VisualizarPedidoModal = ({
                     />
                   </>
                 ) : (
-                  pedido.valorFinal && (
+                  localPedido?.valorFinal && (
                     <Empty 
                       description="Nenhum pagamento registrado" 
                       image={<CreditCardOutlined style={{ fontSize: 48, color: "#d9d9d9" }} />}

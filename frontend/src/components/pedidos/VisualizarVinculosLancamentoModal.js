@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Modal, Card, Space, Tag, Typography, Empty, Spin, Button, Row, Col, Tooltip, Statistic } from 'antd';
-import { DollarOutlined, LinkOutlined, CalendarOutlined, EyeOutlined, FileSearchOutlined } from '@ant-design/icons';
+import { DollarOutlined, LinkOutlined, CalendarOutlined, EyeOutlined, FileSearchOutlined, DeleteOutlined } from '@ant-design/icons';
 import axiosInstance from '../../api/axiosConfig';
 import { showNotification } from '../../config/notificationConfig';
 import { formatCurrency, formatarDataBR } from '../../utils/formatters';
 import useResponsive from '../../hooks/useResponsive';
 import ResponsiveTable from '../common/ResponsiveTable';
+import ConfirmActionModal from '../common/modals/ConfirmActionModal';
 
 const { Text, Title } = Typography;
 
@@ -14,6 +15,9 @@ const VisualizarVinculosLancamentoModal = ({ open, onClose, lancamento, onVisual
   const { isMobile } = useResponsive();
   const [loading, setLoading] = useState(false);
   const [vinculos, setVinculos] = useState([]);
+  const [confirmRemocaoOpen, setConfirmRemocaoOpen] = useState(false);
+  const [vinculoParaRemover, setVinculoParaRemover] = useState(null);
+  const [removendoVinculo, setRemovendoVinculo] = useState(false);
 
   const fetchVinculos = useCallback(async () => {
     if (!lancamento?.id) {
@@ -50,6 +54,37 @@ const VisualizarVinculosLancamentoModal = ({ open, onClose, lancamento, onVisual
     if (!Array.isArray(vinculos)) return 0;
     return vinculos.reduce((acc, vinculo) => acc + (Number(vinculo?.valorVinculado) || 0), 0);
   }, [vinculos]);
+
+  const handleAbrirConfirmacaoRemocao = (vinculo) => {
+    setVinculoParaRemover(vinculo);
+    setConfirmRemocaoOpen(true);
+  };
+
+  const handleCancelarRemocao = () => {
+    setConfirmRemocaoOpen(false);
+    setVinculoParaRemover(null);
+  };
+
+  const handleRemoverVinculo = async () => {
+    if (!vinculoParaRemover?.id || !lancamento?.id) return;
+
+    try {
+      setRemovendoVinculo(true);
+      await axiosInstance.delete(`/api/pedidos/pagamentos/vinculo/${vinculoParaRemover.id}`, {
+        params: { lancamentoExtratoId: lancamento.id },
+      });
+      showNotification('success', 'Sucesso', 'Vínculo removido com sucesso.');
+      await fetchVinculos();
+    } catch (error) {
+      console.error('Erro ao remover vínculo:', error);
+      const message = error.response?.data?.message || 'Não foi possível remover o vínculo.';
+      showNotification('error', 'Erro', message);
+    } finally {
+      setRemovendoVinculo(false);
+      setConfirmRemocaoOpen(false);
+      setVinculoParaRemover(null);
+    }
+  };
 
   const columns = useMemo(() => [
     {
@@ -100,31 +135,41 @@ const VisualizarVinculosLancamentoModal = ({ open, onClose, lancamento, onVisual
         </Space>
       ),
     },
-    ...(onVisualizarPedido
-      ? [
-          {
-            title: 'Ações',
-            key: 'acoes',
-            align: 'center',
-            render: (_, record) => (
-              <Tooltip title="Abrir detalhes do pedido">
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<EyeOutlined />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onVisualizarPedido(record.pedidoId);
-                  }}
-                  style={{ padding: 0 }}
-                >
-                  Ver pedido
-                </Button>
-              </Tooltip>
-            ),
-          },
-        ]
-      : []),
+    {
+      title: 'Ações',
+      key: 'acoes',
+      align: 'center',
+      render: (_, record) => (
+        <Space size="small">
+          {onVisualizarPedido && (
+            <Tooltip title="Abrir detalhes do pedido">
+              <Button
+                type="text"
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onVisualizarPedido(record.pedidoId);
+                }}
+                style={{ padding: 0 }}
+              />
+            </Tooltip>
+          )}
+          <Tooltip title="Remover vínculo do lançamento">
+            <Button
+              type="text"
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAbrirConfirmacaoRemocao(record);
+              }}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
   ], [onVisualizarPedido]);
 
   return (
@@ -291,6 +336,26 @@ const VisualizarVinculosLancamentoModal = ({ open, onClose, lancamento, onVisual
           </Spin>
         </Card>
       </Space>
+      <ConfirmActionModal
+        open={confirmRemocaoOpen}
+        onConfirm={handleRemoverVinculo}
+        onCancel={handleCancelarRemocao}
+        title="Remover vínculo"
+        message="Se houver pagamento associado a este vínculo, ele também será removido."
+        confirmText="Sim, Remover"
+        cancelText="Cancelar"
+        confirmButtonDanger={true}
+        confirmDisabled={removendoVinculo}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+        customContent={vinculoParaRemover && (
+          <div>
+            <Text>
+              Pedido {vinculoParaRemover.pedidoNumero ? `#${vinculoParaRemover.pedidoNumero}` : `#${vinculoParaRemover.pedidoId}`} • Valor vinculado: R$ {formatCurrency(vinculoParaRemover.valorVinculado || 0)}
+            </Text>
+          </div>
+        )}
+      />
     </Modal>
   );
 };

@@ -104,6 +104,8 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
   const [resultadoBuscaModalOpen, setResultadoBuscaModalOpen] = useState(false);
   const [resultadoBuscaSummary, setResultadoBuscaSummary] = useState(null);
 
+  const TOLERANCIA_SALDO = 0.009;
+
   // Estatísticas gerais
   const [estatisticas, setEstatisticas] = useState({
     totalPagamentos: 0,
@@ -720,9 +722,14 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
         })),
       };
 
-      await axiosInstance.post(
+      const vinculacaoResponse = await axiosInstance.post(
         `/api/lancamentos-extrato/${lancamento.id}/vinculos`,
         payload
+      );
+
+      const vinculosCriados = vinculacaoResponse?.data?.vinculosCriados || [];
+      const vinculosPorPedido = new Map(
+        vinculosCriados.map((vinculo) => [vinculo.pedidoId, vinculo.id])
       );
 
       // 2. Criar pagamentos na tabela PagamentosPedidos para cada vínculo
@@ -754,6 +761,11 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
             contaDestino: 'ALENCAR',
             observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
           };
+
+          const vinculoId = vinculosPorPedido.get(item.pedidoId);
+          if (vinculoId) {
+            pagamentoData.lancamentoExtratoPedidoId = vinculoId;
+          }
 
           await axiosInstance.post('/api/pedidos/pagamentos', pagamentoData);
 
@@ -905,6 +917,23 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
     );
   };
 
+  const obterSaldoRestante = (lancamento) => {
+    const saldoDireto = lancamento?.valorDisponivel ?? lancamento?.saldoRestante ?? lancamento?.saldo_restante;
+    if (saldoDireto !== undefined && saldoDireto !== null) {
+      return Number(saldoDireto);
+    }
+
+    const valorLancamento = Number(lancamento?.valorLancamento || 0);
+    const valorVinculadoTotal = Number(
+      lancamento?.valorVinculadoTotal ??
+      (Array.isArray(lancamento?.lancamentosExtratoVinculos)
+        ? lancamento.lancamentosExtratoVinculos.reduce((acc, vinculo) => acc + (Number(vinculo?.valorVinculado) || 0), 0)
+        : 0)
+    );
+
+    return Number((valorLancamento - valorVinculadoTotal).toFixed(2));
+  };
+
   // Obter categorias únicas para o filtro
   const categoriasUnicas = Array.from(
     new Set(pagamentos.map(p => p.categoriaOperacao).filter(Boolean))
@@ -1045,7 +1074,14 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
       key: "acao",
       width: "12%",
       render: (_, record) => {
-        if (!record.vinculadoPedido) {
+        const saldoRestante = obterSaldoRestante(record);
+        const podeVincularSaldo = saldoRestante > TOLERANCIA_SALDO;
+        const possuiVinculos = Boolean(
+          record.vinculadoPedido ||
+          (Array.isArray(record.lancamentosExtratoVinculos) && record.lancamentosExtratoVinculos.length > 0)
+        );
+
+        if (podeVincularSaldo && !possuiVinculos) {
           return (
             <Space size="small">
               <Button
@@ -1081,17 +1117,56 @@ const PagamentosAutomaticosModal = ({ open, onClose, loading = false }) => {
           );
         }
 
+        if (podeVincularSaldo && possuiVinculos) {
+          return (
+            <Space size={6}>
+              <Tag
+                color="success"
+                style={{
+                  fontSize: "0.65rem",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                }}
+              >
+                Vinculado
+              </Tag>
+              <Tooltip title="Vincular saldo restante">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<LinkOutlined />}
+                  onClick={() => handleAbrirVinculacaoManual(record)}
+                  style={{
+                    color: "#059669",
+                    fontSize: "0.75rem",
+                    height: "28px",
+                    padding: "0 4px",
+                  }}
+                />
+              </Tooltip>
+            </Space>
+          );
+        }
+
+        if (possuiVinculos) {
+          return (
+            <Tag
+              color="success"
+              style={{
+                fontSize: "0.65rem",
+                padding: "2px 8px",
+                borderRadius: "4px",
+              }}
+            >
+              Vinculado
+            </Tag>
+          );
+        }
+
         return (
-          <Tag
-            color="success"
-            style={{
-              fontSize: "0.65rem",
-              padding: "2px 8px",
-              borderRadius: "4px",
-            }}
-          >
-            Vinculado
-          </Tag>
+          <Text style={{ fontSize: "0.75rem", color: "#999", fontStyle: "italic" }}>
+            Sem ação
+          </Text>
         );
       },
     },

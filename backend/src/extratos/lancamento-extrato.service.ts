@@ -8,6 +8,7 @@ import {
   VincularLancamentoPedidoDto,
   QueryLancamentoExtratoDto,
   LancamentoExtratoResponseDto,
+  VincularLancamentoPedidosResponseDto,
   BuscarProcessarExtratosDto,
   BuscarProcessarExtratosResponseDto,
   BuscarProcessarExtratosTodosClientesDto,
@@ -482,7 +483,7 @@ export class LancamentoExtratoService {
   async vincularPedidos(
     id: bigint,
     dto: VincularLancamentoPedidosDto,
-  ): Promise<LancamentoExtratoResponseDto> {
+  ): Promise<VincularLancamentoPedidosResponseDto> {
     if (!dto.itens || dto.itens.length === 0) {
       throw new BadRequestException('Informe ao menos um pedido para vincular');
     }
@@ -555,19 +556,36 @@ export class LancamentoExtratoService {
         }
       }
 
-      await tx.lancamentoExtrato.update({
-        where: { id },
-        data: {
-          vinculos: {
-            create: itensNormalizados.map(item => ({
+      const vinculosCriados = await Promise.all(
+        itensNormalizados.map(item =>
+          tx.lancamentoExtratoPedido.create({
+            data: {
+              lancamentoExtratoId: id,
               pedidoId: item.pedidoId,
               valorVinculado: item.valorVinculado,
               vinculacaoAutomatica: false,
               observacoes: dto.observacoes ?? null,
-            })),
-          },
-        },
-      });
+            },
+            include: {
+              pedido: {
+                select: { numeroPedido: true },
+              },
+            },
+          })
+        )
+      );
+
+      const vinculosCriadosFormatados: LancamentoExtratoPedidoResponseDto[] = vinculosCriados.map(vinculo => ({
+        id: vinculo.id,
+        lancamentoExtratoId: id.toString(),
+        pedidoId: vinculo.pedidoId,
+        pedidoNumero: vinculo.pedido?.numeroPedido,
+        valorVinculado: Number(vinculo.valorVinculado),
+        vinculacaoAutomatica: vinculo.vinculacaoAutomatica,
+        observacoes: vinculo.observacoes || undefined,
+        createdAt: vinculo.createdAt,
+        updatedAt: vinculo.updatedAt,
+      }));
 
       const options: { observacoes?: string | null; clienteId?: number | null } = {};
       if (dto.observacoes !== undefined) {
@@ -581,7 +599,12 @@ export class LancamentoExtratoService {
         }
       }
 
-      return this.atualizarSaldosLancamento(id, options, tx);
+      const lancamentoAtualizado = await this.atualizarSaldosLancamento(id, options, tx);
+
+      return {
+        ...lancamentoAtualizado,
+        vinculosCriados: vinculosCriadosFormatados,
+      };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 

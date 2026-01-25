@@ -394,6 +394,7 @@ model FrutasPedidos {
 model PagamentosPedidos {
   id                   Int             @id @default(autoincrement())
   pedidoId             Int
+  lancamentoExtratoPedidoId Int?
   dataPagamento        DateTime
   valorRecebido        Float
   metodoPagamento      MetodoPagamento
@@ -405,6 +406,7 @@ model PagamentosPedidos {
   referenciaExterna    String?         @db.VarChar(100)
   boletoId             Int?            @unique // Relacionamento opcional com Boleto
   pedido               Pedido          @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  lancamentoExtratoPedido LancamentoExtratoPedido? @relation(fields: [lancamentoExtratoPedidoId], references: [id], onDelete: SetNull)
   boleto               Boleto?         @relation(fields: [boletoId], references: [id], onDelete: SetNull)
 
   @@map("pagamentos_pedidos")
@@ -502,6 +504,7 @@ model LancamentoExtratoPedido {
 
   lancamentoExtrato LancamentoExtrato @relation(fields: [lancamentoExtratoId], references: [id], onDelete: Cascade)
   pedido            Pedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pagamentosPedidos PagamentosPedidos[]
 
   @@index([lancamentoExtratoId])
   @@index([pedidoId])

@@ -89,6 +89,8 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
   const [resultadoBuscaModalOpen, setResultadoBuscaModalOpen] = useState(false);
   const [resultadoBuscaSummary, setResultadoBuscaSummary] = useState(null);
 
+  const TOLERANCIA_SALDO = 0.009;
+
   // Estatísticas do cliente
   const [estatisticas, setEstatisticas] = useState({
     totalPagamentos: 0,
@@ -584,9 +586,14 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
         })),
       };
 
-      await axiosInstance.post(
+      const vinculacaoResponse = await axiosInstance.post(
         `/api/lancamentos-extrato/${lancamento.id}/vinculos`,
         payload
+      );
+
+      const vinculosCriados = vinculacaoResponse?.data?.vinculosCriados || [];
+      const vinculosPorPedido = new Map(
+        vinculosCriados.map((vinculo) => [vinculo.pedidoId, vinculo.id])
       );
 
       const metodoPagamento = lancamento.categoriaOperacao === 'PIX_RECEBIDO'
@@ -616,6 +623,11 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
             contaDestino: 'ALENCAR',
             observacoesPagamento: `Vinculado do extrato bancário - ${lancamento.textoDescricaoHistorico || 'Sem descrição'}`,
           };
+
+          const vinculoId = vinculosPorPedido.get(item.pedidoId);
+          if (vinculoId) {
+            pagamentoData.lancamentoExtratoPedidoId = vinculoId;
+          }
 
           await axiosInstance.post('/api/pedidos/pagamentos', pagamentoData);
 
@@ -762,6 +774,23 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
     );
   };
 
+  const obterSaldoRestante = (lancamento) => {
+    const saldoDireto = lancamento?.valorDisponivel ?? lancamento?.saldoRestante ?? lancamento?.saldo_restante;
+    if (saldoDireto !== undefined && saldoDireto !== null) {
+      return Number(saldoDireto);
+    }
+
+    const valorLancamento = Number(lancamento?.valorLancamento || 0);
+    const valorVinculadoTotal = Number(
+      lancamento?.valorVinculadoTotal ??
+      (Array.isArray(lancamento?.lancamentosExtratoVinculos)
+        ? lancamento.lancamentosExtratoVinculos.reduce((acc, vinculo) => acc + (Number(vinculo?.valorVinculado) || 0), 0)
+        : 0)
+    );
+
+    return Number((valorLancamento - valorVinculadoTotal).toFixed(2));
+  };
+
   // Obter categorias únicas para o filtro
   const categoriasUnicas = Array.from(
     new Set(pagamentos.map(p => p.categoriaOperacao).filter(Boolean))
@@ -903,52 +932,102 @@ const PagamentosClienteModal = ({ open, onClose, cliente, loading = false }) => 
       title: "Ação",
       key: "acao",
       width: "12%",
-      render: (_, record) => (
-        !record.vinculadoPedido ? (
-          <Space size="small">
-            <Button
-              type="primary"
-              size="small"
-              icon={<LinkOutlined />}
-              onClick={() => handleAbrirVinculacaoManual(record)}
+      render: (_, record) => {
+        const saldoRestante = obterSaldoRestante(record);
+        const podeVincularSaldo = saldoRestante > TOLERANCIA_SALDO;
+        const possuiVinculos = Boolean(
+          record.vinculadoPedido ||
+          (Array.isArray(record.lancamentosExtratoVinculos) && record.lancamentosExtratoVinculos.length > 0)
+        );
+
+        if (podeVincularSaldo && !possuiVinculos) {
+          return (
+            <Space size="small">
+              <Button
+                type="primary"
+                size="small"
+                icon={<LinkOutlined />}
+                onClick={() => handleAbrirVinculacaoManual(record)}
+                style={{
+                  backgroundColor: '#059669',
+                  borderColor: '#047857',
+                  fontSize: '0.75rem',
+                  height: '28px',
+                  padding: '0 8px'
+                }}
+              >
+                Vincular
+              </Button>
+              <Tooltip title="Excluir lançamento">
+                <Button
+                  type="text"
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleAbrirConfirmExclusao(record)}
+                  style={{
+                    fontSize: "0.75rem",
+                    height: "28px",
+                    padding: "0 4px",
+                  }}
+                />
+              </Tooltip>
+            </Space>
+          );
+        }
+
+        if (podeVincularSaldo && possuiVinculos) {
+          return (
+            <Space size={6}>
+              <Tag
+                color="success"
+                style={{
+                  fontSize: '0.65rem',
+                  padding: '2px 8px',
+                  borderRadius: '4px'
+                }}
+              >
+                Vinculado
+              </Tag>
+              <Tooltip title="Vincular saldo restante">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<LinkOutlined />}
+                  onClick={() => handleAbrirVinculacaoManual(record)}
+                  style={{
+                    color: "#059669",
+                    fontSize: "0.75rem",
+                    height: "28px",
+                    padding: "0 4px",
+                  }}
+                />
+              </Tooltip>
+            </Space>
+          );
+        }
+
+        if (possuiVinculos) {
+          return (
+            <Tag
+              color="success"
               style={{
-                backgroundColor: '#059669',
-                borderColor: '#047857',
-                fontSize: '0.75rem',
-                height: '28px',
-                padding: '0 8px'
+                fontSize: '0.65rem',
+                padding: '2px 8px',
+                borderRadius: '4px'
               }}
             >
-              Vincular
-            </Button>
-            <Tooltip title="Excluir lançamento">
-              <Button
-                type="text"
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                onClick={() => handleAbrirConfirmExclusao(record)}
-                style={{
-                  fontSize: "0.75rem",
-                  height: "28px",
-                  padding: "0 4px",
-                }}
-              />
-            </Tooltip>
-          </Space>
-        ) : (
-          <Tag
-            color="success"
-            style={{
-              fontSize: '0.65rem',
-              padding: '2px 8px',
-              borderRadius: '4px'
-            }}
-          >
-            Vinculado
-          </Tag>
-        )
-      ),
+              Vinculado
+            </Tag>
+          );
+        }
+
+        return (
+          <Text style={{ fontSize: "0.75rem", color: "#999", fontStyle: "italic" }}>
+            Sem ação
+          </Text>
+        );
+      },
     },
   ];
 

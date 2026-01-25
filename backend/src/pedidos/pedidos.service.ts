@@ -11,6 +11,7 @@ import {
   UpdateColheitaDto,
   UpdatePrecificacaoDto,
   UpdatePagamentoDto,
+  UpdatePagamentoValeDto,
   PedidoResponseDto,
   UpdatePedidoCompletoDto,
   CreatePagamentoDto,
@@ -20,6 +21,7 @@ import {
 import { HistoricoService } from '../historico/historico.service';
 import { TipoAcaoHistorico } from '../historico/types/historico.types';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
+import { LancamentoExtratoService } from '../extratos/lancamento-extrato.service';
 
 @Injectable()
 export class PedidosService {
@@ -28,7 +30,8 @@ export class PedidosService {
     private controleBananaService: ControleBananaService,
     private turmaColheitaService: TurmaColheitaService,
     private historicoService: HistoricoService,
-    private notificacoesService: NotificacoesService
+    private notificacoesService: NotificacoesService,
+    private lancamentoExtratoService: LancamentoExtratoService
   ) {}
 
   async getDashboardStats(
@@ -2744,9 +2747,29 @@ export class PedidosService {
     const pagamentos = await this.prisma.pagamentosPedidos.findMany({
       where: { pedidoId: pedidoId },
       orderBy: { dataPagamento: 'asc' },
+      include: {
+        lancamentoExtratoPedido: {
+          select: { lancamentoExtratoId: true },
+        },
+      },
     });
 
-    return this.convertNullToUndefined(pagamentos);
+    const pagamentosFormatados = pagamentos.map((pagamento) =>
+      this.mapPagamentoComLancamento(pagamento),
+    );
+
+    return this.convertNullToUndefined(pagamentosFormatados);
+  }
+
+  private mapPagamentoComLancamento(pagamento: any) {
+    const { lancamentoExtratoPedido, ...restoPagamento } = pagamento || {};
+
+    return {
+      ...restoPagamento,
+      lancamentoExtratoId: lancamentoExtratoPedido?.lancamentoExtratoId
+        ? lancamentoExtratoPedido.lancamentoExtratoId.toString()
+        : undefined,
+    };
   }
 
   // NOVA: Criar pagamento individual
@@ -2764,6 +2787,30 @@ export class PedidosService {
     // Verificar se o status permite pagamento
     if (pedido.status !== 'PRECIFICACAO_REALIZADA' && pedido.status !== 'AGUARDANDO_PAGAMENTO' && pedido.status !== 'PAGAMENTO_PARCIAL') {
       throw new BadRequestException('Status do pedido não permite registrar pagamento');
+    }
+
+    if (createPagamentoDto.lancamentoExtratoPedidoId) {
+      const vinculoLancamento = await this.prisma.lancamentoExtratoPedido.findUnique({
+        where: { id: createPagamentoDto.lancamentoExtratoPedidoId },
+        select: { id: true, pedidoId: true },
+      });
+
+      if (!vinculoLancamento) {
+        throw new BadRequestException('Vínculo do lançamento não encontrado');
+      }
+
+      if (vinculoLancamento.pedidoId !== createPagamentoDto.pedidoId) {
+        throw new BadRequestException('Vínculo informado não pertence ao pedido');
+      }
+
+      const pagamentoJaVinculado = await this.prisma.pagamentosPedidos.findFirst({
+        where: { lancamentoExtratoPedidoId: createPagamentoDto.lancamentoExtratoPedidoId },
+        select: { id: true },
+      });
+
+      if (pagamentoJaVinculado) {
+        throw new BadRequestException('Este vínculo já possui um pagamento associado');
+      }
     }
 
     // Verificar se o valor do pagamento é válido (maior que zero)
@@ -2788,6 +2835,7 @@ export class PedidosService {
       const novoPagamento = await prisma.pagamentosPedidos.create({
         data: {
           pedidoId: createPagamentoDto.pedidoId,
+          lancamentoExtratoPedidoId: createPagamentoDto.lancamentoExtratoPedidoId,
           dataPagamento: new Date(createPagamentoDto.dataPagamento),
           valorRecebido: createPagamentoDto.valorRecebido,
           metodoPagamento: createPagamentoDto.metodoPagamento,
@@ -2795,6 +2843,11 @@ export class PedidosService {
           observacoesPagamento: createPagamentoDto.observacoesPagamento,
           chequeCompensado: createPagamentoDto.chequeCompensado,
           referenciaExterna: createPagamentoDto.referenciaExterna,
+        },
+        include: {
+          lancamentoExtratoPedido: {
+            select: { lancamentoExtratoId: true },
+          },
         },
       });
 
@@ -2842,7 +2895,7 @@ export class PedidosService {
         }
       );
 
-      return novoPagamento;
+      return this.mapPagamentoComLancamento(novoPagamento);
     });
 
     return this.convertNullToUndefined(pagamento);
@@ -2918,6 +2971,11 @@ export class PedidosService {
       const pagamentoAtualizado = await prisma.pagamentosPedidos.update({
         where: { id },
         data: dadosAtualizacao,
+        include: {
+          lancamentoExtratoPedido: {
+            select: { lancamentoExtratoId: true },
+          },
+        },
       });
 
       // Atualizar valor recebido consolidado no pedido
@@ -2964,10 +3022,85 @@ export class PedidosService {
         }
       );
 
-      return pagamentoAtualizado;
+      return this.mapPagamentoComLancamento(pagamentoAtualizado);
     });
 
     return this.convertNullToUndefined(pagamentoAtualizado);
+  }
+
+  // NOVA: Atualizar apenas o vale (referência externa) do pagamento
+  async updatePagamentoVale(id: number, updatePagamentoValeDto: UpdatePagamentoValeDto, usuarioId: number): Promise<any> {
+    const pagamento = await this.prisma.pagamentosPedidos.findUnique({
+      where: { id },
+      include: { pedido: true },
+    });
+
+    if (!pagamento) {
+      throw new NotFoundException('Pagamento não encontrado');
+    }
+
+    const pagamentoAtualizado = await this.prisma.pagamentosPedidos.update({
+      where: { id },
+      data: {
+        referenciaExterna: updatePagamentoValeDto.referenciaExterna ?? null,
+      },
+      include: {
+        lancamentoExtratoPedido: {
+          select: { lancamentoExtratoId: true },
+        },
+      },
+    });
+
+    await this.historicoService.registrarAcao(
+      pagamento.pedidoId,
+      usuarioId,
+      TipoAcaoHistorico.PAGAMENTO_ATUALIZADO,
+      {
+        statusAnterior: pagamento.pedido.status,
+        statusNovo: pagamento.pedido.status,
+        mensagem: 'Vale atualizado',
+        pagamentoId: id,
+        campo: 'referenciaExterna',
+        valorAnterior: pagamento.referenciaExterna ?? null,
+        valorNovo: updatePagamentoValeDto.referenciaExterna ?? null,
+      }
+    );
+
+    return this.convertNullToUndefined(this.mapPagamentoComLancamento(pagamentoAtualizado));
+  }
+
+  async removePagamentoPorVinculo(
+    vinculoId: number,
+    lancamentoExtratoId: string,
+    usuarioId: number,
+  ): Promise<void> {
+    console.log('[removePagamentoPorVinculo] Solicitação recebida', {
+      vinculoId,
+      lancamentoExtratoId,
+      usuarioId,
+    });
+    const pagamento = await this.prisma.pagamentosPedidos.findFirst({
+      where: { lancamentoExtratoPedidoId: vinculoId },
+      select: { id: true },
+    });
+
+    if (pagamento?.id) {
+      console.log('[removePagamentoPorVinculo] Pagamento encontrado, removendo pagamento', {
+        pagamentoId: pagamento.id,
+      });
+      await this.removePagamento(pagamento.id, usuarioId);
+      return;
+    }
+
+    if (!lancamentoExtratoId) {
+      throw new BadRequestException('Informe o lançamento para remover o vínculo');
+    }
+
+    console.log('[removePagamentoPorVinculo] Nenhum pagamento associado, removendo vínculo direto');
+    await this.lancamentoExtratoService.removerVinculo(
+      BigInt(lancamentoExtratoId),
+      vinculoId
+    );
   }
 
   // NOVA: Remover pagamento individual
@@ -2975,7 +3108,12 @@ export class PedidosService {
     // Verificar se o pagamento existe
     const pagamento = await this.prisma.pagamentosPedidos.findUnique({
       where: { id },
-      include: { pedido: true },
+      include: {
+        pedido: true,
+        lancamentoExtratoPedido: {
+          select: { id: true, lancamentoExtratoId: true },
+        },
+      },
     });
 
     if (!pagamento) {
@@ -2986,6 +3124,13 @@ export class PedidosService {
     // Verificar se o status do pedido permite remoção
     if (pagamento.pedido.status === 'PEDIDO_FINALIZADO') {
       throw new BadRequestException('Não é possível remover pagamentos de pedidos finalizados');
+    }
+
+    if (pagamento.lancamentoExtratoPedidoId && pagamento.lancamentoExtratoPedido?.lancamentoExtratoId) {
+      await this.lancamentoExtratoService.removerVinculo(
+        pagamento.lancamentoExtratoPedido.lancamentoExtratoId,
+        pagamento.lancamentoExtratoPedidoId
+      );
     }
 
     // Remover pagamento em transação

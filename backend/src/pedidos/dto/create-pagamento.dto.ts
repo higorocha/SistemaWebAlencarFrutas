@@ -6,6 +6,10 @@ export class CreatePagamentoDto {
   @IsNumber({}, { message: 'ID do pedido deve ser um número' })
   pedidoId: number;
 
+  @IsOptional()
+  @IsNumber({}, { message: 'ID do vínculo do lançamento deve ser um número' })
+  lancamentoExtratoPedidoId?: number;
+
   @IsNotEmpty({ message: 'Data do pagamento é obrigatória' })
   @IsDateString({}, { message: 'Data do pagamento deve ser uma data válida' })
   dataPagamento: string;

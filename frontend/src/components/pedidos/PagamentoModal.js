@@ -37,6 +37,7 @@ import {
   BarcodeOutlined,
   LoadingOutlined,
   SyncOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
 import { formatarValorMonetario, formataLeitura } from "../../utils/formatters";
 import { PrimaryButton, PDFButton } from "../common/buttons";
@@ -203,6 +204,7 @@ const PagamentoModal = ({
   onNovoPagamento,
   onRemoverPagamento,
   onAjustesSalvos,
+  onFinalizarPedido,
 }) => {
   // Hook de responsividade
   const { isMobile } = useResponsive();
@@ -232,6 +234,8 @@ const PagamentoModal = ({
   const [boletoSelecionado, setBoletoSelecionado] = useState(null);
   const [loadingPDFBoletoId, setLoadingPDFBoletoId] = useState(null);
   const [verificandoBoletoId, setVerificandoBoletoId] = useState(null);
+  const [finalizandoPedido, setFinalizandoPedido] = useState(false);
+  const [confirmFinalizarPedidoOpen, setConfirmFinalizarPedidoOpen] = useState(false);
 
   // Sincronizar estado interno com props e resetar form
   useEffect(() => {
@@ -641,6 +645,75 @@ const PagamentoModal = ({
       showNotification("error", "Erro", errorMessage);
     } finally {
       setVerificandoBoletoId(null);
+    }
+  };
+
+  // Função para abrir modal de confirmação de finalização
+  const handleAbrirConfirmacaoFinalizar = () => {
+    setConfirmFinalizarPedidoOpen(true);
+  };
+
+  // Função para cancelar confirmação de finalização
+  const handleCancelarFinalizar = () => {
+    setConfirmFinalizarPedidoOpen(false);
+  };
+
+  // Função para finalizar pedido (chamada após confirmação)
+  const handleFinalizarPedido = async () => {
+    if (!internalPedido?.id) {
+      showNotification("error", "Erro", "Pedido não encontrado");
+      return;
+    }
+
+    try {
+      setFinalizandoPedido(true);
+      
+      // Chamar endpoint de finalização
+      await axiosInstance.patch(`/api/pedidos/${internalPedido.id}/finalizar`);
+      showNotification("success", "Sucesso", "Pedido finalizado com sucesso!");
+
+      // Buscar pedido atualizado
+      const response = await axiosInstance.get(`/api/pedidos/${internalPedido.id}`);
+      if (response.data) {
+        setInternalPedido(response.data);
+        
+        // Atualizar form com novos valores se necessário
+        form.setFieldsValue({
+          frete: response.data.frete || 0,
+          icms: response.data.icms || 0,
+          desconto: response.data.desconto || 0,
+          avaria: response.data.avaria || 0,
+        });
+      }
+
+      // Chamar callback para atualizar componente pai
+      if (onAjustesSalvos) {
+        await onAjustesSalvos();
+      }
+
+      // Chamar callback específico de finalização se existir
+      if (onFinalizarPedido) {
+        await onFinalizarPedido();
+      }
+
+      // Recarregar pagamentos e boletos
+      await fetchPagamentos();
+      await fetchBoletos();
+
+      // Fechar modal de confirmação
+      setConfirmFinalizarPedidoOpen(false);
+
+      // Fechar modal após finalizar com sucesso
+      onClose();
+
+    } catch (error) {
+      console.error("Erro ao finalizar pedido:", error);
+      const message = error.response?.data?.message || "Erro ao finalizar pedido";
+      showNotification("error", "Erro", message);
+      // Fechar modal de confirmação mesmo em caso de erro
+      setConfirmFinalizarPedidoOpen(false);
+    } finally {
+      setFinalizandoPedido(false);
     }
   };
 
@@ -1504,29 +1577,53 @@ const PagamentoModal = ({
               }}
               extra={
                 !isMobile && (
+                  valorRestante <= 0 ? (
+                    <PrimaryButton
+                      icon={<CheckCircleOutlined />}
+                      onClick={handleAbrirConfirmacaoFinalizar}
+                      loading={finalizandoPedido}
+                      size="middle"
+                    >
+                      Finalizar Pedido
+                    </PrimaryButton>
+                  ) : (
+                    <PrimaryButton
+                      icon={<PlusCircleOutlined />}
+                      onClick={() => setNovoPagamentoModalOpen(true)}
+                      disabled={valorRestante <= 0}
+                      size="middle"
+                    >
+                      Novo Pagamento
+                    </PrimaryButton>
+                  )
+                )
+              }
+            >
+              {/* Botão Mobile para Novo Pagamento ou Finalizar Pedido */}
+              {isMobile && (
+                valorRestante <= 0 ? (
+                  <PrimaryButton
+                    icon={<CheckCircleOutlined />}
+                    onClick={handleAbrirConfirmacaoFinalizar}
+                    loading={finalizandoPedido}
+                    size="middle"
+                    block
+                    style={{ marginBottom: 12 }}
+                  >
+                    Finalizar Pedido
+                  </PrimaryButton>
+                ) : (
                   <PrimaryButton
                     icon={<PlusCircleOutlined />}
                     onClick={() => setNovoPagamentoModalOpen(true)}
                     disabled={valorRestante <= 0}
                     size="middle"
+                    block
+                    style={{ marginBottom: 12 }}
                   >
                     Novo Pagamento
                   </PrimaryButton>
                 )
-              }
-            >
-              {/* Botão Mobile para Novo Pagamento */}
-              {isMobile && (
-                <PrimaryButton
-                  icon={<PlusCircleOutlined />}
-                  onClick={() => setNovoPagamentoModalOpen(true)}
-                  disabled={valorRestante <= 0}
-                  size="middle"
-                  block
-                  style={{ marginBottom: 12 }}
-                >
-                  Novo Pagamento
-                </PrimaryButton>
               )}
 
               {pagamentos.length > 0 ? (
@@ -1597,53 +1694,32 @@ const PagamentoModal = ({
       />
 
       {/* Modal de Confirmação de Exclusão */}
-      <Modal
-        title={
-          <span style={{ 
-            color: "#ffffff", 
-            fontWeight: "600", 
-            fontSize: "16px",
-            backgroundColor: "#ef4444",
-            padding: "12px 16px",
-            margin: "-20px -24px 0 -24px",
-            display: "block",
-            borderRadius: "8px 8px 0 0",
-          }}>
-            <DeleteOutlined style={{ marginRight: 8 }} />
-            Confirmar Exclusão
-          </span>
-        }
+      <ConfirmActionModal
         open={confirmModalOpen}
+        onConfirm={handleRemoverPagamento}
         onCancel={() => {
           setConfirmModalOpen(false);
           setPagamentoParaRemover(null);
         }}
-        onOk={handleRemoverPagamento}
-        okText="Sim, Remover"
+        title="Confirmar Exclusão"
+        message={
+          pagamentoParaRemover?.lancamentoExtratoPedidoId
+            ? "Este pagamento está vinculado a um lançamento do extrato. Ao remover, o vínculo será desfeito."
+            : "Tem certeza que deseja remover este pagamento? Esta ação não pode ser desfeita."
+        }
+        confirmText="Sim, Remover"
         cancelText="Cancelar"
-        okButtonProps={{ 
-          danger: true,
-          style: { backgroundColor: '#ef4444', borderColor: '#ef4444' }
-        }}
-        cancelButtonProps={{ style: { borderColor: '#d9d9d9' } }}
-        width={500}
-        styles={{
-          header: { backgroundColor: "#ef4444", borderBottom: "2px solid #dc2626", padding: 0 },
-          body: { padding: 20 }
-        }}
-        centered
-      >
-        {pagamentoParaRemover && (
+        confirmButtonDanger={true}
+        icon={<DeleteOutlined />}
+        iconColor="#ff4d4f"
+        customContent={pagamentoParaRemover && (
           <div>
-            <p style={{ fontSize: "16px", marginBottom: "16px" }}>
-              Tem certeza que deseja remover este pagamento?
-            </p>
             <div style={{ 
               backgroundColor: "#fef2f2", 
               border: "1px solid #fecaca", 
               borderRadius: "8px", 
               padding: "16px",
-              marginBottom: "16px"
+              marginBottom: pagamentoParaRemover?.lancamentoExtratoPedidoId ? "12px" : 0
             }}>
               <p style={{ margin: 0, fontWeight: "600", color: "#dc2626" }}>
                 Detalhes do Pagamento:
@@ -1658,12 +1734,14 @@ const PagamentoModal = ({
                 <strong>Data:</strong> {formatarData(pagamentoParaRemover.dataPagamento)}
               </p>
             </div>
-            <p style={{ fontSize: "14px", color: "#6b7280", margin: 0 }}>
-              ⚠️ Esta ação não pode ser desfeita.
-            </p>
+            {pagamentoParaRemover?.lancamentoExtratoPedidoId && (
+              <p style={{ fontSize: "14px", color: "#dc2626", margin: 0 }}>
+                ⚠️ O vínculo com o extrato será removido junto com o pagamento.
+              </p>
+            )}
           </div>
         )}
-      </Modal>
+      />
 
       {/* Modal de Confirmação de Baixa de Boleto */}
       <ConfirmActionModal
@@ -1687,6 +1765,20 @@ const PagamentoModal = ({
           setBoletoSelecionado(null);
         }}
         boleto={boletoSelecionado}
+      />
+
+      {/* Modal de Confirmação de Finalização de Pedido */}
+      <ConfirmActionModal
+        open={confirmFinalizarPedidoOpen}
+        onConfirm={handleFinalizarPedido}
+        onCancel={handleCancelarFinalizar}
+        title="Finalizar Pedido"
+        message="Tem certeza que deseja finalizar este pedido? Esta ação é irreversível e marcará o pedido como finalizado."
+        confirmText="Sim, Finalizar"
+        cancelText="Cancelar"
+        confirmButtonDanger={false}
+        icon={<CheckCircleOutlined />}
+        iconColor="#059669"
       />
     </>
   );

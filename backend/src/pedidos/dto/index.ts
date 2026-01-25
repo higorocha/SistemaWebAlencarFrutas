@@ -3,6 +3,7 @@ export * from './update-pedido.dto';
 export * from './update-colheita.dto';
 export * from './update-precificacao.dto';
 export * from './update-pagamento.dto';
+export * from './update-pagamento-vale.dto';
 export * from './pedido-response.dto';
 export * from './update-pedido-completo.dto';
 export * from './create-pagamento.dto';

@@ -910,6 +910,40 @@ const Pedidos = () => {
     }
   }, [fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, dateFilterType, pedidoSelecionado]);
 
+  // Função para finalizar pedido
+  const handleFinalizarPedido = useCallback(async () => {
+    if (!pedidoSelecionado?.id) {
+      showNotification("error", "Erro", "Pedido não encontrado");
+      return;
+    }
+
+    try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Finalizando pedido...");
+
+      // Chamar endpoint de finalização
+      await axiosInstance.patch(`/api/pedidos/${pedidoSelecionado.id}/finalizar`);
+      showNotification("success", "Sucesso", "Pedido finalizado com sucesso!");
+
+      // Atualizar pedido selecionado com os dados mais recentes
+      const response = await axiosInstance.get(`/api/pedidos/${pedidoSelecionado.id}`);
+      if (response.data) {
+        setPedidoSelecionado(response.data);
+      }
+
+      // Recarregar lista de pedidos respeitando filtros ativos
+      const { dataInicio, dataFim, tipoData } = getActiveDateParams();
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
+
+    } catch (error) {
+      console.error("Erro ao finalizar pedido:", error);
+      const message = error.response?.data?.message || "Erro ao finalizar pedido";
+      showNotification("error", "Erro", message);
+    } finally {
+      setCentralizedLoading(false);
+    }
+  }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, getActiveDateParams]);
+
   return (
     <Box 
       sx={{ 
@@ -1521,6 +1555,7 @@ const Pedidos = () => {
           onNovoPagamento={handleNovoPagamento}
           onRemoverPagamento={handleRemoverPagamento}
           onAjustesSalvos={handleAjustesSalvos}
+          onFinalizarPedido={handleFinalizarPedido}
           pedido={pedidoSelecionado}
           loading={loading}
         />
