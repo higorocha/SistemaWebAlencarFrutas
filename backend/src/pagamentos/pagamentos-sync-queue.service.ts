@@ -137,6 +137,35 @@ export class PagamentosSyncQueueService {
     return result.count;
   }
 
+  /**
+   * Marca todos os jobs de LOTE de um lote como DONE
+   * Usado quando o lote é cancelado manualmente
+   */
+  async markAllLoteJobsDoneForLote(loteId: number): Promise<number> {
+    const result = await this.prisma.pagamentoApiSyncJob.updateMany({
+      where: {
+        loteId: loteId,
+        tipo: $Enums.PagamentoApiSyncJobTipo.LOTE,
+        status: {
+          in: [
+            $Enums.PagamentoApiSyncJobStatus.PENDING,
+            $Enums.PagamentoApiSyncJobStatus.RUNNING,
+          ],
+        },
+      },
+      data: {
+        status: $Enums.PagamentoApiSyncJobStatus.DONE,
+        erro: null,
+      },
+    });
+
+    this.logger.log(
+      `[QUEUE] ${result.count} job(s) de LOTE marcado(s) como DONE para lote ${loteId}`,
+    );
+
+    return result.count;
+  }
+
   async handleJobError(job: PagamentoApiSyncJob, error: unknown): Promise<void> {
     const message = this.normalizeErrorMessage(error);
     const nextTentativas = job.tentativas + 1;

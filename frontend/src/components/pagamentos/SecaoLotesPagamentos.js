@@ -265,22 +265,67 @@ const SecaoLotesPagamentos = ({
               borderRadius: "0.75rem",
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
+              height: "100%",
             }}
-            styles={{ body: { padding: "0.75rem" } }}
+            styles={{ body: { padding: "0.75rem", height: "100%", display: "flex", flexDirection: "column" } }}
           >
-            <Statistic
-              title={
-                <Space size={4}>
-                  <Text style={{ color: "#666", fontSize: "0.6875rem" }}>Total de Lotes</Text>
-                  <Tooltip title="Quantidade total de lotes de pagamento criados nesta seção.">
-                    <InfoCircleOutlined style={{ color: "#d9d9d9", fontSize: "0.75rem", cursor: "help" }} />
-                  </Tooltip>
-                </Space>
-              }
-              value={estatisticas.totalLotes}
-              prefix={<FileTextOutlined style={{ color: "#059669", fontSize: "1rem" }} />}
-              valueStyle={{ color: "#059669", fontSize: "1.125rem", fontWeight: "600" }}
-            />
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
+              <Space size={4} style={{ marginBottom: "8px" }}>
+                <Text style={{ color: "#666", fontSize: "0.6875rem" }}>Total de Lotes</Text>
+                <Tooltip
+                  title={
+                    <div>
+                      <div style={{ marginBottom: "4px" }}>
+                        <strong>Total de Lotes:</strong> Quantidade total de lotes de pagamento criados nesta seção.
+                      </div>
+                      <div style={{ marginTop: "8px", marginBottom: "4px" }}>
+                        <strong>Lotes Pendentes:</strong> Quantidade de lotes aguardando liberação para processamento no Banco do Brasil. Calculado como: Total de Lotes - Lotes Liberados - Lotes Rejeitados.
+                      </div>
+                    </div>
+                  }
+                >
+                  <InfoCircleOutlined style={{ color: "#d9d9d9", fontSize: "0.75rem", cursor: "help" }} />
+                </Tooltip>
+              </Space>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", minHeight: "24px" }}>
+                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
+                  <FileTextOutlined style={{ color: "#059669", fontSize: "1rem" }} />
+                  <span style={{ color: "#059669", fontSize: "1.125rem", fontWeight: "600" }}>
+                    {estatisticas.totalLotes}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    width: "1px",
+                    height: "24px",
+                    backgroundColor: "#e8e8e8",
+                  }}
+                />
+                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
+                  <ClockCircleOutlined style={{ color: "#fa8c16", fontSize: "1rem" }} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", justifyContent: "center" }}>
+                    <Text
+                      style={{
+                        color: "#8c8c8c",
+                        fontSize: "0.625rem",
+                        lineHeight: "1.2",
+                      }}
+                    >
+                      Pendentes
+                    </Text>
+                    <span
+                      style={{
+                        color: "#fa8c16",
+                        fontSize: "1rem",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {Math.max(0, (estatisticas.totalLotes || 0) - (estatisticas.lotesLiberados || 0) - (estatisticas.lotesRejeitados || 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
@@ -289,6 +334,7 @@ const SecaoLotesPagamentos = ({
               borderRadius: "0.75rem",
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
+              height: "100%",
             }}
             styles={{ body: { padding: "0.75rem" } }}
           >
@@ -314,6 +360,7 @@ const SecaoLotesPagamentos = ({
                 borderRadius: "0.75rem",
                 boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
                 border: "1px solid #f0f0f0",
+                height: "100%",
               }}
               styles={{ body: { padding: "0.75rem" } }}
             >
@@ -340,6 +387,7 @@ const SecaoLotesPagamentos = ({
                 borderRadius: "0.75rem",
                 boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
                 border: "1px solid #f0f0f0",
+                height: "100%",
               }}
               styles={{ body: { padding: "0.75rem" } }}
             >
@@ -365,10 +413,11 @@ const SecaoLotesPagamentos = ({
               borderRadius: "0.75rem",
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
+              height: "100%",
             }}
-            styles={{ body: { padding: "0.75rem" } }}
+            styles={{ body: { padding: "0.75rem", height: "100%", display: "flex", flexDirection: "column" } }}
           >
-            <div>
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
               <Space size={4} style={{ marginBottom: "8px" }}>
                 <Text style={{ color: "#666", fontSize: "0.6875rem" }}>Lotes Liberados / Rejeitados</Text>
                 <Tooltip
@@ -386,20 +435,43 @@ const SecaoLotesPagamentos = ({
                   <InfoCircleOutlined style={{ color: "#d9d9d9", fontSize: "0.75rem", cursor: "help" }} />
                 </Tooltip>
               </Space>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Tooltip title={`Lotes ${contextoTexto} liberados: ${estatisticas.lotesLiberados || 0}`}>
-                  <CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem", cursor: "help" }} />
-                </Tooltip>
-                <span style={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}>
-                  {estatisticas.lotesLiberados || 0}
-                </span>
-                <span style={{ color: "#d9d9d9", fontSize: "1rem" }}>/</span>
-                <span style={{ color: "#ff4d4f", fontSize: "1.125rem", fontWeight: "600" }}>
-                  {estatisticas.lotesRejeitados || 0}
-                </span>
-                <Tooltip title={`Lotes ${contextoTexto} rejeitados: ${estatisticas.lotesRejeitados || 0}`}>
-                  <CloseCircleOutlined style={{ color: "#ff4d4f", fontSize: "1rem", marginLeft: "4px", cursor: "help" }} />
-                </Tooltip>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", minHeight: "24px" }}>
+                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
+                  <CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem" }} />
+                  <span style={{ color: "#52c41a", fontSize: "1.125rem", fontWeight: "600" }}>
+                    {estatisticas.lotesLiberados || 0}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    width: "1px",
+                    height: "24px",
+                    backgroundColor: "#e8e8e8",
+                  }}
+                />
+                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
+                  <CloseCircleOutlined style={{ color: "#ff4d4f", fontSize: "1rem" }} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", justifyContent: "center" }}>
+                    <Text
+                      style={{
+                        color: "#8c8c8c",
+                        fontSize: "0.625rem",
+                        lineHeight: "1.2",
+                      }}
+                    >
+                      Rejeitados
+                    </Text>
+                    <span
+                      style={{
+                        color: "#ff4d4f",
+                        fontSize: "1rem",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {estatisticas.lotesRejeitados || 0}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
@@ -410,10 +482,11 @@ const SecaoLotesPagamentos = ({
               borderRadius: "0.75rem",
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
+              height: "100%",
             }}
-            styles={{ body: { padding: "0.75rem" } }}
+            styles={{ body: { padding: "0.75rem", height: "100%", display: "flex", flexDirection: "column" } }}
           >
-            <div>
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
               <Space size={4} style={{ marginBottom: "8px" }}>
                 <Text style={{ color: "#666", fontSize: "0.6875rem" }}>Itens Liberados / Rejeitados</Text>
                 <Tooltip
@@ -431,7 +504,7 @@ const SecaoLotesPagamentos = ({
                   <InfoCircleOutlined style={{ color: "#d9d9d9", fontSize: "0.75rem", cursor: "help" }} />
                 </Tooltip>
               </Space>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", minHeight: "24px" }}>
                 <Tooltip title={`Itens ${contextoTexto} liberados: ${estatisticas.itensLiberados || 0}`}>
                   <CheckCircleOutlined style={{ color: "#52c41a", fontSize: "1rem", cursor: "help" }} />
                 </Tooltip>
@@ -455,6 +528,7 @@ const SecaoLotesPagamentos = ({
               borderRadius: "0.75rem",
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
+              height: "100%",
             }}
             styles={{ body: { padding: "0.75rem" } }}
           >
@@ -491,6 +565,7 @@ const SecaoLotesPagamentos = ({
               borderRadius: "0.75rem",
               boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
+              height: "100%",
             }}
             styles={{ body: { padding: "0.75rem" } }}
           >
@@ -525,6 +600,7 @@ const SecaoLotesPagamentos = ({
                 borderRadius: "0.75rem",
                 boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
                 border: "1px solid #f0f0f0",
+                height: "100%",
               }}
               styles={{ body: { padding: "0.75rem" } }}
             >
@@ -566,6 +642,7 @@ const SecaoLotesPagamentos = ({
                 borderRadius: "0.75rem",
                 boxShadow: "0 0.125rem 0.5rem rgba(0,0,0,0.06)",
                 border: "1px solid #f0f0f0",
+                height: "100%",
               }}
               styles={{ body: { padding: "0.75rem" } }}
             >

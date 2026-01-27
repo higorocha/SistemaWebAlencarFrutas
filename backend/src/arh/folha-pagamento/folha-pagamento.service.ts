@@ -714,6 +714,60 @@ export class FolhaPagamentoService {
   }
 
   /**
+   * Reseta completamente uma folha para edição após cancelamento manual de lote
+   * Limpa dados de pagamento, desvincula itens e volta para RASCUNHO
+   */
+  async resetarFolhaParaRascunhoAposCancelamento(
+    id: number,
+    pagamentoApiItemIds?: number[],
+  ) {
+    await this.ensureFolha(id);
+    const itensIds = Array.isArray(pagamentoApiItemIds)
+      ? pagamentoApiItemIds.filter((itemId) => Number.isInteger(itemId))
+      : [];
+
+    await this.prisma.$transaction(async (tx) => {
+      const resultadoAtualizacao = await tx.funcionarioPagamento.updateMany({
+        where: {
+          folhaId: id,
+          pagamentoEfetuado: false,
+          ...(itensIds.length > 0
+            ? { pagamentoApiItemId: { in: itensIds } }
+            : { meioPagamento: MeioPagamentoFuncionario.PIX_API }),
+        },
+        data: {
+          pagamentoEfetuado: false,
+          statusPagamento: StatusFuncionarioPagamento.PENDENTE,
+          dataPagamento: null,
+          meioPagamento: MeioPagamentoFuncionario.PIX,
+          pagamentoApiItemId: null,
+        },
+      });
+      console.log(
+        `✅ [RESET-FOLHA] Folha ${id}: ${resultadoAtualizacao.count} lançamento(s) PIX-API revertido(s) após cancelamento manual.`,
+      );
+
+      await tx.folhaPagamento.update({
+        where: { id },
+        data: {
+          status: StatusFolhaPagamento.RASCUNHO,
+          meioPagamento: null,
+          dataPagamento: null,
+          contaCorrenteId: null,
+          dataProcessamento: null,
+          dataLiberacao: null,
+          dataFechamento: null,
+          usuarioLiberacaoId: null,
+        },
+      });
+
+      await this.recalcularFolha(tx, id);
+    });
+
+    return this.detalhesFolha(id);
+  }
+
+  /**
    * Libera uma folha de pagamento
    * Orquestra automaticamente o processamento PIX-API (se aplicável) e a liberação
    * 

@@ -1620,6 +1620,18 @@ if (!itemJaPago) {
 - **Cenário atual (Turma de Colheita):** Lote com 1 item → cancela 1 item.
 - **Cenário futuro (Funcionários):** Lote com N itens → cancela todos os N itens de uma vez.
 
+#### 4.3. Cancelamento Manual de Lote (Interno)
+
+- **Endpoint interno:** `POST /api/pagamentos/lotes/:id/cancelar-manual`
+- **Controle de acesso:** Apenas `ADMINISTRADOR`.
+- **Importante:** Este cancelamento **não chama** a API do BB. O lote é cancelado apenas no sistema e o BB fará o cancelamento automático por decurso de prazo.
+
+**Comportamento:**
+- Marca o lote como **REJEITADO** e **EXCLUÍDO**.
+- Marca os itens como **REJEITADO** com `estadoPagamentoIndividual = "CANCELADO"`.
+- Reverte colheitas vinculadas para **PENDENTE**.
+- Para folhas de pagamento, **reseta a folha para RASCUNHO** e libera edição (limpa dados de pagamento e desvincula itens).
+
 #### 4.3. Lógica do Botão "Liberar" no Frontend
 
 **Arquivo:** `frontend/src/pages/Pagamentos.js`

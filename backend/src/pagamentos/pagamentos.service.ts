@@ -676,6 +676,139 @@ export class PagamentosService {
   }
 
   /**
+   * Cancela manualmente um lote de pagamentos (sem chamar a API do BB)
+   * Reverte estados relacionados e marca o lote como excluído
+   *
+   * @param loteId ID do lote
+   * @param usuarioId ID do usuário que está cancelando
+   */
+  async cancelarLoteManual(loteId: number, usuarioId?: number): Promise<any> {
+    const lote = await this.prisma.pagamentoApiLote.findUnique({
+      where: { id: loteId },
+      include: {
+        itensPagamento: {
+          include: {
+            funcionarioPagamento: {
+              select: {
+                id: true,
+                folhaId: true,
+                pagamentoEfetuado: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lote) {
+      throw new NotFoundException(`Lote com ID ${loteId} não encontrado`);
+    }
+
+    const estadoRequisicao = lote.estadoRequisicaoAtual ?? lote.estadoRequisicao;
+    const estaExcluido = lote.excluido === true;
+    const pendenteLiberacao =
+      estadoRequisicao !== null &&
+      estadoRequisicao !== undefined &&
+      (estadoRequisicao === 1 || estadoRequisicao === 4);
+
+    if (estaExcluido) {
+      throw new BadRequestException('Este lote já está marcado como excluído.');
+    }
+
+    if (!pendenteLiberacao || lote.dataLiberacao) {
+      throw new BadRequestException(
+        'Somente lotes pendentes de liberação podem ser cancelados manualmente.',
+      );
+    }
+
+    const itensProcessados = lote.itensPagamento.filter(
+      (item) =>
+        item.status === StatusPagamentoItem.PROCESSADO ||
+        item.processadoComSucesso === true,
+    );
+
+    if (itensProcessados.length > 0) {
+      throw new BadRequestException(
+        'Não é possível cancelar manualmente um lote com itens já processados/pagos.',
+      );
+    }
+
+    const funcionariosPagos = lote.itensPagamento.filter(
+      (item) => item.funcionarioPagamento?.pagamentoEfetuado === true,
+    );
+
+    if (funcionariosPagos.length > 0) {
+      throw new BadRequestException(
+        'Não é possível cancelar manualmente um lote com funcionários já pagos.',
+      );
+    }
+
+    const dataCancelamento = new Date();
+    const observacaoCancelamento = `Cancelado manualmente em ${dataCancelamento.toISOString()}`;
+    const observacoesLote = lote.observacoes
+      ? `${lote.observacoes} | ${observacaoCancelamento}`
+      : observacaoCancelamento;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.pagamentoApiItem.updateMany({
+        where: { loteId },
+        data: {
+          status: StatusPagamentoItem.REJEITADO,
+          processadoComSucesso: false,
+          estadoPagamentoIndividual: 'CANCELADO',
+          usuarioCancelamentoId: usuarioId || null,
+          dataCancelamento,
+        },
+      });
+
+      await tx.pagamentoApiLote.update({
+        where: { id: loteId },
+        data: {
+          status: StatusPagamentoLote.REJEITADO,
+          estadoRequisicaoAtual: 7,
+          processadoComSucesso: false,
+          excluido: true,
+          observacoes: observacoesLote,
+        },
+      });
+    });
+
+    // Reverter colheitas vinculadas (se houver)
+    for (const item of lote.itensPagamento) {
+      await this.reverterColheitasDoItemParaPendente(item.id);
+    }
+
+    // Resetar folhas vinculadas para permitir edição novamente
+    const folhasComItens = new Map<number, number[]>();
+    lote.itensPagamento.forEach((item) => {
+      const folhaId = item.funcionarioPagamento?.folhaId;
+      if (!folhaId) return;
+      if (!folhasComItens.has(folhaId)) {
+        folhasComItens.set(folhaId, []);
+      }
+      folhasComItens.get(folhaId)?.push(item.id);
+    });
+
+    for (const [folhaId, itemIds] of folhasComItens.entries()) {
+      await this.folhaPagamentoService.resetarFolhaParaRascunhoAposCancelamento(
+        folhaId,
+        itemIds,
+      );
+    }
+
+    // Encerrar jobs pendentes para evitar novas consultas ao BB
+    await this.pagamentosSyncQueueService.markAllItemJobsDoneForLote(loteId);
+    await this.pagamentosSyncQueueService.markAllLoteJobsDoneForLote(loteId);
+
+    return {
+      id: lote.id,
+      numeroRequisicao: lote.numeroRequisicao,
+      excluido: true,
+      message: 'Lote cancelado manualmente com sucesso.',
+    };
+  }
+
+  /**
    * Obtém o próximo número de requisição sequencial por conta corrente
    * Inicializa automaticamente a sequência se não existir (útil para deploy)
    * Usa transação para evitar race conditions

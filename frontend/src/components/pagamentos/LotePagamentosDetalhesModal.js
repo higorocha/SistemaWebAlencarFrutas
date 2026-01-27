@@ -57,7 +57,11 @@ const LotePagamentosDetalhesModal = ({
   // Extrair colheitas (para TURMA_COLHEITA)
   const colheitas = useMemo(() => {
     if (isFolhaPagamento) return [];
-    return lote?.colheitas || [];
+    if (Array.isArray(lote?.colheitas) && lote.colheitas.length > 0) {
+      return lote.colheitas;
+    }
+    const itens = Array.isArray(lote?.itensPagamento) ? lote.itensPagamento : [];
+    return itens.flatMap((item) => (Array.isArray(item?.colheitas) ? item.colheitas : []));
   }, [lote, isFolhaPagamento]);
   
   // Extrair funcionários (para FOLHA_PAGAMENTO)

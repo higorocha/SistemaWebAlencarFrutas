@@ -782,5 +782,35 @@ export class PagamentosController {
     const usuarioId = req.user?.id;
     return this.pagamentosService.cancelarPagamentos(dto, usuarioId);
   }
+
+  /**
+   * Cancelar manualmente um lote de pagamentos (sem chamar a API do BB).
+   * Apenas ADMINISTRADOR pode executar.
+   */
+  @Post('lotes/:id/cancelar-manual')
+  @UseGuards(JwtAuthGuard, PermissoesGuard)
+  @Niveis(NivelUsuario.ADMINISTRADOR)
+  @ApiOperation({
+    summary: 'Cancelar manualmente um lote de pagamentos',
+    description:
+      'Cancela um lote internamente, sem chamar a API do BB. Reverte status vinculados e marca o lote como excluído.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do lote de pagamento',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lote cancelado manualmente com sucesso',
+    type: Object,
+  })
+  async cancelarLoteManual(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: any
+  ): Promise<any> {
+    const usuarioId = req.user?.id;
+    return this.pagamentosService.cancelarLoteManual(id, usuarioId);
+  }
 }
 

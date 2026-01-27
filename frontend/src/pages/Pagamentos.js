@@ -19,6 +19,7 @@ import SecaoLotesPagamentos from "../components/pagamentos/SecaoLotesPagamentos"
 import SecaoLotesPagamentosAgrupado from "../components/pagamentos/SecaoLotesPagamentosAgrupado";
 import { useLocation } from "react-router-dom";
 import CentralizedLoader from "../components/common/loaders/CentralizedLoader";
+import { useAuth } from "../contexts/AuthContext";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -27,6 +28,7 @@ const { RangePicker } = DatePicker;
 const Pagamentos = () => {
   const { isMobile } = useResponsive();
   const location = useLocation();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loadingFolha, setLoadingFolha] = useState(false);
   const [loadingEstatisticasTurma, setLoadingEstatisticasTurma] = useState(false);
@@ -54,6 +56,7 @@ const Pagamentos = () => {
   const [loteSelecionado, setLoteSelecionado] = useState(null);
   const [itemSelecionado, setItemSelecionado] = useState(null);
   const [activeKeys, setActiveKeys] = useState([]);
+  const isAdmin = user?.nivel === "ADMINISTRADOR";
 
   // Guardar, ao carregar a tela via notificação, qual número de requisição devemos abrir automaticamente
   const [numeroRequisicaoParaAbrir, setNumeroRequisicaoParaAbrir] = useState(() => {
@@ -402,64 +405,22 @@ const Pagamentos = () => {
     }
   };
 
-  // Função para cancelar item (lançamento individual)
-  const handleCancelarItem = async (itemRecord) => {
-    if (!itemRecord || !itemRecord.item) {
-      showNotification("error", "Erro", "Item não encontrado.");
+  // Função para cancelar lote manualmente (sem chamar a API do BB)
+  const handleCancelarLoteManual = async (loteRecord) => {
+    if (!loteRecord?.id) {
+      showNotification("error", "Erro", "Lote não encontrado.");
       return;
     }
-    
+
     try {
-      setCancelandoLoteId(itemRecord.item.id);
+      setCancelandoLoteId(loteRecord.id);
 
-      // Buscar conta corrente do lote
-      const contaCorrenteId = itemRecord.contaCorrente?.id;
-      if (!contaCorrenteId) {
-        showNotification(
-          "error",
-          "Erro",
-          "Conta corrente não encontrada para este item."
-        );
-        return;
-      }
+      await axiosInstance.post(`/api/pagamentos/lotes/${loteRecord.id}/cancelar-manual`);
 
-      // Extrair código de pagamento do item
-      // Para PIX: usar identificadorPagamento
-      // Para Boleto: usar codigoIdentificadorPagamento
-      // Para Guia: usar codigoPagamento
-      const item = itemRecord.item;
-      const tipoPagamento = itemRecord.tipoPagamentoApi || itemRecord.tipoPagamento;
-      
-      let codigoPagamento = null;
-      if (tipoPagamento === 'PIX' || tipoPagamento === 'pix') {
-        codigoPagamento = item.identificadorPagamento;
-      } else if (tipoPagamento === 'BOLETO' || tipoPagamento === 'boleto') {
-        codigoPagamento = item.codigoIdentificadorPagamento;
-      } else if (tipoPagamento === 'GUIA' || tipoPagamento === 'guia') {
-        codigoPagamento = item.codigoPagamento;
-      } else {
-        // Fallback: tentar todos os campos na ordem correta
-        codigoPagamento = item.identificadorPagamento || item.codigoIdentificadorPagamento || item.codigoPagamento;
-      }
-
-      if (!codigoPagamento || codigoPagamento.toString().trim() === "") {
-        showNotification(
-          "warning",
-          "Atenção",
-          "Este item não possui código de pagamento para cancelamento. O pagamento pode ainda não ter sido processado pelo BB."
-        );
-        return;
-      }
-
-      await axiosInstance.post("/api/pagamentos/cancelar", {
-        contaCorrenteId,
-        listaCodigosPagamento: [codigoPagamento.toString()],
-      });
-
-      showNotification("success", "Sucesso", "Item cancelado com sucesso!");
+      showNotification("success", "Sucesso", "Lote cancelado manualmente com sucesso!");
       setModalCancelamentoOpen(false);
       setLoteSelecionado(null);
-      
+
       // Recarregar lotes e estatísticas
       let inicio = null;
       let fim = null;
@@ -476,10 +437,10 @@ const Pagamentos = () => {
       fetchEstatisticasTurmaColheita(inicio, fim, dateFilterType, contaCorrenteId);
       fetchEstatisticasFolhaPagamento(inicio, fim, dateFilterType, contaCorrenteId);
     } catch (error) {
-      console.error("Erro ao cancelar item:", error);
+      console.error("Erro ao cancelar lote manualmente:", error);
       const message =
         error.response?.data?.message ||
-        "Erro ao cancelar item. Verifique os logs para mais detalhes.";
+        "Erro ao cancelar lote manualmente. Verifique os logs para mais detalhes.";
       showNotification("error", "Erro", message);
     } finally {
       setCancelandoLoteId(null);
@@ -1090,6 +1051,12 @@ const Pagamentos = () => {
           estadoRequisicao !== 9 &&
           estadoRequisicao !== 6 &&
           !record.dataLiberacao; // Não mostrar se já foi liberado anteriormente
+
+        const estaExcluido = record.excluido === true || 
+                             record.excluido === "true" || 
+                             record.excluido === 1 || 
+                             record.excluido === "1";
+        const podeCancelar = isAdmin && podeLiberar && !estaExcluido;
         
         // ✅ NOVA VALIDAÇÃO: Verificar se a data atual é maior que a data agendada
         const dataAtual = moment();
@@ -1100,9 +1067,6 @@ const Pagamentos = () => {
         const deveMostrarBotao = podeLiberar;
         const botaoDesabilitado = dataAgendadaPassou;
         
-        // Cancelamento é feito no nível de item, não no nível de lote
-        // Será implementado quando expandir o lote e mostrar os itens
-
         // Função para criar o menu de ações de visualização
         const getMenuContent = (record) => {
           const menuItems = [];
@@ -1192,7 +1156,31 @@ const Pagamentos = () => {
                 />
               </Tooltip>
             )}
-            {/* Cancelar não está disponível no nível de lote, apenas no nível de item */}
+            {podeCancelar && (
+              <Tooltip title="Cancelar liberação do lote">
+                <Button
+                  danger
+                  size="small"
+                  loading={cancelandoLoteId === record.id}
+                  onClick={() => {
+                    setLoteSelecionado(record);
+                    setModalCancelamentoOpen(true);
+                  }}
+                  icon={<StopOutlined />}
+                  style={{
+                    backgroundColor: "#ff4d4f",
+                    borderColor: "#ff4d4f",
+                    color: "#ffffff",
+                    minWidth: "32px",
+                    height: "32px",
+                    padding: "0",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                />
+              </Tooltip>
+            )}
             
             {/* Menu dropdown para opções de visualização */}
             <Dropdown
@@ -1674,7 +1662,7 @@ const Pagamentos = () => {
           fetchLotesFolhaPagamento(inicio, fim, paginacaoFolhaPagamento.page, paginacaoFolhaPagamento.limit, dateFilterType);
         }}
         lote={loteSelecionado}
-        onConfirmCancelamento={handleCancelarItem}
+        onConfirmCancelamento={handleCancelarLoteManual}
         loadingCancelamento={!!cancelandoLoteId}
         mode="cancelamento"
       />
