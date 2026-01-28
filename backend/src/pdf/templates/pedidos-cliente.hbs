@@ -399,6 +399,28 @@
       font-size: 14px;
     }
 
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .status-badge-finalizado {
+      background-color: #f0fdf4;
+      color: #16a34a;
+      border: 1px solid #86efac;
+    }
+
+    .status-badge-aberto {
+      background-color: #fff7ed;
+      color: #ea580c;
+      border: 1px solid #fdba74;
+    }
+
     .no-data {
       text-align: center;
       padding: 20px;
@@ -502,17 +524,19 @@
               <thead>
                 <tr>
                   <th class="text-center" style="width: 50px;">#</th>
-                  <th style="min-width: 120px;">Pedido</th>
+                  <th style="min-width: 110px;">Pedido</th>
                   {{#if cliente.industria}}
-                  <th style="min-width: 100px;">NF Nossa</th>
-                  <th style="min-width: 100px;">NF Indústria</th>
+                  <th style="min-width: 70px;">NF Nossa</th>
+                  <th style="min-width: 80px;">NF Ind.</th>
                   {{else}}
-                  <th style="min-width: 120px;">Nota Fiscal</th>
+                  <th style="min-width: 70px;">NF</th>
                   {{/if}}
-                  <th style="min-width: 100px;">Data Pedido</th>
-                  <th style="min-width: 100px;">Data Colheita</th>
-                  <th class="text-center" style="min-width: 80px;">Dias</th>
-                  <th class="text-center" style="min-width: 100px;">Vale</th>
+                  <th class="text-center" style="min-width: 100px;">Data Pedido</th>
+                  <th class="text-center" style="min-width: 110px;">Data Colheita</th>
+                  <th class="text-center" style="min-width: 70px;">Dias</th>
+                  <th class="text-center" style="min-width: 80px;">Status</th>
+                  <th class="text-center" style="min-width: 80px;">Vale</th>
+                  <th class="text-right" style="min-width: 120px;">Valor Pago</th>
                   <th class="text-right" style="min-width: 120px;">Valor Total</th>
                 </tr>
               </thead>
@@ -547,8 +571,8 @@
                     {{/if}}
                   </td>
                   {{/if}}
-                  <td>{{dataPedidoFormatada}}</td>
-                  <td>
+                  <td class="text-center">{{dataPedidoFormatada}}</td>
+                  <td class="text-center">
                     {{#if dataColheitaFormatada}}
                       {{dataColheitaFormatada}}
                       {{#if usaDataPrevista}}
@@ -571,11 +595,29 @@
                     {{/if}}
                   </td>
                   <td class="text-center">
+                    {{#if (eq statusSimplificado 'Finalizado')}}
+                      <span class="status-badge status-badge-finalizado">{{statusSimplificado}}</span>
+                    {{else}}
+                      <span class="status-badge status-badge-aberto">{{statusSimplificado}}</span>
+                    {{/if}}
+                  </td>
+                  <td class="text-center">
                     {{#if valesFormatados}}
                       {{#if (eq valesFormatados '-')}}
                         <span style="color: #9ca3af;">-</span>
                       {{else}}
-                        <span class="produto-nome">{{valesFormatados}}</span>
+                        <span class="produto-nome" style="font-size: 9px;">{{valesFormatados}}</span>
+                      {{/if}}
+                    {{else}}
+                      <span style="color: #9ca3af;">-</span>
+                    {{/if}}
+                  </td>
+                  <td class="text-right">
+                    {{#if valorRecebidoFormatado}}
+                      {{#if valorPagoTotal}}
+                        <span class="produto-nome" style="color: #52c41a; font-weight: bold;">{{valorRecebidoFormatado}}</span>
+                      {{else}}
+                        <span class="produto-nome" style="color: #fa8c16; font-weight: bold;">{{valorRecebidoFormatado}}</span>
                       {{/if}}
                     {{else}}
                       <span style="color: #9ca3af;">-</span>
@@ -591,7 +633,8 @@
                 </tr>
                 {{/each}}
                 <tr class="table-total-row">
-                  <td colspan="{{#if cliente.industria}}8{{else}}7{{/if}}" class="table-total-label text-right">Total Geral dos Pedidos:</td>
+                  <td colspan="{{#if cliente.industria}}9{{else}}8{{/if}}" class="table-total-label text-right">Total Geral:</td>
+                  <td class="table-total-value text-right">{{valorRecebidoTotalFormatado}}</td>
                   <td class="table-total-value text-right">{{valorTotalFormatado}}</td>
                 </tr>
               </tbody>

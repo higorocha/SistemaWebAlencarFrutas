@@ -334,6 +334,18 @@
       word-wrap: break-word;
       line-height: 1.5;
     }
+
+    /* Header laranja apenas para a seção "Colheitas Não Precificadas" */
+    .card-header--orange {
+      background-color: #fa8c16;
+      border-bottom-color: #d46b08;
+    }
+
+    /* Forçar quebra de página antes da seção de não precificadas */
+    .page-break-before {
+      page-break-before: always;
+      break-before: page;
+    }
   </style>
 </head>
 <body>
@@ -367,6 +379,11 @@
         <path fill="url(#hg_grad_2)" d="M95.85,109.3C94,100.63,90.93,95,83.04,95H66.79l-0.01-34.35c0-8.93,22.91-11.52,22.91-24.07l-50.95,0.03c0,12.1,22.75,15.28,22.75,24.13L61.52,95H45.64c-7.95,0-11.05,5.72-12.84,14.48l-2.19,10.46l67.56,0.18L95.85,109.3z"/>
         <path fill="#795548" d="M25.02,4h77.96c3.33,0,6.02,2.7,6.02,6.02v0c0,3.33-2.7,6.02-6.02,6.02H25.02c-3.33,0-6.02-2.7-6.02-6.02v0C19,6.7,21.7,4,25.02,4z"/>
         <path fill="#795548" d="M24.86,112.31h78.28c3.23,0,5.85,2.62,5.85,5.85v0c0,3.23-2.62,5.85-5.85,5.85H24.86c-3.23,0-5.85-2.62-5.85-5.85v0C19.01,114.92,21.63,112.31,24.86,112.31z"/>
+      </symbol>
+
+      {{!-- ÍCONE DE LOCALIZAÇÃO/GPS --}}
+      <symbol id="icon-location" viewBox="0 0 24 24">
+        <path fill="#059669" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
       </symbol>
     </defs>
   </svg>
@@ -541,7 +558,7 @@
                   </div>
 
                   <!-- Card: Quantidade NÃO Precificada (Compra) -->
-                  <div style="background-color: #fefce8; border: 1px solid #fef08a; border-radius: 6px; padding: 10px; text-align: center;">
+                  <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px; text-align: center;">
                     <div style="font-size: 9px; color: #64748b; font-weight: 700; margin-bottom: 4px; text-transform: uppercase;">SEM PRECIFICAÇÃO</div>
                     {{#if quantidadesPorUnidadeNaoPrecificada.length}}
                       <div style="display: flex; flex-direction: column; gap: 3px; align-items: center;">
@@ -602,6 +619,7 @@
         </div>
 
         <!-- Tabela: colheitas precificadas (compra) -->
+        {{#if tabelas.precificadas.length}}
         <div class="card">
           <div class="card-header">
             <div class="card-title">
@@ -624,61 +642,85 @@
                 <div style="color: #ffffff; font-size: 11px; font-weight: 900;">{{fruta}}</div>
               </div>
 
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th style="width: 80px;">Pedido</th>
-                    <th style="width: 140px;">Área</th>
-                    <th style="width: 75px;">Data</th>
-                    <th style="width: 100px;" class="text-right">Quantidade</th>
-                    <th style="width: 90px;" class="text-right">VU Compra</th>
-                    <th style="width: 90px;" class="text-right">Total Compra</th>
-                    <th style="width: 80px;" class="text-center">Status</th>
-                    <th style="width: 90px;" class="text-right">Venda</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {{#each linhas}}
-                    <tr>
-                      <td><strong>#{{pedido}}</strong></td>
-                      <td>{{area}}</td>
-                      <td>{{dataColheita}}</td>
-                      <td class="text-right"><strong>{{quantidade}}</strong> {{unidade}}</td>
-                      <td class="text-right">{{valorUnitarioCompra}}</td>
-                      <td class="text-right">{{valorTotalCompra}}</td>
-                      <td class="text-center"><span class="status-pill status-{{statusCompra}}">{{statusCompra}}</span></td>
-                      <td class="text-right">{{valorVenda}}</td>
-                    </tr>
-                  {{/each}}
-                  <tr class="totals-row">
-                    <td colspan="3" style="text-align: right; font-weight: 800;">TOTAL POR UNIDADE:</td>
-                    <td colspan="5">
-                      {{#each totaisPorUnidade}}
-                        <span style="margin-left: 10px; font-weight: 800; color: #059669;">{{quantidade}} {{unidade}}</span>
+              {{!-- Subseções por Área (com indentação) --}}
+              {{#each areas}}
+                <div style="margin-left: 16px;">
+                  <!-- Cabeçalho da Área (sem background, ícone + nome + divider) -->
+                  <div style="display: flex; align-items: center; gap: 8px; margin: 14px 0 8px 0; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
+                    <svg style="width: 16px; height: 16px; flex-shrink: 0;"><use href="#icon-location" xlink:href="#icon-location"></use></svg>
+                    <span style="font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.3px;">{{areaNome}}</span>
+                  </div>
+
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th style="width: 90px;">Pedido</th>
+                        <th style="width: 100px;" class="text-center">Data Colheita</th>
+                        <th style="width: 110px;" class="text-right">Quantidade</th>
+                        <th style="width: 100px;" class="text-right">VU Compra</th>
+                        <th style="width: 110px;" class="text-right">Total Compra</th>
+                        <th style="width: 90px;" class="text-center">Status</th>
+                        <th style="width: 100px;" class="text-right">Venda</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {{#each linhas}}
+                        <tr>
+                          <td><strong>#{{pedido}}</strong></td>
+                          <td class="text-center">{{dataColheita}}</td>
+                          <td class="text-right"><strong>{{quantidade}}</strong> {{unidade}}</td>
+                          <td class="text-right">{{valorUnitarioCompra}}</td>
+                          <td class="text-right">{{valorTotalCompra}}</td>
+                          <td class="text-center"><span class="status-pill status-{{statusCompra}}">{{statusCompra}}</span></td>
+                          <td class="text-right">{{valorVenda}}</td>
+                        </tr>
                       {{/each}}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                      <tr class="totals-row">
+                        <td colspan="2" style="text-align: right; font-weight: 800;">SUBTOTAL ÁREA:</td>
+                        <td colspan="5">
+                          {{#each totaisPorUnidade}}
+                            <span style="margin-left: 10px; font-weight: 800; color: #059669;">{{quantidade}} {{unidade}}</span>
+                          {{/each}}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              {{/each}}
+
+              {{!-- Total Geral da Fruta --}}
+              <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 6px; padding: 10px 14px; margin: 12px 0 16px 0; display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 10px; font-weight: 900; color: #065f46; text-transform: uppercase;">TOTAL {{fruta}}:</span>
+                <div>
+                  {{#each totaisPorUnidade}}
+                    <span style="margin-left: 12px; font-weight: 900; color: #059669; font-size: 12px;">{{quantidade}} {{unidade}}</span>
+                  {{/each}}
+                </div>
+              </div>
             {{/each}}
           </div>
         </div>
+        {{/if}}
 
+        {{#if tabelas.precificadas.length}}
+        {{#if tabelas.naoPrecificadas.length}}
         <div class="section-divider"></div>
+        {{/if}}
+        {{/if}}
 
         <!-- Tabela: colheitas não precificadas (compra) -->
-        <div class="card">
-          <div class="card-header">
+        {{#if tabelas.naoPrecificadas.length}}
+        <div class="card {{#if tabelas.precificadas.length}}page-break-before{{/if}}">
+          <div class="card-header card-header--orange">
             <div class="card-title">
               <span class="svg-ico-pill"><svg class="svg-ico-lg"><use href="#icon-hourglass" xlink:href="#icon-hourglass"></use></svg></span>
               Colheitas Não Precificadas (Aguardando Precificação)
             </div>
           </div>
           <div class="card-body">
-            {{#if tabelas.naoPrecificadas.length}}
-              {{#each tabelas.naoPrecificadas}}
+            {{#each tabelas.naoPrecificadas}}
                 <!-- Cabeçalho Cultura/Fruta -->
-                <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                <div style="background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
                   <div style="background-color: rgba(255, 255, 255, 0.2); border-radius: 6px; padding: 4px 8px;">
                     <span style="color: #ffffff; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">CULTURA</span>
                   </div>
@@ -690,42 +732,59 @@
                   <div style="color: #ffffff; font-size: 11px; font-weight: 900;">{{fruta}}</div>
                 </div>
 
-                <table class="table">
-                  <thead>
-                    <tr>
-                      <th style="width: 90px;">Pedido</th>
-                      <th style="width: 160px;">Área</th>
-                      <th style="width: 85px;">Data</th>
-                      <th style="width: 120px;" class="text-right">Quantidade</th>
-                      <th style="width: 110px;" class="text-right">Venda</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {{#each linhas}}
-                      <tr>
-                        <td><strong>#{{pedido}}</strong></td>
-                        <td>{{area}}</td>
-                        <td>{{dataColheita}}</td>
-                        <td class="text-right"><strong>{{quantidade}}</strong> {{unidade}}</td>
-                        <td class="text-right">{{valorVenda}}</td>
-                      </tr>
-                    {{/each}}
-                    <tr class="totals-row">
-                      <td colspan="3" style="text-align: right; font-weight: 800;">TOTAL POR UNIDADE:</td>
-                      <td colspan="2">
-                        {{#each totaisPorUnidade}}
-                          <span style="margin-left: 10px; font-weight: 800; color: #059669;">{{quantidade}} {{unidade}}</span>
+                {{!-- Subseções por Área (com indentação) --}}
+                {{#each areas}}
+                  <div style="margin-left: 16px;">
+                    <!-- Cabeçalho da Área (sem background, ícone + nome + divider) -->
+                    <div style="display: flex; align-items: center; gap: 8px; margin: 14px 0 8px 0; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
+                      <svg style="width: 16px; height: 16px; flex-shrink: 0;"><use href="#icon-location" xlink:href="#icon-location"></use></svg>
+                      <span style="font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.3px;">{{areaNome}}</span>
+                    </div>
+
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th style="width: 120px;">Pedido</th>
+                          <th style="width: 120px;" class="text-center">Data Colheita</th>
+                          <th style="width: 150px;" class="text-right">Quantidade</th>
+                          <th style="width: 150px;" class="text-right">Venda</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {{#each linhas}}
+                          <tr>
+                            <td><strong>#{{pedido}}</strong></td>
+                            <td class="text-center">{{dataColheita}}</td>
+                            <td class="text-right"><strong>{{quantidade}}</strong> {{unidade}}</td>
+                            <td class="text-right">{{valorVenda}}</td>
+                          </tr>
                         {{/each}}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                        <tr class="totals-row">
+                          <td colspan="2" style="text-align: right; font-weight: 800;">SUBTOTAL ÁREA:</td>
+                          <td colspan="2">
+                            {{#each totaisPorUnidade}}
+                              <span style="margin-left: 10px; font-weight: 800; color: #d46b08;">{{quantidade}} {{unidade}}</span>
+                            {{/each}}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                {{/each}}
+
+                {{!-- Total Geral da Fruta --}}
+                <div style="background: #fff7ed; border: 2px solid #fb923c; border-radius: 6px; padding: 10px 14px; margin: 12px 0 16px 0; display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 10px; font-weight: 900; color: #9a3412; text-transform: uppercase;">TOTAL {{fruta}}:</span>
+                  <div>
+                    {{#each totaisPorUnidade}}
+                      <span style="margin-left: 12px; font-weight: 900; color: #ea580c; font-size: 12px;">{{quantidade}} {{unidade}}</span>
+                    {{/each}}
+                  </div>
+                </div>
               {{/each}}
-            {{else}}
-              <div style="padding: 10px; color: #64748b;">Nenhuma colheita não precificada encontrada.</div>
-            {{/if}}
           </div>
         </div>
+        {{/if}}
 
       </div>
     </div>

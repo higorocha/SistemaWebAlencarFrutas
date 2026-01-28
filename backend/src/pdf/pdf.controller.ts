@@ -1935,27 +1935,46 @@ export class PdfController {
     const precificadas = colheitas.filter((c) => !!c.pagamentoId);
     const naoPrecificadas = colheitas.filter((c) => !c.pagamentoId);
 
-    const agruparPorFruta = (lista: ColheitaPdf[]) => {
-      const map = new Map<string, {
+    // Agrupar por Fruta e depois por Área dentro de cada Fruta
+    const agruparPorFrutaEArea = (lista: ColheitaPdf[]) => {
+      const mapFruta = new Map<string, {
         cultura: string;
         fruta: string;
-        linhas: any[];
+        areas: Map<string, {
+          areaNome: string;
+          linhas: any[];
+          totaisPorUnidade: Map<string, number>;
+        }>;
         totaisPorUnidade: Map<string, number>;
       }>();
+
       lista.forEach((c) => {
-        const k = `${c.cultura}||${c.fruta}`;
-        if (!map.has(k)) {
-          map.set(k, {
+        const kFruta = `${c.cultura}||${c.fruta}`;
+        const areaNome = c.areaNome || 'Área não informada';
+
+        if (!mapFruta.has(kFruta)) {
+          mapFruta.set(kFruta, {
             cultura: c.cultura,
             fruta: c.fruta,
+            areas: new Map(),
+            totaisPorUnidade: new Map<string, number>(),
+          });
+        }
+
+        const grupoFruta = mapFruta.get(kFruta)!;
+
+        // Agrupar por área dentro da fruta
+        if (!grupoFruta.areas.has(areaNome)) {
+          grupoFruta.areas.set(areaNome, {
+            areaNome,
             linhas: [],
             totaisPorUnidade: new Map<string, number>(),
           });
         }
-        const g = map.get(k)!;
-        g.linhas.push({
+
+        const grupoArea = grupoFruta.areas.get(areaNome)!;
+        grupoArea.linhas.push({
           pedido: c.pedido,
-          area: c.areaNome,
           dataColheitaRaw: c.dataColheita ? new Date(c.dataColheita).getTime() : 0,
           dataColheita: c.dataColheita ? formatDateBRSemTimezone(c.dataColheita) : '-',
           quantidade: formatNumber(c.quantidade || 0),
@@ -1965,16 +1984,30 @@ export class PdfController {
           statusCompra: c.statusCompra || '-',
           valorVenda: c.valorTotalVendaProporcional && c.valorTotalVendaProporcional > 0 ? formatCurrencyBR(c.valorTotalVendaProporcional) : '-',
         });
-        g.totaisPorUnidade.set(c.unidade, (g.totaisPorUnidade.get(c.unidade) || 0) + (Number(c.quantidade) || 0));
+
+        // Totais por unidade da área
+        grupoArea.totaisPorUnidade.set(c.unidade, (grupoArea.totaisPorUnidade.get(c.unidade) || 0) + (Number(c.quantidade) || 0));
+        // Totais por unidade da fruta (geral)
+        grupoFruta.totaisPorUnidade.set(c.unidade, (grupoFruta.totaisPorUnidade.get(c.unidade) || 0) + (Number(c.quantidade) || 0));
       });
-      return Array.from(map.values())
+
+      return Array.from(mapFruta.values())
         .sort((a, b) => (a.cultura + a.fruta).localeCompare(b.cultura + b.fruta))
         .map((g) => ({
           cultura: g.cultura,
           fruta: g.fruta,
-          linhas: g.linhas
-            .sort((a, b) => (Number(b.dataColheitaRaw) || 0) - (Number(a.dataColheitaRaw) || 0))
-            .map(({ dataColheitaRaw, ...rest }) => rest),
+          areas: Array.from(g.areas.values())
+            .sort((a, b) => a.areaNome.localeCompare(b.areaNome))
+            .map((area) => ({
+              areaNome: area.areaNome,
+              linhas: area.linhas
+                .sort((a, b) => (Number(b.dataColheitaRaw) || 0) - (Number(a.dataColheitaRaw) || 0))
+                .map(({ dataColheitaRaw, ...rest }) => rest),
+              totaisPorUnidade: Array.from(area.totaisPorUnidade.entries()).map(([unidade, quantidade]) => ({
+                unidade,
+                quantidade: formatNumber(quantidade),
+              })),
+            })),
           totaisPorUnidade: Array.from(g.totaisPorUnidade.entries()).map(([unidade, quantidade]) => ({
             unidade,
             quantidade: formatNumber(quantidade),
@@ -1982,8 +2015,8 @@ export class PdfController {
         }));
     };
 
-    const gruposPrecificadas = agruparPorFruta(precificadas);
-    const gruposNaoPrecificadas = agruparPorFruta(naoPrecificadas);
+    const gruposPrecificadas = agruparPorFrutaEArea(precificadas);
+    const gruposNaoPrecificadas = agruparPorFrutaEArea(naoPrecificadas);
 
     // 12) Dados empresa + logo
     const dadosEmpresa = await this.configService.findDadosEmpresa();
@@ -2270,11 +2303,24 @@ export class PdfController {
         const vales = pedido.pagamentosPedidos
           .map((pagamento: any) => pagamento.referenciaExterna)
           .filter((vale: any) => vale && vale.trim() !== '');
-        
+
         if (vales.length > 0) {
           valesFormatados = vales.join(', ');
         }
       }
+
+      // Calcular valor recebido do pedido
+      const valorRecebido = pedido.valorRecebido || 0;
+      const valorRecebidoFormatado = valorRecebido > 0 ? formatCurrencyBR(valorRecebido) : null;
+
+      // Verificar se o valor recebido é igual ao valor final (pedido totalmente pago)
+      // Arredondar ambos para 2 casas decimais antes de comparar
+      const valorFinalArredondado = Number((pedido.valorFinal || 0).toFixed(2));
+      const valorRecebidoArredondado = Number(valorRecebido.toFixed(2));
+      const valorPagoTotal = valorRecebidoArredondado >= valorFinalArredondado;
+
+      // Status simplificado: Aberto (todos exceto PEDIDO_FINALIZADO) ou Finalizado
+      const statusSimplificado = pedido.status === 'PEDIDO_FINALIZADO' ? 'Finalizado' : 'Aberto';
 
       return {
         id: pedido.id,
@@ -2291,6 +2337,10 @@ export class PdfController {
         usaDataPrevista: !temDataColheita && !!pedido.dataPrevistaColheita, // Flag para indicar que está usando data prevista
         valorFinal: pedido.valorFinal || 0,
         valorFinalFormatado: pedido.valorFinal && pedido.valorFinal > 0 ? formatCurrencyBR(pedido.valorFinal) : null,
+        valorRecebido,
+        valorRecebidoFormatado,
+        valorPagoTotal, // Indica se o valor recebido é >= valor final
+        statusSimplificado,
         clienteIndustria: cliente.industria || false,
         frutasPedidos: frutasPedidosFormatadas,
         dias: mostrarDias ? dias : null,
@@ -2304,7 +2354,9 @@ export class PdfController {
 
     // Calcular total (usar pedidos originais, não ordenados)
     const valorTotal = pedidos.reduce((total, pedido) => total + (pedido.valorFinal || 0), 0);
+    const valorRecebidoTotal = pedidos.reduce((total, pedido) => total + (pedido.valorRecebido || 0), 0);
     const valorTotalFormatado = formatCurrencyBR(valorTotal);
+    const valorRecebidoTotalFormatado = formatCurrencyBR(valorRecebidoTotal);
 
     return {
       cliente: {
@@ -2313,6 +2365,7 @@ export class PdfController {
       },
       pedidos: pedidosFormatados,
       valorTotalFormatado,
+      valorRecebidoTotalFormatado,
       empresa: dadosEmpresa,
       logoPath: logoBase64,
       dataGeracaoFormatada: formatDateBR(new Date()),
