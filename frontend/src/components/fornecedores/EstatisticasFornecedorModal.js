@@ -25,7 +25,7 @@ import { formatCurrency, capitalizeName } from "../../utils/formatters";
 import MiniSelectPersonalizavel from "../common/MiniComponents/MiniSelectPersonalizavel";
 import usePedidoStatusColors from "../../hooks/usePedidoStatusColors";
 import useResponsive from "../../hooks/useResponsive";
-import { PDFButton, SecondaryButton } from "../common/buttons";
+import { PDFButtonDropdown, SecondaryButton } from "../common/buttons";
 import moment from "moment";
 import PDFIcon from "../Icons/PDFIcon";
 
@@ -141,84 +141,122 @@ const EstatisticasFornecedorModal = ({
     }
   };
 
-  // Função para lidar com geração de PDF
+  // Payload comum para os dois relatórios PDF (filtros do modal)
+  const getPayloadPDF = () => {
+    const aplicarFiltros = !!filtrosAtivos;
+    return {
+      aplicarFiltros,
+      filtroBusca: filtroBusca || '',
+      dataInicio:
+        aplicarFiltros &&
+        filtroDataColheita &&
+        filtroDataColheita.length === 2 &&
+        filtroDataColheita[0]
+          ? filtroDataColheita[0].format('YYYY-MM-DD')
+          : undefined,
+      dataFim:
+        aplicarFiltros &&
+        filtroDataColheita &&
+        filtroDataColheita.length === 2 &&
+        filtroDataColheita[1]
+          ? filtroDataColheita[1].format('YYYY-MM-DD')
+          : undefined,
+    };
+  };
+
+  const downloadPDFFromResponse = (response, defaultFileName) => {
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const contentDisposition =
+      response.headers?.['content-disposition'] ||
+      response.headers?.['Content-Disposition'];
+    let fileName = '';
+    if (contentDisposition && typeof contentDisposition === 'string') {
+      const match = contentDisposition.match(/filename\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i);
+      const raw = match?.[1] || match?.[2];
+      if (raw) {
+        try {
+          fileName = decodeURIComponent(raw);
+        } catch (e) {
+          fileName = raw;
+        }
+      }
+    }
+    if (!fileName) fileName = defaultFileName;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Relatório Geral (colheitas do fornecedor)
   const handleGerarPDF = async () => {
     if (!fornecedorId) {
       showNotification('error', 'Erro', 'Fornecedor inválido para gerar PDF.');
       return;
     }
-
     try {
-      setLoadingPDF(true); // ✅ Inicia loading
-      
-      const aplicarFiltros = !!filtrosAtivos;
-      const payload = {
-        aplicarFiltros,
-        filtroBusca: filtroBusca || '',
-        dataInicio:
-          aplicarFiltros &&
-          filtroDataColheita &&
-          filtroDataColheita.length === 2 &&
-          filtroDataColheita[0]
-            ? filtroDataColheita[0].format('YYYY-MM-DD')
-            : undefined,
-        dataFim:
-          aplicarFiltros &&
-          filtroDataColheita &&
-          filtroDataColheita.length === 2 &&
-          filtroDataColheita[1]
-            ? filtroDataColheita[1].format('YYYY-MM-DD')
-            : undefined,
-      };
-
+      setLoadingPDF(true);
       const response = await axiosInstance.post(
         `/api/pdf/fornecedor-colheitas/${fornecedorId}`,
-        payload,
+        getPayloadPDF(),
         { responseType: 'blob' }
       );
-
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-
-      // Tentar pegar nome do arquivo via Content-Disposition
-      const contentDisposition =
-        response.headers?.['content-disposition'] ||
-        response.headers?.['Content-Disposition'];
-
-      let fileName = '';
-      if (contentDisposition && typeof contentDisposition === 'string') {
-        const match = contentDisposition.match(/filename\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i);
-        const raw = match?.[1] || match?.[2];
-        if (raw) {
-          try {
-            fileName = decodeURIComponent(raw);
-          } catch (e) {
-            fileName = raw;
-          }
-        }
-      }
-
-      if (!fileName) {
-        const nome = (fornecedorNome || 'fornecedor').toString().replace(/[\\/:*?"<>|]+/g, '-');
-        fileName = `colheitas-fornecedor-${nome}.pdf`;
-      }
-
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      
+      const nome = (fornecedorNome || 'fornecedor').toString().replace(/[\\/:*?"<>|]+/g, '-');
+      downloadPDFFromResponse(response, `colheitas-fornecedor-${nome}.pdf`);
       showNotification('success', 'PDF Gerado', 'O PDF foi gerado e o download iniciado.');
     } catch (error) {
       console.error('Erro ao gerar PDF do fornecedor:', error);
       showNotification('error', 'Erro', 'Não foi possível gerar o PDF. Tente novamente.');
     } finally {
-      setLoadingPDF(false); // ✅ Finaliza loading
+      setLoadingPDF(false);
     }
   };
+
+  // Relatório para Precificação (colheitas pendentes de precificação)
+  const handleGerarPDFPendentes = async () => {
+    if (!fornecedorId) {
+      showNotification('error', 'Erro', 'Fornecedor inválido para gerar PDF.');
+      return;
+    }
+    try {
+      setLoadingPDF(true);
+      const response = await axiosInstance.post(
+        `/api/pdf/fornecedor-colheitas-pendentes/${fornecedorId}`,
+        getPayloadPDF(),
+        { responseType: 'blob' }
+      );
+      const nome = (fornecedorNome || 'fornecedor').toString().replace(/[\\/:*?"<>|]+/g, '-');
+      downloadPDFFromResponse(response, `colheitas-pendentes-precificacao-${nome}.pdf`);
+      showNotification('success', 'PDF Gerado', 'O relatório de colheitas pendentes foi gerado e o download iniciado.');
+    } catch (error) {
+      console.error('Erro ao gerar PDF pendentes:', error);
+      showNotification('error', 'Erro', error?.response?.data?.message || 'Não foi possível gerar o PDF. Tente novamente.');
+    } finally {
+      setLoadingPDF(false);
+    }
+  };
+
+  // Itens do menu dropdown do botão PDF (Relatório Geral = atual; Relatório de Precificação = link cego)
+  const pdfMenuItems = [
+    {
+      key: "geral",
+      label: "Relatório Geral",
+      tooltip: "Colheitas, totais por unidade, valores pagos e precificados, detalhes por pedido e período.",
+      icon: <BarChartOutlined />,
+      onClick: handleGerarPDF,
+    },
+    {
+      key: "precificacao",
+      label: "Relatório para Precificação",
+      tooltip: "Lista as colheitas que ainda não foram precificadas ao fornecedor.",
+      icon: <CalculatorOutlined />,
+      onClick: handleGerarPDFPendentes,
+    },
+  ];
 
   const processarDadosGrafico = () => {
     if (!estatisticas?.detalhes) return;
@@ -751,20 +789,19 @@ const EstatisticasFornecedorModal = ({
             gap: isMobile ? "8px" : "12px",
             flexWrap: isMobile ? "wrap" : "nowrap"
           }}>
-            <PDFButton
-              onClick={handleGerarPDF}
+            <PDFButtonDropdown
+              menuItems={pdfMenuItems}
+              label="Gerar PDF"
               loading={loadingPDF}
               disabled={loadingPDF || !fornecedorId}
               size={isMobile ? "small" : "large"}
-              tooltip="Gerar PDF"
+              showTooltip={false}
               style={{
                 height: isMobile ? "32px" : "40px",
                 padding: isMobile ? "0 12px" : "0 16px",
                 fontSize: isMobile ? "0.75rem" : undefined,
               }}
-            >
-              Gerar PDF
-            </PDFButton>
+            />
             <div style={{ marginLeft: "auto" }}>
               <Button 
                 onClick={onClose} 
@@ -831,20 +868,19 @@ const EstatisticasFornecedorModal = ({
             gap: isMobile ? "8px" : "12px",
             flexWrap: isMobile ? "wrap" : "nowrap"
           }}>
-            <PDFButton
-              onClick={handleGerarPDF}
+            <PDFButtonDropdown
+              menuItems={pdfMenuItems}
+              label="Gerar PDF"
               loading={loadingPDF}
               disabled={loadingPDF || !fornecedorId}
               size={isMobile ? "small" : "large"}
-              tooltip="Gerar PDF"
+              showTooltip={false}
               style={{
                 height: isMobile ? "32px" : "40px",
                 padding: isMobile ? "0 12px" : "0 16px",
                 fontSize: isMobile ? "0.75rem" : undefined,
               }}
-            >
-              Gerar PDF
-            </PDFButton>
+            />
             <div style={{ marginLeft: "auto" }}>
               <Button 
                 onClick={onClose} 
@@ -1057,20 +1093,19 @@ const EstatisticasFornecedorModal = ({
           gap: isMobile ? "8px" : "12px",
           flexWrap: isMobile ? "wrap" : "nowrap"
         }}>
-          <PDFButton
-            onClick={handleGerarPDF}
-              loading={loadingPDF}
-              disabled={loadingPDF || !fornecedorId}
+          <PDFButtonDropdown
+            menuItems={pdfMenuItems}
+            label="Gerar PDF"
+            loading={loadingPDF}
+            disabled={loadingPDF || !fornecedorId}
             size={isMobile ? "small" : "large"}
-            tooltip="Gerar PDF"
+            showTooltip={false}
             style={{
               height: isMobile ? "32px" : "40px",
               padding: isMobile ? "0 12px" : "0 16px",
               fontSize: isMobile ? "0.75rem" : undefined,
             }}
-          >
-            Gerar PDF
-          </PDFButton>
+          />
           <div style={{ marginLeft: "auto" }}>
             <Button 
               onClick={onClose} 

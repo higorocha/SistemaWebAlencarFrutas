@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{tituloDocumento}} - {{fornecedor.nome}}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Helvetica', 'Arial', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', 'EmojiOne Color', sans-serif;
+      color: #333;
+      font-size: 10.8px;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.9);
+      transform-origin: top left;
+      width: 111.11%;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .content-wrapper { flex: 1; padding-bottom: 63px; }
+    .pdf-content { padding: 0 9px 9px 9px; }
+    .cards-wrapper { display: flex; flex-direction: column; gap: 6px; }
+
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background-color: #ffffff;
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+      margin-bottom: 6px;
+    }
+
+    @media print {
+      .card-fornecedor { break-inside: avoid; page-break-inside: avoid; }
+      .card-header { break-after: avoid; page-break-after: avoid; }
+      .card-header + .card-body { break-before: avoid; page-break-before: avoid; break-inside: auto; page-break-inside: auto; }
+      .card-body { break-inside: auto; page-break-inside: auto; }
+      thead { display: table-header-group; }
+      tfoot { display: table-footer-group; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 7px;
+      background-color: #059669;
+      color: #ffffff;
+      padding: 6px 10px;
+      border-radius: 7px 7px 0 0;
+      border-bottom: 2px solid #047857;
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    .svg-ico { width: 12px; height: 12px; vertical-align: -2px; margin-right: 4px; }
+    .svg-ico-lg { width: 16px; height: 16px; vertical-align: -3px; }
+    .svg-ico-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.30);
+      margin-right: 6px;
+    }
+    .svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; left: -9999px; top: -9999px; }
+
+    .card-body { padding: 8px 10px; }
+
+    .areas-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .area-pill {
+      border: 1px solid #bbf7d0;
+      background: #f0fdf4;
+      color: #047857;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .note {
+      margin-top: 8px;
+      border: 1px solid #bae6fd;
+      background: #f0f9ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 10px;
+      color: #0f172a;
+    }
+    .note .i {
+      display: inline-flex;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 800;
+      background: #0ea5e9;
+      color: #fff;
+      margin-right: 6px;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+    .table th, .table td {
+      border: 1px solid #e5e7eb;
+      padding: 6px 6px;
+      vertical-align: top;
+    }
+    .table th {
+      background: #f9fafb;
+      color: #334155;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      font-size: 9px;
+    }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+
+    .totals-row td {
+      background: #f0fdf4;
+      font-weight: 900;
+      color: #065f46;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(90deg, rgba(5,150,105,0) 0%, rgba(5,150,105,0.55) 50%, rgba(5,150,105,0) 100%);
+      margin: 14px 0;
+    }
+
+    /* Pills de status de pedido – mesmo esquema de cores do PedidosTable (theme.js pedidoStatus) */
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 900;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      color: #334155;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+    .status-PEDIDO_CRIADO,
+    .status-AGUARDANDO_COLHEITA { background: #e6f7ff; border-color: #1890ff; color: #096dd9; }
+    .status-COLHEITA_PARCIAL { background: #fffbe6; border-color: #faad14; color: #ad6800; }
+    .status-COLHEITA_REALIZADA,
+    .status-AGUARDANDO_PRECIFICACAO { background: #f9f0ff; border-color: #722ed1; color: #531dab; }
+    .status-PRECIFICACAO_REALIZADA,
+    .status-AGUARDANDO_PAGAMENTO,
+    .status-PAGAMENTO_PARCIAL { background: #fffbe6; border-color: #faad14; color: #ad6800; }
+    .status-PAGAMENTO_REALIZADO,
+    .status-PEDIDO_FINALIZADO { background: #f6ffed; border-color: #52c41a; color: #389e0d; }
+    .status-CANCELADO { background: #fff2f0; border-color: #ff4d4f; color: #cf1322; }
+    .status-DEFAULT { background: #fafafa; border-color: #d9d9d9; color: #595959; }
+
+    .pdf-header {
+      background-color: #ffffff;
+      border-bottom: 3px solid #059669;
+      padding: 22px 20px 12px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      page-break-inside: avoid;
+    }
+
+    .header-top { display: table; width: 100%; table-layout: fixed; margin-bottom: 10px; }
+    .header-logo, .header-center, .header-qualificacao { display: table-cell; vertical-align: middle; }
+    .header-logo { width: 180px; padding-right: 15px; }
+    .logo-img { max-width: 180px; max-height: 80px; width: auto; height: auto; object-fit: contain; display: block; }
+    .logo-placeholder {
+      width: 180px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f3f4f6;
+      border: 1px dashed #d1d5db;
+      border-radius: 4px;
+    }
+    .logo-text { font-size: 14px; color: #6b7280; font-weight: 600; text-align: center; }
+    .header-center { text-align: center; padding: 0 20px; vertical-align: middle; }
+    .header-center h1.empresa-nome { font-size: 24px; margin: 0 0 5px 0; font-weight: bold; color: #059669; text-transform: uppercase; letter-spacing: 1px; line-height: 1.2; }
+    .header-center p.empresa-razao-social { font-size: 12px; margin: 0; color: #6b7280; font-style: italic; line-height: 1.3; }
+    .header-qualificacao { width: 220px; text-align: right; padding-left: 15px; vertical-align: top; }
+    .qualificacao-item { margin-bottom: 6px; line-height: 1.4; }
+    .qualificacao-item:last-child { margin-bottom: 0; }
+    .qualificacao-value { font-size: 10px; color: #6b7280; font-weight: 600; display: block; word-wrap: break-word; line-height: 1.5; }
+
+    .card-header--orange {
+      background-color: #fa8c16;
+      border-bottom-color: #d46b08;
+    }
+
+    .page-break-before {
+      page-break-before: always;
+      break-before: page;
+    }
+  </style>
+</head>
+<body>
+  {{> header}}
+
+  <svg class="svg-defs" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="hg_grad_1" gradientUnits="userSpaceOnUse" x1="83.2005" x2="46.5338" y1="111.6494" y2="20.3161">
+        <stop offset="0.002192283" stop-color="#BBDEFB"/>
+        <stop offset="1" stop-color="#E3F2FD"/>
+      </linearGradient>
+      <linearGradient id="hg_grad_2" gradientUnits="userSpaceOnUse" x1="64.3949" x2="64.3949" y1="38.3333" y2="114.2119">
+        <stop offset="0" stop-color="#FFCA7B"/>
+        <stop offset="0.2539" stop-color="#FFA726"/>
+        <stop offset="0.4688" stop-color="#FFCC80"/>
+        <stop offset="0.6586" stop-color="#FFC875"/>
+        <stop offset="0.8665" stop-color="#FFA726"/>
+      </linearGradient>
+      <symbol id="icon-hourglass" viewBox="0 0 128 128">
+        <path fill="url(#hg_grad_1)" d="M56.31,59.58c1.57,0.67,1.61,3.21,0.05,3.93C51.22,65.9,26.29,75.9,26.29,112.3l-0.16,6.72l75.75,0.13l-0.05-6.78c0-37.1-25.08-46.31-30.25-48.72c-1.55-0.72-1.52-3.26,0.05-3.93c5.13-2.2,29.63-12.65,29.63-45.39l0.63-5.7L26.13,8.51l0.66,5.97C26.79,46.2,51.16,57.37,56.31,59.58z"/>
+        <path fill="url(#hg_grad_2)" d="M95.85,109.3C94,100.63,90.93,95,83.04,95H66.79l-0.01-34.35c0-8.93,22.91-11.52,22.91-24.07l-50.95,0.03c0,12.1,22.75,15.28,22.75,24.13L61.52,95H45.64c-7.95,0-11.05,5.72-12.84,14.48l-2.19,10.46l67.56,0.18L95.85,109.3z"/>
+        <path fill="#795548" d="M25.02,4h77.96c3.33,0,6.02,2.7,6.02,6.02v0c0,3.33-2.7,6.02-6.02,6.02H25.02c-3.33,0-6.02-2.7-6.02-6.02v0C19,6.7,21.7,4,25.02,4z"/>
+        <path fill="#795548" d="M24.86,112.31h78.28c3.23,0,5.85,2.62,5.85,5.85v0c0,3.23-2.62,5.85-5.85,5.85H24.86c-3.23,0-5.85-2.62-5.85-5.85v0C19.01,114.92,21.63,112.31,24.86,112.31z"/>
+      </symbol>
+      <symbol id="icon-location" viewBox="0 0 24 24">
+        <path fill="#059669" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div class="content-wrapper">
+    <div class="pdf-content">
+      <div class="cards-wrapper">
+
+        <!-- Cabeçalho interno: Relatório de Colheitas Pendentes de Precificação -->
+        <div class="card card-fornecedor">
+          <div class="card-header">
+            <div class="card-title">{{tituloDocumento}}</div>
+            <div style="font-size: 10px; font-weight: 700;">Gerado em: {{dataGeracaoFormatada}}</div>
+          </div>
+          <div class="card-body">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;">
+                <div style="font-size: 9px; color: #64748b; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px;">Fornecedor</div>
+                <div style="font-size: 13px; color: #0f172a; font-weight: 900;">{{fornecedor.nome}}</div>
+              </div>
+              {{#if periodo}}
+              <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 10px;">
+                <div style="font-size: 9px; color: #64748b; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px;">Período das Colheitas</div>
+                <div style="font-size: 13px; color: #0f172a; font-weight: 900;">{{periodo.dataInicio}} a {{periodo.dataFim}}</div>
+              </div>
+              {{/if}}
+            </div>
+
+            {{#if estatisticasGerais}}
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; padding: 12px; background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%); border-radius: 8px; border: 2px solid #10b981;">
+              <div style="text-align: center;">
+                <div style="font-size: 8px; color: #064e3b; font-weight: 800; text-transform: uppercase; margin-bottom: 3px; letter-spacing: 0.5px;">Total Colheitas</div>
+                <div style="font-size: 18px; font-weight: 900; color: #059669;">{{estatisticasGerais.totalColheitas}}</div>
+              </div>
+              <div style="text-align: center;">
+                <div style="font-size: 8px; color: #064e3b; font-weight: 800; text-transform: uppercase; margin-bottom: 3px; letter-spacing: 0.5px;">Culturas</div>
+                <div style="font-size: 18px; font-weight: 900; color: #059669;">{{estatisticasGerais.totalCulturas}}</div>
+              </div>
+              <div style="text-align: center;">
+                <div style="font-size: 8px; color: #064e3b; font-weight: 800; text-transform: uppercase; margin-bottom: 3px; letter-spacing: 0.5px;">Frutas</div>
+                <div style="font-size: 18px; font-weight: 900; color: #059669;">{{estatisticasGerais.totalFrutas}}</div>
+              </div>
+              <div style="text-align: center;">
+                <div style="font-size: 8px; color: #064e3b; font-weight: 800; text-transform: uppercase; margin-bottom: 3px; letter-spacing: 0.5px;">Áreas</div>
+                <div style="font-size: 18px; font-weight: 900; color: #059669;">{{estatisticasGerais.totalAreas}}</div>
+              </div>
+            </div>
+            {{/if}}
+
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px;">
+              <div style="font-size: 9px; color: #78716c; font-weight: 800; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">Áreas do Fornecedor no Relatório</div>
+              <div class="areas-list">
+                {{#each areas}}
+                  <span class="area-pill">{{nome}} • {{#if ha}}{{ha}} ha{{else}}ha N/I{{/if}}</span>
+                {{/each}}
+              </div>
+            </div>
+
+            {{#if aplicarFiltros}}
+              <div class="note" style="margin-top: 10px;">
+                <span class="i">i</span>
+                Este PDF foi gerado respeitando os filtros aplicados no modal.
+              </div>
+            {{/if}}
+          </div>
+        </div>
+
+        <!-- Resumo Estatístico por Cultura e Fruta (somente pendentes: qtd pendentes + total colhido por unidade) -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Resumo Estatístico por Cultura e Fruta</div>
+          </div>
+          <div class="card-body">
+            {{#each resumo}}
+              <div style="margin-bottom: 14px; page-break-inside: avoid;">
+                <div style="background-color: #f8fafc; border: 2px solid #059669; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <div style="font-weight: 900; color: #059669; font-size: 11px; text-transform: uppercase;">{{cultura}}</div>
+                    <div style="font-weight: 900; color: #0f172a; font-size: 12px;">• {{fruta}}</div>
+                  </div>
+                  <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                    <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: 4px 10px; font-size: 9px; color: #92400e; font-weight: 700;">
+                      {{colheitasPendentes}} colheita(s) pendente(s) de precificação
+                    </div>
+                    <div style="font-size: 10px; color: #334155; font-weight: 700;">
+                      Total colhido:
+                      {{#each quantidadesPorUnidade}}
+                        <span style="margin-left: 6px;">{{quantidade}} {{unidade}}</span>
+                      {{/each}}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {{#unless @last}}
+                <div style="border-top: 1px dashed #e2e8f0; margin: 12px 0;"></div>
+              {{/unless}}
+            {{/each}}
+          </div>
+        </div>
+
+        <!-- Tabela: Colheitas Pendentes de Precificação (layout igual ao de não precificadas) -->
+        {{#if tabelas.pendentes.length}}
+        <div class="card">
+          <div class="card-header card-header--orange">
+            <div class="card-title">
+              <span class="svg-ico-pill"><svg class="svg-ico-lg"><use href="#icon-hourglass" xlink:href="#icon-hourglass"></use></svg></span>
+              Colheitas Não Precificadas (Aguardando Precificação)
+            </div>
+          </div>
+          <div class="card-body">
+            {{#each tabelas.pendentes}}
+              <div style="background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                <div style="background-color: rgba(255, 255, 255, 0.2); border-radius: 6px; padding: 4px 8px;">
+                  <span style="color: #ffffff; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">CULTURA</span>
+                </div>
+                <div style="color: #ffffff; font-size: 11px; font-weight: 900; text-transform: uppercase;">{{cultura}}</div>
+                <div style="width: 2px; height: 16px; background-color: rgba(255, 255, 255, 0.3);"></div>
+                <div style="background-color: rgba(255, 255, 255, 0.2); border-radius: 6px; padding: 4px 8px;">
+                  <span style="color: #ffffff; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">FRUTA</span>
+                </div>
+                <div style="color: #ffffff; font-size: 11px; font-weight: 900;">{{fruta}}</div>
+              </div>
+
+              {{#each areas}}
+                <div style="margin-left: 16px;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin: 14px 0 8px 0; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
+                    <svg style="width: 16px; height: 16px; flex-shrink: 0;"><use href="#icon-location" xlink:href="#icon-location"></use></svg>
+                    <span style="font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.3px;">{{areaNome}}</span>
+                  </div>
+
+                  <table class="table table-pendentes">
+                    <thead>
+                      <tr>
+                        <th style="width: 85px;" class="text-center">Pedido</th>
+                        <th style="width: 140px;" class="text-center">Cliente</th>
+                        <th style="width: 95px;" class="text-center">Data Colheita</th>
+                        <th style="width: 110px;" class="text-center">Quantidade</th>
+                        <th style="width: 85px;" class="text-center">VU Compra</th>
+                        <th style="width: 110px;" class="text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {{#each linhas}}
+                        <tr>
+                          <td class="text-center"><strong>#{{pedido}}</strong></td>
+                          <td class="text-center">{{cliente}}</td>
+                          <td class="text-center">{{dataColheita}}</td>
+                          <td class="text-right"><strong>{{quantidade}}</strong> {{unidade}}</td>
+                          <td class="text-center">{{valorUnitarioCompra}}</td>
+                          <td class="text-center"><span class="status-pill status-{{statusKey}}">{{statusPedido}}</span></td>
+                        </tr>
+                      {{/each}}
+                      <tr class="totals-row">
+                        <td colspan="2" style="text-align: center; font-weight: 800;">SUBTOTAL ÁREA:</td>
+                        <td colspan="4">
+                          {{#each totaisPorUnidade}}
+                            <span style="margin-left: 10px; font-weight: 800; color: #d46b08;">{{quantidade}} {{unidade}}</span>
+                          {{/each}}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              {{/each}}
+
+              <div style="background: #fff7ed; border: 2px solid #fb923c; border-radius: 6px; padding: 10px 14px; margin: 12px 0 16px 0; display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 10px; font-weight: 900; color: #9a3412; text-transform: uppercase;">TOTAL {{fruta}}:</span>
+                <div>
+                  {{#each totaisPorUnidade}}
+                    <span style="margin-left: 12px; font-weight: 900; color: #ea580c; font-size: 12px;">{{quantidade}} {{unidade}}</span>
+                  {{/each}}
+                </div>
+              </div>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

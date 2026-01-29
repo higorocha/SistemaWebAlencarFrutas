@@ -465,6 +465,15 @@
             <div class="card-title">Resumo Estatístico por Cultura e Fruta</div>
           </div>
           <div class="card-body">
+            <!-- Legenda (uma vez no topo): o que significam COMPRA e VENDA -->
+            <div style="margin-bottom: 12px; padding: 8px 12px; background: #f1f5f9; border: 1px solid #94a3b8; border-radius: 6px; font-size: 8px; color: #334155; line-height: 1.35; display: flex; align-items: flex-start; gap: 8px;">
+              <span style="flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: #475569; color: #fff; text-align: center; line-height: 18px; font-weight: 700; font-size: 11px;">i</span>
+              <span>
+                <strong style="color: #0f172a;">O que significam COMPRA e VENDA neste relatório</strong><br/><br/>
+                <strong>COMPRA</strong> refere-se ao pagamento ao fornecedor pela colheita. &quot;X precificada(s)&quot; = colheitas em que já foi definido (e eventualmente pago) o valor de compra ao fornecedor. &quot;X aguardando precificação&quot; = colheitas em que ainda não foi definido o valor a pagar ao fornecedor.<br/><br/>
+                <strong>VENDA</strong> refere-se à precificação do pedido ao cliente (valor cobrado na fruta do pedido). &quot;X aguardando precificação&quot; em VENDA = existem colheitas em que a compra ao fornecedor já tem preço, mas o pedido/fruta correspondente ainda não foi precificado para o cliente. Assim você evita deixar compra fechada sem preço de venda definido.
+              </span>
+            </div>
             {{#each resumo}}
               <!-- Subseção por Cultura/Fruta - permite quebra entre frutas -->
               <div style="margin-bottom: 14px; page-break-inside: avoid; page-break-after: auto;">
