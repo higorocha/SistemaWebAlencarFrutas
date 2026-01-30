@@ -28,6 +28,9 @@ import {
   UpdateAjustesPrecificacaoDto
 } from './dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissoesGuard } from '../auth/guards/permissoes.guard';
+import { Niveis } from '../auth/decorators/niveis.decorator';
+import { NivelUsuario } from '../auth/dto/register.dto';
 
 @ApiTags('Pedidos')
 @ApiBearerAuth()
@@ -532,6 +535,32 @@ export class PedidosController {
   finalizar(@Param('id') id: string, @Req() req): Promise<PedidoResponseDto> {
     const usuarioId = req.user.id;
     return this.pedidosService.finalizar(+id, usuarioId);
+  }
+
+  @Patch(':id/retornar-para-edicao')
+  @UseGuards(PermissoesGuard)
+  @Niveis(NivelUsuario.PROGRAMADOR)
+  @ApiOperation({ summary: 'Retornar pedido finalizado para edição (programador)' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Pedido retornado para edição com sucesso',
+    type: PedidoResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Pedido não encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Acesso negado. Apenas programador pode executar esta ação',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Só é possível retornar pedidos finalizados para edição',
+  })
+  retornarParaEdicao(@Param('id') id: string, @Req() req): Promise<PedidoResponseDto> {
+    const usuarioId = req.user.id;
+    return this.pedidosService.retornarParaEdicao(+id, usuarioId);
   }
 
   @Patch(':id/cancelar')

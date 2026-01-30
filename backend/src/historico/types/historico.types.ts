@@ -35,6 +35,7 @@ export enum TipoAcaoHistorico {
 
   // Finalização
   FINALIZAR_PEDIDO = 'FINALIZAR_PEDIDO',
+  RETORNAR_PARA_EDICAO = 'RETORNAR_PARA_EDICAO',
   CANCELAR_PEDIDO = 'CANCELAR_PEDIDO',
   REMOVER_PEDIDO = 'REMOVER_PEDIDO',
 
@@ -120,6 +121,7 @@ export const DESCRICAO_ACOES: Record<TipoAcaoHistorico, string> = {
   [TipoAcaoHistorico.PAGAMENTO_ATUALIZADO]: 'Pagamento atualizado',
   [TipoAcaoHistorico.PAGAMENTO_REMOVIDO]: 'Pagamento removido',
   [TipoAcaoHistorico.FINALIZAR_PEDIDO]: 'Pedido finalizado',
+  [TipoAcaoHistorico.RETORNAR_PARA_EDICAO]: 'Retornado para edição (programador)',
   [TipoAcaoHistorico.CANCELAR_PEDIDO]: 'Pedido cancelado',
   [TipoAcaoHistorico.REMOVER_PEDIDO]: 'Pedido removido',
   [TipoAcaoHistorico.TRANSICAO_AGUARDANDO_COLHEITA]: 'Aguardando colheita',

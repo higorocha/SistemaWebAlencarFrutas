@@ -10,11 +10,11 @@ import {
   Tag,
   Tooltip,
   Typography,
-  Modal,
   message,
   Popconfirm,
   Empty,
   DatePicker,
+  Dropdown,
 } from "antd";
 import ResponsiveTable from "../common/ResponsiveTable";
 import FrutasPedidoModal from "./FrutasPedidoModal";
@@ -37,6 +37,8 @@ import {
   CalendarOutlined,
   FileTextOutlined,
   ShoppingOutlined,
+  MoreOutlined,
+  RollbackOutlined,
 } from "@ant-design/icons";
 import moment from "moment";
 import { formatarValorMonetario, intFormatter, formatarNumero, capitalizeName } from "../../utils/formatters";
@@ -134,6 +136,8 @@ const PedidosTable = ({
   onPrecificacao, 
   onPagamento,
   onPedidoRemovido,
+  onRetornarParaEdicao,
+  isProgramador = false,
   onResetPagination,
   onFilterDataPrevista,
   dataPrevistaFilterValue,
@@ -146,6 +150,8 @@ const PedidosTable = ({
   const [confirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
   const [pedidoParaExcluir, setPedidoParaExcluir] = useState(null);
   const [loadingDelete, setLoadingDelete] = useState(false);
+  const [confirmRetornarEdicaoOpen, setConfirmRetornarEdicaoOpen] = useState(false);
+  const [pedidoParaRetornarEdicao, setPedidoParaRetornarEdicao] = useState(null);
 
   // Função para abrir modal de frutas
   const handleOpenFrutasModal = (pedido) => {
@@ -261,6 +267,42 @@ const PedidosTable = ({
     return unidade ? `${quantidadeFormatada} ${unidade}` : quantidadeFormatada;
   };
 
+  // Abrir modal de confirmação "Retornar para Edição" (exclusivo PROGRAMADOR)
+  const handleRetornarParaEdicaoClick = (record) => {
+    setPedidoParaRetornarEdicao(record);
+    setConfirmRetornarEdicaoOpen(true);
+  };
+
+  const handleConfirmarRetornarEdicao = async () => {
+    if (!pedidoParaRetornarEdicao) return;
+    setConfirmRetornarEdicaoOpen(false);
+    await onRetornarParaEdicao?.(pedidoParaRetornarEdicao);
+    setPedidoParaRetornarEdicao(null);
+  };
+
+  const handleCancelarRetornarEdicao = () => {
+    setConfirmRetornarEdicaoOpen(false);
+    setPedidoParaRetornarEdicao(null);
+  };
+
+  // Menu do dropdown (⋯) ao lado do botão Visualizar - opção "Retornar para Edição" para programador em pedidos finalizados
+  const getDropdownMenuItems = (record) => {
+    const items = [];
+    if (isProgramador && record.status === "PEDIDO_FINALIZADO" && onRetornarParaEdicao) {
+      items.push({
+        key: "retornar-edicao",
+        label: (
+          <Space>
+            <RollbackOutlined style={{ color: "#059669" }} />
+            <span style={{ color: "#333" }}>Retornar para Edição</span>
+          </Space>
+        ),
+        onClick: () => handleRetornarParaEdicaoClick(record),
+      });
+    }
+    return items;
+  };
+
   // Função para obter ações baseadas no status
   const getActionsForStatus = (record) => {
     const actions = [];
@@ -275,6 +317,32 @@ const PedidosTable = ({
         />
       </Tooltip>
     );
+
+    // Dropdown (⋯) ao lado do Visualizar - "Retornar para Edição" quando programador e pedido finalizado
+    const dropdownItems = getDropdownMenuItems(record);
+    if (dropdownItems.length > 0) {
+      actions.push(
+        <Dropdown
+          key="more"
+          menu={{ items: dropdownItems }}
+          trigger={["click"]}
+          placement="bottomRight"
+        >
+          <Tooltip title="Mais ações">
+            <Button
+              type="text"
+              icon={<MoreOutlined />}
+              size="small"
+              style={{
+                color: "#666666",
+                border: "none",
+                boxShadow: "none",
+              }}
+            />
+          </Tooltip>
+        </Dropdown>
+      );
+    }
 
     // Ações específicas por status
     // ✅ COLHEITA: Disponível para PEDIDO_CRIADO, AGUARDANDO_COLHEITA e COLHEITA_PARCIAL
@@ -306,9 +374,10 @@ const PedidosTable = ({
       );
     }
 
-    if (record.status === 'PRECIFICACAO_REALIZADA' || record.status === 'AGUARDANDO_PAGAMENTO' || record.status === 'PAGAMENTO_PARCIAL') {
+    // Pagamentos: exibir para precificação realizada, aguardando/parcial e também quando já está PAGAMENTO_REALIZADO (abrir modal para ver/editar e finalizar)
+    if (record.status === 'PRECIFICACAO_REALIZADA' || record.status === 'AGUARDANDO_PAGAMENTO' || record.status === 'PAGAMENTO_PARCIAL' || record.status === 'PAGAMENTO_REALIZADO') {
       actions.push(
-        <Tooltip key="pagamento" title="Registrar pagamento">
+        <Tooltip key="pagamento" title={record.status === 'PAGAMENTO_REALIZADO' ? 'Abrir pagamentos' : 'Registrar pagamento'}>
           <Button
             icon={<CreditCardOutlined />}
             size="small"
@@ -928,6 +997,19 @@ const PedidosTable = ({
         icon={<DeleteOutlined />}
         iconColor="#ff4d4f"
       />
+
+      {/* Modal de Confirmação - Retornar para Edição */}
+      <ConfirmActionModal
+        open={confirmRetornarEdicaoOpen}
+        onConfirm={handleConfirmarRetornarEdicao}
+        onCancel={handleCancelarRetornarEdicao}
+        title="Retornar pedido para edição?"
+        message="O pedido voltará ao status Pagamento Realizado. O usuário poderá editar dados e finalizar novamente. Deseja continuar?"
+        confirmText="Sim, retornar"
+        cancelText="Cancelar"
+        icon={<RollbackOutlined />}
+        iconColor="#059669"
+      />
     </>
   );
 };
@@ -941,6 +1023,8 @@ PedidosTable.propTypes = {
   onPrecificacao: PropTypes.func.isRequired,
   onPagamento: PropTypes.func.isRequired,
   onPedidoRemovido: PropTypes.func,
+  onRetornarParaEdicao: PropTypes.func,
+  isProgramador: PropTypes.bool,
   onResetPagination: PropTypes.func,
   onFilterDataPrevista: PropTypes.func,
   dataPrevistaFilterValue: PropTypes.string,

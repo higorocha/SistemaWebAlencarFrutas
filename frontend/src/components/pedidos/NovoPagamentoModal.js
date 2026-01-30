@@ -74,6 +74,9 @@ const NovoPagamentoModal = ({
   // Observar mudança no campo metodoPagamento para mostrar/ocultar campo dataVencimento
   const metodoPagamento = Form.useWatch('metodoPagamento', form);
 
+  // Edição com pedido totalmente pago: apenas valor disabled; observações e referência editáveis
+  const isEdicaoPedidoTotalmentePago = valorRestante <= 0 && !!pagamentoEditando;
+
   // Carregar contas correntes com convênio de cobrança quando modal abrir e método for BOLETO
   useEffect(() => {
     const fetchContasCorrentes = async () => {
@@ -423,7 +426,11 @@ const NovoPagamentoModal = ({
           {valorRestante <= 0 && (
             <Alert
               message="Pedido já está totalmente pago"
-              description="Não é possível adicionar mais pagamentos a este pedido."
+              description={
+                pagamentoEditando
+                  ? "Não é possível adicionar mais pagamentos. Em edição, você pode atualizar apenas observações e referência externa."
+                  : "Não é possível adicionar mais pagamentos a este pedido."
+              }
               type="warning"
               showIcon
               style={{ marginBottom: 16 }}
@@ -457,7 +464,7 @@ const NovoPagamentoModal = ({
         layout="vertical"
         size="large"
         onFinish={handleSubmit}
-        disabled={loading || submitLoading || valorRestante <= 0}
+        disabled={loading || submitLoading || (valorRestante <= 0 && !pagamentoEditando)}
       >
         {/* Dados do Pagamento */}
         <Card
@@ -530,6 +537,7 @@ const NovoPagamentoModal = ({
                   placeholder="0,00"
                   style={{ borderRadius: 6 }}
                   addonAfter="R$"
+                  disabled={isEdicaoPedidoTotalmentePago}
                 />
               </Form.Item>
             </Col>
@@ -552,6 +560,7 @@ const NovoPagamentoModal = ({
                   placeholder="Selecione a data"
                   disabledDate={(current) => current && current > moment().endOf('day')}
                   size={isMobile ? "middle" : "large"}
+                  disabled={isEdicaoPedidoTotalmentePago}
                 />
               </Form.Item>
             </Col>
@@ -575,6 +584,7 @@ const NovoPagamentoModal = ({
                   placeholder="Selecione o método" 
                   style={{ borderRadius: "0.375rem" }}
                   size={isMobile ? "middle" : "large"}
+                  disabled={isEdicaoPedidoTotalmentePago}
                 >
                   {metodosPagamento.map((metodo) => (
                     <Option key={metodo.value} value={metodo.value}>
@@ -609,6 +619,7 @@ const NovoPagamentoModal = ({
                   placeholder="Selecione a conta" 
                   style={{ borderRadius: "0.375rem" }}
                   size={isMobile ? "middle" : "large"}
+                  disabled={isEdicaoPedidoTotalmentePago}
                 >
                   {contasDestino.map((conta) => (
                     <Option key={conta.value} value={conta.value}>
@@ -636,13 +647,14 @@ const NovoPagamentoModal = ({
                     { required: true, message: "Por favor, selecione a data de vencimento do boleto" },
                   ]}
                 >
-                  <MaskedDatePicker
-                    style={{ width: "100%", borderRadius: "0.375rem" }}
-                    placeholder="Data de vencimento"
-                    disabledDate={(current) => current && current < moment().startOf('day')}
-                    size={isMobile ? "middle" : "large"}
-                  />
-                </Form.Item>
+                <MaskedDatePicker
+                  style={{ width: "100%", borderRadius: "0.375rem" }}
+                  placeholder="Data de vencimento"
+                  disabledDate={(current) => current && current < moment().startOf('day')}
+                  size={isMobile ? "middle" : "large"}
+                  disabled={isEdicaoPedidoTotalmentePago}
+                />
+              </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
                 <Form.Item
@@ -684,6 +696,7 @@ const NovoPagamentoModal = ({
                     style={{ borderRadius: "0.375rem" }}
                     size={isMobile ? "middle" : "large"}
                     loading={loadingContas}
+                    disabled={isEdicaoPedidoTotalmentePago}
                   >
                     {contasCorrentes.map((conta) => (
                       <Option key={conta.id} value={conta.id}>
@@ -774,7 +787,7 @@ const NovoPagamentoModal = ({
             htmlType="submit"
             loading={loading || submitLoading}
             size={isMobile ? "small" : "large"}
-            disabled={valorRestante <= 0}
+            disabled={loading || submitLoading || (valorRestante <= 0 && !pagamentoEditando)}
             style={{ 
               backgroundColor: '#059669', 
               borderColor: '#059669',

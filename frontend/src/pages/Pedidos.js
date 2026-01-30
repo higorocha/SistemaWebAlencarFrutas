@@ -27,6 +27,7 @@ import { PrimaryButton, SecondaryButton, PDFButton } from "components/common/but
 import { SearchInput, SearchInputInteligente } from "components/common/search";
 import { PixIcon, BoletoIcon, TransferenciaIcon } from "../components/Icons/PaymentIcons";
 import useResponsive from "../hooks/useResponsive";
+import { useAuth } from "../contexts/AuthContext";
 import moment from "moment";
 import { getFruitIcon } from "../utils/fruitIcons";
 import { capitalizeName } from "../utils/formatters";
@@ -58,6 +59,8 @@ const { RangePicker } = DatePicker;
 
 const Pedidos = () => {
   const { isMobile, isTablet } = useResponsive();
+  const { user } = useAuth();
+  const isProgramador = user?.nivel === "PROGRAMADOR";
   const [pedidos, setPedidos] = useState([]);
   const [pedidosFiltrados, setPedidosFiltrados] = useState([]);
   const [dataPrevistaFiltroTabela, setDataPrevistaFiltroTabela] = useState(null);
@@ -944,6 +947,25 @@ const Pedidos = () => {
     }
   }, [pedidoSelecionado, fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, getActiveDateParams]);
 
+  // Retornar pedido finalizado para edição (exclusivo PROGRAMADOR)
+  const handleRetornarParaEdicao = useCallback(async (pedido) => {
+    if (!pedido?.id) return;
+    try {
+      setCentralizedLoading(true);
+      setLoadingMessage("Retornando pedido para edição...");
+      await axiosInstance.patch(`/api/pedidos/${pedido.id}/retornar-para-edicao`);
+      showNotification("success", "Sucesso", "Pedido retornado para edição. O usuário pode corrigir dados e finalizar novamente.");
+      const { dataInicio, dataFim, tipoData } = getActiveDateParams();
+      await fetchPedidos(currentPage, pageSize, buildFiltersPayload(), statusFilters, dataInicio, dataFim, tipoData);
+    } catch (error) {
+      console.error("Erro ao retornar pedido para edição:", error);
+      const message = error.response?.data?.message || "Erro ao retornar pedido para edição";
+      showNotification("error", "Erro", message);
+    } finally {
+      setCentralizedLoading(false);
+    }
+  }, [fetchPedidos, currentPage, pageSize, buildFiltersPayload, statusFilters, getActiveDateParams]);
+
   return (
     <Box 
       sx={{ 
@@ -1451,6 +1473,8 @@ const Pedidos = () => {
             onPrecificacao={handleOpenPrecificacaoModal}
             onPagamento={handleOpenPagamentoModal}
             onPedidoRemovido={handlePedidoRemovido}
+            onRetornarParaEdicao={handleRetornarParaEdicao}
+            isProgramador={isProgramador}
             onResetPagination={() => setCurrentPage(1)}
             onFilterDataPrevista={(valor) => {
               setCurrentPage(1);

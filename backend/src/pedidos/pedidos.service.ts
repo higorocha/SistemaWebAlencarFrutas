@@ -2913,13 +2913,16 @@ export class PedidosService {
       throw new NotFoundException('Pagamento não encontrado');
     }
     const statusAnterior = pagamento.pedido.status;
+    const isPedidoTotalmentePago = pagamento.pedido.status === 'PAGAMENTO_REALIZADO';
 
-    // Verificar se o status do pedido permite atualização
-    if (pagamento.pedido.status !== 'PRECIFICACAO_REALIZADA' && pagamento.pedido.status !== 'AGUARDANDO_PAGAMENTO' && pagamento.pedido.status !== 'PAGAMENTO_PARCIAL') {
+    // Bloquear apenas pedidos finalizados ou cancelados
+    if (pagamento.pedido.status === 'PEDIDO_FINALIZADO' || pagamento.pedido.status === 'CANCELADO') {
       throw new BadRequestException('Status do pedido não permite atualizar pagamento');
     }
 
-    // Se estiver alterando o valor, verificar se é válido e não excede o valor final
+    // Quando pedido está PAGAMENTO_REALIZADO, apenas observações e referência externa são aplicadas (valor/data/método/conta ignorados)
+
+    // Se estiver alterando o valor, verificar se é válido e não excede o valor final (não aplicável quando isPedidoTotalmentePago)
     if (updatePagamentoDto.valorRecebido !== undefined) {
       // Verificar se o valor é válido (maior que zero)
       if (updatePagamentoDto.valorRecebido <= 0) {
@@ -2945,27 +2948,41 @@ export class PedidosService {
     // Atualizar pagamento em transação
     const pagamentoAtualizado = await this.prisma.$transaction(async (prisma) => {
       const dadosAtualizacao: any = {};
-      
-      if (updatePagamentoDto.dataPagamento !== undefined) {
-        dadosAtualizacao.dataPagamento = new Date(updatePagamentoDto.dataPagamento);
-      }
-      if (updatePagamentoDto.valorRecebido !== undefined) {
-        dadosAtualizacao.valorRecebido = updatePagamentoDto.valorRecebido;
-      }
-      if (updatePagamentoDto.metodoPagamento !== undefined) {
-        dadosAtualizacao.metodoPagamento = updatePagamentoDto.metodoPagamento;
-      }
-      if (updatePagamentoDto.contaDestino !== undefined) {
-        dadosAtualizacao.contaDestino = updatePagamentoDto.contaDestino;
-      }
-      if (updatePagamentoDto.observacoesPagamento !== undefined) {
-        dadosAtualizacao.observacoesPagamento = updatePagamentoDto.observacoesPagamento;
-      }
-      if (updatePagamentoDto.chequeCompensado !== undefined) {
-        dadosAtualizacao.chequeCompensado = updatePagamentoDto.chequeCompensado;
-      }
-      if (updatePagamentoDto.referenciaExterna !== undefined) {
-        dadosAtualizacao.referenciaExterna = updatePagamentoDto.referenciaExterna;
+
+      if (isPedidoTotalmentePago) {
+        // Pedido PAGAMENTO_REALIZADO: apenas observações, referência externa e cheque compensado
+        if (updatePagamentoDto.observacoesPagamento !== undefined) {
+          dadosAtualizacao.observacoesPagamento = updatePagamentoDto.observacoesPagamento;
+        }
+        if (updatePagamentoDto.referenciaExterna !== undefined) {
+          dadosAtualizacao.referenciaExterna = updatePagamentoDto.referenciaExterna;
+        }
+        if (updatePagamentoDto.chequeCompensado !== undefined) {
+          dadosAtualizacao.chequeCompensado = updatePagamentoDto.chequeCompensado;
+        }
+      } else {
+        // Demais status: permitir todos os campos
+        if (updatePagamentoDto.dataPagamento !== undefined) {
+          dadosAtualizacao.dataPagamento = new Date(updatePagamentoDto.dataPagamento);
+        }
+        if (updatePagamentoDto.valorRecebido !== undefined) {
+          dadosAtualizacao.valorRecebido = updatePagamentoDto.valorRecebido;
+        }
+        if (updatePagamentoDto.metodoPagamento !== undefined) {
+          dadosAtualizacao.metodoPagamento = updatePagamentoDto.metodoPagamento;
+        }
+        if (updatePagamentoDto.contaDestino !== undefined) {
+          dadosAtualizacao.contaDestino = updatePagamentoDto.contaDestino;
+        }
+        if (updatePagamentoDto.observacoesPagamento !== undefined) {
+          dadosAtualizacao.observacoesPagamento = updatePagamentoDto.observacoesPagamento;
+        }
+        if (updatePagamentoDto.chequeCompensado !== undefined) {
+          dadosAtualizacao.chequeCompensado = updatePagamentoDto.chequeCompensado;
+        }
+        if (updatePagamentoDto.referenciaExterna !== undefined) {
+          dadosAtualizacao.referenciaExterna = updatePagamentoDto.referenciaExterna;
+        }
       }
 
       const pagamentoAtualizado = await prisma.pagamentosPedidos.update({
@@ -2978,49 +2995,63 @@ export class PedidosService {
         },
       });
 
-      // Atualizar valor recebido consolidado no pedido
-      const valorRecebidoConsolidado = await this.calcularValorRecebidoConsolidado(pagamento.pedidoId, prisma);
-      
-      // Atualizar status do pedido baseado no valor recebido
-      const pedido = await prisma.pedido.findUnique({
-        where: { id: pagamento.pedidoId },
-        select: { valorFinal: true, status: true }
-      });
-
-      let novoStatus: StatusPedido;
-
-      // Arredondar ambos os valores para 2 casas decimais antes de comparar para evitar problemas de precisão
-      const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
-      const valorFinalArredondado = Number((pedido?.valorFinal || 0).toFixed(2));
-
-      if (valorRecebidoArredondado >= valorFinalArredondado) {
-        novoStatus = StatusPedido.PEDIDO_FINALIZADO;
-      } else if (valorRecebidoArredondado > 0) {
-        novoStatus = StatusPedido.PAGAMENTO_PARCIAL;
+      if (isPedidoTotalmentePago) {
+        // Não alterar valorRecebido nem status do pedido; apenas registrar histórico
+        await this.historicoService.registrarAcao(
+          pagamento.pedidoId,
+          usuarioId,
+          TipoAcaoHistorico.PAGAMENTO_ATUALIZADO,
+          {
+            statusAnterior: statusAnterior,
+            statusNovo: statusAnterior,
+            mensagem: 'Observações/referência do pagamento atualizadas',
+            pagamentoId: id,
+          },
+        );
       } else {
-        novoStatus = StatusPedido.AGUARDANDO_PAGAMENTO;
+        // Atualizar valor recebido consolidado no pedido
+        const valorRecebidoConsolidado = await this.calcularValorRecebidoConsolidado(pagamento.pedidoId, prisma);
+
+        // Atualizar status do pedido baseado no valor recebido
+        const pedido = await prisma.pedido.findUnique({
+          where: { id: pagamento.pedidoId },
+          select: { valorFinal: true, status: true },
+        });
+
+        let novoStatus: StatusPedido;
+
+        const valorRecebidoArredondado = Number(valorRecebidoConsolidado.toFixed(2));
+        const valorFinalArredondado = Number((pedido?.valorFinal || 0).toFixed(2));
+
+        if (valorRecebidoArredondado >= valorFinalArredondado) {
+          novoStatus = StatusPedido.PEDIDO_FINALIZADO;
+        } else if (valorRecebidoArredondado > 0) {
+          novoStatus = StatusPedido.PAGAMENTO_PARCIAL;
+        } else {
+          novoStatus = StatusPedido.AGUARDANDO_PAGAMENTO;
+        }
+
+        await prisma.pedido.update({
+          where: { id: pagamento.pedidoId },
+          data: {
+            valorRecebido: valorRecebidoConsolidado,
+            status: novoStatus,
+          },
+        });
+
+        await this.historicoService.registrarAcao(
+          pagamento.pedidoId,
+          usuarioId,
+          TipoAcaoHistorico.PAGAMENTO_ATUALIZADO,
+          {
+            statusAnterior: statusAnterior,
+            statusNovo: novoStatus,
+            mensagem: 'Pagamento atualizado',
+            pagamentoId: id,
+            valor: updatePagamentoDto.valorRecebido,
+          },
+        );
       }
-
-      await prisma.pedido.update({
-        where: { id: pagamento.pedidoId },
-        data: { 
-          valorRecebido: valorRecebidoConsolidado,
-          status: novoStatus
-        }
-      });
-
-      await this.historicoService.registrarAcao(
-        pagamento.pedidoId,
-        usuarioId,
-        TipoAcaoHistorico.PAGAMENTO_ATUALIZADO,
-        {
-          statusAnterior: statusAnterior,
-          statusNovo: novoStatus,
-          mensagem: 'Pagamento atualizado',
-          pagamentoId: id,
-          valor: updatePagamentoDto.valorRecebido,
-        }
-      );
 
       return this.mapPagamentoComLancamento(pagamentoAtualizado);
     });
@@ -4385,6 +4416,64 @@ export class PedidosService {
         statusAnterior: statusAnterior,
         statusNovo: StatusPedido.PEDIDO_FINALIZADO,
         mensagem: 'Pedido finalizado pelo usuário',
+      }
+    );
+
+    return this.convertNullToUndefined(pedido);
+  }
+
+  async retornarParaEdicao(id: number, usuarioId: number): Promise<PedidoResponseDto> {
+    const existingPedido = await this.prisma.pedido.findUnique({
+      where: { id },
+    });
+
+    if (!existingPedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    if (existingPedido.status !== 'PEDIDO_FINALIZADO') {
+      throw new BadRequestException('Só é possível retornar pedidos finalizados para edição');
+    }
+
+    const pedido = await this.prisma.pedido.update({
+      where: { id },
+      data: {
+        status: StatusPedido.PAGAMENTO_REALIZADO,
+      },
+      include: {
+        cliente: {
+          select: { id: true, nome: true, industria: true, dias: true }
+        },
+        frutasPedidos: {
+          include: {
+            fruta: {
+              select: {
+                id: true,
+                nome: true,
+                dePrimeira: true,
+                culturaId: true,
+                cultura: {
+                  select: {
+                    id: true,
+                    descricao: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        pagamentosPedidos: true
+      }
+    });
+
+    await this.historicoService.registrarAcao(
+      id,
+      usuarioId,
+      TipoAcaoHistorico.RETORNAR_PARA_EDICAO,
+      {
+        statusAnterior: StatusPedido.PEDIDO_FINALIZADO,
+        statusNovo: StatusPedido.PAGAMENTO_REALIZADO,
+        mensagem: 'Pedido retornado para edição pelo programador',
       }
     );
 
