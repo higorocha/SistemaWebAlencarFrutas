@@ -1,4 +1,4 @@
-﻿// src/components/clientes/VincularPagamentoManualModal.js
+// src/components/clientes/VincularPagamentoManualModal.js
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
@@ -18,7 +18,7 @@ import {
   Tooltip,
 } from 'antd';
 import { SearchOutlined, LinkOutlined, DollarOutlined, CalendarOutlined, UserOutlined, InfoCircleOutlined, BulbOutlined, CheckCircleOutlined, CheckOutlined } from '@ant-design/icons';
-import { formatCurrency, formatarDataBR, formatarValorMonetario, capitalizeName } from '../../utils/formatters';
+import { formatCurrency, formatarDataBR, formatarDataSemTimezone, formatarValorMonetario, capitalizeName } from '../../utils/formatters';
 import useResponsive from '../../hooks/useResponsive';
 import ResponsiveTable from '../common/ResponsiveTable';
 import StyledTabs from '../common/StyledTabs';
@@ -605,7 +605,7 @@ const VincularPagamentoManualModal = ({
       title: 'Pedido',
       dataIndex: 'numeroPedido',
       key: 'numeroPedido',
-      width: 160,
+      width: 140,
       align: 'left',
       onHeaderCell: () => ({ style: { textAlign: 'center' } }),
       render: (numero, record) => {
@@ -621,10 +621,23 @@ const VincularPagamentoManualModal = ({
       },
     },
     {
+      title: 'Dt. Pedido',
+      dataIndex: 'dataPedido',
+      key: 'dataPedido',
+      width: 95,
+      align: 'center',
+      render: (_, record) => {
+        const raw = record.dataPedido;
+        if (raw == null) return '-';
+        const str = typeof raw === 'string' ? raw : (typeof raw?.toISOString === 'function' ? raw.toISOString() : String(raw));
+        return formatarDataSemTimezone(str);
+      },
+    },
+    {
       title: 'Cliente',
       dataIndex: 'clienteNome',
       key: 'clienteNome',
-      width: 200,
+      width: 170,
       align: 'left',
       onHeaderCell: () => ({ style: { textAlign: 'center' } }),
       render: (nome, record) => (
@@ -643,7 +656,7 @@ const VincularPagamentoManualModal = ({
       title: 'Nota Fiscal',
       dataIndex: 'numeroNf',
       key: 'numeroNf',
-      width: 110,
+      width: 100,
       align: 'center',
       render: (value) => value ? `#${value}` : '-',
     },
@@ -651,7 +664,7 @@ const VincularPagamentoManualModal = ({
       title: 'Valor Total',
       dataIndex: 'valorFinal',
       key: 'valorFinal',
-      width: 110,
+      width: 100,
       align: 'center',
       render: (value) => formatarValorMonetario(value),
     },
@@ -659,14 +672,14 @@ const VincularPagamentoManualModal = ({
       title: 'Recebido',
       dataIndex: 'valorRecebido',
       key: 'valorRecebido',
-      width: 110,
+      width: 100,
       align: 'center',
       render: (value) => formatarValorMonetario(value),
     },
     {
       title: 'Base p/ vínculo',
       key: 'valorReferencia',
-      width: 140,
+      width: 130,
       align: 'center',
       render: (_, record) => {
         const isFinalizado = STATUS_PEDIDOS_FINALIZADOS.includes(record.status);
@@ -698,7 +711,7 @@ const VincularPagamentoManualModal = ({
     {
       title: 'Valor a Vincular',
       key: 'valorVincular',
-      width: 120,
+      width: 110,
       align: 'center',
       render: (_, record) => allocations[record.id]
         ? <Text strong style={{ color: '#059669' }}>{formatarValorMonetario(allocations[record.id])}</Text>
@@ -708,7 +721,7 @@ const VincularPagamentoManualModal = ({
       title: 'Match',
       dataIndex: 'matchPercentual',
       key: 'matchPercentual',
-      width: 100,
+      width: 90,
       onHeaderCell: () => ({ style: { textAlign: 'center' } }),
       render: (value) => (
         <div style={{ display: 'flex', justifyContent: 'center' }}>
