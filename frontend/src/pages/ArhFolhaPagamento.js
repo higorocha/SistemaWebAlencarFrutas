@@ -912,23 +912,25 @@ const ArhFolhaPagamento = () => {
 
   const canFinalize =
     selectedFolha &&
-    !isGerenteCultura &&
-    selectedFolha.status === "RASCUNHO";
+    (!isGerenteCultura || isProgramador) &&
+    (selectedFolha.status === "RASCUNHO" || isProgramador);
   
   const canEdit =
     selectedFolha &&
-    !isGerenteCultura &&
-    selectedFolha.status === "PENDENTE_LIBERACAO";
+    (!isGerenteCultura || isProgramador) &&
+    (selectedFolha.status === "PENDENTE_LIBERACAO" || isProgramador);
   
   const canExcluir =
     selectedFolha &&
-    !isGerenteCultura &&
-    selectedFolha.status === "RASCUNHO";
+    (!isGerenteCultura || isProgramador) &&
+    (selectedFolha.status === "RASCUNHO" || isProgramador);
   
   const canLiberate =
     selectedFolha &&
-    isAdmin &&
-    selectedFolha.status === "PENDENTE_LIBERACAO";
+    (isAdmin || isProgramador) &&
+    (selectedFolha.status === "PENDENTE_LIBERACAO" ||
+      selectedFolha.status === "EM_PROCESSAMENTO" ||
+      isProgramador);
 
   // Calcular resumo detalhado dos lançamentos
   const resumoDetalhado = useMemo(() => {
@@ -1747,7 +1749,9 @@ const ArhFolhaPagamento = () => {
                   <Space wrap style={{ width: "100%" }}>
                     <PrimaryButton
                       icon={<OrderedListOutlined />}
-                      disabled={selectedFolha?.status !== "RASCUNHO"}
+                      disabled={
+                        !isProgramador && selectedFolha?.status !== "RASCUNHO"
+                      }
                       onClick={() => setAddModalOpen(true)}
                     >
                       Adicionar Funcionários
@@ -1779,7 +1783,7 @@ const ArhFolhaPagamento = () => {
                         </PrimaryButton>
                       </span>
                     </Tooltip>
-                    {/* Toggle: Editar Folha (PENDENTE_LIBERACAO) ou Excluir Folha (RASCUNHO) */}
+                    {/* Toggle: Editar Folha (PENDENTE_LIBERACAO) ou Excluir Folha (RASCUNHO ou FECHADA para PROGRAMADOR) */}
                     {selectedFolha?.status === "PENDENTE_LIBERACAO" ? (
                       <PrimaryButton
                         icon={<EditOutlined />}

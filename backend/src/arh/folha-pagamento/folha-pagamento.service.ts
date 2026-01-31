@@ -275,9 +275,17 @@ export class FolhaPagamentoService {
     });
   }
 
-  async adicionarFuncionarios(folhaId: number, dto: AddFuncionariosFolhaDto) {
+  async adicionarFuncionarios(
+    folhaId: number,
+    dto: AddFuncionariosFolhaDto,
+    user?: { id: number; nivel?: string },
+  ) {
     const folha = await this.ensureFolha(folhaId);
-    if (folha.status === StatusFolhaPagamento.FECHADA || folha.status === StatusFolhaPagamento.CANCELADA) {
+    const isProgramador = user?.nivel === 'PROGRAMADOR';
+    if (
+      !isProgramador &&
+      (folha.status === StatusFolhaPagamento.FECHADA || folha.status === StatusFolhaPagamento.CANCELADA)
+    ) {
       throw new BadRequestException('Não é possível adicionar funcionários em folhas encerradas.');
     }
 
@@ -339,9 +347,17 @@ export class FolhaPagamentoService {
     return this.listarLancamentos(folhaId, {});
   }
 
-  async removerFuncionario(folhaId: number, lancamentoId: number) {
+  async removerFuncionario(
+    folhaId: number,
+    lancamentoId: number,
+    user?: { id: number; nivel?: string },
+  ) {
     const folha = await this.ensureFolha(folhaId);
-    if (folha.status === StatusFolhaPagamento.FECHADA || folha.status === StatusFolhaPagamento.CANCELADA) {
+    const isProgramador = user?.nivel === 'PROGRAMADOR';
+    if (
+      !isProgramador &&
+      (folha.status === StatusFolhaPagamento.FECHADA || folha.status === StatusFolhaPagamento.CANCELADA)
+    ) {
       throw new BadRequestException('Não é possível remover funcionários de folhas encerradas.');
     }
 
@@ -367,9 +383,11 @@ export class FolhaPagamentoService {
     folhaId: number,
     lancamentoId: number,
     dto: UpdateLancamentoDto,
+    user?: { id: number; nivel?: string },
   ) {
     const folha = await this.ensureFolha(folhaId);
-    if (folha.status === StatusFolhaPagamento.FECHADA) {
+    const isProgramador = user?.nivel === 'PROGRAMADOR';
+    if (!isProgramador && folha.status === StatusFolhaPagamento.FECHADA) {
       throw new BadRequestException('Folhas fechadas não podem ser editadas.');
     }
 
@@ -523,10 +541,16 @@ export class FolhaPagamentoService {
     return this.listarLancamentos(folhaId, {});
   }
 
-  async finalizarFolha(id: number, dto: FinalizarFolhaDto, _usuarioId: number) {
+  async finalizarFolha(
+    id: number,
+    dto: FinalizarFolhaDto,
+    _usuarioId: number,
+    user?: { id: number; nivel?: string },
+  ) {
     const folha = await this.ensureFolha(id);
 
-    if (folha.status !== StatusFolhaPagamento.RASCUNHO) {
+    const isProgramador = user?.nivel === 'PROGRAMADOR';
+    if (!isProgramador && folha.status !== StatusFolhaPagamento.RASCUNHO) {
       throw new BadRequestException(
         'Somente folhas em rascunho podem ser finalizadas.',
       );
@@ -669,10 +693,15 @@ export class FolhaPagamentoService {
       }));
   }
 
-  async reabrirFolha(id: number, _usuarioId: number) {
+  async reabrirFolha(
+    id: number,
+    _usuarioId: number,
+    user?: { id: number; nivel?: string },
+  ) {
     const folha = await this.ensureFolha(id);
 
-    if (folha.status !== StatusFolhaPagamento.PENDENTE_LIBERACAO) {
+    const isProgramador = user?.nivel === 'PROGRAMADOR';
+    if (!isProgramador && folha.status !== StatusFolhaPagamento.PENDENTE_LIBERACAO) {
       throw new BadRequestException(
         'Somente folhas pendentes de liberação podem ser reabertas.',
       );
@@ -775,11 +804,17 @@ export class FolhaPagamentoService {
    * @param usuarioId ID do usuário que está liberando
    * @returns Detalhes da folha liberada
    */
-  async liberarFolha(id: number, usuarioId: number) {
+  async liberarFolha(
+    id: number,
+    usuarioId: number,
+    user?: { id: number; nivel?: string },
+  ) {
     const folha = await this.ensureFolha(id);
 
+    const isProgramador = user?.nivel === 'PROGRAMADOR';
     // Aceitar folhas em PENDENTE_LIBERACAO ou EM_PROCESSAMENTO (quando PIX_API já foi processado)
     if (
+      !isProgramador &&
       folha.status !== StatusFolhaPagamento.PENDENTE_LIBERACAO &&
       folha.status !== StatusFolhaPagamento.EM_PROCESSAMENTO
     ) {
@@ -2264,16 +2299,19 @@ export class FolhaPagamentoService {
 
   /**
    * Gerencia adiantamentos vinculados a um lançamento
-   * Atualiza parcelas vinculadas e valor avulso
+   * Atualiza parcelas vinculadas e valor avulso.
+   * Usuário PROGRAMADOR pode alterar adiantamento em qualquer status da folha.
    */
   async gerenciarAdiantamento(
     folhaId: number,
     lancamentoId: number,
     dto: GerenciarAdiantamentoDto,
+    user?: { id: number; nivel?: string },
   ) {
     const folha = await this.ensureFolha(folhaId);
 
-    if (folha.status !== StatusFolhaPagamento.RASCUNHO) {
+    const isProgramador = user?.nivel === 'PROGRAMADOR';
+    if (!isProgramador && folha.status !== StatusFolhaPagamento.RASCUNHO) {
       throw new BadRequestException(
         'Somente folhas em rascunho permitem alterações de adiantamento.',
       );
@@ -2429,7 +2467,14 @@ export class FolhaPagamentoService {
       const valorBruto = Number(lancamento.valorBruto || 0);
       if (novoTotalAdiantamento > valorBruto) {
         throw new BadRequestException(
-          `O adiantamento total (R$ ${novoTotalAdiantamento.toFixed(2)}) não pode exceder o valor bruto (R$ ${valorBruto.toFixed(2)}).`,
+          valorBruto <= 0
+            ? `Não é possível vincular adiantamento de R$ ${novoTotalAdiantamento.toFixed(2)} porque o valor bruto está zerado. ` +
+              `O adiantamento é descontado do valor bruto para calcular o valor líquido a pagar. ` +
+              `Com valor bruto zerado, qualquer adiantamento deixaria o valor líquido negativo. ` +
+              `Primeiro informe os dias trabalhados (e demais dados do lançamento) para que o valor bruto seja calculado, depois inclua o adiantamento.`
+            : `O adiantamento total (R$ ${novoTotalAdiantamento.toFixed(2)}) não pode exceder o valor bruto (R$ ${valorBruto.toFixed(2)}). ` +
+              `O adiantamento é descontado do valor bruto para calcular o valor líquido a pagar; se for maior que o bruto, o líquido ficaria negativo. ` +
+              `Ajuste as parcelas vinculadas ou o valor avulso para que o total de adiantamento não ultrapasse o valor bruto.`,
         );
       }
 
@@ -2475,13 +2520,18 @@ export class FolhaPagamentoService {
 
   /**
    * Exclui uma folha de pagamento
-   * Só é permitido se a folha estiver em status RASCUNHO
+   * Só é permitido se a folha estiver em status RASCUNHO (PROGRAMADOR pode em qualquer status)
    * Reverte todas as deduções de adiantamento antes de excluir
    */
-  async excluirFolha(folhaId: number, _usuarioId: number) {
+  async excluirFolha(
+    folhaId: number,
+    _usuarioId: number,
+    user?: { id: number; nivel?: string },
+  ) {
     const folha = await this.ensureFolha(folhaId);
-    
-    if (folha.status !== StatusFolhaPagamento.RASCUNHO) {
+
+    const isProgramador = user?.nivel === 'PROGRAMADOR';
+    if (!isProgramador && folha.status !== StatusFolhaPagamento.RASCUNHO) {
       throw new BadRequestException(
         'Somente folhas em rascunho podem ser excluídas.',
       );

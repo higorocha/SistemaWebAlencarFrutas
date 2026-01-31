@@ -32,6 +32,7 @@ const ARH_OPERADORES = [
   NivelUsuario.ADMINISTRADOR,
   NivelUsuario.GERENTE_GERAL,
   NivelUsuario.ESCRITORIO,
+  NivelUsuario.PROGRAMADOR,
 ];
 
 @ApiTags('ARH - Folha de Pagamento')
@@ -70,8 +71,9 @@ export class FolhaPagamentoController {
   adicionarFuncionarios(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AddFuncionariosFolhaDto,
+    @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.adicionarFuncionarios(id, dto);
+    return this.service.adicionarFuncionarios(id, dto, req.user);
   }
 
   @Delete(':id/lancamentos/:lancamentoId')
@@ -79,8 +81,9 @@ export class FolhaPagamentoController {
   removerFuncionario(
     @Param('id', ParseIntPipe) id: number,
     @Param('lancamentoId', ParseIntPipe) lancamentoId: number,
+    @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.removerFuncionario(id, lancamentoId);
+    return this.service.removerFuncionario(id, lancamentoId, req.user);
   }
 
   @Patch(':id/lancamentos/:lancamentoId/adiantamento')
@@ -89,8 +92,9 @@ export class FolhaPagamentoController {
     @Param('id', ParseIntPipe) id: number,
     @Param('lancamentoId', ParseIntPipe) lancamentoId: number,
     @Body() dto: GerenciarAdiantamentoDto,
+    @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.gerenciarAdiantamento(id, lancamentoId, dto);
+    return this.service.gerenciarAdiantamento(id, lancamentoId, dto, req.user);
   }
 
   @Patch(':id/lancamentos/:lancamentoId/pagamento')
@@ -109,8 +113,9 @@ export class FolhaPagamentoController {
     @Param('id', ParseIntPipe) id: number,
     @Param('lancamentoId', ParseIntPipe) lancamentoId: number,
     @Body() dto: UpdateLancamentoDto,
+    @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.atualizarLancamento(id, lancamentoId, dto);
+    return this.service.atualizarLancamento(id, lancamentoId, dto, req.user);
   }
 
   @Get(':id/lancamentos/:lancamentoId/adiantamentos-disponiveis')
@@ -126,27 +131,27 @@ export class FolhaPagamentoController {
   finalizar(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: FinalizarFolhaDto,
-    @Request() req: any,
+    @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.finalizarFolha(id, dto, req.user.id);
+    return this.service.finalizarFolha(id, dto, req.user.id, req.user);
   }
 
   @Patch(':id/reabrir')
   @Niveis(...ARH_OPERADORES)
   reabrir(
     @Param('id', ParseIntPipe) id: number,
-    @Request() req: any,
+    @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.reabrirFolha(id, req.user.id);
+    return this.service.reabrirFolha(id, req.user.id, req.user);
   }
 
   @Patch(':id/liberar')
-  @Niveis(NivelUsuario.ADMINISTRADOR)
+  @Niveis(...ARH_OPERADORES)
   liberar(
     @Param('id', ParseIntPipe) id: number,
-    @Request() req: any,
+    @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.liberarFolha(id, req.user.id);
+    return this.service.liberarFolha(id, req.user.id, req.user);
   }
 
   /**
@@ -160,7 +165,7 @@ export class FolhaPagamentoController {
    * Este endpoint será mantido apenas para compatibilidade e uso manual em casos específicos.
    */
   @Post(':id/processar-pix-api')
-  @Niveis(NivelUsuario.ADMINISTRADOR, NivelUsuario.GERENTE_GERAL, NivelUsuario.ESCRITORIO)
+  @Niveis(...ARH_OPERADORES)
   processarPagamentoPixApi(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ProcessarPagamentoPixApiDto,
@@ -222,9 +227,9 @@ export class FolhaPagamentoController {
   @Niveis(...ARH_OPERADORES)
   excluirFolha(
     @Param('id', ParseIntPipe) id: number,
-    @Request() req: any,
+    @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.excluirFolha(id, req.user.id);
+    return this.service.excluirFolha(id, req.user.id, req.user);
   }
 }
 
