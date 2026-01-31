@@ -133,7 +133,7 @@ export class FolhaPagamentoController {
     @Body() dto: FinalizarFolhaDto,
     @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.finalizarFolha(id, dto, req.user.id, req.user);
+    return this.service.finalizarFolha(id, dto, req.user!.id, req.user);
   }
 
   @Patch(':id/reabrir')
@@ -142,7 +142,7 @@ export class FolhaPagamentoController {
     @Param('id', ParseIntPipe) id: number,
     @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.reabrirFolha(id, req.user.id, req.user);
+    return this.service.reabrirFolha(id, req.user!.id, req.user);
   }
 
   @Patch(':id/liberar')
@@ -151,7 +151,7 @@ export class FolhaPagamentoController {
     @Param('id', ParseIntPipe) id: number,
     @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.liberarFolha(id, req.user.id, req.user);
+    return this.service.liberarFolha(id, req.user!.id, req.user);
   }
 
   /**
@@ -229,7 +229,7 @@ export class FolhaPagamentoController {
     @Param('id', ParseIntPipe) id: number,
     @Request() req: { user?: { id: number; nivel?: string } },
   ) {
-    return this.service.excluirFolha(id, req.user.id, req.user);
+    return this.service.excluirFolha(id, req.user!.id, req.user);
   }
 }
 
