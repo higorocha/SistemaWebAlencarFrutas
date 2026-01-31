@@ -9,7 +9,7 @@ import ConfirmCloseModal from "../../common/modals/ConfirmCloseModal";
 import useConfirmClose from "../../../hooks/useConfirmClose";
 import GerenciarAdiantamentosModal from "./GerenciarAdiantamentosModal";
 
-const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento, folhaId }) => {
+const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento, folhaId, onRefreshLancamentos }) => {
   const [lancamentoAtual, setLancamentoAtual] = useState({
     diasTrabalhados: undefined,
     faltas: undefined,
@@ -113,8 +113,12 @@ const EditarLancamentoDialog = ({ open, onClose, onSave, lancamento, folhaId }) 
   }, []);
 
   const handleAdiantamentoAtualizado = async () => {
-    // Recarregar lançamentos para atualizar valores
-    await onSave(lancamentoAtual);
+    // Recarregar lançamentos para obter o adiantamento atualizado do backend.
+    // NÃO chamar onSave(lancamentoAtual) - isso sobrescreveria o adiantamento
+    // recém-salvo com o valor antigo em memória (ex: 0).
+    if (onRefreshLancamentos) {
+      await onRefreshLancamentos();
+    }
     fecharAdiantamentoModal();
   };
 
@@ -229,6 +233,7 @@ EditarLancamentoDialog.propTypes = {
   onSave: PropTypes.func.isRequired,
   lancamento: PropTypes.object,
   folhaId: PropTypes.number,
+  onRefreshLancamentos: PropTypes.func,
 };
 
 export default EditarLancamentoDialog;

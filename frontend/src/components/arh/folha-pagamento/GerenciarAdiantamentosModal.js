@@ -118,17 +118,20 @@ const GerenciarAdiantamentosModal = ({
   };
 
   // Calcular total do adiantamento
+  // - totalParcelasVinculadas: soma das parcelas JÁ vinculadas (IDs em parcelasVinculadas)
+  // - totalSelecionadosNovos: soma das parcelas selecionadas em parcelasDisponiveis (IDs temporários)
+  //   Parcelas vinculadas usam LancamentoAdiantamento.id; parcelasDisponiveis usam
+  //   adiantamentoId*1000+numeroParcela. Por isso precisamos das duas fontes.
   const totalAdiantamento = useMemo(() => {
-    const totalParcelas = parcelasVinculadas.reduce(
+    const totalParcelasVinculadas = parcelasVinculadas.reduce(
       (sum, p) => sum + Number(p.valorDeduzido || 0),
       0
     );
-    const totalSelecionados = Array.from(parcelasSelecionadas).reduce(
+    const totalSelecionadosNovos = Array.from(parcelasSelecionadas).reduce(
       (sum, id) => {
-        // Encontrar parcela diretamente no useMemo
         let parcela = null;
         for (const adiantamento of adiantamentosDisponiveis) {
-          const encontrada = adiantamento.parcelasDisponiveis?.find(p => p.id === id);
+          const encontrada = adiantamento.parcelasDisponiveis?.find((p) => p.id === id);
           if (encontrada) {
             parcela = encontrada;
             break;
@@ -138,7 +141,11 @@ const GerenciarAdiantamentosModal = ({
       },
       0
     );
-    return totalSelecionados + Number(adiantamentoAvulsoTemp || 0);
+    return (
+      totalParcelasVinculadas +
+      totalSelecionadosNovos +
+      Number(adiantamentoAvulsoTemp || 0)
+    );
   }, [parcelasVinculadas, parcelasSelecionadas, adiantamentoAvulsoTemp, adiantamentosDisponiveis]);
 
   // Função auxiliar para encontrar uma parcela disponível

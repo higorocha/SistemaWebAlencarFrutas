@@ -2043,8 +2043,16 @@ const ArhFolhaPagamento = () => {
           open={editLancamento.open}
           onClose={() => setEditLancamento({ open: false, record: null })}
           onSave={atualizarLancamento}
-          lancamento={editLancamento.record}
+          lancamento={
+            lancamentos.find((l) => l.id === editLancamento.record?.id) ??
+            editLancamento.record
+          }
           folhaId={selectedFolhaId}
+          onRefreshLancamentos={
+            selectedFolhaId
+              ? () => carregarLancamentos(selectedFolhaId)
+              : undefined
+          }
         />
       </Suspense>
 
