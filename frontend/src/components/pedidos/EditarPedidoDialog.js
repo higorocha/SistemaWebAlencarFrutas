@@ -1145,7 +1145,13 @@ const EditarPedidoDialog = ({
                 };
               });
             }
+          } else {
+            // ✅ Nenhum item válido (linhas vazias ou incompletas): enviar array vazio
+            formData.maoObra = [];
           }
+        } else {
+          // ✅ Usuário removeu todas as linhas de mão de obra: enviar array vazio para o backend remover os custos
+          formData.maoObra = [];
         }
       }
 

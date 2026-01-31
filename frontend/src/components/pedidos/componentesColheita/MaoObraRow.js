@@ -8,7 +8,8 @@ import {
   DollarOutlined, 
   FileTextOutlined,
   DeleteOutlined,
-  PlusOutlined
+  PlusOutlined,
+  CheckCircleOutlined
 } from "@ant-design/icons";
 import { MonetaryInput } from "../../common/inputs";
 
@@ -743,12 +744,8 @@ const MaoObraRow = ({
               type="text"
               danger
               icon={<DeleteOutlined />}
-              onClick={() => {
-                if (fieldsLength > 1) {
-                  onRemove(name);
-                }
-              }}
-              disabled={fieldsLength <= 1 || isReadonly}
+              onClick={() => onRemove(name)}
+              disabled={isReadonly}
               size={isMobile ? "small" : "large"}
               style={{
                 borderRadius: "3.125rem",

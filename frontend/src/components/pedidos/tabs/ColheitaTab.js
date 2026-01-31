@@ -263,6 +263,8 @@ const ColheitaTab = ({
   
   // ✅ ADICIONAR: Refs para controlar cálculos automáticos (usando objeto para indexar por item)
   const editingRefs = React.useRef({});
+  // ✅ Ref para só adicionar linha vazia inicial uma vez (evitar re-adicionar quando usuário exclui todas)
+  const inicialMaoObraVaziaTratadaRef = React.useRef(false);
 
   // ✅ NOVOS ESTADOS: Para validação de inconsistências de quantidades
   const [confirmInconsistenciaOpen, setConfirmInconsistenciaOpen] = useState(false);
@@ -415,19 +417,25 @@ const ColheitaTab = ({
       }
     }
 
-    // Inicializar mão de obra se não existir
+    // Inicializar mão de obra com uma linha vazia apenas na primeira vez que estiver vazia
+    // (ex.: ao abrir pedido sem mão de obra). Se o usuário excluir todas as linhas, não re-adicionar.
     if (!pedidoAtual?.maoObra || pedidoAtual.maoObra.length === 0) {
-      updatedPedido.maoObra = [{
-        turmaColheitaId: undefined,
-        frutaId: undefined,
-        quantidadeColhida: undefined,
-        valorUnitario: undefined,
-        unidadeMedida: undefined,
-        valorColheita: undefined,
-        observacoes: '',
-        pagamentoEfetuado: false
-      }];
-      needsUpdate = true;
+      if (!inicialMaoObraVaziaTratadaRef.current) {
+        updatedPedido.maoObra = [{
+          turmaColheitaId: undefined,
+          frutaId: undefined,
+          quantidadeColhida: undefined,
+          valorUnitario: undefined,
+          unidadeMedida: undefined,
+          valorColheita: undefined,
+          observacoes: '',
+          pagamentoEfetuado: false
+        }];
+        needsUpdate = true;
+      }
+      inicialMaoObraVaziaTratadaRef.current = true;
+    } else {
+      inicialMaoObraVaziaTratadaRef.current = true;
     }
 
     if (needsUpdate) {
@@ -1960,6 +1968,41 @@ const ColheitaTab = ({
                 </span>
               </Col>
             </Row>
+          )}
+
+          {fields.length === 0 && canEditColheita && (
+            <div style={{
+              padding: isMobile ? "16px 0" : "24px 0",
+              textAlign: "center",
+              border: "1px dashed #d9d9d9",
+              borderRadius: "8px",
+              backgroundColor: "#fafafa",
+              marginBottom: "16px"
+            }}>
+              <Text type="secondary" style={{ display: "block", marginBottom: "12px" }}>
+                Nenhuma mão de obra cadastrada. Clique para adicionar.
+              </Text>
+              <Button
+                type="dashed"
+                icon={<PlusOutlined />}
+                onClick={() => add({
+                  turmaColheitaId: undefined,
+                  frutaId: undefined,
+                  quantidadeColhida: undefined,
+                  valorUnitario: undefined,
+                  valorColheita: undefined,
+                  observacoes: ''
+                })}
+                style={{
+                  borderRadius: "3.125rem",
+                  borderColor: "#10b981",
+                  color: "#10b981",
+                  borderWidth: "0.125rem"
+                }}
+              >
+                Adicionar mão de obra
+              </Button>
+            </div>
           )}
 
           {fields.map((field, index) => {
